@@ -24,8 +24,9 @@
     width: 22px;
     height: 22px;
     border-radius: 4px;
-    background: var(--rust);
+    object-fit: cover;
     margin-bottom: 14px;
+    display: block;
 }
 
 .wizard-title {

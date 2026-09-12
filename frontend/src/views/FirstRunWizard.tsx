@@ -8,7 +8,7 @@ export function FirstRunWizard({onContinue}: { onContinue: () => void }) {
         <div className="overlay">
             <div className="wizard">
                 <div className="wizard-sidebar">
-                    <div className="wizard-icon"/>
+                    <img className="wizard-icon" src="/favicon.png" alt=""/>
                     <div className="wizard-title">Set up {APP_NAME}</div>
                     <div className="wizard-steps">
                         {wizardSteps.map((w) => (

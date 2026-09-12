@@ -17,12 +17,8 @@ export function TopBar({view, onNavigate, gamePicker}: {
 }) {
     return (
         <div className="topbar">
-            <div className="topbar-dots">
-                <span/><span/><span/>
-            </div>
-            <div className="topbar-divider"/>
             <div className="topbar-brand">
-                <span className="topbar-icon"/>
+                <img className="topbar-icon" src="/favicon.png" alt=""/>
                 <span className="topbar-name">{APP_NAME}</span>
             </div>
             {gamePicker && (
