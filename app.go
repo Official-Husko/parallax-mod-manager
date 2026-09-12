@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
+	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
+
 	"github.com/Official-Husko/parallax-mod-manager/internal/conflict"
 	"github.com/Official-Husko/parallax-mod-manager/internal/game"
 	"github.com/Official-Husko/parallax-mod-manager/internal/launch"
@@ -65,6 +67,59 @@ func (a *App) DetectGames() ([]library.DetectedGame, error) {
 		result = append(result, d)
 	}
 	return result, nil
+}
+
+// BrowseForGameInstall opens a native folder-picker so a user can point at
+// a game install automatic Steam-library detection didn't find (a non-Steam
+// copy, an unusual library setup). Returns the game's current detected
+// state unchanged if the user cancels the dialog (an empty path is not an
+// error); returns an error if a folder was chosen but doesn't actually
+// contain the game (verified against SignatureFiles) - never trusts an
+// unverified folder just because the user picked it.
+func (a *App) BrowseForGameInstall(gameKey string) (library.DetectedGame, error) {
+	cfg, ok := a.registry.Get(gameKey)
+	if !ok {
+		return library.DetectedGame{}, fmt.Errorf("app: unknown game %q", gameKey)
+	}
+
+	dir, err := wailsruntime.OpenDirectoryDialog(a.ctx, wailsruntime.OpenDialogOptions{
+		Title: fmt.Sprintf("Select the %s install folder", cfg.DisplayName),
+	})
+	if err != nil {
+		return library.DetectedGame{}, err
+	}
+	if dir == "" {
+		return library.DetectGame(a.ctx, cfg)
+	}
+	if !cfg.VerifyInstallDir(dir) {
+		return library.DetectedGame{}, fmt.Errorf("app: %s does not look like a %s install", dir, cfg.DisplayName)
+	}
+	return library.DetectGameAt(a.ctx, cfg, dir)
+}
+
+// BrowseForAnyGameInstall opens the same folder-picker as
+// BrowseForGameInstall, but without a specific game in mind: the chosen
+// folder is checked against every registered game, and whichever one it
+// verifies against is returned. Useful when a game wasn't auto-detected and
+// the user isn't sure (or doesn't want to hunt for) which row to browse
+// from. Returns a zero-value DetectedGame (empty Key) if the user cancels;
+// errors only if a folder was chosen but matches no registered game.
+func (a *App) BrowseForAnyGameInstall() (library.DetectedGame, error) {
+	dir, err := wailsruntime.OpenDirectoryDialog(a.ctx, wailsruntime.OpenDialogOptions{
+		Title: "Select a game install folder",
+	})
+	if err != nil {
+		return library.DetectedGame{}, err
+	}
+	if dir == "" {
+		return library.DetectedGame{}, nil
+	}
+	for _, cfg := range a.registry.List() {
+		if cfg.VerifyInstallDir(dir) {
+			return library.DetectGameAt(a.ctx, cfg, dir)
+		}
+	}
+	return library.DetectedGame{}, fmt.Errorf("app: %s does not match any registered game", dir)
 }
 
 // ScanGame scans, parses, and resolves conflicts for one supported game.

@@ -139,7 +139,7 @@ func DefaultRoots() []string {
 // for a folderName directory under steamapps/common, the same
 // exists-on-disk-not-just-in-bookkeeping check FindWorkshopContentDir uses -
 // a game can be removed from disk without libraryfolders.vdf being updated.
-func FindGameInstallDir(folderName string) (string, error) {
+func FindGameInstallDir(appID string) (string, error) {
 	for _, root := range DefaultRoots() {
 		// The root's own steamapps/common counts too, whether or not its
 		// libraryfolders.vdf happens to list itself as a library.
@@ -150,11 +150,43 @@ func FindGameInstallDir(folderName string) (string, error) {
 			}
 		}
 		for _, libPath := range libraryPaths {
-			dir := filepath.Join(libPath, "steamapps", "common", folderName)
+			installDirName, err := readAppManifestInstallDir(libPath, appID)
+			if err != nil {
+				continue
+			}
+			dir := filepath.Join(libPath, "steamapps", "common", installDirName)
 			if info, err := os.Stat(dir); err == nil && info.IsDir() {
 				return dir, nil
 			}
 		}
 	}
-	return "", fmt.Errorf("steam: no installed copy of %q found under any default Steam library", folderName)
+	return "", fmt.Errorf("steam: no installed copy of app %s found under any default Steam library", appID)
+}
+
+// readAppManifestInstallDir reads libraryPath's own Steam app manifest for
+// appID (steamapps/appmanifest_<appID>.acf - the same VDF format as
+// libraryfolders.vdf, despite the .acf extension) and returns its real
+// installdir field. This is the authoritative folder name Steam itself
+// installed the game under - a game's display name, its Paradox user-data
+// folder name (GameConfig.FolderName), and this can all differ, so this
+// must never be guessed from any of those.
+func readAppManifestInstallDir(libraryPath, appID string) (string, error) {
+	acfPath := filepath.Join(libraryPath, "steamapps", fmt.Sprintf("appmanifest_%s.acf", appID))
+	data, err := os.ReadFile(acfPath)
+	if err != nil {
+		return "", err
+	}
+	root, err := parseVDF(data)
+	if err != nil {
+		return "", fmt.Errorf("steam: parsing %s: %w", acfPath, err)
+	}
+	appState, ok := root["AppState"]
+	if !ok {
+		return "", fmt.Errorf("steam: %s has no top-level \"AppState\" key", acfPath)
+	}
+	installDir := appState.values["installdir"]
+	if installDir == "" {
+		return "", fmt.Errorf("steam: %s has no installdir", acfPath)
+	}
+	return installDir, nil
 }

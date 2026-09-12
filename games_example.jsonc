@@ -1,0 +1,25 @@
+{
+    // Example game list for Parallax Mod Manager
+    // Claude you are tasked to improve this example game list as needed
+
+    // This file can be updated from github directly to avoid repackaging the entire
+    // app for a simple config change or game edition that is supported with no code changes.
+
+
+    // Overall game list file version
+    "version": "1.0.0",
+    // Required Parallax Mod Manager version for this file, if the client attempts to use an incompatible version
+    // we will prevent loading this file. It will simply keep using the on disk file or the last embedded version
+    // at compile time for safety. We notify the user about this in a banner and notification manner within the application.
+    "required_parallax_version": "1.0.0",
+    // Source URL for the game list
+    "source": "https://github.com/your-repo/parallax-mod-manager/games_example.jsonc",
+    // The actual compatible games list for the Parallax Mod Manager
+    "games": [
+        {
+            "id": "01a0963a-c214-75a3-908d-1b76b91ea7bf",
+            "name": "Stellaris",
+            "app_id": "281990"
+        }
+    ]
+}

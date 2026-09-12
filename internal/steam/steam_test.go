@@ -172,6 +172,27 @@ func TestDefaultRootsOnlyReturnsExistingCandidates(t *testing.T) {
 	}
 }
 
+func writeAppManifest(t *testing.T, steamappsDir, appID, installDirName string) {
+	t.Helper()
+	if err := os.MkdirAll(steamappsDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	// Real Steam appmanifest format (VDF despite the .acf extension) -
+	// confirmed against an actual appmanifest_281990.acf on a real
+	// Stellaris install.
+	acf := `"AppState"
+{
+	"appid"		"` + appID + `"
+	"name"		"Test Game"
+	"installdir"		"` + installDirName + `"
+}
+`
+	path := filepath.Join(steamappsDir, "appmanifest_"+appID+".acf")
+	if err := os.WriteFile(path, []byte(acf), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+}
+
 func TestFindGameInstallDirChecksRootsOwnCommonFolder(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("Linux-specific default paths")
@@ -180,12 +201,42 @@ func TestFindGameInstallDirChecksRootsOwnCommonFolder(t *testing.T) {
 	t.Setenv("HOME", home)
 
 	steamRoot := filepath.Join(home, ".steam", "steam")
-	installDir := filepath.Join(steamRoot, "steamapps", "common", "Stellaris")
+	steamapps := filepath.Join(steamRoot, "steamapps")
+	writeAppManifest(t, steamapps, "281990", "Stellaris")
+	installDir := filepath.Join(steamapps, "common", "Stellaris")
 	if err := os.MkdirAll(installDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
 
-	got, err := FindGameInstallDir("Stellaris")
+	got, err := FindGameInstallDir("281990")
+	if err != nil {
+		t.Fatalf("FindGameInstallDir: %v", err)
+	}
+	if got != installDir {
+		t.Errorf("FindGameInstallDir = %q, want %q", got, installDir)
+	}
+}
+
+func TestFindGameInstallDirUsesManifestInstallDirNotAGuess(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Linux-specific default paths")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	// The manifest's installdir ("TotallyDifferentFolder") deliberately
+	// doesn't match anything a caller might guess from a display name or a
+	// Paradox user-data folder name - FindGameInstallDir must trust only
+	// the manifest, never a name-based guess.
+	steamRoot := filepath.Join(home, ".steam", "steam")
+	steamapps := filepath.Join(steamRoot, "steamapps")
+	writeAppManifest(t, steamapps, "859580", "TotallyDifferentFolder")
+	installDir := filepath.Join(steamapps, "common", "TotallyDifferentFolder")
+	if err := os.MkdirAll(installDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	got, err := FindGameInstallDir("859580")
 	if err != nil {
 		t.Fatalf("FindGameInstallDir: %v", err)
 	}
@@ -208,7 +259,9 @@ func TestFindGameInstallDirChecksSecondaryLibraries(t *testing.T) {
 	}
 
 	secondaryLib := t.TempDir()
-	installDir := filepath.Join(secondaryLib, "steamapps", "common", "Stellaris")
+	secondarySteamapps := filepath.Join(secondaryLib, "steamapps")
+	writeAppManifest(t, secondarySteamapps, "281990", "Stellaris")
+	installDir := filepath.Join(secondarySteamapps, "common", "Stellaris")
 	if err := os.MkdirAll(installDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
@@ -218,7 +271,7 @@ func TestFindGameInstallDirChecksSecondaryLibraries(t *testing.T) {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
-	got, err := FindGameInstallDir("Stellaris")
+	got, err := FindGameInstallDir("281990")
 	if err != nil {
 		t.Fatalf("FindGameInstallDir: %v", err)
 	}
@@ -234,7 +287,7 @@ func TestFindGameInstallDirErrorsWhenNotFound(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
-	if _, err := FindGameInstallDir("Stellaris"); err == nil {
+	if _, err := FindGameInstallDir("281990"); err == nil {
 		t.Fatal("expected an error when no default root exists at all")
 	}
 }

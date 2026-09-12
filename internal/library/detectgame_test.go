@@ -45,7 +45,25 @@ func TestDetectGameInstalledWithMods(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_DATA_HOME", "")
 
-	installDir := filepath.Join(home, ".steam", "steam", "steamapps", "common", "Stellaris")
+	steamapps := filepath.Join(home, ".steam", "steam", "steamapps")
+	// Real Steam appmanifest format (VDF despite the .acf extension) -
+	// confirmed against an actual appmanifest_281990.acf on a real
+	// Stellaris install.
+	acf := `"AppState"
+{
+	"appid"		"281990"
+	"name"		"Stellaris"
+	"installdir"		"Stellaris"
+}
+`
+	if err := os.MkdirAll(steamapps, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(steamapps, "appmanifest_281990.acf"), []byte(acf), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	installDir := filepath.Join(steamapps, "common", "Stellaris")
 	if err := os.MkdirAll(installDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}

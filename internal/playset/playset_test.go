@@ -129,6 +129,12 @@ func TestListMissingDirIsEmptyNotError(t *testing.T) {
 	if len(names) != 0 {
 		t.Errorf("names = %v, want empty", names)
 	}
+	// A nil slice serializes to JSON null across the Wails boundary, not
+	// [] - that broke a real frontend caller (it only guarded against
+	// undefined). Pin the fix: this must be a real, non-nil empty slice.
+	if names == nil {
+		t.Error("names is nil, want a non-nil empty slice so it serializes as [] not null")
+	}
 }
 
 func TestDeleteRemovesPlayset(t *testing.T) {

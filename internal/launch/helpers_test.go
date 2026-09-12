@@ -9,8 +9,9 @@ import (
 // across this package's tests.
 func testClassicGame() game.GameConfig {
 	return game.GameConfig{
-		Key:            "test-game",
-		SteamAppID:     "281990",
-		DescriptorType: mod.DescriptorClassic,
+		Key:                  "test-game",
+		SteamAppID:           "281990",
+		DescriptorType:       mod.DescriptorClassic,
+		LauncherSettingsPath: "launcher-settings.json",
 	}
 }

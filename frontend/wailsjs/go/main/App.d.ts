@@ -3,6 +3,10 @@
 import {library} from '../models';
 import {playset} from '../models';
 
+export function BrowseForAnyGameInstall():Promise<library.DetectedGame>;
+
+export function BrowseForGameInstall(arg1:string):Promise<library.DetectedGame>;
+
 export function DeletePlayset(arg1:string,arg2:string):Promise<void>;
 
 export function DetectGames():Promise<Array<library.DetectedGame>>;

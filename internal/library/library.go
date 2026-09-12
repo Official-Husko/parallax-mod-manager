@@ -43,13 +43,29 @@ type DetectedGame struct {
 	ModCount    int
 }
 
-// DetectGame reports cfg's real install and mod-folder state. A scan
-// failure (e.g. the mod folder doesn't exist yet) is not fatal here - it
-// just means ModCount stays 0, matching scan.Scan's own "no mods installed
-// yet is not an error" philosophy.
+// DetectGame reports cfg's real install and mod-folder state, using
+// cfg.DetectInstall's automatic Steam-library search.
 func DetectGame(ctx context.Context, cfg game.GameConfig) (DetectedGame, error) {
 	installDir, installed := cfg.DetectInstall()
+	return detectGame(ctx, cfg, installDir, installed)
+}
 
+// DetectGameAt reports cfg's state using a caller-supplied install
+// directory instead of searching for one - for when a user has manually
+// browsed to a game installed somewhere automatic detection doesn't cover.
+// The caller is responsible for having already verified installDir with
+// cfg.VerifyInstallDir; this never re-checks it, since a manual pick is by
+// definition already outside what detection considers valid.
+func DetectGameAt(ctx context.Context, cfg game.GameConfig, installDir string) (DetectedGame, error) {
+	return detectGame(ctx, cfg, installDir, true)
+}
+
+// detectGame reports cfg's mod-folder state (always real: scanned fresh)
+// alongside the given install info (which the two exported entry points
+// resolve differently). A scan failure (e.g. the mod folder doesn't exist
+// yet) is not fatal here - it just means ModCount stays 0, matching
+// scan.Scan's own "no mods installed yet is not an error" philosophy.
+func detectGame(ctx context.Context, cfg game.GameConfig, installDir string, installed bool) (DetectedGame, error) {
 	userDir, err := cfg.UserDataDir()
 	if err != nil {
 		return DetectedGame{}, fmt.Errorf("library: resolving user data dir for %s: %w", cfg.Key, err)

@@ -12,6 +12,7 @@ import {Settings} from './views/Settings';
 import {ConflictResolver} from './views/ConflictResolver';
 import {UpdatesModal} from './views/UpdatesModal';
 import {FirstRunWizard} from './views/FirstRunWizard';
+import {getManagedGames} from './data/managedGames';
 
 const ONBOARDED_KEY = 'parallax-onboarded';
 
@@ -42,17 +43,24 @@ export function App() {
     const [error, setError] = useState('');
 
     useEffect(() => {
+        if (!onboarded) {
+            return;
+        }
         ListGames()
             .then((list) => {
-                setGames(list);
-                if (list.length > 0) {
-                    setSelectedGame(list[0].Key);
+                const managedKeys = getManagedGames();
+                const visible = managedKeys && managedKeys.length > 0
+                    ? list.filter((g) => managedKeys.includes(g.Key))
+                    : list;
+                setGames(visible);
+                if (visible.length > 0) {
+                    setSelectedGame(visible[0].Key);
                 } else {
-                    setError('No games are registered in this build.');
+                    setError('No games are set up to manage yet - run setup again to select one.');
                 }
             })
             .catch((err) => setError(String(err)));
-    }, []);
+    }, [onboarded]);
 
     if (!onboarded) {
         return (

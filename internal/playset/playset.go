@@ -83,13 +83,16 @@ func (s FileStore) List(ctx context.Context, gameKey string) ([]string, error) {
 	dir := filepath.Join(s.Dir, gameKey)
 	entries, err := os.ReadDir(dir)
 	if os.IsNotExist(err) {
-		return nil, nil
+		return []string{}, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("playset: listing %s: %w", dir, err)
 	}
 
-	var names []string
+	// A Go nil slice serializes to JSON null, not [], across the Wails
+	// boundary - always return a real empty slice so the frontend never has
+	// to guard against null on top of the usual empty-array case.
+	names := []string{}
 	for _, e := range entries {
 		if e.IsDir() || filepath.Ext(e.Name()) != ".json" {
 			continue

@@ -44,6 +44,47 @@ func TestRegistryGet(t *testing.T) {
 	}
 }
 
+func TestEveryRegisteredGameHasWellFormedFields(t *testing.T) {
+	r := NewRegistry()
+	seenAppIDs := map[string]string{}
+	for _, g := range r.List() {
+		if g.DisplayName == "" {
+			t.Errorf("%s: DisplayName is empty", g.Key)
+		}
+		if g.SteamAppID == "" {
+			t.Errorf("%s: SteamAppID is empty", g.Key)
+		}
+		if other, ok := seenAppIDs[g.SteamAppID]; ok {
+			t.Errorf("%s and %s share SteamAppID %s", g.Key, other, g.SteamAppID)
+		}
+		seenAppIDs[g.SteamAppID] = g.Key
+		if g.FolderName == "" {
+			t.Errorf("%s: FolderName is empty", g.Key)
+		}
+		if len(g.ScanFolders) == 0 {
+			t.Errorf("%s: ScanFolders is empty", g.Key)
+		}
+		if len(g.SignatureFiles) == 0 {
+			t.Errorf("%s: SignatureFiles is empty", g.Key)
+		}
+		if g.LauncherSettingsPath == "" {
+			t.Errorf("%s: LauncherSettingsPath is empty", g.Key)
+		}
+		// SignatureFiles must actually be verifiable against
+		// LauncherSettingsPath's own directory layout, not drift from it -
+		// every current game uses launcher-settings.json as its signature.
+		found := false
+		for _, sig := range g.SignatureFiles {
+			if sig == g.LauncherSettingsPath {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("%s: SignatureFiles %v doesn't include LauncherSettingsPath %q", g.Key, g.SignatureFiles, g.LauncherSettingsPath)
+		}
+	}
+}
+
 func TestResolveExecutableReadsLauncherSettings(t *testing.T) {
 	installDir := t.TempDir()
 	settings := map[string]any{
@@ -70,8 +111,9 @@ func TestResolveExecutableReadsLauncherSettings(t *testing.T) {
 
 func TestResolveExecutableFallsBackWhenLauncherSettingsMissing(t *testing.T) {
 	g := GameConfig{
-		Key:                "test-game",
-		ExecutableFallback: ExecutableInfo{Path: "/opt/test-game/bin/test-game", Args: []string{"--fallback"}},
+		Key:                  "test-game",
+		LauncherSettingsPath: "launcher-settings.json",
+		ExecutableFallback:   ExecutableInfo{Path: "/opt/test-game/bin/test-game", Args: []string{"--fallback"}},
 	}
 	installDir := t.TempDir() // no launcher-settings.json present
 
@@ -85,7 +127,7 @@ func TestResolveExecutableFallsBackWhenLauncherSettingsMissing(t *testing.T) {
 }
 
 func TestResolveExecutableErrorsWithNoSettingsAndNoFallback(t *testing.T) {
-	g := GameConfig{Key: "test-game"}
+	g := GameConfig{Key: "test-game", LauncherSettingsPath: "launcher-settings.json"}
 	_, err := g.ResolveExecutable(t.TempDir())
 	if err == nil {
 		t.Fatal("expected an error when there's no launcher-settings.json and no fallback")
@@ -98,8 +140,9 @@ func TestResolveExecutableFallsBackOnMalformedSettings(t *testing.T) {
 		t.Fatalf("WriteFile: %v", err)
 	}
 	g := GameConfig{
-		Key:                "test-game",
-		ExecutableFallback: ExecutableInfo{Path: "/opt/test-game/bin/test-game"},
+		Key:                  "test-game",
+		LauncherSettingsPath: "launcher-settings.json",
+		ExecutableFallback:   ExecutableInfo{Path: "/opt/test-game/bin/test-game"},
 	}
 	got, err := g.ResolveExecutable(installDir)
 	if err != nil {
@@ -160,6 +203,27 @@ func TestUserDataDirLinuxDefaultsToLocalShare(t *testing.T) {
 	}
 }
 
+// writeAppManifest writes a real-format Steam app manifest (VDF despite the
+// .acf extension) into steamappsDir, confirmed against an actual
+// appmanifest_281990.acf on a real Stellaris install.
+func writeAppManifest(t *testing.T, steamappsDir, appID, installDirName string) {
+	t.Helper()
+	if err := os.MkdirAll(steamappsDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	acf := `"AppState"
+{
+	"appid"		"` + appID + `"
+	"name"		"Test Game"
+	"installdir"		"` + installDirName + `"
+}
+`
+	path := filepath.Join(steamappsDir, "appmanifest_"+appID+".acf")
+	if err := os.WriteFile(path, []byte(acf), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+}
+
 func TestDetectInstallFindsRealInstallWithSignatureFiles(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip("Linux-specific default paths")
@@ -167,7 +231,9 @@ func TestDetectInstallFindsRealInstallWithSignatureFiles(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
-	installDir := filepath.Join(home, ".steam", "steam", "steamapps", "common", "Stellaris")
+	steamapps := filepath.Join(home, ".steam", "steam", "steamapps")
+	writeAppManifest(t, steamapps, Stellaris.SteamAppID, "Stellaris")
+	installDir := filepath.Join(steamapps, "common", "Stellaris")
 	if err := os.MkdirAll(installDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
@@ -191,7 +257,9 @@ func TestDetectInstallFalseWhenSignatureFileMissing(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 
-	installDir := filepath.Join(home, ".steam", "steam", "steamapps", "common", "Stellaris")
+	steamapps := filepath.Join(home, ".steam", "steam", "steamapps")
+	writeAppManifest(t, steamapps, Stellaris.SteamAppID, "Stellaris")
+	installDir := filepath.Join(steamapps, "common", "Stellaris")
 	if err := os.MkdirAll(installDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
@@ -200,6 +268,19 @@ func TestDetectInstallFalseWhenSignatureFileMissing(t *testing.T) {
 
 	if _, found := Stellaris.DetectInstall(); found {
 		t.Error("expected DetectInstall to report not found without the signature file")
+	}
+}
+
+func TestVerifyInstallDir(t *testing.T) {
+	dir := t.TempDir()
+	if Stellaris.VerifyInstallDir(dir) {
+		t.Error("expected VerifyInstallDir to be false without launcher-settings.json")
+	}
+	if err := os.WriteFile(filepath.Join(dir, "launcher-settings.json"), []byte("{}"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	if !Stellaris.VerifyInstallDir(dir) {
+		t.Error("expected VerifyInstallDir to be true once the signature file exists")
 	}
 }
 

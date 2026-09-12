@@ -44,6 +44,13 @@ type GameConfig struct {
 
 	DLC []DLCEntry
 
+	// LauncherSettingsPath is where this game's launcher-settings.json
+	// lives, relative to its install directory. Most games keep it at the
+	// install root ("launcher-settings.json"); some nest it under a
+	// "launcher" subfolder instead - this must be set per game, not
+	// assumed, since ResolveExecutable reads from exactly this path.
+	LauncherSettingsPath string
+
 	ExecutableFallback ExecutableInfo
 }
 
@@ -94,10 +101,10 @@ type launcherSettings struct {
 // executable path/args; if that file is missing or unreadable, it falls back
 // to g.ExecutableFallback.
 func (g GameConfig) ResolveExecutable(installDir string) (ExecutableInfo, error) {
-	data, err := os.ReadFile(filepath.Join(installDir, "launcher-settings.json"))
+	data, err := os.ReadFile(filepath.Join(installDir, g.LauncherSettingsPath))
 	if err != nil {
 		if g.ExecutableFallback.Path == "" {
-			return ExecutableInfo{}, fmt.Errorf("game: no launcher-settings.json in %s and no fallback executable configured for %s", installDir, g.Key)
+			return ExecutableInfo{}, fmt.Errorf("game: no %s in %s and no fallback executable configured for %s", g.LauncherSettingsPath, installDir, g.Key)
 		}
 		return g.ExecutableFallback, nil
 	}
@@ -125,14 +132,25 @@ func (g GameConfig) ResolveExecutable(installDir string) (ExecutableInfo, error)
 // uninstalled game, a moved drive) must not produce a false positive.
 // Returns ("", false), never a guess, when nothing checks out.
 func (g GameConfig) DetectInstall() (string, bool) {
-	dir, err := steam.FindGameInstallDir(g.FolderName)
+	dir, err := steam.FindGameInstallDir(g.SteamAppID)
 	if err != nil {
 		return "", false
 	}
-	for _, sig := range g.SignatureFiles {
-		if _, err := os.Stat(filepath.Join(dir, sig)); err != nil {
-			return "", false
-		}
+	if !g.VerifyInstallDir(dir) {
+		return "", false
 	}
 	return dir, true
+}
+
+// VerifyInstallDir reports whether every one of g.SignatureFiles exists
+// under dir - the same check DetectInstall uses, exposed on its own so a
+// manually browsed-to folder (auto-detection didn't find it, or found the
+// wrong thing) can be confirmed before it's trusted as a real install.
+func (g GameConfig) VerifyInstallDir(dir string) bool {
+	for _, sig := range g.SignatureFiles {
+		if _, err := os.Stat(filepath.Join(dir, sig)); err != nil {
+			return false
+		}
+	}
+	return true
 }
