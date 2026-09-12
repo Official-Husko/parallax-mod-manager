@@ -1,0 +1,308 @@
+@import './assets/fontawesome/css/fontawesome.css';
+@import './assets/fontawesome/css/solid.css';
+@import './assets/fontawesome/css/regular.css';
+@import './assets/fontawesome/css/brands.css';
+
+/* Visual language from mockup/Mod Manager.dc.html: dark slate ground,
+   Barlow for UI text, Azeret Mono for anything machine-generated
+   (versions, counts, IDs), a narrow accent palette - rust primary, amber
+   for warnings, red reserved for hard conflicts only, green for clean. */
+
+:root {
+    --bg-app: #0a0d12;
+    --bg-panel: #0e1218;
+    --bg-header: #11161e;
+    --bg-rail: #131923;
+    --bg-row-alt: #141b25;
+    --border: #27313f;
+    --border-light: #2d3846;
+    --text-bright: #e4e8ee;
+    --text: #d6dce4;
+    --text-mid: #c3cad4;
+    --text-muted: #8d99a9;
+    --text-dim: #6a7484;
+    --rust: #c4623a;
+    --amber: #e0a340;
+    --red: #d4574e;
+    --green: #5fae7e;
+    --blue: #5b8fc9;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+#app {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-app);
+    color: var(--text);
+    font-family: Barlow, system-ui, sans-serif;
+    font-size: 13px;
+}
+
+.mono {
+    font-family: "Azeret Mono", monospace;
+}
+
+/* --- Top bar --- */
+
+.topbar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    height: 44px;
+    padding: 0 14px;
+    background: var(--bg-header);
+    border-bottom: 1px solid var(--border);
+    flex: none;
+}
+
+.topbar-dots {
+    display: flex;
+    gap: 7px;
+    align-items: center;
+}
+
+.topbar-dots span {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #3a4655;
+}
+
+.topbar-divider {
+    width: 1px;
+    height: 20px;
+    background: var(--border);
+}
+
+.topbar-brand {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.topbar-icon {
+    width: 20px;
+    height: 20px;
+    border-radius: 3px;
+    background: var(--rust);
+    display: block;
+}
+
+.topbar-name {
+    font: 600 13.5px Barlow, sans-serif;
+    color: var(--text-bright);
+    letter-spacing: .01em;
+}
+
+.topbar-game-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: 10px;
+    border: 1px solid var(--border-light);
+    border-radius: 5px;
+    padding: 5px 11px;
+    background: #1b232e;
+}
+
+.topbar-game-pill .game-name {
+    font: 600 11.5px Barlow, sans-serif;
+    color: var(--text-bright);
+}
+
+.topbar-game-pill i {
+    font-size: 10px;
+    color: var(--text-dim);
+}
+
+.topbar-profile {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-left: 6px;
+}
+
+.profile-label {
+    font: 400 11.5px Barlow, sans-serif;
+    color: var(--text-dim);
+}
+
+.profile-name {
+    font: 500 11.5px Barlow, sans-serif;
+    color: var(--amber);
+    border-bottom: 1px dotted #7a6236;
+    padding-bottom: 1px;
+}
+
+.topbar-spacer {
+    flex: 1;
+}
+
+.topbar-nav {
+    display: flex;
+    gap: 2px;
+}
+
+.topbar-nav-item {
+    font: 500 11.5px Barlow, sans-serif;
+    color: var(--text-muted);
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.topbar-nav-item.active {
+    font-weight: 600;
+    color: var(--text-bright);
+    background: #1b232e;
+}
+
+/* --- Shared primitives --- */
+
+.btn-ghost {
+    font: 500 11px Barlow, sans-serif;
+    color: var(--text-muted);
+    background: #1b232e;
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    padding: 5px 11px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.btn-ghost:hover:not(.inert) {
+    color: var(--text-bright);
+}
+
+.btn-ghost.inert {
+    cursor: default;
+    opacity: .8;
+}
+
+.btn-primary {
+    font: 600 11.5px Barlow, sans-serif;
+    color: #120d0a;
+    background: var(--rust);
+    border: none;
+    border-radius: 4px;
+    padding: 6px 14px;
+    cursor: pointer;
+}
+
+.link-btn {
+    font: 600 10.5px Barlow, sans-serif;
+    color: var(--amber);
+    cursor: pointer;
+}
+
+.link-btn.amber {
+    color: var(--amber);
+}
+
+.chip {
+    font: 500 10.5px Barlow, sans-serif;
+    color: var(--text-muted);
+    background: #1b232e;
+    border: 1px solid var(--border-light);
+    border-radius: 11px;
+    padding: 3px 9px;
+}
+
+.chip-active {
+    color: var(--bg-panel);
+    background: var(--rust);
+    border-color: var(--rust);
+}
+
+.chip-inert {
+    opacity: .7;
+    cursor: default;
+}
+
+.src-badge {
+    font: 600 8.5px "Azeret Mono", monospace;
+    color: var(--bg-panel);
+    padding: 2px 4px;
+    border-radius: 2px;
+    flex: none;
+}
+
+.badge-workshop {
+    background: var(--blue);
+}
+
+.badge-local {
+    background: #7a8899;
+}
+
+.badge-paradox-launcher {
+    background: var(--amber);
+}
+
+.toggle-pill {
+    display: inline-block;
+    width: 32px;
+    height: 18px;
+    border-radius: 9px;
+    position: relative;
+    flex: none;
+}
+
+.toggle-pill.on {
+    background: var(--rust);
+}
+
+.toggle-pill.off {
+    background: var(--border-light);
+}
+
+.toggle-knob {
+    position: absolute;
+    top: 2px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--bg-panel);
+}
+
+.toggle-pill.on .toggle-knob {
+    right: 2px;
+    background: var(--bg-panel);
+}
+
+.toggle-pill.off .toggle-knob {
+    left: 2px;
+    background: var(--text-dim);
+}
+
+.overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(6, 8, 11, .6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+}
+
+.status-page {
+    padding: 14px;
+    color: var(--text-muted);
+}
+
+.status-page.error {
+    color: var(--red);
+}
+
+.sidebar-label {
+    font: 600 9.5px "Azeret Mono", monospace;
+    color: var(--text-dim);
+    letter-spacing: .12em;
+    padding: 0 14px 9px;
+}

@@ -1,0 +1,77 @@
+.preflight-dialog {
+    width: 470px;
+    background: var(--bg-rail);
+    border: 1px solid #33404f;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.preflight-dialog-header {
+    padding: 18px 20px 14px;
+    border-bottom: 1px solid var(--border);
+}
+
+.preflight-dialog-header .title {
+    font: 700 17px Barlow, sans-serif;
+    color: var(--text-bright);
+    margin-bottom: 4px;
+}
+
+.preflight-dialog-header .subtitle {
+    font-size: 12px;
+    color: var(--text-dim);
+}
+
+.preflight-dialog-body {
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.preflight-row {
+    display: flex;
+    gap: 11px;
+    align-items: flex-start;
+}
+
+.preflight-row i {
+    font-size: 13px;
+    width: 14px;
+    flex: none;
+    line-height: 1.35;
+}
+
+.preflight-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.preflight-title {
+    font: 500 12.5px Barlow, sans-serif;
+    color: var(--text);
+}
+
+.preflight-detail {
+    font: 400 11.5px/1.45 Barlow, sans-serif;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.preflight-dialog-actions {
+    padding: 0 20px 18px;
+    display: flex;
+    gap: 9px;
+}
+
+.preflight-dialog-actions .btn-ghost {
+    flex: 1;
+    justify-content: center;
+}
+
+.preflight-dialog-actions .btn-primary {
+    flex: 1;
+    text-align: center;
+    padding: 9px 0;
+    font-size: 12.5px;
+}

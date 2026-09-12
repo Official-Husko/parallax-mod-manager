@@ -1,0 +1,267 @@
+.settings {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+}
+
+.settings-nav {
+    width: 206px;
+    flex: none;
+    border-right: 1px solid var(--border);
+    background: var(--bg-rail);
+    padding: 14px 0;
+    overflow-y: auto;
+}
+
+.settings-nav-row {
+    padding: 7px 14px;
+    font: 500 12.5px Barlow, sans-serif;
+}
+
+.settings-nav-row.clickable {
+    cursor: pointer;
+}
+
+.settings-nav-row.inert {
+    opacity: .75;
+}
+
+.settings-content {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+}
+
+.settings-content.single {
+    padding: 20px 24px;
+    flex-direction: column;
+    gap: 18px;
+    max-width: 640px;
+}
+
+.settings-content.split {
+    display: flex;
+}
+
+.settings-main {
+    flex: 1;
+    min-width: 0;
+    padding: 20px 24px;
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    overflow-y: auto;
+}
+
+.settings-title {
+    font: 700 17px Barlow, sans-serif;
+    color: var(--text-bright);
+    margin-bottom: 4px;
+}
+
+.settings-subtitle {
+    font: 400 12.5px/1.5 Barlow, sans-serif;
+    color: var(--text-muted);
+    max-width: 520px;
+}
+
+.profile-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.profile-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 10px 12px;
+}
+
+.profile-swatch {
+    width: 26px;
+    height: 26px;
+    border-radius: 4px;
+    flex: none;
+}
+
+.profile-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.profile-name {
+    font: 600 12.5px Barlow, sans-serif;
+    color: var(--text-bright);
+}
+
+.profile-path {
+    font-size: 10.5px;
+    color: var(--text-dim);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.profile-state {
+    font-size: 10.5px;
+    flex: none;
+}
+
+.profile-toggles {
+    display: flex;
+    flex-direction: column;
+    gap: 11px;
+}
+
+.profile-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font: 400 12.5px Barlow, sans-serif;
+    color: var(--text-mid);
+}
+
+.sort-rules-list {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.sort-rule-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 11px 13px;
+}
+
+.sort-rule-row .drag-handle {
+    color: #3c4858;
+    font-size: 11px;
+    flex: none;
+}
+
+.sort-rule-row .index {
+    font-size: 10px;
+    color: var(--text-muted);
+    width: 16px;
+    flex: none;
+}
+
+.sort-rule-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.sort-rule-name {
+    font: 600 12.5px Barlow, sans-serif;
+    color: var(--text-bright);
+    margin-bottom: 2px;
+}
+
+.sort-rule-desc {
+    font: 400 11.5px Barlow, sans-serif;
+    color: var(--text-muted);
+}
+
+.sort-rule-row .moves {
+    font-size: 10.5px;
+    color: var(--text-dim);
+    flex: none;
+}
+
+.sort-rule-actions {
+    display: flex;
+    gap: 9px;
+}
+
+.overrides-block {
+    margin-top: auto;
+}
+
+.override-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font: 400 11.5px Barlow, sans-serif;
+    color: var(--text-mid);
+    border-bottom: 1px solid #1a212b;
+    padding-bottom: 6px;
+    margin-bottom: 6px;
+}
+
+.override-row .kind {
+    font-size: 10.5px;
+    color: var(--amber);
+    width: 54px;
+    flex: none;
+}
+
+.override-row .text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.override-row .remove {
+    font: 500 10.5px Barlow, sans-serif;
+    color: var(--text-dim);
+    flex: none;
+    cursor: default;
+}
+
+.sort-log-rail {
+    width: 320px;
+    flex: none;
+    background: var(--bg-rail);
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    overflow-y: auto;
+}
+
+.sort-log-subtitle {
+    font: 400 12px/1.5 Barlow, sans-serif;
+    color: var(--text-muted);
+}
+
+.sort-log-list {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    flex: 1;
+    overflow-y: auto;
+}
+
+.sort-log-entry {
+    border-left: 2px solid;
+    padding-left: 10px;
+}
+
+.sort-log-name {
+    font: 500 12px Barlow, sans-serif;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sort-log-move {
+    font-size: 10.5px;
+    color: var(--text-dim);
+    margin-top: 2px;
+}
+
+.sort-log-why {
+    font: 400 11px/1.4 Barlow, sans-serif;
+    color: var(--text-muted);
+    margin-top: 3px;
+}

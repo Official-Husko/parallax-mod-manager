@@ -1,0 +1,21 @@
+# Wails build output
+build/bin
+
+# stray binary from `go build ./...` at repo root
+/parallax-mod-manager
+
+# Frontend
+frontend/node_modules
+frontend/dist
+
+# Reference clone of an existing mod manager - research material only, not part of this codebase
+reference-src/
+
+# IDE
+.vscode/*
+!.vscode/settings.json
+CLAUDE.md
+mockup/
+
+docs/
+frontend/src/assets/fontawesome/

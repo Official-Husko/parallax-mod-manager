@@ -1,0 +1,219 @@
+package conflict
+
+import (
+	"reflect"
+	"testing"
+
+	"github.com/Official-Husko/parallax-mod-manager/internal/definition"
+	"github.com/Official-Husko/parallax-mod-manager/internal/mod"
+	"github.com/Official-Husko/parallax-mod-manager/internal/script"
+)
+
+func TestLoadOrderPriority(t *testing.T) {
+	order := LoadOrder{"mod_a", "mod_b", "mod_c"}
+
+	tests := []struct {
+		modID   string
+		wantPos int
+		wantOK  bool
+	}{
+		{"mod_a", 0, true},
+		{"mod_b", 1, true},
+		{"mod_c", 2, true},
+		{"mod_missing", 0, false},
+	}
+	for _, tt := range tests {
+		pos, ok := order.Priority(tt.modID)
+		if pos != tt.wantPos || ok != tt.wantOK {
+			t.Errorf("Priority(%q) = (%d, %v), want (%d, %v)", tt.modID, pos, ok, tt.wantPos, tt.wantOK)
+		}
+	}
+}
+
+func TestLoadOrderPriorityDuplicateIDUsesFirstOccurrence(t *testing.T) {
+	order := LoadOrder{"mod_a", "mod_b", "mod_a"}
+	pos, ok := order.Priority("mod_a")
+	if !ok || pos != 0 {
+		t.Errorf("Priority(\"mod_a\") = (%d, %v), want (0, true) - first occurrence", pos, ok)
+	}
+}
+
+func TestPriorityRulesRuleFor(t *testing.T) {
+	rules := PriorityRules{"scripted_variables": FIOS}
+
+	if got := rules.RuleFor("scripted_variables"); got != FIOS {
+		t.Errorf("RuleFor(explicit FIOS entry) = %v, want FIOS", got)
+	}
+	if got := rules.RuleFor("common/buildings"); got != LIOS {
+		t.Errorf("RuleFor(absent type) = %v, want LIOS (default)", got)
+	}
+}
+
+func TestPriorityRulesRuleForNilMapDefaultsToLIOS(t *testing.T) {
+	var rules PriorityRules // nil
+	if got := rules.RuleFor("anything"); got != LIOS {
+		t.Errorf("RuleFor on nil PriorityRules = %v, want LIOS", got)
+	}
+}
+
+func TestDefaultPriorityRulesIsNearEmpty(t *testing.T) {
+	// Regression guard: don't let someone "helpfully" add unverified
+	// Paradox Type names without a confirmed source - see
+	// docs/conflict-resolution.md and this var's doc comment.
+	if len(DefaultPriorityRules) != 0 {
+		t.Errorf("DefaultPriorityRules has %d entries, want 0 (see its doc comment before adding any)", len(DefaultPriorityRules))
+	}
+}
+
+// --- Resolve integration tests -------------------------------------------
+
+func mustDefs(t *testing.T, modID, relPath, defType, src string) []definition.Definition {
+	t.Helper()
+	f, err := script.Parse([]byte(src))
+	if err != nil {
+		t.Fatalf("script.Parse: %v", err)
+	}
+	return definition.FromScriptFile(modID, relPath, definition.Type(defType), f)
+}
+
+func TestResolveEndToEndThreeMods(t *testing.T) {
+	// mod_base defines a building; mod_a and mod_b both override it
+	// differently and don't declare any dependency on each other, so it's
+	// a genuine conflict resolved by load order (LIOS).
+	base := mustDefs(t, "mod_base", "common/buildings/x.txt", "common/buildings", `some_building = { cost = 100 }`)
+	a := mustDefs(t, "mod_a", "common/buildings/x.txt", "common/buildings", `some_building = { cost = 200 }`)
+	b := mustDefs(t, "mod_b", "common/buildings/x.txt", "common/buildings", `some_building = { cost = 300 }`)
+	// mod_c only touches an unrelated object - should resolve as
+	// ReasonSingle, not appear in Conflicts.
+	c := mustDefs(t, "mod_c", "events/y.txt", "events", `some_event = { id = e.1 }`)
+
+	inputs := []Input{
+		{Mod: mod.Mod{ID: "mod_base"}, Defs: base},
+		{Mod: mod.Mod{ID: "mod_a"}, Defs: a},
+		{Mod: mod.Mod{ID: "mod_b"}, Defs: b},
+		{Mod: mod.Mod{ID: "mod_c"}, Defs: c},
+	}
+	order := LoadOrder{"mod_base", "mod_a", "mod_b", "mod_c"}
+
+	result := Resolve(order, inputs, Options{})
+
+	if len(result.Conflicts) != 1 {
+		t.Fatalf("expected 1 conflict, got %d: %+v", len(result.Conflicts), result.Conflicts)
+	}
+	buildingKey := Key{Type: "common/buildings", ID: "some_building"}
+	conflict := result.Conflicts[0]
+	if conflict.Key != buildingKey {
+		t.Errorf("Conflict.Key = %+v, want %+v", conflict.Key, buildingKey)
+	}
+	if len(conflict.Candidates) != 3 {
+		t.Fatalf("expected 3 candidates, got %d", len(conflict.Candidates))
+	}
+	// Ascending load-order position: mod_base, mod_a, mod_b.
+	wantOrder := []string{"mod_base", "mod_a", "mod_b"}
+	for i, d := range conflict.Candidates {
+		if d.ModID != wantOrder[i] {
+			t.Errorf("Candidates[%d].ModID = %q, want %q", i, d.ModID, wantOrder[i])
+		}
+	}
+
+	buildingRes, ok := result.Resolutions[buildingKey]
+	if !ok {
+		t.Fatal("missing resolution for building key")
+	}
+	if buildingRes.Reason != ReasonResolved || buildingRes.Winner.ModID != "mod_b" {
+		t.Errorf("building resolution = %+v, want Reason=ReasonResolved Winner.ModID=mod_b (last in load order)", buildingRes)
+	}
+
+	eventKey := Key{Type: "events", ID: "some_event"}
+	eventRes, ok := result.Resolutions[eventKey]
+	if !ok {
+		t.Fatal("missing resolution for event key")
+	}
+	if eventRes.Reason != ReasonSingle || eventRes.Winner.ModID != "mod_c" {
+		t.Errorf("event resolution = %+v, want ReasonSingle/mod_c", eventRes)
+	}
+}
+
+func TestResolveDependencySuppression(t *testing.T) {
+	base := mustDefs(t, "mod_base", "common/x.txt", "common", `thing = { a = 1 }`)
+	patch := mustDefs(t, "mod_patch", "common/x.txt", "common", `thing = { a = 2 }`)
+
+	inputs := []Input{
+		{Mod: mod.Mod{ID: "mod_base", Descriptor: mod.Descriptor{Name: "Base Mod"}}, Defs: base},
+		{
+			Mod: mod.Mod{
+				ID:         "mod_patch",
+				Descriptor: mod.Descriptor{Name: "Patch For Base", Dependencies: []string{"Base Mod"}},
+			},
+			Defs: patch,
+		},
+	}
+	order := LoadOrder{"mod_base", "mod_patch"}
+
+	result := Resolve(order, inputs, Options{})
+
+	if len(result.Conflicts) != 0 {
+		t.Fatalf("expected the dependency-declared override to be suppressed, got conflicts: %+v", result.Conflicts)
+	}
+	key := Key{Type: "common", ID: "thing"}
+	res, ok := result.Resolutions[key]
+	if !ok {
+		t.Fatal("missing resolution")
+	}
+	if res.Reason != ReasonSuppressed {
+		t.Errorf("Reason = %v, want ReasonSuppressed", res.Reason)
+	}
+	if res.Winner.ModID != "mod_patch" {
+		t.Errorf("Winner.ModID = %q, want mod_patch (still chosen by load order, not dependency direction)", res.Winner.ModID)
+	}
+	if res.SuppressedBy == nil {
+		t.Fatal("expected SuppressedBy to be populated")
+	}
+}
+
+func TestResolveCustomRulesOverrideDefault(t *testing.T) {
+	a := mustDefs(t, "mod_a", "common/x.txt", "test/fios-type", `thing = { a = 1 }`)
+	b := mustDefs(t, "mod_b", "common/x.txt", "test/fios-type", `thing = { a = 2 }`)
+
+	inputs := []Input{
+		{Mod: mod.Mod{ID: "mod_a"}, Defs: a},
+		{Mod: mod.Mod{ID: "mod_b"}, Defs: b},
+	}
+	order := LoadOrder{"mod_a", "mod_b"}
+
+	result := Resolve(order, inputs, Options{Rules: PriorityRules{"test/fios-type": FIOS}})
+
+	key := Key{Type: "test/fios-type", ID: "thing"}
+	res := result.Resolutions[key]
+	if res.Winner.ModID != "mod_a" {
+		t.Errorf("under a custom FIOS rule, Winner.ModID = %q, want mod_a (earliest in load order)", res.Winner.ModID)
+	}
+}
+
+func TestResolveDeterministicAcrossRuns(t *testing.T) {
+	base := mustDefs(t, "mod_base", "common/x.txt", "common", `thing = { a = 1 }`)
+	a := mustDefs(t, "mod_a", "common/x.txt", "common", `thing = { a = 2 }`)
+	b := mustDefs(t, "mod_b", "common/x.txt", "common", `thing = { a = 3 }`)
+
+	inputs := []Input{
+		{Mod: mod.Mod{ID: "mod_base"}, Defs: base},
+		{Mod: mod.Mod{ID: "mod_a"}, Defs: a},
+		{Mod: mod.Mod{ID: "mod_b"}, Defs: b},
+	}
+	order := LoadOrder{"mod_base", "mod_a", "mod_b"}
+
+	first := Resolve(order, inputs, Options{})
+	for i := 0; i < 10; i++ {
+		got := Resolve(order, inputs, Options{})
+		if !reflect.DeepEqual(got, first) {
+			t.Fatalf("run %d produced a different Result:\n got  %+v\n want %+v", i, got, first)
+		}
+	}
+}
+
+func TestResolveEmptyInputs(t *testing.T) {
+	result := Resolve(LoadOrder{}, nil, Options{})
+	if len(result.Conflicts) != 0 || len(result.Resolutions) != 0 {
+		t.Errorf("expected an empty Result, got %+v", result)
+	}
+}

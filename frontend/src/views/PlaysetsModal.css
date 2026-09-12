@@ -1,0 +1,126 @@
+.playsets-modal {
+    width: 620px;
+    max-height: 80vh;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.playsets-modal-header {
+    display: flex;
+    align-items: center;
+    height: 42px;
+    padding: 0 16px;
+    background: var(--bg-header);
+    border-bottom: 1px solid var(--border);
+    gap: 11px;
+    flex: none;
+}
+
+.playsets-modal-header .title {
+    font: 600 13px Barlow, sans-serif;
+    color: var(--text-bright);
+}
+
+.playsets-modal-header .count {
+    font-size: 11px;
+    color: var(--text-dim);
+}
+
+.playsets-modal-header .spacer {
+    flex: 1;
+}
+
+.playsets-modal-body {
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow-y: auto;
+}
+
+.playsets-empty {
+    color: var(--text-dim);
+    font-size: 12px;
+    padding: 8px 0;
+}
+
+.playset-row {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 14px;
+    background: var(--bg-rail);
+    display: flex;
+    gap: 14px;
+    align-items: center;
+}
+
+.playset-row-edge {
+    width: 3px;
+    align-self: stretch;
+    border-radius: 2px;
+    background: var(--rust);
+}
+
+.playset-row-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.playset-row-head {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.playset-row-head .name {
+    font: 600 14px Barlow, sans-serif;
+    color: var(--text-bright);
+}
+
+.playset-row-head .state {
+    font-size: 9.5px;
+    color: var(--text-muted);
+    border: 1px solid var(--text-muted);
+    border-radius: 3px;
+    padding: 1px 5px;
+}
+
+.playset-row-actions {
+    display: flex;
+    gap: 6px;
+    flex: none;
+}
+
+.playset-row-actions .btn-ghost {
+    padding: 4px 9px;
+    font-size: 10.5px;
+}
+
+.playset-row-actions .activate {
+    color: var(--amber);
+    border-color: var(--amber);
+}
+
+.playset-join-row {
+    border: 1px dashed var(--border-light);
+    border-radius: 6px;
+    padding: 12px 14px;
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    font: 500 12px Barlow, sans-serif;
+    color: var(--text-muted);
+}
+
+.playset-join-row .code-input {
+    flex: 1;
+    color: var(--text-muted);
+    background: #161d27;
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    padding: 6px 10px;
+}

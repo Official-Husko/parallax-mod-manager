@@ -1,0 +1,99 @@
+.updates-modal {
+    width: 560px;
+    max-height: 80vh;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.updates-modal-header {
+    display: flex;
+    align-items: center;
+    height: 42px;
+    padding: 0 16px;
+    background: var(--bg-header);
+    border-bottom: 1px solid var(--border);
+    gap: 10px;
+    flex: none;
+}
+
+.updates-modal-header .title {
+    font: 600 13px Barlow, sans-serif;
+    color: var(--text-bright);
+}
+
+.updates-modal-header .checked {
+    font-size: 11px;
+    color: var(--text-dim);
+}
+
+.updates-modal-header .spacer {
+    flex: 1;
+}
+
+.close-btn {
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.updates-modal-body {
+    padding: 12px 16px 16px;
+    overflow-y: auto;
+}
+
+.updates-warning {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    background: #1e1714;
+    border: 1px solid #4a2f22;
+    border-radius: 5px;
+    padding: 9px 11px;
+    margin-bottom: 12px;
+    font: 500 11.5px Barlow, sans-serif;
+    color: #e8c7b2;
+}
+
+.update-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 0;
+    border-bottom: 1px solid #1a212b;
+}
+
+.update-row .checkbox {
+    width: 13px;
+    height: 13px;
+    border: 1px solid;
+    border-radius: 3px;
+    flex: none;
+}
+
+.update-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.update-name {
+    font: 500 12.5px Barlow, sans-serif;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.update-note {
+    font-size: 10.5px;
+    margin-top: 2px;
+}
+
+.update-versions {
+    font-size: 11px;
+    color: var(--text-dim);
+    flex: none;
+}

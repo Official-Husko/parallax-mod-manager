@@ -1,0 +1,145 @@
+.wizard {
+    width: 640px;
+    max-width: 92vw;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    height: 400px;
+    max-height: 85vh;
+}
+
+.wizard-sidebar {
+    width: 190px;
+    flex: none;
+    background: var(--bg-rail);
+    border-right: 1px solid var(--border);
+    padding: 20px 18px;
+    display: flex;
+    flex-direction: column;
+}
+
+.wizard-icon {
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    background: var(--rust);
+    margin-bottom: 14px;
+}
+
+.wizard-title {
+    font: 700 15px Barlow, sans-serif;
+    color: var(--text-bright);
+    margin-bottom: 20px;
+}
+
+.wizard-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.wizard-step {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    font: 500 12px Barlow, sans-serif;
+}
+
+.wizard-step-num {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 1px solid;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font: 600 9.5px "Azeret Mono", monospace;
+    flex: none;
+}
+
+.wizard-footnote {
+    margin-top: auto;
+    font: 400 11px/1.5 Barlow, sans-serif;
+    color: var(--text-muted);
+}
+
+.wizard-main {
+    flex: 1;
+    min-width: 0;
+    padding: 22px 24px;
+    display: flex;
+    flex-direction: column;
+}
+
+.wizard-heading {
+    font: 700 18px Barlow, sans-serif;
+    color: var(--text-bright);
+    margin-bottom: 5px;
+}
+
+.wizard-subheading {
+    font: 400 12.5px Barlow, sans-serif;
+    color: var(--text-muted);
+    margin-bottom: 18px;
+}
+
+.wizard-detected-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.wizard-detected-row {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    border: 1px solid;
+    border-radius: 5px;
+    padding: 10px 12px;
+}
+
+.wizard-checkbox {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    border: 1px solid;
+    flex: none;
+}
+
+.wizard-detected-swatch {
+    width: 22px;
+    height: 22px;
+    border-radius: 3px;
+    flex: none;
+}
+
+.wizard-detected-name {
+    font: 500 12.5px Barlow, sans-serif;
+    color: var(--text);
+    flex: 1;
+}
+
+.wizard-detected-mods {
+    font-size: 10.5px;
+    color: var(--text-dim);
+}
+
+.wizard-bottom {
+    margin-top: auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.wizard-bottom .spacer {
+    flex: 1;
+}
+
+.wizard-back {
+    font: 500 12px Barlow, sans-serif;
+    color: var(--text-muted);
+    padding: 8px 14px;
+    cursor: default;
+}

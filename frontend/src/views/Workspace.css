@@ -1,0 +1,850 @@
+.workspace {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.workspace-status {
+    padding: 14px;
+    color: var(--text-muted);
+}
+
+.workspace-status.error {
+    color: var(--red);
+}
+
+.workspace-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+}
+
+/* --- Detail panel --- */
+
+.detail-panel {
+    width: 322px;
+    flex: none;
+    border-right: 1px solid var(--border);
+    background: var(--bg-rail);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+}
+
+.thumbnail {
+    height: 150px;
+    flex: none;
+    background: repeating-linear-gradient(115deg, #1b2330 0 9px, #19202c 9px 18px);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding-bottom: 9px;
+}
+
+.thumbnail span {
+    font: 500 9.5px "Azeret Mono", monospace;
+    color: var(--text-muted);
+    letter-spacing: .1em;
+}
+
+.detail-empty {
+    padding: 16px;
+    color: var(--text-dim);
+    font-size: 12px;
+}
+
+.detail-header {
+    padding: 14px 16px 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+.detail-badges {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 7px;
+}
+
+.detail-badges .id {
+    font-size: 10.5px;
+    color: var(--text-dim);
+}
+
+.detail-name {
+    font: 700 17px/1.25 Barlow, sans-serif;
+    color: var(--text-bright);
+    margin-bottom: 5px;
+}
+
+.detail-sub {
+    font: 400 12.5px Barlow, sans-serif;
+    color: var(--text-muted);
+}
+
+.detail-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    flex: none;
+}
+
+.detail-tab {
+    flex: 1;
+    text-align: center;
+    font: 500 11px Barlow, sans-serif;
+    color: var(--text-dim);
+    padding: 9px 0;
+    cursor: pointer;
+}
+
+.detail-tab.active {
+    font-weight: 600;
+    color: var(--text-bright);
+    border-bottom: 2px solid var(--rust);
+}
+
+.detail-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.overview-grid {
+    display: grid;
+    grid-template-columns: 88px 1fr;
+    gap: 7px 10px;
+    font: 400 12px Barlow, sans-serif;
+}
+
+.overview-grid .label {
+    color: var(--text-dim);
+}
+
+.overview-grid .value {
+    color: var(--text-mid);
+    font-size: 11px;
+}
+
+.overview-grid .value.ok {
+    color: var(--green);
+}
+
+.section-label {
+    font: 600 9.5px "Azeret Mono", monospace;
+    color: var(--text-dim);
+    letter-spacing: .12em;
+    margin-bottom: 7px;
+}
+
+.section-body {
+    font: 400 12.5px/1.55 Barlow, sans-serif;
+    color: var(--text-mid);
+}
+
+.requires-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font: 400 12px Barlow, sans-serif;
+    color: var(--text-mid);
+    margin-bottom: 5px;
+}
+
+.requires-row .note {
+    font-size: 11px;
+    margin-left: auto;
+}
+
+.overwrite-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.overwrite-bar {
+    flex: 1;
+    height: 5px;
+    border-radius: 3px;
+    background: #212b38;
+    overflow: hidden;
+}
+
+.overwrite-bar div {
+    height: 100%;
+}
+
+.overwrite-row .mono {
+    font-size: 10px;
+    color: var(--text-muted);
+    width: 96px;
+    flex: none;
+}
+
+.detail-footer-actions {
+    margin-top: auto;
+    display: flex;
+    gap: 8px;
+}
+
+.detail-footer-actions .btn-ghost {
+    flex: 1;
+    justify-content: center;
+}
+
+.file-tree {
+    display: flex;
+    flex-direction: column;
+}
+
+.file-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    height: 24px;
+    padding-right: 10px;
+}
+
+.file-row i {
+    font-size: 9px;
+    color: var(--text-muted);
+    flex: none;
+    width: 10px;
+}
+
+.file-row .name {
+    flex: 1;
+    min-width: 0;
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.file-row .badge {
+    font-size: 9.5px;
+    flex: none;
+}
+
+.conflicts-tab {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    height: 100%;
+}
+
+.conflict-stats {
+    display: flex;
+    gap: 14px;
+}
+
+.stat-num {
+    font: 700 20px "Azeret Mono", monospace;
+}
+
+.stat-label {
+    font: 400 10.5px Barlow, sans-serif;
+    color: var(--text-dim);
+}
+
+.loses-row {
+    margin-bottom: 8px;
+}
+
+.loses-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 4px;
+    font: 500 12px Barlow, sans-serif;
+    color: var(--text);
+}
+
+.loses-bar {
+    height: 5px;
+    border-radius: 3px;
+    background: #212b38;
+    overflow: hidden;
+}
+
+.loses-bar div {
+    height: 100%;
+}
+
+.domain-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    margin-bottom: 5px;
+}
+
+.domain-row span:first-child {
+    color: var(--text-muted);
+}
+
+.resolver-btn {
+    display: block;
+    text-align: center;
+    font: 600 11.5px Barlow, sans-serif;
+    color: #120d0a;
+    background: var(--amber);
+    border-radius: 4px;
+    padding: 8px 0;
+    margin-top: auto;
+    cursor: pointer;
+}
+
+.changes-tab {
+    display: flex;
+    flex-direction: column;
+    gap: 13px;
+    overflow-y: auto;
+}
+
+.change-entry {
+    border-left: 2px solid;
+    padding-left: 11px;
+}
+
+.change-head {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.change-head .ver {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-bright);
+}
+
+.change-head .date {
+    font-size: 10.5px;
+    color: var(--text-dim);
+}
+
+.change-head .tag {
+    font-size: 9.5px;
+    margin-left: auto;
+}
+
+.change-body {
+    font: 400 11.5px/1.5 Barlow, sans-serif;
+    color: var(--text-mid);
+    margin-bottom: 5px;
+}
+
+.change-files {
+    font-size: 10.5px;
+    color: var(--text-muted);
+}
+
+/* --- Available / Active list panes --- */
+
+.list-pane {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border);
+    background: var(--bg-panel);
+}
+
+.list-pane-header {
+    padding: 11px 13px 10px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    flex: none;
+}
+
+.list-pane-title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.list-pane-title-row .title {
+    font: 600 12.5px Barlow, sans-serif;
+    color: var(--text-bright);
+    letter-spacing: .02em;
+}
+
+.list-pane-title-row .count {
+    font-size: 11px;
+    color: var(--text-dim);
+}
+
+.list-pane-title-row .spacer {
+    flex: 1;
+}
+
+.sort-label {
+    font: 500 11px Barlow, sans-serif;
+    color: var(--text-muted);
+    cursor: default;
+}
+
+.sort-label i {
+    font-size: 9px;
+    margin-left: 3px;
+}
+
+.search-box {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #161d27;
+    border: 1px solid var(--border-light);
+    border-radius: 5px;
+    padding: 6px 9px;
+}
+
+.search-box i {
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.search-box input {
+    flex: 1;
+    min-width: 0;
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font: 400 12.5px Barlow, sans-serif;
+}
+
+.search-box input::placeholder {
+    color: var(--text-muted);
+}
+
+.search-box .kbd {
+    font: 500 9.5px "Azeret Mono", monospace;
+    color: var(--text-muted);
+    border: 1px solid var(--border-light);
+    border-radius: 3px;
+    padding: 2px 5px;
+}
+
+.filter-chips {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.list-rows {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.mod-row {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    height: 34px;
+    padding: 0 13px;
+    border-bottom: 1px solid #1a212b;
+    cursor: pointer;
+}
+
+.mod-row:hover {
+    background: var(--bg-row-alt);
+}
+
+.mod-row.selected {
+    background: #1a222e;
+}
+
+.mod-row .name {
+    flex: 1;
+    min-width: 0;
+    font: 500 12.5px Barlow, sans-serif;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mod-row.has-conflict .name {
+    color: #eec3bd;
+}
+
+.mod-row .ver {
+    font-size: 11px;
+    color: var(--text-dim);
+    flex: none;
+}
+
+.mod-row .author {
+    font-size: 11px;
+    color: var(--text-muted);
+    width: 74px;
+    text-align: right;
+    flex: none;
+}
+
+.mod-row .position {
+    font-size: 10px;
+    color: var(--text-muted);
+    width: 18px;
+    flex: none;
+    text-align: right;
+}
+
+.drag-handle {
+    color: #3c4858;
+    font-size: 11px;
+    flex: none;
+}
+
+.domain-segments {
+    display: flex;
+    gap: 1.5px;
+    flex: none;
+}
+
+.segment {
+    width: 4px;
+    height: 12px;
+    border-radius: 1px;
+}
+
+.segment.clean {
+    background: #2f3b49;
+}
+
+.flag {
+    width: 36px;
+    text-align: right;
+    flex: none;
+    font-size: 9.5px;
+    color: transparent;
+}
+
+.flag.conflict {
+    color: var(--red);
+}
+
+.row-actions {
+    display: none;
+    align-items: center;
+    gap: 5px;
+    flex: none;
+}
+
+.mod-row:hover .row-actions {
+    display: flex;
+}
+
+.row-actions i {
+    font-size: 10px;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 2px;
+}
+
+.row-actions i:hover {
+    color: var(--text-bright);
+}
+
+.list-pane-footer {
+    height: 30px;
+    flex: none;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 13px;
+    gap: 12px;
+    background: var(--bg-header);
+}
+
+.list-pane-footer .mono {
+    font-size: 10.5px;
+    color: var(--text-dim);
+}
+
+.list-pane-footer .link-btn i {
+    font-size: 9px;
+    margin-left: 3px;
+}
+
+.conflict-banner {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    background: #1e1714;
+    border: 1px solid #4a2f22;
+    border-radius: 5px;
+    padding: 7px 10px;
+}
+
+.conflict-banner .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--red);
+    flex: none;
+}
+
+.conflict-banner .text {
+    flex: 1;
+    font: 500 11.5px Barlow, sans-serif;
+    color: #e8b9b2;
+}
+
+.active-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.btn-amber {
+    font: 600 10.5px Barlow, sans-serif;
+    color: var(--bg-panel);
+    background: var(--amber);
+    border-radius: 4px;
+    padding: 4px 10px;
+    cursor: default;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.active-actions .btn-ghost {
+    padding: 4px 10px;
+    font-size: 10.5px;
+}
+
+.domain-header {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    height: 22px;
+    padding: 0 13px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-header);
+    flex: none;
+}
+
+.domain-header .label {
+    flex: 1;
+    font: 500 9px "Azeret Mono", monospace;
+    color: var(--text-muted);
+    letter-spacing: .1em;
+}
+
+.domain-header .label i {
+    font-size: 8px;
+    margin-left: 3px;
+}
+
+.domain-cols {
+    display: flex;
+    gap: 1.5px;
+}
+
+.domain-cols span {
+    width: 4px;
+    font: 600 9px "Azeret Mono", monospace;
+    color: #9aa6b4;
+    text-align: center;
+}
+
+.active-legend {
+    flex: none;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 6px 13px;
+    gap: 3px;
+    background: var(--bg-header);
+}
+
+.legend-keys {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+}
+
+.legend-keys span {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font: 500 10.5px Barlow, sans-serif;
+    color: var(--text-muted);
+}
+
+.swatch {
+    width: 4px;
+    height: 9px;
+    border-radius: 1px;
+    display: inline-block;
+}
+
+.swatch.overwritten {
+    background: var(--red);
+}
+
+.swatch.partial {
+    background: var(--amber);
+}
+
+.swatch.clean {
+    background: #2f3b49;
+}
+
+.legend-caption {
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+/* --- Actions rail --- */
+
+.actions-rail {
+    width: 252px;
+    flex: none;
+    background: var(--bg-rail);
+    display: flex;
+    flex-direction: column;
+    padding: 13px 14px;
+    gap: 14px;
+    overflow-y: auto;
+}
+
+.rail-label {
+    font: 600 9.5px "Azeret Mono", monospace;
+    color: var(--text-dim);
+    letter-spacing: .12em;
+    margin-bottom: 8px;
+}
+
+.playset-card {
+    background: #1b232e;
+    border: 1px solid var(--border-light);
+    border-radius: 5px;
+    padding: 10px 11px;
+}
+
+.playset-name-input {
+    width: 100%;
+    background: none;
+    border: none;
+    outline: none;
+    font: 600 13.5px Barlow, sans-serif;
+    color: var(--text-bright);
+    margin-bottom: 3px;
+    padding: 0;
+}
+
+.playset-name-input::placeholder {
+    color: var(--text-muted);
+}
+
+.playset-card .meta {
+    font-size: 11px;
+    color: var(--text-dim);
+}
+
+.playset-card-actions {
+    display: flex;
+    gap: 7px;
+    margin-top: 9px;
+    flex-wrap: wrap;
+}
+
+.playset-card-actions .btn-ghost {
+    padding: 3px 8px;
+    font-size: 10.5px;
+}
+
+.preflight-mini {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.preflight-mini-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font: 400 12px Barlow, sans-serif;
+    color: var(--text-mid);
+}
+
+.preflight-mini-row i {
+    font-size: 11px;
+    width: 14px;
+    flex: none;
+}
+
+.updates-card {
+    background: #1b232e;
+    border: 1px solid var(--border-light);
+    border-radius: 5px;
+    padding: 9px 11px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.updates-card span:first-child {
+    font: 500 12px Barlow, sans-serif;
+    color: var(--text-mid);
+}
+
+.rail-spacer {
+    flex: 1;
+}
+
+.play-block {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+}
+
+.play-button {
+    display: block;
+    width: 100%;
+    text-align: center;
+    background: var(--rust);
+    border: none;
+    border-radius: 5px;
+    padding: 13px 0;
+    cursor: pointer;
+}
+
+.play-button:disabled {
+    opacity: .5;
+    cursor: default;
+}
+
+.play-title {
+    font: 700 15px Barlow, sans-serif;
+    color: #120d0a;
+    letter-spacing: .03em;
+}
+
+.play-subtitle {
+    font-size: 10.5px;
+    color: #3c2317;
+    margin-top: 2px;
+}
+
+.play-secondary {
+    display: flex;
+    gap: 8px;
+}
+
+.play-secondary .btn-ghost {
+    flex: 1;
+    justify-content: center;
+}
+
