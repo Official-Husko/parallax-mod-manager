@@ -79,7 +79,7 @@ func LoadMod(ctx context.Context, m mod.Mod, cfg game.GameConfig, opts Options) 
 		return nil, err
 	}
 
-	modCache, err := opts.Store.Load(ctx, cfg.Key, m.ID)
+	modCache, err := opts.Store.Load(ctx, cfg.ID, m.ID)
 	if err != nil {
 		return nil, err
 	}

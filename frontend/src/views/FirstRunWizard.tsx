@@ -1,10 +1,9 @@
 import './FirstRunWizard.css';
 import {h} from 'preact';
 import {useEffect, useState} from 'preact/hooks';
-import {BrowseForAnyGameInstall, BrowseForGameInstall, DetectGames, ListPlaysets} from '../../wailsjs/go/main/App';
+import {BrowseForAnyGameInstall, BrowseForGameInstall, DetectGames, GameMedia, ListPlaysets} from '../../wailsjs/go/main/App';
 import type {library} from '../../wailsjs/go/models';
 import {APP_NAME, wizardSteps} from '../data/mockData';
-import {gameLogos} from '../data/gameLogos';
 import {setManagedGames} from '../data/managedGames';
 
 type LoadState =
@@ -28,12 +27,20 @@ export function FirstRunWizard({onFinish}: { onFinish: () => void }) {
     const [playsetCounts, setPlaysetCounts] = useState<Record<string, string[]>>({});
     const [notice, setNotice] = useState('');
     const [browsingAny, setBrowsingAny] = useState(false);
+    const [logos, setLogos] = useState<Record<string, string>>({});
 
     useEffect(() => {
         DetectGames()
             .then((games) => {
                 setState({kind: 'ready', games});
-                setManaged(new Set(games.filter((g) => g.Installed).map((g) => g.Key)));
+                setManaged(new Set(games.filter((g) => g.Installed).map((g) => g.ID)));
+                for (const g of games) {
+                    GameMedia('logo', g.ID)
+                        .then((src) => {
+                            if (src) setLogos((prev) => ({...prev, [g.ID]: src}));
+                        })
+                        .catch(() => undefined);
+                }
             })
             .catch((err) => setState({kind: 'error', message: String(err)}));
     }, []);
@@ -43,12 +50,12 @@ export function FirstRunWizard({onFinish}: { onFinish: () => void }) {
             return;
         }
         for (const g of state.games) {
-            if (g.Key in playsetCounts) {
+            if (g.ID in playsetCounts) {
                 continue;
             }
-            ListPlaysets(g.Key)
-                .then((names) => setPlaysetCounts((prev) => ({...prev, [g.Key]: names ?? []})))
-                .catch(() => setPlaysetCounts((prev) => ({...prev, [g.Key]: []})));
+            ListPlaysets(g.ID)
+                .then((names) => setPlaysetCounts((prev) => ({...prev, [g.ID]: names ?? []})))
+                .catch(() => setPlaysetCounts((prev) => ({...prev, [g.ID]: []})));
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [step, state]);
@@ -69,7 +76,7 @@ export function FirstRunWizard({onFinish}: { onFinish: () => void }) {
         try {
             const updated = await BrowseForGameInstall(key);
             if (state.kind === 'ready') {
-                setState({kind: 'ready', games: state.games.map((g) => (g.Key === key ? updated : g))});
+                setState({kind: 'ready', games: state.games.map((g) => (g.ID === key ? updated : g))});
             }
             if (updated.Installed) {
                 setManaged((prev) => new Set(prev).add(key));
@@ -90,14 +97,14 @@ export function FirstRunWizard({onFinish}: { onFinish: () => void }) {
         setNotice('');
         try {
             const updated = await BrowseForAnyGameInstall();
-            if (!updated.Key) {
+            if (!updated.ID) {
                 return; // user cancelled the dialog
             }
             if (state.kind === 'ready') {
-                setState({kind: 'ready', games: state.games.map((g) => (g.Key === updated.Key ? updated : g))});
+                setState({kind: 'ready', games: state.games.map((g) => (g.ID === updated.ID ? updated : g))});
             }
             if (updated.Installed) {
-                setManaged((prev) => new Set(prev).add(updated.Key));
+                setManaged((prev) => new Set(prev).add(updated.ID));
             }
         } catch (err) {
             setNotice(String(err));
@@ -159,10 +166,11 @@ export function FirstRunWizard({onFinish}: { onFinish: () => void }) {
                             onBrowse={browseFor}
                             browsing={browsing}
                             browseErrors={browseErrors}
+                            logos={logos}
                         />
                     )}
-                    {state.kind === 'ready' && step === 2 && <ModFoldersStep games={games}/>}
-                    {state.kind === 'ready' && step === 3 && <ImportPlaysetsStep games={games} counts={playsetCounts}/>}
+                    {state.kind === 'ready' && step === 2 && <ModFoldersStep games={games} logos={logos}/>}
+                    {state.kind === 'ready' && step === 3 && <ImportPlaysetsStep games={games} counts={playsetCounts} logos={logos}/>}
                     {state.kind === 'ready' && step === 4 && <PreferencesStep/>}
 
                     <div className="wizard-bottom">
@@ -183,21 +191,21 @@ export function FirstRunWizard({onFinish}: { onFinish: () => void }) {
     );
 }
 
-function GameSwatch({gameKey}: { gameKey: string }) {
-    const logo = gameLogos[gameKey];
-    if (logo) {
-        return <img className="wizard-detected-swatch" src={logo} alt=""/>;
+function GameSwatch({src}: { src?: string }) {
+    if (src) {
+        return <img className="wizard-detected-swatch" src={src} alt=""/>;
     }
     return <div className="wizard-detected-swatch fallback"/>;
 }
 
-function FindGamesStep({games, managed, onToggle, onBrowse, browsing, browseErrors}: {
+function FindGamesStep({games, managed, onToggle, onBrowse, browsing, browseErrors, logos}: {
     games: library.DetectedGame[];
     managed: Set<string>;
     onToggle: (key: string) => void;
     onBrowse: (key: string) => void;
     browsing: Set<string>;
     browseErrors: Record<string, string>;
+    logos: Record<string, string>;
 }) {
     return (
         <>
@@ -205,13 +213,13 @@ function FindGamesStep({games, managed, onToggle, onBrowse, browsing, browseErro
             <div className="wizard-subheading">Check the ones you want Parallax Mod Manager to manage.</div>
             <div className="wizard-detected-list">
                 {games.map((g) => (
-                    <div key={g.Key} className="wizard-detected-item">
+                    <div key={g.ID} className="wizard-detected-item">
                         <div className={`wizard-detected-row ${g.Installed ? 'found' : ''}`}>
                             <span
-                                className={`wizard-checkbox ${managed.has(g.Key) ? 'checked' : ''} ${g.Installed ? '' : 'disabled'}`}
-                                onClick={() => g.Installed && onToggle(g.Key)}
+                                className={`wizard-checkbox ${managed.has(g.ID) ? 'checked' : ''} ${g.Installed ? '' : 'disabled'}`}
+                                onClick={() => g.Installed && onToggle(g.ID)}
                             />
-                            <GameSwatch gameKey={g.Key}/>
+                            <GameSwatch src={logos[g.ID]}/>
                             <span className="wizard-detected-name">{g.DisplayName}</span>
                             {g.Installed && (
                                 <span className="mono wizard-detected-mods">
@@ -220,17 +228,17 @@ function FindGamesStep({games, managed, onToggle, onBrowse, browsing, browseErro
                             )}
                             {g.Installed ? (
                                 <i
-                                    className={`fa-solid fa-pen-to-square wizard-change-icon ${browsing.has(g.Key) ? 'busy' : ''}`}
+                                    className={`fa-solid fa-pen-to-square wizard-change-icon ${browsing.has(g.ID) ? 'busy' : ''}`}
                                     title={`Change ${g.DisplayName}'s install folder`}
-                                    onClick={() => onBrowse(g.Key)}
+                                    onClick={() => onBrowse(g.ID)}
                                 />
                             ) : (
-                                <span className="link-btn wizard-browse-btn" onClick={() => onBrowse(g.Key)}>
-                                    {browsing.has(g.Key) ? 'Looking...' : 'Browse...'}
+                                <span className="link-btn wizard-browse-btn" onClick={() => onBrowse(g.ID)}>
+                                    {browsing.has(g.ID) ? 'Looking...' : 'Browse...'}
                                 </span>
                             )}
                         </div>
-                        {browseErrors[g.Key] && <div className="wizard-browse-error">{browseErrors[g.Key]}</div>}
+                        {browseErrors[g.ID] && <div className="wizard-browse-error">{browseErrors[g.ID]}</div>}
                     </div>
                 ))}
             </div>
@@ -238,15 +246,15 @@ function FindGamesStep({games, managed, onToggle, onBrowse, browsing, browseErro
     );
 }
 
-function ModFoldersStep({games}: { games: library.DetectedGame[] }) {
+function ModFoldersStep({games, logos}: { games: library.DetectedGame[]; logos: Record<string, string> }) {
     return (
         <>
             <div className="wizard-heading">Mod folders</div>
             <div className="wizard-subheading">Where Parallax Mod Manager looks for each game's installed mods.</div>
             <div className="wizard-detected-list">
                 {games.map((g) => (
-                    <div key={g.Key} className={`wizard-detected-row ${g.Installed ? 'found' : ''}`}>
-                        <GameSwatch gameKey={g.Key}/>
+                    <div key={g.ID} className={`wizard-detected-row ${g.Installed ? 'found' : ''}`}>
+                        <GameSwatch src={logos[g.ID]}/>
                         <div className="wizard-folder-main">
                             <div className="wizard-detected-name">{g.DisplayName}</div>
                             <div className="mono wizard-folder-path">{g.ModFolder}</div>
@@ -258,17 +266,17 @@ function ModFoldersStep({games}: { games: library.DetectedGame[] }) {
     );
 }
 
-function ImportPlaysetsStep({games, counts}: { games: library.DetectedGame[]; counts: Record<string, string[]> }) {
+function ImportPlaysetsStep({games, counts, logos}: { games: library.DetectedGame[]; counts: Record<string, string[]>; logos: Record<string, string> }) {
     return (
         <>
             <div className="wizard-heading">Import playsets</div>
             <div className="wizard-subheading">Playsets you've already saved locally for each game.</div>
             <div className="wizard-detected-list">
                 {games.map((g) => {
-                    const names = counts[g.Key];
+                    const names = counts[g.ID];
                     return (
-                        <div key={g.Key} className="wizard-detected-row">
-                            <GameSwatch gameKey={g.Key}/>
+                        <div key={g.ID} className="wizard-detected-row">
+                            <GameSwatch src={logos[g.ID]}/>
                             <div className="wizard-folder-main">
                                 <div className="wizard-detected-name">{g.DisplayName}</div>
                                 <div className="mono wizard-folder-path">

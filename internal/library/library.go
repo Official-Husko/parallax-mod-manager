@@ -27,7 +27,7 @@ import (
 
 // GameInfo is a game a user can pick, for a game picker.
 type GameInfo struct {
-	Key         string
+	ID          string
 	DisplayName string
 }
 
@@ -68,7 +68,7 @@ func DetectGameAt(ctx context.Context, cfg game.GameConfig, installDir string) (
 func detectGame(ctx context.Context, cfg game.GameConfig, installDir string, installed bool) (DetectedGame, error) {
 	userDir, err := cfg.UserDataDir()
 	if err != nil {
-		return DetectedGame{}, fmt.Errorf("library: resolving user data dir for %s: %w", cfg.Key, err)
+		return DetectedGame{}, fmt.Errorf("library: resolving user data dir for %s: %w", cfg.ID, err)
 	}
 	modFolder := filepath.Join(userDir, "mod")
 
@@ -78,7 +78,7 @@ func detectGame(ctx context.Context, cfg game.GameConfig, installDir string, ins
 	}
 
 	return DetectedGame{
-		GameInfo:    GameInfo{Key: cfg.Key, DisplayName: cfg.DisplayName},
+		GameInfo:    GameInfo{ID: cfg.ID, DisplayName: cfg.DisplayName},
 		Installed:   installed,
 		InstallPath: installDir,
 		ModFolder:   modFolder,
@@ -146,7 +146,7 @@ type Options struct {
 func LoadGame(ctx context.Context, cfg game.GameConfig, opts Options) (Summary, error) {
 	scanResult, err := scan.Scan(ctx, scan.Options{Game: cfg, SteamRoot: opts.SteamRoot, ModDir: opts.ModDir})
 	if err != nil {
-		return Summary{}, fmt.Errorf("library: scanning %s: %w", cfg.Key, err)
+		return Summary{}, fmt.Errorf("library: scanning %s: %w", cfg.ID, err)
 	}
 
 	mods := append([]mod.Mod(nil), scanResult.Mods...)
@@ -204,7 +204,7 @@ func LoadGame(ctx context.Context, cfg game.GameConfig, opts Options) (Summary, 
 	result := conflict.Resolve(order, inputs, conflict.Options{})
 
 	return Summary{
-		Game:      GameInfo{Key: cfg.Key, DisplayName: cfg.DisplayName},
+		Game:      GameInfo{ID: cfg.ID, DisplayName: cfg.DisplayName},
 		Mods:      modSummaries,
 		Conflicts: buildConflictSummaries(result.Conflicts, names),
 		Errors:    errs,

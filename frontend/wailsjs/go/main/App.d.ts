@@ -11,6 +11,8 @@ export function DeletePlayset(arg1:string,arg2:string):Promise<void>;
 
 export function DetectGames():Promise<Array<library.DetectedGame>>;
 
+export function GameMedia(arg1:string,arg2:string):Promise<string>;
+
 export function LaunchGame(arg1:string,arg2:string):Promise<void>;
 
 export function ListGames():Promise<Array<library.GameInfo>>;
@@ -22,3 +24,5 @@ export function LoadPlayset(arg1:string,arg2:string):Promise<playset.Playset>;
 export function SavePlayset(arg1:playset.Playset):Promise<void>;
 
 export function ScanGame(arg1:string,arg2:string):Promise<library.Summary>;
+
+export function StartupNotice():Promise<string>;

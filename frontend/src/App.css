@@ -79,15 +79,23 @@
     letter-spacing: .01em;
 }
 
+.topbar-game-pill-wrap {
+    position: relative;
+    margin-left: 10px;
+}
+
 .topbar-game-pill {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-left: 10px;
     border: 1px solid var(--border-light);
     border-radius: 5px;
     padding: 5px 11px;
     background: #1b232e;
+}
+
+.topbar-game-pill.switchable {
+    cursor: pointer;
 }
 
 .topbar-game-pill .game-name {
@@ -98,6 +106,36 @@
 .topbar-game-pill i {
     font-size: 10px;
     color: var(--text-dim);
+}
+
+.topbar-game-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    min-width: 100%;
+    z-index: 40;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-light);
+    border-radius: 5px;
+    overflow: hidden;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, .35);
+}
+
+.topbar-game-option {
+    padding: 7px 11px;
+    font: 500 11.5px Barlow, sans-serif;
+    color: var(--text-mid);
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.topbar-game-option:hover {
+    background: var(--bg-row-alt);
+}
+
+.topbar-game-option.active {
+    color: var(--text-bright);
+    background: #1b232e;
 }
 
 .topbar-profile {
@@ -279,6 +317,28 @@
 
 .status-page.error {
     color: var(--red);
+}
+
+.app-notice {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    background: #1e1714;
+    border-bottom: 1px solid #4a2f22;
+    font: 500 12px Barlow, sans-serif;
+    color: #e8c7b2;
+    flex: none;
+}
+
+.app-notice span {
+    flex: 1;
+}
+
+.app-notice i {
+    cursor: pointer;
+    font-size: 12px;
+    color: #e8c7b2;
 }
 
 .sidebar-label {

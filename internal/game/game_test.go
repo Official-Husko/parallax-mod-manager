@@ -11,9 +11,9 @@ import (
 	"github.com/Official-Husko/parallax-mod-manager/internal/mod"
 )
 
-func TestStellarisSeedFieldsArePresent(t *testing.T) {
-	if Stellaris.Key != "stellaris" {
-		t.Errorf("Key = %q", Stellaris.Key)
+func TestStellarisFixtureFieldsArePresent(t *testing.T) {
+	if Stellaris.ID == "" {
+		t.Error("ID is empty")
 	}
 	if Stellaris.SteamAppID == "" {
 		t.Error("SteamAppID is empty")
@@ -29,59 +29,27 @@ func TestStellarisSeedFieldsArePresent(t *testing.T) {
 	}
 }
 
-func TestRegistryGet(t *testing.T) {
-	r := NewRegistry()
-	g, ok := r.Get("stellaris")
+// TestRegistryGetAndList exercises Registry as a plain container - the
+// real games list's own validity is covered by gamelist_test.go's
+// TestRealGamesListFileIsValidAndMatchesTheFixture and the parseGameList/
+// LoadRegistry tests there.
+func TestRegistryGetAndList(t *testing.T) {
+	r := NewRegistry([]GameConfig{Stellaris})
+	g, ok := r.Get(Stellaris.ID)
 	if !ok {
-		t.Fatal("expected stellaris to be registered")
+		t.Fatal("expected Stellaris to be registered")
 	}
 	if !reflect.DeepEqual(g, Stellaris) {
-		t.Errorf("Get(\"stellaris\") = %+v, want %+v", g, Stellaris)
+		t.Errorf("Get(%q) = %+v, want %+v", Stellaris.ID, g, Stellaris)
 	}
 
 	if _, ok := r.Get("does-not-exist"); ok {
 		t.Error("expected lookup of an unknown game to fail")
 	}
-}
 
-func TestEveryRegisteredGameHasWellFormedFields(t *testing.T) {
-	r := NewRegistry()
-	seenAppIDs := map[string]string{}
-	for _, g := range r.List() {
-		if g.DisplayName == "" {
-			t.Errorf("%s: DisplayName is empty", g.Key)
-		}
-		if g.SteamAppID == "" {
-			t.Errorf("%s: SteamAppID is empty", g.Key)
-		}
-		if other, ok := seenAppIDs[g.SteamAppID]; ok {
-			t.Errorf("%s and %s share SteamAppID %s", g.Key, other, g.SteamAppID)
-		}
-		seenAppIDs[g.SteamAppID] = g.Key
-		if g.FolderName == "" {
-			t.Errorf("%s: FolderName is empty", g.Key)
-		}
-		if len(g.ScanFolders) == 0 {
-			t.Errorf("%s: ScanFolders is empty", g.Key)
-		}
-		if len(g.SignatureFiles) == 0 {
-			t.Errorf("%s: SignatureFiles is empty", g.Key)
-		}
-		if g.LauncherSettingsPath == "" {
-			t.Errorf("%s: LauncherSettingsPath is empty", g.Key)
-		}
-		// SignatureFiles must actually be verifiable against
-		// LauncherSettingsPath's own directory layout, not drift from it -
-		// every current game uses launcher-settings.json as its signature.
-		found := false
-		for _, sig := range g.SignatureFiles {
-			if sig == g.LauncherSettingsPath {
-				found = true
-			}
-		}
-		if !found {
-			t.Errorf("%s: SignatureFiles %v doesn't include LauncherSettingsPath %q", g.Key, g.SignatureFiles, g.LauncherSettingsPath)
-		}
+	list := r.List()
+	if len(list) != 1 || list[0].ID != Stellaris.ID {
+		t.Errorf("List() = %+v", list)
 	}
 }
 
@@ -111,7 +79,7 @@ func TestResolveExecutableReadsLauncherSettings(t *testing.T) {
 
 func TestResolveExecutableFallsBackWhenLauncherSettingsMissing(t *testing.T) {
 	g := GameConfig{
-		Key:                  "test-game",
+		ID:                   "test-game",
 		LauncherSettingsPath: "launcher-settings.json",
 		ExecutableFallback:   ExecutableInfo{Path: "/opt/test-game/bin/test-game", Args: []string{"--fallback"}},
 	}
@@ -127,7 +95,7 @@ func TestResolveExecutableFallsBackWhenLauncherSettingsMissing(t *testing.T) {
 }
 
 func TestResolveExecutableErrorsWithNoSettingsAndNoFallback(t *testing.T) {
-	g := GameConfig{Key: "test-game", LauncherSettingsPath: "launcher-settings.json"}
+	g := GameConfig{ID: "test-game", LauncherSettingsPath: "launcher-settings.json"}
 	_, err := g.ResolveExecutable(t.TempDir())
 	if err == nil {
 		t.Fatal("expected an error when there's no launcher-settings.json and no fallback")
@@ -140,7 +108,7 @@ func TestResolveExecutableFallsBackOnMalformedSettings(t *testing.T) {
 		t.Fatalf("WriteFile: %v", err)
 	}
 	g := GameConfig{
-		Key:                  "test-game",
+		ID:                   "test-game",
 		LauncherSettingsPath: "launcher-settings.json",
 		ExecutableFallback:   ExecutableInfo{Path: "/opt/test-game/bin/test-game"},
 	}

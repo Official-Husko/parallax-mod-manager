@@ -173,7 +173,7 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenConfl
         }
     }
 
-    const gameName = games.find((g) => g.Key === selectedGame)?.DisplayName ?? selectedGame;
+    const gameName = games.find((g) => g.ID === selectedGame)?.DisplayName ?? selectedGame;
 
     return (
         <div className="workspace">

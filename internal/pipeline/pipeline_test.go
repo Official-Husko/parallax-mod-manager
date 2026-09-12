@@ -26,8 +26,8 @@ func writeFile(t *testing.T, dir, relPath, content string) {
 	}
 }
 
-func testGame(key string) game.GameConfig {
-	return game.GameConfig{Key: key, ScanFolders: []string{"common", "events", "localisation"}}
+func testGame(id string) game.GameConfig {
+	return game.GameConfig{ID: id, ScanFolders: []string{"common", "events", "localisation"}}
 }
 
 func TestLoadModParsesAllScannedFiles(t *testing.T) {

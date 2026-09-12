@@ -85,7 +85,16 @@
     width: 26px;
     height: 26px;
     border-radius: 4px;
+    object-fit: cover;
     flex: none;
+}
+
+.profile-swatch.fallback {
+    background: var(--border-light);
+}
+
+.profile-state.actionable {
+    cursor: pointer;
 }
 
 .profile-main {

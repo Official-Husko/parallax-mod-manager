@@ -17,7 +17,7 @@ export namespace library {
 	    }
 	}
 	export class DetectedGame {
-	    Key: string;
+	    ID: string;
 	    DisplayName: string;
 	    Installed: boolean;
 	    InstallPath: string;
@@ -30,7 +30,7 @@ export namespace library {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.Key = source["Key"];
+	        this.ID = source["ID"];
 	        this.DisplayName = source["DisplayName"];
 	        this.Installed = source["Installed"];
 	        this.InstallPath = source["InstallPath"];
@@ -39,7 +39,7 @@ export namespace library {
 	    }
 	}
 	export class GameInfo {
-	    Key: string;
+	    ID: string;
 	    DisplayName: string;
 	
 	    static createFrom(source: any = {}) {
@@ -48,7 +48,7 @@ export namespace library {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.Key = source["Key"];
+	        this.ID = source["ID"];
 	        this.DisplayName = source["DisplayName"];
 	    }
 	}

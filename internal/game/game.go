@@ -31,7 +31,7 @@ type ExecutableInfo struct {
 // GameConfig is everything the rest of the app needs to know about one
 // supported Paradox game.
 type GameConfig struct {
-	Key         string // short identifier, e.g. "stellaris"
+	ID          string // permanent UUID identity - see docs/game-configuration.md
 	DisplayName string
 	SteamAppID  string
 	// FolderName is the game's folder name under the Paradox user-data root,
@@ -104,7 +104,7 @@ func (g GameConfig) ResolveExecutable(installDir string) (ExecutableInfo, error)
 	data, err := os.ReadFile(filepath.Join(installDir, g.LauncherSettingsPath))
 	if err != nil {
 		if g.ExecutableFallback.Path == "" {
-			return ExecutableInfo{}, fmt.Errorf("game: no %s in %s and no fallback executable configured for %s", g.LauncherSettingsPath, installDir, g.Key)
+			return ExecutableInfo{}, fmt.Errorf("game: no %s in %s and no fallback executable configured for %s", g.LauncherSettingsPath, installDir, g.ID)
 		}
 		return g.ExecutableFallback, nil
 	}

@@ -1,8 +1,11 @@
 import './Settings.css';
 import {h} from 'preact';
-import {useState} from 'preact/hooks';
+import {useEffect, useState} from 'preact/hooks';
+import {DetectGames, BrowseForGameInstall} from '../../wailsjs/go/main/App';
+import type {library} from '../../wailsjs/go/models';
+import {GameLogo} from '../components/GameLogo';
 import {Toggle} from '../components/Toggle';
-import {overrides, profileToggles, profiles, settingsNav, sortLog, sortRules} from '../data/mockData';
+import {overrides, profileToggles, settingsNav, sortLog, sortRules} from '../data/mockData';
 
 type Section = 'profiles' | 'sort';
 
@@ -35,25 +38,77 @@ export function Settings() {
     );
 }
 
+type ProfilesState =
+    | { kind: 'loading' }
+    | { kind: 'error'; message: string }
+    | { kind: 'ready'; games: library.DetectedGame[] };
+
 function ProfilesPanel() {
+    const [state, setState] = useState<ProfilesState>({kind: 'loading'});
+    const [browsing, setBrowsing] = useState<Set<string>>(new Set());
+
+    useEffect(() => {
+        DetectGames()
+            .then((games) => setState({kind: 'ready', games}))
+            .catch((err) => setState({kind: 'error', message: String(err)}));
+    }, []);
+
+    async function setPath(gameId: string) {
+        setBrowsing((prev) => new Set(prev).add(gameId));
+        try {
+            const updated = await BrowseForGameInstall(gameId);
+            setState((prev) => prev.kind === 'ready'
+                ? {kind: 'ready', games: prev.games.map((g) => (g.ID === gameId ? updated : g))}
+                : prev);
+        } catch {
+            // A bad pick or a cancelled dialog just leaves the row as it was.
+        } finally {
+            setBrowsing((prev) => {
+                const next = new Set(prev);
+                next.delete(gameId);
+                return next;
+            });
+        }
+    }
+
     return (
         <div className="settings-content single">
             <div>
                 <div className="settings-title">Game profiles</div>
                 <div className="settings-subtitle">Each game keeps its own paths, playsets and sort rules.</div>
             </div>
-            <div className="profile-list">
-                {profiles.map((g) => (
-                    <div key={g.name} className="profile-row" style={{borderColor: g.border, background: g.bg}}>
-                        <div className="profile-swatch" style={{background: g.swatch}}/>
-                        <div className="profile-main">
-                            <div className="profile-name">{g.name}</div>
-                            <div className="mono profile-path">{g.path}</div>
+            {state.kind === 'loading' && <p className="status-page">Checking installed games...</p>}
+            {state.kind === 'error' && <p className="status-page error">{state.message}</p>}
+            {state.kind === 'ready' && (
+                <div className="profile-list">
+                    {state.games.map((g) => (
+                        <div
+                            key={g.ID}
+                            className="profile-row"
+                            style={{borderColor: g.Installed ? '#4a3826' : 'var(--border)', background: g.Installed ? '#191510' : 'var(--bg-rail)'}}
+                        >
+                            <GameLogo gameId={g.ID} className="profile-swatch"/>
+                            <div className="profile-main">
+                                <div className="profile-name">{g.DisplayName}</div>
+                                <div className="mono profile-path">{g.Installed ? g.InstallPath : 'not detected'}</div>
+                            </div>
+                            {g.Installed ? (
+                                <span className="mono profile-state" style={{color: 'var(--green)'}}>
+                                    {g.ModCount} mod{g.ModCount === 1 ? '' : 's'}
+                                </span>
+                            ) : (
+                                <span
+                                    className="mono profile-state actionable"
+                                    style={{color: 'var(--amber)'}}
+                                    onClick={() => setPath(g.ID)}
+                                >
+                                    {browsing.has(g.ID) ? 'looking...' : 'set path'}
+                                </span>
+                            )}
                         </div>
-                        <span className="mono profile-state" style={{color: g.stateC}}>{g.state}</span>
-                    </div>
-                ))}
-            </div>
+                    ))}
+                </div>
+            )}
             <div className="profile-toggles">
                 {profileToggles.map((t) => (
                     <div key={t.label} className="profile-toggle-row">

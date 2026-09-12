@@ -13,7 +13,7 @@ import (
 
 func testGameConfig() game.GameConfig {
 	return game.GameConfig{
-		Key:            "test-game",
+		ID:             "test-game",
 		DisplayName:    "Test Game",
 		DescriptorType: mod.DescriptorClassic,
 		ScanFolders:    []string{"common"},
@@ -64,8 +64,8 @@ func TestLoadGameCleanScanNoConflicts(t *testing.T) {
 	if len(summary.Errors) != 0 {
 		t.Errorf("expected no errors, got %+v", summary.Errors)
 	}
-	if summary.Game.Key != "test-game" {
-		t.Errorf("Game.Key = %q, want test-game", summary.Game.Key)
+	if summary.Game.ID != "test-game" {
+		t.Errorf("Game.ID = %q, want test-game", summary.Game.ID)
 	}
 }
 

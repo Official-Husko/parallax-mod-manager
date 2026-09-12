@@ -1,7 +1,7 @@
 import './App.css'
 import {h} from 'preact';
 import {useEffect, useState} from 'preact/hooks';
-import {ListGames} from '../wailsjs/go/main/App';
+import {ListGames, StartupNotice} from '../wailsjs/go/main/App';
 import type {library} from '../wailsjs/go/models';
 import {TopBar} from './components/TopBar';
 import type {ViewKey} from './components/TopBar';
@@ -41,20 +41,22 @@ export function App() {
     const [showConflictResolver, setShowConflictResolver] = useState(false);
     const [showUpdates, setShowUpdates] = useState(false);
     const [error, setError] = useState('');
+    const [notice, setNotice] = useState('');
 
     useEffect(() => {
         if (!onboarded) {
             return;
         }
+        StartupNotice().then(setNotice).catch(() => undefined);
         ListGames()
             .then((list) => {
                 const managedKeys = getManagedGames();
                 const visible = managedKeys && managedKeys.length > 0
-                    ? list.filter((g) => managedKeys.includes(g.Key))
+                    ? list.filter((g) => managedKeys.includes(g.ID))
                     : list;
                 setGames(visible);
                 if (visible.length > 0) {
-                    setSelectedGame(visible[0].Key);
+                    setSelectedGame(visible[0].ID);
                 } else {
                     setError('No games are set up to manage yet - run setup again to select one.');
                 }
@@ -70,16 +72,27 @@ export function App() {
         );
     }
 
-    const gameName = games.find((g) => g.Key === selectedGame)?.DisplayName ?? selectedGame;
+    const gameName = games.find((g) => g.ID === selectedGame)?.DisplayName ?? selectedGame;
 
     const gamePicker = view === 'workspace'
-        ? {gameLabel: gameName, profileLabel: playsetName || '(unsaved)'}
+        ? {
+            gameLabel: gameName,
+            profileLabel: playsetName || '(unsaved)',
+            games: games.map((g) => ({ID: g.ID, DisplayName: g.DisplayName})),
+            onSelectGame: setSelectedGame,
+        }
         : view === 'dlc'
             ? {gameLabel: 'Hearts of Iron IV', profileLabel: 'Kaiserreich MP'}
             : undefined;
 
     return (
         <div id="app">
+            {notice && (
+                <div className="app-notice">
+                    <span>{notice}</span>
+                    <i className="fa-solid fa-xmark" onClick={() => setNotice('')}/>
+                </div>
+            )}
             <TopBar view={view} onNavigate={setView} gamePicker={gamePicker}/>
 
             {error && <p className="status-page error">{error}</p>}

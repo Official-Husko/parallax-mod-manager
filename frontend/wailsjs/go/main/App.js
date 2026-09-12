@@ -18,6 +18,10 @@ export function DetectGames() {
   return window['go']['main']['App']['DetectGames']();
 }
 
+export function GameMedia(arg1, arg2) {
+  return window['go']['main']['App']['GameMedia'](arg1, arg2);
+}
+
 export function LaunchGame(arg1, arg2) {
   return window['go']['main']['App']['LaunchGame'](arg1, arg2);
 }
@@ -40,4 +44,8 @@ export function SavePlayset(arg1) {
 
 export function ScanGame(arg1, arg2) {
   return window['go']['main']['App']['ScanGame'](arg1, arg2);
+}
+
+export function StartupNotice() {
+  return window['go']['main']['App']['StartupNotice']();
 }

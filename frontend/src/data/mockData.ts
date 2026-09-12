@@ -10,15 +10,8 @@
 export const APP_NAME = 'Parallax Mod Manager';
 
 // --- Library (4a) ---
-
-export const libGames = [
-    {name: 'All games', swatch: '#6a7484', n: '2,440', active: true},
-    {name: 'Hearts of Iron IV', swatch: '#c4623a', n: '1,284', active: false},
-    {name: 'Stellaris', swatch: '#5b8fc9', n: '742', active: false},
-    {name: 'Crusader Kings III', swatch: '#8a6fae', n: '318', active: false},
-    {name: 'Victoria 3', swatch: '#5fae7e', n: '96', active: false},
-    {name: 'Europa Universalis IV', swatch: '#7a8899', n: '-', active: false},
-];
+// The games list and mod table are real (see views/Library.tsx) - only
+// "collections" has no backing concept yet, so it stays static.
 
 export const libCollections = [
     {label: 'Favourites', n: 41},
@@ -27,42 +20,6 @@ export const libCollections = [
     {label: 'QoL / UI', n: 134},
     {label: 'Archived', n: 207},
 ];
-
-const gameSwatch: Record<string, string> = {
-    'Hearts of Iron IV': '#c4623a',
-    'Stellaris': '#5b8fc9',
-    'Crusader Kings III': '#8a6fae',
-    'Victoria 3': '#5fae7e',
-    'Europa Universalis IV': '#7a8899',
-};
-
-const libRowsRaw: [string, string, string, string, string, string, string, string, boolean?][] = [
-    ['Kaiserreich: Legacy of the Weltkrieg', 'Hearts of Iron IV', '0.26.2', '4.21 GB', 'today', 'ACTIVE', '#5fae7e', 'W', true],
-    ['Road to 56', 'Hearts of Iron IV', '14.0', '2.10 GB', 'today', 'ACTIVE', '#5fae7e', 'W', true],
-    ['Gigastructural Engineering & More', 'Stellaris', '3.99', '1.84 GB', '2 days ago', 'INSTALLED', '#6a7484', 'W'],
-    ['Community Flavor Pack', 'Crusader Kings III', '3.2.1', '986 MB', '5 days ago', 'INSTALLED', '#6a7484', 'W'],
-    ['Expert AI 4.0', 'Hearts of Iron IV', '4.1', '84 MB', 'today', 'UPDATE 4.2', '#e0a340', 'W'],
-    ['Planetary Diversity', 'Stellaris', '4.0', '612 MB', '2 days ago', 'INSTALLED', '#6a7484', 'W'],
-    ['Ship Name Fix', 'Hearts of Iron IV', '-', '12 KB', 'today', 'LOCAL', '#5b8fc9', 'L'],
-    ['Millennium Dawn: Modern Day', 'Hearts of Iron IV', '9.4', '6.40 GB', '3 months ago', 'UPDATE 9.5', '#e0a340', 'W'],
-    ['RICE', 'Crusader Kings III', '1.8', '204 MB', '5 days ago', 'INSTALLED', '#6a7484', 'W'],
-    ['NSC3 Season 1', 'Stellaris', '3.14', '1.12 GB', 'never', 'PATCH 3.14', '#e0a340', 'W'],
-    ['Better Peace Deals', 'Hearts of Iron IV', '1.2', '8 MB', '8 months ago', 'ABANDONED', '#d4574e', 'W'],
-    ['UI Overhaul Dynamic', 'Stellaris', '4.0', '46 MB', '2 days ago', 'INSTALLED', '#6a7484', 'W'],
-    ['Victoria 3 Economy Rework', 'Victoria 3', '2.1', '318 MB', '1 month ago', 'INSTALLED', '#6a7484', 'W'],
-    ['Historical Portraits HD', 'Hearts of Iron IV', '1.4', '1.91 GB', 'today', 'UPDATE 1.5', '#e0a340', 'W'],
-    ['Coloured Buttons', 'Hearts of Iron IV', '2.8', '2 MB', 'today', 'ACTIVE', '#5fae7e', 'W'],
-    ['Old World Blues', 'Hearts of Iron IV', '7.2', '3.88 GB', '2 months ago', 'BROKEN', '#d4574e', 'W'],
-    ['Ethics and Civics Classic', 'Stellaris', '4.0', '288 MB', '2 days ago', 'INSTALLED', '#6a7484', 'W'],
-    ['VIET Events', 'Crusader Kings III', '2.4', '92 MB', '5 days ago', 'INSTALLED', '#6a7484', 'W'],
-];
-
-export const libRows = libRowsRaw.map((r) => ({
-    name: r[0], game: r[1], ver: r[2], size: r[3], played: r[4], state: r[5], stateC: r[6], src: r[7],
-    srcBg: r[7] === 'W' ? '#5b8fc9' : '#7a8899',
-    gameC: gameSwatch[r[1]],
-    highlighted: !!r[8],
-}));
 
 // --- DLC (4b) ---
 
@@ -140,20 +97,6 @@ export const settingsNav = [
     {label: 'Appearance', key: 'appearance'},
     {label: 'Advanced', key: 'advanced'},
 ];
-
-const profilesRaw: [string, string, string, string, string, boolean?][] = [
-    ['Hearts of Iron IV', '~/.steam/steamapps/common/Hearts of Iron IV', '#c4623a', '1,284 mods', '#5fae7e', true],
-    ['Stellaris', '~/.steam/steamapps/common/Stellaris', '#5b8fc9', '742 mods', '#5fae7e'],
-    ['Crusader Kings III', '~/.steam/steamapps/common/Crusader Kings III', '#8a6fae', '318 mods', '#5fae7e'],
-    ['Victoria 3', '~/.steam/steamapps/common/Victoria 3', '#5fae7e', '96 mods', '#5fae7e'],
-    ['Europa Universalis IV', 'not detected', '#3c4858', 'set path', '#e0a340'],
-];
-
-export const profiles = profilesRaw.map((g) => ({
-    name: g[0], path: g[1], swatch: g[2], state: g[3], stateC: g[4],
-    border: g[5] ? '#4a3826' : '#27313f',
-    bg: g[5] ? '#191510' : '#131923',
-}));
 
 export const profileToggles = [
     {label: 'Scan Workshop folder on launch', on: true},
