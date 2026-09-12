@@ -3,6 +3,7 @@ package mod
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/Official-Husko/parallax-mod-manager/internal/script"
 )
@@ -122,4 +123,63 @@ func parseJSONDescriptor(data []byte) (Descriptor, error) {
 	}
 
 	return d, nil
+}
+
+// WriteClassicDescriptor serializes d as a classic Clausewitz descriptor.mod
+// file (see docs/paradox-mod-format.md) - the inverse of
+// parseClassicDescriptor, and round-trips every field that function reads.
+// Used to mirror a Steam Workshop item's own self-contained descriptor.mod
+// into a game's mod/ folder as its "path"-bearing stub when Steam or the
+// Paradox Launcher hasn't created one yet (see internal/scan and
+// docs/mod-sources.md) - not a general-purpose formatter, only ever needs to
+// reproduce what that stub convention actually contains.
+func WriteClassicDescriptor(d Descriptor) []byte {
+	var b strings.Builder
+	field := func(key, value string) {
+		if value == "" {
+			return
+		}
+		b.WriteString(key)
+		b.WriteByte('=')
+		b.WriteString(quoteClausewitz(value))
+		b.WriteByte('\n')
+	}
+	block := func(key string, values []string) {
+		if len(values) == 0 {
+			return
+		}
+		b.WriteString(key)
+		b.WriteString("={\n")
+		for _, v := range values {
+			b.WriteByte('\t')
+			b.WriteString(quoteClausewitz(v))
+			b.WriteByte('\n')
+		}
+		b.WriteString("}\n")
+	}
+
+	field("name", d.Name)
+	field("path", d.Path)
+	field("version", d.Version)
+	field("supported_version", d.SupportedVersion)
+	block("tags", d.Tags)
+	field("remote_file_id", d.RemoteFileID)
+	field("user_dir", d.UserDir)
+	// replace_path is parsed as a repeated scalar entry (one per replaced
+	// path), not a block - see parseClassicDescriptor.
+	for _, p := range d.ReplacePath {
+		field("replace_path", p)
+	}
+	block("dependencies", d.Dependencies)
+
+	return []byte(b.String())
+}
+
+// quoteClausewitz quotes s as a Clausewitz string literal, escaping the two
+// characters the lexer treats specially inside one (see internal/script's
+// lexString).
+func quoteClausewitz(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `"`, `\"`)
+	return `"` + s + `"`
 }

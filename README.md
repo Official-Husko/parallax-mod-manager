@@ -64,7 +64,9 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   format and the newer Paradox Launcher JSON format (v1 and v2 relationship shapes); source
   classification (Steam Workshop / Paradox Launcher / local) by filename convention.
 - **Steam Workshop resolution** (`internal/steam`) - parses Steam's own
-  `libraryfolders.vdf` to find the right Workshop content folder across multiple libraries.
+  `libraryfolders.vdf` to find the right Workshop content folder across multiple libraries, and
+  across multiple Steam installation roots (a native install and a Flatpak one, say) - every
+  root is tried, not just the first.
 - **Per-game configuration** (`internal/game`) - executable discovery via the Paradox
   Launcher's own `launcher-settings.json`, with a fallback (its exact location varies per game -
   most keep it at the install root, some nest it under a `launcher/` subfolder). The user-data
@@ -73,7 +75,16 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   native Linux binary, no Proton involved. See the data-driven game registry entry below for
   where each game's configuration actually comes from now.
 - **Mod scanner** (`internal/scan`) - discovers and classifies every mod in a game's user
-  mod folder; a bad descriptor is a non-fatal per-mod error, not an aborted scan.
+  mod folder; a bad descriptor is a non-fatal per-mod error, not an aborted scan. Also
+  independently discovers subscribed Steam Workshop items the game hasn't linked into that
+  folder yet: confirmed on a real install, a subscribed item's content can be fully downloaded
+  with no `mod/ugc_<id>.mod` stub for it at all (Steam/the Paradox Launcher appear to write that
+  file lazily, not the moment a subscription finishes) - since every Workshop item's own content
+  folder already carries its own self-contained descriptor, the scanner reads that directly
+  instead of waiting for a stub to exist. When such a mod is actually enabled in a playset,
+  launching writes the missing stub (mirroring the item's own descriptor, never overwriting one
+  Steam or the launcher already wrote) so the game can actually find it - see
+  [docs/mod-sources.md](docs/mod-sources.md).
 - **Incremental cache** (`internal/cache`) - the stat → hash → parse layered, on-disk,
   versioned cache described above. This is the project's core performance thesis, and it's
   the one piece the research found nothing surveyed in this space (not the reference codebase,

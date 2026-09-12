@@ -29,6 +29,30 @@
     flex: none;
 }
 
+.sidebar-game .swatch.fallback {
+    background: var(--border-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sidebar-game .swatch.fallback i {
+    font-size: 8px;
+    color: var(--text-dim);
+}
+
+.sidebar-game .swatch.all-games {
+    background: var(--border-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sidebar-game .swatch.all-games i {
+    font-size: 8px;
+    color: var(--text-mid);
+}
+
 .sidebar-game .name {
     font: 500 12.5px Barlow, sans-serif;
     flex: 1;

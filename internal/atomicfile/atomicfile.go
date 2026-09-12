@@ -15,13 +15,18 @@ import (
 // WriteJSON marshals v as indented JSON and writes it to dir/filename
 // atomically. Returns the final absolute path on success.
 func WriteJSON(dir, filename string, v any) (string, error) {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", fmt.Errorf("atomicfile: creating %s: %w", dir, err)
-	}
-
 	data, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		return "", fmt.Errorf("atomicfile: encoding %s: %w", filename, err)
+	}
+	return Write(dir, filename, data)
+}
+
+// Write writes data to dir/filename atomically (temp file in the same
+// directory, then rename). Returns the final absolute path on success.
+func Write(dir, filename string, data []byte) (string, error) {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", fmt.Errorf("atomicfile: creating %s: %w", dir, err)
 	}
 
 	final := filepath.Join(dir, filename)

@@ -216,6 +216,14 @@
 
 .wizard-detected-swatch.fallback {
     background: var(--border-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.wizard-detected-swatch.fallback i {
+    font-size: 11px;
+    color: var(--text-dim);
 }
 
 .wizard-detected-name {

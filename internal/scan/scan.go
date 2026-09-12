@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/Official-Husko/parallax-mod-manager/internal/atomicfile"
 	"github.com/Official-Husko/parallax-mod-manager/internal/game"
 	"github.com/Official-Husko/parallax-mod-manager/internal/mod"
 	"github.com/Official-Husko/parallax-mod-manager/internal/steam"
@@ -17,12 +18,14 @@ import (
 // Options configures a scan.
 type Options struct {
 	Game game.GameConfig
-	// SteamRoot is the Steam installation root (containing steamapps/). If
-	// empty, Workshop mods are still discovered from their descriptors, but
-	// their ContentPath resolution is skipped (left empty) rather than
-	// erroring - a mod manager with no configured Steam root can still show
-	// what's there.
-	SteamRoot string
+	// SteamRoots lists every Steam installation root to search (a user can
+	// have more than one Steam install - see steam.DefaultRoots). Each is
+	// tried in order until one resolves the game's Workshop content
+	// directory. If empty (or none resolve), Workshop mods are still
+	// discovered from their descriptors, but their ContentPath resolution
+	// is skipped (left empty) rather than erroring - a mod manager with no
+	// configured Steam root can still show what's there.
+	SteamRoots []string
 	// ModDir overrides the game's default user mod folder. Tests and
 	// callers with an already-resolved directory should set this; production
 	// callers normally leave it empty and let it default to
@@ -56,7 +59,10 @@ func descriptorExt(kind mod.DescriptorType) string {
 	}
 }
 
-// Scan discovers every mod referenced from the game's user mod folder.
+// Scan discovers every mod referenced from the game's user mod folder, plus
+// (for classic-descriptor games with a resolvable Workshop directory) any
+// subscribed Workshop item that doesn't have a linking stub there yet - see
+// discoverUnlinkedWorkshopItems.
 func Scan(ctx context.Context, opts Options) (Result, error) {
 	modDir := opts.ModDir
 	if modDir == "" {
@@ -67,18 +73,33 @@ func Scan(ctx context.Context, opts Options) (Result, error) {
 		modDir = filepath.Join(userDir, "mod")
 	}
 
+	// A missing mod folder isn't an error - it just means no mods have
+	// been linked into it yet, classic local/Paradox-launcher ones
+	// included. Workshop items can still exist independently of it (see
+	// below), so scanning continues rather than returning early.
 	entries, err := os.ReadDir(modDir)
-	if os.IsNotExist(err) {
-		return Result{}, nil // no mods installed yet is not an error
-	}
-	if err != nil {
+	if err != nil && !os.IsNotExist(err) {
 		return Result{}, err
 	}
 
 	ext := descriptorExt(opts.Game.DescriptorType)
 	var result Result
+	knownRemoteIDs := map[string]struct{}{}
+
 	var workshopDir string
 	workshopDirResolved := false
+	resolveWorkshopDir := func() string {
+		if !workshopDirResolved {
+			for _, root := range opts.SteamRoots {
+				if dir, err := steam.FindWorkshopContentDir(root, opts.Game.SteamAppID); err == nil {
+					workshopDir = dir
+					break
+				}
+			}
+			workshopDirResolved = true
+		}
+		return workshopDir
+	}
 
 	for _, entry := range entries {
 		if err := ctx.Err(); err != nil {
@@ -109,13 +130,12 @@ func Scan(ctx context.Context, opts Options) (Result, error) {
 			contentPath = filepath.Join(modDir, contentPath)
 		}
 
-		if source == mod.SourceWorkshop && opts.SteamRoot != "" {
-			if !workshopDirResolved {
-				workshopDir, _ = steam.FindWorkshopContentDir(opts.SteamRoot, opts.Game.SteamAppID)
-				workshopDirResolved = true
+		if source == mod.SourceWorkshop {
+			if desc.RemoteFileID != "" {
+				knownRemoteIDs[desc.RemoteFileID] = struct{}{}
 			}
-			if workshopDir != "" {
-				if resolved := findWorkshopModContentPath(workshopDir, desc); resolved != "" {
+			if dir := resolveWorkshopDir(); dir != "" {
+				if resolved := findWorkshopModContentPath(dir, desc); resolved != "" {
 					contentPath = resolved
 				}
 			}
@@ -130,7 +150,100 @@ func Scan(ctx context.Context, opts Options) (Result, error) {
 		})
 	}
 
+	// Steam and the Paradox Launcher don't always create a mod/
+	// "ugc_<id>.mod" linking stub for a subscribed Workshop item right
+	// away - confirmed on a real install with dozens of fully-downloaded
+	// items and no stub for any of them (see docs/mod-sources.md). Only
+	// classic-descriptor games are covered: every Workshop item's own
+	// content folder is confirmed to carry its own self-contained
+	// descriptor.mod (no path field needed, since the folder itself is
+	// the content) - the JSON-launcher convention for this isn't
+	// confirmed, so it's left alone rather than guessed.
+	if opts.Game.DescriptorType == mod.DescriptorClassic {
+		if dir := resolveWorkshopDir(); dir != "" {
+			unlinked, errs := discoverUnlinkedWorkshopItems(dir, knownRemoteIDs)
+			result.Mods = append(result.Mods, unlinked...)
+			result.Errors = append(result.Errors, errs...)
+		}
+	}
+
 	return result, nil
+}
+
+// discoverUnlinkedWorkshopItems finds every Workshop item under workshopDir
+// that isn't already accounted for in knownRemoteIDs (a stub already found
+// in the mod folder), parsing each one's own descriptor.mod directly. The
+// resulting mod.Mod's ID follows the exact same "ugc_<id>" convention a
+// linked stub's filename would give it (see modID), so it round-trips
+// correctly through internal/launch's dlc_load.json writer once a stub
+// exists - see EnsureWorkshopStub.
+func discoverUnlinkedWorkshopItems(workshopDir string, knownRemoteIDs map[string]struct{}) ([]mod.Mod, []ScanError) {
+	entries, err := os.ReadDir(workshopDir)
+	if err != nil {
+		return nil, nil
+	}
+
+	var mods []mod.Mod
+	var errs []ScanError
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		remoteID := entry.Name()
+		if _, known := knownRemoteIDs[remoteID]; known {
+			continue
+		}
+
+		itemDir := filepath.Join(workshopDir, remoteID)
+		descPath := filepath.Join(itemDir, "descriptor.mod")
+		data, err := os.ReadFile(descPath)
+		if err != nil {
+			continue // nothing this project recognizes as a mod - skip quietly
+		}
+
+		desc, err := mod.ParseDescriptor(data, mod.DescriptorClassic)
+		if err != nil {
+			errs = append(errs, ScanError{Path: descPath, Err: err})
+			continue
+		}
+		if desc.RemoteFileID == "" {
+			desc.RemoteFileID = remoteID
+		}
+
+		mods = append(mods, mod.Mod{
+			ID:             mod.WorkshopFilePrefix + remoteID,
+			Descriptor:     desc,
+			Source:         mod.SourceWorkshop,
+			DescriptorPath: descPath,
+			ContentPath:    itemDir,
+		})
+	}
+	return mods, errs
+}
+
+// EnsureWorkshopStub writes m's descriptor as modDir's linking stub
+// ("ugc_<id>.mod") if one doesn't already exist there, so the game (which
+// reads dlc_load.json's "mod/ugc_<id>.mod" entries) can actually find
+// content this project discovered independently via
+// discoverUnlinkedWorkshopItems. Reports whether it wrote a file. Never
+// overwrites an existing stub - if Steam or the Paradox Launcher already
+// wrote one, that file is left alone untouched. A no-op, not an error, for
+// anything that isn't an identifiable Workshop mod.
+func EnsureWorkshopStub(m mod.Mod, modDir string) (bool, error) {
+	if m.Source != mod.SourceWorkshop || m.Descriptor.RemoteFileID == "" {
+		return false, nil
+	}
+	filename := mod.WorkshopFilePrefix + m.Descriptor.RemoteFileID + ".mod"
+	if _, err := os.Stat(filepath.Join(modDir, filename)); err == nil {
+		return false, nil
+	}
+
+	desc := m.Descriptor
+	desc.Path = m.ContentPath
+	if _, err := atomicfile.Write(modDir, filename, mod.WriteClassicDescriptor(desc)); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // modID derives a mod's stable identifier: the descriptor filename's stem

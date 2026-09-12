@@ -66,7 +66,7 @@ export function Library() {
                             style={{background: selectedGame === '' ? '#1e2734' : 'transparent', cursor: 'pointer'}}
                             onClick={() => setSelectedGame('')}
                         >
-                            <span className="swatch" style={{background: 'var(--text-dim)'}}/>
+                            <span className="swatch all-games"><i className="fa-solid fa-layer-group"/></span>
                             <span className="name" style={{color: selectedGame === '' ? 'var(--text-bright)' : 'var(--text-mid)'}}>All games</span>
                             <span className="mono n">{totalMods}</span>
                         </div>

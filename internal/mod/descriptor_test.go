@@ -78,6 +78,53 @@ replace_path = "common/species_classes"
 	}
 }
 
+func TestWriteClassicDescriptorRoundTrips(t *testing.T) {
+	d := Descriptor{
+		Name:             "AI Species Limit",
+		Path:             "/absolute/content/path",
+		UserDir:          "dir",
+		ReplacePath:      []string{"common/buildings", "common/species_classes"},
+		Tags:             []string{"Gameplay", "Fixes"},
+		SupportedVersion: "2.5.*",
+		RemoteFileID:     "1830063425",
+		Version:          "version",
+		Dependencies:     []string{"fake"},
+	}
+
+	data := WriteClassicDescriptor(d)
+	got, err := ParseDescriptor(data, DescriptorClassic)
+	if err != nil {
+		t.Fatalf("ParseDescriptor(WriteClassicDescriptor(d)): %v\ndata:\n%s", err, data)
+	}
+	if !reflect.DeepEqual(got, d) {
+		t.Errorf("round-tripped =\n%+v\nwant\n%+v\ndata:\n%s", got, d, data)
+	}
+}
+
+func TestWriteClassicDescriptorEscapesQuotesAndBackslashes(t *testing.T) {
+	d := Descriptor{Name: `Say "hi" \ bye`}
+	data := WriteClassicDescriptor(d)
+	got, err := ParseDescriptor(data, DescriptorClassic)
+	if err != nil {
+		t.Fatalf("ParseDescriptor: %v\ndata:\n%s", err, data)
+	}
+	if got.Name != d.Name {
+		t.Errorf("Name = %q, want %q", got.Name, d.Name)
+	}
+}
+
+func TestWriteClassicDescriptorOmitsEmptyFields(t *testing.T) {
+	data := WriteClassicDescriptor(Descriptor{Name: "Bare"})
+	got, err := ParseDescriptor(data, DescriptorClassic)
+	if err != nil {
+		t.Fatalf("ParseDescriptor: %v\ndata:\n%s", err, data)
+	}
+	want := Descriptor{Name: "Bare"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("got %+v, want %+v", got, want)
+	}
+}
+
 func TestParseJSONDescriptorV1FlatRelationships(t *testing.T) {
 	src := []byte(`{
 		"id": "01234567-89ab-cdef-0123-456789abcdef",

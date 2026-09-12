@@ -91,6 +91,14 @@
 
 .profile-swatch.fallback {
     background: var(--border-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.profile-swatch.fallback i {
+    font-size: 13px;
+    color: var(--text-dim);
 }
 
 .profile-state.actionable {

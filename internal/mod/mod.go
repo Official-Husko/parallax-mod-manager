@@ -30,7 +30,11 @@ const (
 )
 
 const (
-	workshopFilePrefix = "ugc_"
+	// WorkshopFilePrefix marks a classic-format descriptor filename as a
+	// Steam Workshop mod, e.g. "ugc_1830063425.mod" - also the convention
+	// this project uses to name a Workshop item's stub file when it has to
+	// write one itself (see WriteClassicDescriptor and internal/scan).
+	WorkshopFilePrefix = "ugc_"
 	launcherFilePrefix = "pdx_"
 )
 
@@ -41,7 +45,7 @@ const (
 func ClassifySource(descriptorFilename string) Source {
 	name := filepath.Base(descriptorFilename)
 	switch {
-	case strings.Contains(name, workshopFilePrefix):
+	case strings.Contains(name, WorkshopFilePrefix):
 		return SourceWorkshop
 	case strings.Contains(name, launcherFilePrefix):
 		return SourceParadoxLauncher

@@ -80,3 +80,35 @@ func TestWriteJSONCreatesDirIfMissing(t *testing.T) {
 		t.Errorf("expected file to exist: %v", err)
 	}
 }
+
+func TestWriteRoundTrips(t *testing.T) {
+	dir := t.TempDir()
+	path, err := Write(dir, "test.txt", []byte("hello"))
+	if err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+	if path != filepath.Join(dir, "test.txt") {
+		t.Errorf("returned path = %q, want %q", path, filepath.Join(dir, "test.txt"))
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	if string(data) != "hello" {
+		t.Errorf("content = %q, want %q", data, "hello")
+	}
+}
+
+func TestWriteNoLeftoverTempFile(t *testing.T) {
+	dir := t.TempDir()
+	if _, err := Write(dir, "test.txt", []byte("x")); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("ReadDir: %v", err)
+	}
+	if len(entries) != 1 || entries[0].Name() != "test.txt" {
+		t.Errorf("dir entries = %+v, want exactly [test.txt]", entries)
+	}
+}

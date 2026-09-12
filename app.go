@@ -16,9 +16,11 @@ import (
 	"github.com/Official-Husko/parallax-mod-manager/internal/gamemedia"
 	"github.com/Official-Husko/parallax-mod-manager/internal/launch"
 	"github.com/Official-Husko/parallax-mod-manager/internal/library"
+	"github.com/Official-Husko/parallax-mod-manager/internal/mod"
 	"github.com/Official-Husko/parallax-mod-manager/internal/playset"
 	"github.com/Official-Husko/parallax-mod-manager/internal/preferences"
 	"github.com/Official-Husko/parallax-mod-manager/internal/scan"
+	"github.com/Official-Husko/parallax-mod-manager/internal/steam"
 	"github.com/Official-Husko/parallax-mod-manager/internal/watch"
 )
 
@@ -39,6 +41,7 @@ type App struct {
 	gameMedia       gamemedia.Store
 	preferences     preferences.Preferences
 	preferencesPath string
+	steamRoots      []string
 	modWatcher      *watch.FolderWatcher
 	watchedGameID   string
 }
@@ -54,6 +57,7 @@ func NewApp() *App {
 // call the runtime methods.
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	a.steamRoots = steam.DefaultRoots()
 
 	configDir, configErr := os.UserConfigDir()
 
@@ -195,7 +199,7 @@ func (a *App) DetectGames() ([]library.DetectedGame, error) {
 	games := a.registry.List()
 	result := make([]library.DetectedGame, 0, len(games))
 	for _, cfg := range games {
-		d, err := library.DetectGame(a.ctx, cfg)
+		d, err := library.DetectGame(a.ctx, cfg, a.steamRoots)
 		if err != nil {
 			return nil, err
 		}
@@ -224,12 +228,12 @@ func (a *App) BrowseForGameInstall(gameID string) (library.DetectedGame, error) 
 		return library.DetectedGame{}, err
 	}
 	if dir == "" {
-		return library.DetectGame(a.ctx, cfg)
+		return library.DetectGame(a.ctx, cfg, a.steamRoots)
 	}
 	if !cfg.VerifyInstallDir(dir) {
 		return library.DetectedGame{}, fmt.Errorf("app: %s does not look like a %s install", dir, cfg.DisplayName)
 	}
-	return library.DetectGameAt(a.ctx, cfg, dir)
+	return library.DetectGameAt(a.ctx, cfg, dir, a.steamRoots)
 }
 
 // BrowseForAnyGameInstall opens the same folder-picker as
@@ -251,7 +255,7 @@ func (a *App) BrowseForAnyGameInstall() (library.DetectedGame, error) {
 	}
 	for _, cfg := range a.registry.List() {
 		if cfg.VerifyInstallDir(dir) {
-			return library.DetectGameAt(a.ctx, cfg, dir)
+			return library.DetectGameAt(a.ctx, cfg, dir, a.steamRoots)
 		}
 	}
 	return library.DetectedGame{}, fmt.Errorf("app: %s does not match any registered game", dir)
@@ -266,7 +270,7 @@ func (a *App) ScanGame(gameID, playsetName string) (library.Summary, error) {
 		return library.Summary{}, fmt.Errorf("app: unknown game %q", gameID)
 	}
 
-	opts := library.Options{CacheDir: a.cacheDir}
+	opts := library.Options{CacheDir: a.cacheDir, SteamRoots: a.steamRoots}
 	if playsetName != "" {
 		p, err := a.playsets.Load(a.ctx, gameID, playsetName)
 		if err != nil {
@@ -311,7 +315,7 @@ func (a *App) LaunchGame(gameID, playsetName string) error {
 		return err
 	}
 
-	scanResult, err := scan.Scan(a.ctx, scan.Options{Game: cfg})
+	scanResult, err := scan.Scan(a.ctx, scan.Options{Game: cfg, SteamRoots: a.steamRoots})
 	if err != nil {
 		return err
 	}
@@ -320,6 +324,27 @@ func (a *App) LaunchGame(gameID, playsetName string) error {
 	if err != nil {
 		return err
 	}
+
+	// Some subscribed Workshop mods may have been discovered without a
+	// game/mod/ linking stub yet (see scan.discoverUnlinkedWorkshopItems) -
+	// write one for anything this playset actually enables, so the game
+	// itself (which reads dlc_load.json's "mod/ugc_<id>.mod" entries) can
+	// find it. Only classic-descriptor games use this stub convention.
+	if cfg.DescriptorType == mod.DescriptorClassic {
+		modsByID := make(map[string]mod.Mod, len(scanResult.Mods))
+		for _, m := range scanResult.Mods {
+			modsByID[m.ID] = m
+		}
+		modDir := filepath.Join(stateDir, "mod")
+		for _, id := range p.ModIDs {
+			if m, ok := modsByID[id]; ok {
+				if _, err := scan.EnsureWorkshopStub(m, modDir); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
 	order := conflict.LoadOrder(p.ModIDs)
 	if _, err := launch.WriteState(order, scanResult.Mods, cfg, launch.Options{
 		StateDir:    stateDir,

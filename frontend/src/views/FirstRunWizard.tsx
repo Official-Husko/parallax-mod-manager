@@ -219,7 +219,11 @@ function GameSwatch({src}: { src?: string }) {
     if (src) {
         return <img className="wizard-detected-swatch" src={src} alt=""/>;
     }
-    return <div className="wizard-detected-swatch fallback"/>;
+    return (
+        <div className="wizard-detected-swatch fallback">
+            <i className="fa-solid fa-gamepad"/>
+        </div>
+    );
 }
 
 function FindGamesStep({games, managed, onToggle, onBrowse, browsing, browseErrors, logos, accents}: {

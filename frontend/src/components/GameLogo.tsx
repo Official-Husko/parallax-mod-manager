@@ -4,8 +4,8 @@ import {GameMedia} from '../../wailsjs/go/main/App';
 
 // A per-game logo, fetched from the real embed-plus-override game media
 // store (see internal/gamemedia) - not every game has art yet, so a
-// plain-color fallback box (styled by className, same as the real image)
-// is expected, not an error state.
+// plain-color fallback box with a generic game icon (styled by className,
+// same as the real image) is expected, not an error state.
 export function GameLogo({gameId, className}: { gameId: string; className?: string }) {
     const [src, setSrc] = useState('');
 
@@ -21,5 +21,9 @@ export function GameLogo({gameId, className}: { gameId: string; className?: stri
     if (src) {
         return <img className={className} src={src} alt=""/>;
     }
-    return <div className={`${className ?? ''} fallback`}/>;
+    return (
+        <div className={`${className ?? ''} fallback`}>
+            <i className="fa-solid fa-gamepad"/>
+        </div>
+    );
 }
