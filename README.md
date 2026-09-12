@@ -154,9 +154,22 @@ This list grows as features land - see [Progress](#progress) below, which is kep
 - **First-run wizard** (`frontend/src/views/FirstRunWizard.tsx`, `App.DetectGames`,
   `App.BrowseForGameInstall`/`BrowseForAnyGameInstall`) - real, not a mockup replica: it detects
   which registered games are actually installed and how many mods each already has, lets you
-  pick which ones Parallax Mod Manager should manage, shows real saved playsets per game, and
-  opens a native folder picker (verified against the game's real signature files, never trusted
-  on say-so) when auto-detection misses a game or finds the wrong copy.
+  pick which ones Parallax Mod Manager should manage, shows real saved playsets per game, opens
+  a native folder picker (verified against the game's real signature files, never trusted on
+  say-so) when auto-detection misses a game or finds the wrong copy, and its last step sets the
+  same real preferences described below (not a static preview of them).
+- **Live mod-folder watching and real preferences** (`internal/watch`, `internal/preferences`,
+  `Workspace.tsx`, `Settings.tsx`) - the Workspace's mod list watches the current game's mod
+  folder in the background (`fsnotify`, debounced so a bulk copy or archive extract collapses
+  into one refresh instead of several) and updates the moment a mod is added or removed,
+  without discarding the load order you've already built or Available-list selections you
+  haven't added yet - a refresh only prunes mods that no longer exist, via Wails' event bridge
+  (`EventsEmit`/`EventsOn`) rather than polling. Three real preferences persist across restarts
+  (JSONC, `internal/preferences`): scanning for new mods (gates the watcher above), closing the
+  manager after a successful launch, and remembering the last game you managed so it's
+  preselected next time. "Warn on patch mismatch" is stored alongside them but stays an
+  explicit placeholder - this project has no concept yet of a mod's compatible game version to
+  warn about.
 - **The rest of the design mockup's screens** (`frontend/src/views/Library.tsx`, `Dlc.tsx`,
   `Settings.tsx`, `ConflictResolver.tsx`, `PlaysetsModal.tsx`, `UpdatesModal.tsx`) - a faithful,
   fully navigable visual preview of the mockup's cross-game library, DLC management, settings
@@ -168,7 +181,8 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   feature described above (its decorative bits - thumbnail art, description, the
   Files/Conflicts/Changes tabs - are static preview content like the rest); Settings'
   "Game profiles" panel shows the same real per-game detection as the first-run wizard
-  (including a working "set path" for anything not auto-detected); and the Library screen's
+  (including a working "set path" for anything not auto-detected, and the three real preference
+  toggles described above); and the Library screen's
   games sidebar and mod table are real too - it scans every managed game and lists its actual
   mods (name, source, version), searchable and filterable by game, with columns this project
   can't compute yet (file size, last played, a mod's "state") honestly shown as `-` rather than

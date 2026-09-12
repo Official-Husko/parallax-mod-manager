@@ -83,7 +83,7 @@
 .wizard-step.active .wizard-step-num {
     border-color: var(--rust);
     background: var(--rust);
-    color: #120d0a;
+    color: var(--rust-text);
 }
 
 .wizard-step.done .wizard-step-num {
@@ -241,6 +241,25 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.wizard-toggles {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow-y: auto;
+}
+
+.wizard-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font: 400 12.5px Barlow, sans-serif;
+    color: var(--text);
+    border: 1px solid var(--border);
+    background: var(--bg-rail);
+    border-radius: 5px;
+    padding: 10px 12px;
 }
 
 .wizard-bottom {

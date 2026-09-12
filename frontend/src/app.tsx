@@ -1,8 +1,8 @@
 import './App.css'
 import {h} from 'preact';
 import {useEffect, useState} from 'preact/hooks';
-import {ListGames, StartupNotice} from '../wailsjs/go/main/App';
-import type {library} from '../wailsjs/go/models';
+import {GetPreferences, ListGames, SetPreferences, StartupNotice} from '../wailsjs/go/main/App';
+import type {library, preferences} from '../wailsjs/go/models';
 import {TopBar} from './components/TopBar';
 import type {ViewKey} from './components/TopBar';
 import {Workspace} from './views/Workspace';
@@ -13,6 +13,7 @@ import {ConflictResolver} from './views/ConflictResolver';
 import {UpdatesModal} from './views/UpdatesModal';
 import {FirstRunWizard} from './views/FirstRunWizard';
 import {getManagedGames} from './data/managedGames';
+import {useGameAccent} from './data/useGameAccent';
 
 const ONBOARDED_KEY = 'parallax-onboarded';
 
@@ -36,6 +37,7 @@ export function App() {
     const [view, setView] = useState<ViewKey>('workspace');
     const [games, setGames] = useState<library.GameInfo[]>([]);
     const [selectedGame, setSelectedGame] = useState('');
+    const [prefs, setPrefs] = useState<preferences.Preferences | null>(null);
     const [playsetName, setPlaysetName] = useState('');
     const [onboarded, setOnboarded] = useState(wasOnboarded());
     const [showConflictResolver, setShowConflictResolver] = useState(false);
@@ -48,21 +50,35 @@ export function App() {
             return;
         }
         StartupNotice().then(setNotice).catch(() => undefined);
-        ListGames()
-            .then((list) => {
+        Promise.all([ListGames(), GetPreferences().catch(() => null)])
+            .then(([list, loadedPrefs]) => {
+                setPrefs(loadedPrefs);
                 const managedKeys = getManagedGames();
                 const visible = managedKeys && managedKeys.length > 0
                     ? list.filter((g) => managedKeys.includes(g.ID))
                     : list;
                 setGames(visible);
                 if (visible.length > 0) {
-                    setSelectedGame(visible[0].ID);
+                    const lastSelected = loadedPrefs?.lastSelectedGame ?? '';
+                    const initial = visible.find((g) => g.ID === lastSelected)?.ID ?? visible[0].ID;
+                    setSelectedGame(initial);
                 } else {
                     setError('No games are set up to manage yet - run setup again to select one.');
                 }
             })
             .catch((err) => setError(String(err)));
     }, [onboarded]);
+
+    function selectGame(id: string) {
+        setSelectedGame(id);
+        if (prefs) {
+            const next = {...prefs, lastSelectedGame: id};
+            setPrefs(next);
+            SetPreferences(next).catch(() => undefined);
+        }
+    }
+
+    const accent = useGameAccent(onboarded ? selectedGame : '');
 
     if (!onboarded) {
         return (
@@ -79,14 +95,18 @@ export function App() {
             gameLabel: gameName,
             profileLabel: playsetName || '(unsaved)',
             games: games.map((g) => ({ID: g.ID, DisplayName: g.DisplayName})),
-            onSelectGame: setSelectedGame,
+            onSelectGame: selectGame,
         }
         : view === 'dlc'
             ? {gameLabel: 'Hearts of Iron IV', profileLabel: 'Kaiserreich MP'}
             : undefined;
 
+    const accentStyle = accent
+        ? ({'--rust': accent.color, '--rust-text': accent.textColor} as unknown as h.JSX.CSSProperties)
+        : undefined;
+
     return (
-        <div id="app">
+        <div id="app" style={accentStyle}>
             {notice && (
                 <div className="app-notice">
                     <span>{notice}</span>

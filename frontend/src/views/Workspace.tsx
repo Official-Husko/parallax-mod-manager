@@ -7,7 +7,9 @@ import {
     LoadPlayset,
     SavePlayset,
     ScanGame,
+    WatchMods,
 } from '../../wailsjs/go/main/App';
+import {EventsOn} from '../../wailsjs/runtime/runtime';
 import type {library, playset} from '../../wailsjs/go/models';
 import {
     byDomain,
@@ -52,23 +54,59 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenConfl
         onPlaysetNameChange(name);
     }
 
+    // refreshMods re-fetches the mod summary for the current game.
+    // preserveSelection=false is a real game switch (today's full reset:
+    // clear the playset name and Available selection, rebuild the load
+    // order from scratch). preserveSelection=true is a background refresh
+    // triggered by the mod-folder watcher: it only prunes IDs that no
+    // longer exist from the current load order and Available selection,
+    // leaving everything else exactly as the user left it.
+    async function refreshMods(preserveSelection: boolean) {
+        if (!preserveSelection) {
+            setPlaysetName('');
+            setSelectedAvailable(new Set());
+            setStatus({kind: 'busy', message: 'Scanning...'});
+        }
+        try {
+            const result = await ScanGame(selectedGame, '');
+            setSummary(result);
+            if (preserveSelection) {
+                const freshIds = new Set(result.Mods.map((m) => m.ID));
+                setOrder((prev) => prev.filter((id) => freshIds.has(id)));
+                setSelectedAvailable((prev) => new Set([...prev].filter((id) => freshIds.has(id))));
+            } else {
+                setOrder(result.Mods.filter((m) => m.Enabled).map((m) => m.ID));
+                setStatus({kind: 'idle'});
+            }
+        } catch (err) {
+            if (!preserveSelection) {
+                setStatus({kind: 'error', message: String(err)});
+            }
+        }
+    }
+
     useEffect(() => {
         if (!selectedGame) {
             return;
         }
-        setPlaysetName('');
-        setSelectedAvailable(new Set());
-        setStatus({kind: 'busy', message: 'Scanning...'});
-        ScanGame(selectedGame, '')
-            .then((result) => {
-                setSummary(result);
-                setOrder(result.Mods.filter((m) => m.Enabled).map((m) => m.ID));
-                setStatus({kind: 'idle'});
-            })
-            .catch((err) => setStatus({kind: 'error', message: String(err)}));
+        WatchMods(selectedGame).catch(() => undefined);
+        refreshMods(false);
         ListPlaysets(selectedGame)
             .then(setPlaysetList)
             .catch((err) => setStatus({kind: 'error', message: String(err)}));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedGame]);
+
+    useEffect(() => {
+        if (!selectedGame) {
+            return;
+        }
+        const unsubscribe = EventsOn('mods-changed', (gameId: string) => {
+            if (gameId === selectedGame) {
+                refreshMods(true);
+            }
+        });
+        return () => unsubscribe();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedGame]);
 

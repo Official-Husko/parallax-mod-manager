@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "colorthief": "^3.5.0",
     "preact": "^10.10.1"
   },
   "devDependencies": {

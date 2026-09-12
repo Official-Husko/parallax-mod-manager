@@ -136,3 +136,26 @@ export namespace playset {
 
 }
 
+export namespace preferences {
+	
+	export class Preferences {
+	    scanForNewMods: boolean;
+	    closeAfterLaunch: boolean;
+	    warnOnPatchMismatch: boolean;
+	    lastSelectedGame: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Preferences(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.scanForNewMods = source["scanForNewMods"];
+	        this.closeAfterLaunch = source["closeAfterLaunch"];
+	        this.warnOnPatchMismatch = source["warnOnPatchMismatch"];
+	        this.lastSelectedGame = source["lastSelectedGame"];
+	    }
+	}
+
+}
+

@@ -22,6 +22,11 @@
     --text-muted: #8d99a9;
     --text-dim: #6a7484;
     --rust: #c4623a;
+    /* Text color paired with --rust backgrounds - overridden together with
+       --rust when a game's logo supplies its own accent (see
+       data/useGameAccent.ts), so contrast stays correct for whatever color
+       that turns out to be, not just the default rust. */
+    --rust-text: #120d0a;
     --amber: #e0a340;
     --red: #d4574e;
     --green: #5fae7e;
@@ -206,7 +211,7 @@
 
 .btn-primary {
     font: 600 11.5px Barlow, sans-serif;
-    color: #120d0a;
+    color: var(--rust-text);
     background: var(--rust);
     border: none;
     border-radius: 4px;
@@ -271,6 +276,10 @@
     border-radius: 9px;
     position: relative;
     flex: none;
+}
+
+.toggle-pill.clickable {
+    cursor: pointer;
 }
 
 .toggle-pill.on {

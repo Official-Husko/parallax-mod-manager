@@ -828,7 +828,7 @@
 
 .play-title {
     font: 700 15px Barlow, sans-serif;
-    color: #120d0a;
+    color: var(--rust-text);
     letter-spacing: .03em;
 }
 

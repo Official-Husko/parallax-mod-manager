@@ -22,6 +22,10 @@ export function GameMedia(arg1, arg2) {
   return window['go']['main']['App']['GameMedia'](arg1, arg2);
 }
 
+export function GetPreferences() {
+  return window['go']['main']['App']['GetPreferences']();
+}
+
 export function LaunchGame(arg1, arg2) {
   return window['go']['main']['App']['LaunchGame'](arg1, arg2);
 }
@@ -46,6 +50,14 @@ export function ScanGame(arg1, arg2) {
   return window['go']['main']['App']['ScanGame'](arg1, arg2);
 }
 
+export function SetPreferences(arg1) {
+  return window['go']['main']['App']['SetPreferences'](arg1);
+}
+
 export function StartupNotice() {
   return window['go']['main']['App']['StartupNotice']();
+}
+
+export function WatchMods(arg1) {
+  return window['go']['main']['App']['WatchMods'](arg1);
 }

@@ -98,12 +98,6 @@ export const settingsNav = [
     {label: 'Advanced', key: 'advanced'},
 ];
 
-export const profileToggles = [
-    {label: 'Scan Workshop folder on launch', on: true},
-    {label: 'Warn on patch mismatch', on: true},
-    {label: 'Close manager after launch', on: false},
-];
-
 export const sortRules = [
     {i: '1', name: 'Frameworks first', desc: 'Mods tagged as a framework or library load before anything that depends on them.', moves: '7 moves', on: true},
     {i: '2', name: 'Declared dependencies', desc: 'Honour requires/after metadata in descriptor.mod.', moves: '5 moves', on: true},

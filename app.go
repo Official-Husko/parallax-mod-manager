@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"time"
 
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 
@@ -16,20 +17,30 @@ import (
 	"github.com/Official-Husko/parallax-mod-manager/internal/launch"
 	"github.com/Official-Husko/parallax-mod-manager/internal/library"
 	"github.com/Official-Husko/parallax-mod-manager/internal/playset"
+	"github.com/Official-Husko/parallax-mod-manager/internal/preferences"
 	"github.com/Official-Husko/parallax-mod-manager/internal/scan"
+	"github.com/Official-Husko/parallax-mod-manager/internal/watch"
 )
+
+// modWatchDebounce absorbs a burst of filesystem events from one logical
+// change (a bulk copy, an archive extract) into a single refresh.
+const modWatchDebounce = 400 * time.Millisecond
 
 // App is the Wails-bound backend: a thin adapter that resolves real OS
 // paths (the one place this project's "never resolve a real path inside a
 // package that might be tested" rule doesn't apply, per CLAUDE.md) and
 // delegates everything else to internal/ packages.
 type App struct {
-	ctx           context.Context
-	registry      *game.Registry
-	startupNotice string
-	cacheDir      string
-	playsets      playset.Store
-	gameMedia     gamemedia.Store
+	ctx             context.Context
+	registry        *game.Registry
+	startupNotice   string
+	cacheDir        string
+	playsets        playset.Store
+	gameMedia       gamemedia.Store
+	preferences     preferences.Preferences
+	preferencesPath string
+	modWatcher      *watch.FolderWatcher
+	watchedGameID   string
 }
 
 // NewApp creates a new App application struct. Real setup (resolving OS
@@ -73,6 +84,18 @@ func (a *App) startup(ctx context.Context) {
 	if configErr == nil {
 		a.gameMedia.OverrideDir = filepath.Join(configDir, "parallax-mod-manager", "game_media")
 	}
+
+	if configErr == nil {
+		a.preferencesPath = filepath.Join(configDir, "parallax-mod-manager", "preferences.jsonc")
+		a.preferences = preferences.Load(a.preferencesPath)
+	} else {
+		a.preferences = preferences.Defaults()
+	}
+}
+
+// shutdown is called when the app is closing, before the runtime exits.
+func (a *App) shutdown(ctx context.Context) {
+	a.modWatcher.Close()
 }
 
 // StartupNotice returns a user-facing message when something noteworthy
@@ -93,6 +116,67 @@ func (a *App) GameMedia(kind, gameID string) (string, error) {
 		return "", nil
 	}
 	return "data:" + mimeType + ";base64," + base64.StdEncoding.EncodeToString(data), nil
+}
+
+// GetPreferences returns the app's current preferences.
+func (a *App) GetPreferences() preferences.Preferences {
+	return a.preferences
+}
+
+// SetPreferences persists p and applies it immediately: if scanning for
+// new mods was just turned on or off, the live watcher for whichever game
+// is currently being watched (see WatchMods) is started or stopped right
+// away rather than waiting for the next game switch.
+func (a *App) SetPreferences(p preferences.Preferences) error {
+	if a.preferencesPath != "" {
+		if err := preferences.Save(a.preferencesPath, p); err != nil {
+			return err
+		}
+	}
+	a.preferences = p
+
+	if a.watchedGameID != "" {
+		return a.WatchMods(a.watchedGameID)
+	}
+	return nil
+}
+
+// WatchMods starts watching gameID's mod folder for changes, replacing any
+// previous watch. The frontend calls this whenever the active game
+// changes so its mod list can update live. Watching is skipped (any
+// existing watcher is still stopped first) when the "scan for new mods"
+// preference is off, or when the mod folder doesn't exist yet (nothing to
+// watch, not an error).
+func (a *App) WatchMods(gameID string) error {
+	a.modWatcher.Close()
+	a.modWatcher = nil
+	a.watchedGameID = gameID
+
+	if !a.preferences.ScanForNewMods {
+		return nil
+	}
+
+	cfg, ok := a.registry.Get(gameID)
+	if !ok {
+		return fmt.Errorf("app: unknown game %q", gameID)
+	}
+	userDir, err := cfg.UserDataDir()
+	if err != nil {
+		return nil
+	}
+	modDir := filepath.Join(userDir, "mod")
+	if _, err := os.Stat(modDir); err != nil {
+		return nil
+	}
+
+	w, err := watch.New(modDir, modWatchDebounce, func() {
+		wailsruntime.EventsEmit(a.ctx, "mods-changed", gameID)
+	})
+	if err != nil {
+		return err
+	}
+	a.modWatcher = w
+	return nil
 }
 
 // ListGames returns every game this build supports, for a game picker.
@@ -244,5 +328,12 @@ func (a *App) LaunchGame(gameID, playsetName string) error {
 		return err
 	}
 
-	return launch.Launch(launch.OSLauncher{}, cfg, launch.LaunchOptions{})
+	if err := launch.Launch(launch.OSLauncher{}, cfg, launch.LaunchOptions{}); err != nil {
+		return err
+	}
+
+	if a.preferences.CloseAfterLaunch {
+		wailsruntime.Quit(a.ctx)
+	}
+	return nil
 }

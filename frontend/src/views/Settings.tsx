@@ -1,11 +1,11 @@
 import './Settings.css';
 import {h} from 'preact';
 import {useEffect, useState} from 'preact/hooks';
-import {DetectGames, BrowseForGameInstall} from '../../wailsjs/go/main/App';
-import type {library} from '../../wailsjs/go/models';
+import {DetectGames, BrowseForGameInstall, GetPreferences, SetPreferences} from '../../wailsjs/go/main/App';
+import type {library, preferences} from '../../wailsjs/go/models';
 import {GameLogo} from '../components/GameLogo';
 import {Toggle} from '../components/Toggle';
-import {overrides, profileToggles, settingsNav, sortLog, sortRules} from '../data/mockData';
+import {overrides, settingsNav, sortLog, sortRules} from '../data/mockData';
 
 type Section = 'profiles' | 'sort';
 
@@ -46,12 +46,21 @@ type ProfilesState =
 function ProfilesPanel() {
     const [state, setState] = useState<ProfilesState>({kind: 'loading'});
     const [browsing, setBrowsing] = useState<Set<string>>(new Set());
+    const [prefs, setPrefs] = useState<preferences.Preferences | null>(null);
 
     useEffect(() => {
         DetectGames()
             .then((games) => setState({kind: 'ready', games}))
             .catch((err) => setState({kind: 'error', message: String(err)}));
+        GetPreferences().then(setPrefs).catch(() => undefined);
     }, []);
+
+    function togglePref(key: 'scanForNewMods' | 'closeAfterLaunch' | 'warnOnPatchMismatch') {
+        if (!prefs) return;
+        const next = {...prefs, [key]: !prefs[key]};
+        setPrefs(next);
+        SetPreferences(next).catch(() => setPrefs(prefs));
+    }
 
     async function setPath(gameId: string) {
         setBrowsing((prev) => new Set(prev).add(gameId));
@@ -109,14 +118,22 @@ function ProfilesPanel() {
                     ))}
                 </div>
             )}
-            <div className="profile-toggles">
-                {profileToggles.map((t) => (
-                    <div key={t.label} className="profile-toggle-row">
-                        <span>{t.label}</span>
-                        <Toggle on={t.on}/>
+            {prefs && (
+                <div className="profile-toggles">
+                    <div className="profile-toggle-row">
+                        <span>Scan for new mods automatically</span>
+                        <Toggle on={prefs.scanForNewMods} onClick={() => togglePref('scanForNewMods')}/>
                     </div>
-                ))}
-            </div>
+                    <div className="profile-toggle-row">
+                        <span>Warn on patch mismatch</span>
+                        <Toggle on={prefs.warnOnPatchMismatch} onClick={() => togglePref('warnOnPatchMismatch')}/>
+                    </div>
+                    <div className="profile-toggle-row">
+                        <span>Close manager after launch</span>
+                        <Toggle on={prefs.closeAfterLaunch} onClick={() => togglePref('closeAfterLaunch')}/>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
