@@ -15,7 +15,11 @@ var Stellaris = GameConfig{
 	SteamAppID:     "281990",
 	FolderName:     "Stellaris",
 	DescriptorType: mod.DescriptorClassic,
-	SignatureFiles: []string{"stellaris.exe"},
+	// launcher-settings.json, not the game binary itself: confirmed against
+	// a real Linux Stellaris install that the executable there is the
+	// extension-less native binary "stellaris", not "stellaris.exe" - a
+	// signature file needs to exist under the same name on every platform.
+	SignatureFiles: []string{"launcher-settings.json"},
 	ScanFolders: []string{
 		"common", "events", "map", "localisation", "gfx", "gui",
 		"prescripted_countries", "solar_system_initializers",

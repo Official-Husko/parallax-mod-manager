@@ -54,6 +54,14 @@ export function App() {
             .catch((err) => setError(String(err)));
     }, []);
 
+    if (!onboarded) {
+        return (
+            <div id="app">
+                <FirstRunWizard onFinish={() => { markOnboarded(); setOnboarded(true); }}/>
+            </div>
+        );
+    }
+
     const gameName = games.find((g) => g.Key === selectedGame)?.DisplayName ?? selectedGame;
 
     const gamePicker = view === 'workspace'
@@ -83,9 +91,6 @@ export function App() {
 
             {showConflictResolver && <ConflictResolver onClose={() => setShowConflictResolver(false)}/>}
             {showUpdates && <UpdatesModal onClose={() => setShowUpdates(false)}/>}
-            {!onboarded && (
-                <FirstRunWizard onContinue={() => { markOnboarded(); setOnboarded(true); }}/>
-            )}
         </div>
     );
 }

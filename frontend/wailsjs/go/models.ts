@@ -16,6 +16,28 @@ export namespace library {
 	        this.Candidates = source["Candidates"];
 	    }
 	}
+	export class DetectedGame {
+	    Key: string;
+	    DisplayName: string;
+	    Installed: boolean;
+	    InstallPath: string;
+	    ModFolder: string;
+	    ModCount: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DetectedGame(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Key = source["Key"];
+	        this.DisplayName = source["DisplayName"];
+	        this.Installed = source["Installed"];
+	        this.InstallPath = source["InstallPath"];
+	        this.ModFolder = source["ModFolder"];
+	        this.ModCount = source["ModCount"];
+	    }
+	}
 	export class GameInfo {
 	    Key: string;
 	    DisplayName: string;

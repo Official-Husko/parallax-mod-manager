@@ -5,6 +5,8 @@ import {playset} from '../models';
 
 export function DeletePlayset(arg1:string,arg2:string):Promise<void>;
 
+export function DetectGames():Promise<Array<library.DetectedGame>>;
+
 export function LaunchGame(arg1:string,arg2:string):Promise<void>;
 
 export function ListGames():Promise<Array<library.GameInfo>>;

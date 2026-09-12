@@ -14,6 +14,7 @@ package library
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"sort"
 
 	"github.com/Official-Husko/parallax-mod-manager/internal/cache"
@@ -28,6 +29,45 @@ import (
 type GameInfo struct {
 	Key         string
 	DisplayName string
+}
+
+// DetectedGame is one registered game's real, on-this-machine setup state,
+// for the first-run wizard's "games found" step - never fabricated: a game
+// with no confirmed Steam install reports Installed: false and an empty
+// InstallPath rather than guessing.
+type DetectedGame struct {
+	GameInfo
+	Installed   bool
+	InstallPath string // empty when Installed is false
+	ModFolder   string // where mods for this game live, whether or not any exist yet
+	ModCount    int
+}
+
+// DetectGame reports cfg's real install and mod-folder state. A scan
+// failure (e.g. the mod folder doesn't exist yet) is not fatal here - it
+// just means ModCount stays 0, matching scan.Scan's own "no mods installed
+// yet is not an error" philosophy.
+func DetectGame(ctx context.Context, cfg game.GameConfig) (DetectedGame, error) {
+	installDir, installed := cfg.DetectInstall()
+
+	userDir, err := cfg.UserDataDir()
+	if err != nil {
+		return DetectedGame{}, fmt.Errorf("library: resolving user data dir for %s: %w", cfg.Key, err)
+	}
+	modFolder := filepath.Join(userDir, "mod")
+
+	modCount := 0
+	if result, err := scan.Scan(ctx, scan.Options{Game: cfg}); err == nil {
+		modCount = len(result.Mods)
+	}
+
+	return DetectedGame{
+		GameInfo:    GameInfo{Key: cfg.Key, DisplayName: cfg.DisplayName},
+		Installed:   installed,
+		InstallPath: installDir,
+		ModFolder:   modFolder,
+		ModCount:    modCount,
+	}, nil
 }
 
 // ModSummary is one mod, summarized for display.

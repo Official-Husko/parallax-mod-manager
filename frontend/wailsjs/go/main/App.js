@@ -6,6 +6,10 @@ export function DeletePlayset(arg1, arg2) {
   return window['go']['main']['App']['DeletePlayset'](arg1, arg2);
 }
 
+export function DetectGames() {
+  return window['go']['main']['App']['DetectGames']();
+}
+
 export function LaunchGame(arg1, arg2) {
   return window['go']['main']['App']['LaunchGame'](arg1, arg2);
 }

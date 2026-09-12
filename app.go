@@ -52,6 +52,21 @@ func (a *App) ListGames() []library.GameInfo {
 	return infos
 }
 
+// DetectGames reports every registered game's real install and mod-folder
+// state, for the first-run wizard's "games found" step.
+func (a *App) DetectGames() ([]library.DetectedGame, error) {
+	games := a.registry.List()
+	result := make([]library.DetectedGame, 0, len(games))
+	for _, cfg := range games {
+		d, err := library.DetectGame(a.ctx, cfg)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, d)
+	}
+	return result, nil
+}
+
 // ScanGame scans, parses, and resolves conflicts for one supported game.
 // playsetName is optional; empty means every mod enabled, ID-sorted (no
 // selection made yet).

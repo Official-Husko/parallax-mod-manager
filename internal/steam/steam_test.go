@@ -3,6 +3,7 @@ package steam
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -146,5 +147,94 @@ func TestFindWorkshopContentDirNoMatchingApp(t *testing.T) {
 	_, err := FindWorkshopContentDir(steamRoot, "281990")
 	if err == nil {
 		t.Fatal("expected an error when no library has the requested app")
+	}
+}
+
+func TestDefaultRootsOnlyReturnsExistingCandidates(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Linux-specific default paths")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	if roots := DefaultRoots(); len(roots) != 0 {
+		t.Errorf("DefaultRoots on an empty home = %v, want none", roots)
+	}
+
+	steamRoot := filepath.Join(home, ".steam", "steam")
+	if err := os.MkdirAll(steamRoot, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	roots := DefaultRoots()
+	if len(roots) != 1 || roots[0] != steamRoot {
+		t.Errorf("DefaultRoots = %v, want [%q]", roots, steamRoot)
+	}
+}
+
+func TestFindGameInstallDirChecksRootsOwnCommonFolder(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Linux-specific default paths")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	steamRoot := filepath.Join(home, ".steam", "steam")
+	installDir := filepath.Join(steamRoot, "steamapps", "common", "Stellaris")
+	if err := os.MkdirAll(installDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	got, err := FindGameInstallDir("Stellaris")
+	if err != nil {
+		t.Fatalf("FindGameInstallDir: %v", err)
+	}
+	if got != installDir {
+		t.Errorf("FindGameInstallDir = %q, want %q", got, installDir)
+	}
+}
+
+func TestFindGameInstallDirChecksSecondaryLibraries(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Linux-specific default paths")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	steamRoot := filepath.Join(home, ".steam", "steam")
+	steamapps := filepath.Join(steamRoot, "steamapps")
+	if err := os.MkdirAll(steamapps, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	secondaryLib := t.TempDir()
+	installDir := filepath.Join(secondaryLib, "steamapps", "common", "Stellaris")
+	if err := os.MkdirAll(installDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	vdf := `"libraryfolders" { "0" { "path" "` + secondaryLib + `" "apps" { "281990" "1" } } }`
+	if err := os.WriteFile(filepath.Join(steamapps, "libraryfolders.vdf"), []byte(vdf), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	got, err := FindGameInstallDir("Stellaris")
+	if err != nil {
+		t.Fatalf("FindGameInstallDir: %v", err)
+	}
+	if got != installDir {
+		t.Errorf("FindGameInstallDir = %q, want %q", got, installDir)
+	}
+}
+
+func TestFindGameInstallDirErrorsWhenNotFound(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Linux-specific default paths")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	if _, err := FindGameInstallDir("Stellaris"); err == nil {
+		t.Fatal("expected an error when no default root exists at all")
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 )
@@ -95,4 +96,65 @@ func FindWorkshopContentDir(steamRoot, appID string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("steam: no Steam library with app %s and an existing workshop content folder found under %s", appID, steamRoot)
+}
+
+// DefaultRoots returns every well-known Steam installation root for the
+// current OS that actually exists on disk. A user's game libraries
+// themselves (a secondary drive, say) don't need to be listed here - each
+// candidate's own steamapps/libraryfolders.vdf already enumerates every
+// library Steam knows about, main install included.
+func DefaultRoots() []string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil
+	}
+
+	var candidates []string
+	switch runtime.GOOS {
+	case "linux":
+		candidates = []string{
+			filepath.Join(home, ".local", "share", "Steam"),
+			filepath.Join(home, ".steam", "steam"),
+			filepath.Join(home, ".var", "app", "com.valvesoftware.Steam", "data", "Steam"),
+		}
+	case "darwin":
+		candidates = []string{filepath.Join(home, "Library", "Application Support", "Steam")}
+	default: // windows
+		candidates = []string{
+			`C:\Program Files (x86)\Steam`,
+			`C:\Program Files\Steam`,
+		}
+	}
+
+	var roots []string
+	for _, c := range candidates {
+		if info, err := os.Stat(c); err == nil && info.IsDir() {
+			roots = append(roots, c)
+		}
+	}
+	return roots
+}
+
+// FindGameInstallDir searches every library under every default Steam root
+// for a folderName directory under steamapps/common, the same
+// exists-on-disk-not-just-in-bookkeeping check FindWorkshopContentDir uses -
+// a game can be removed from disk without libraryfolders.vdf being updated.
+func FindGameInstallDir(folderName string) (string, error) {
+	for _, root := range DefaultRoots() {
+		// The root's own steamapps/common counts too, whether or not its
+		// libraryfolders.vdf happens to list itself as a library.
+		libraryPaths := []string{root}
+		if libs, err := ParseLibraryFolders(filepath.Join(root, "steamapps", "libraryfolders.vdf")); err == nil {
+			for _, lib := range libs {
+				libraryPaths = append(libraryPaths, lib.Path)
+			}
+		}
+		for _, libPath := range libraryPaths {
+			dir := filepath.Join(libPath, "steamapps", "common", folderName)
+			if info, err := os.Stat(dir); err == nil && info.IsDir() {
+				return dir, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("steam: no installed copy of %q found under any default Steam library", folderName)
 }

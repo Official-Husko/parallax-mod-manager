@@ -159,3 +159,57 @@ func TestUserDataDirLinuxDefaultsToLocalShare(t *testing.T) {
 		t.Errorf("UserDataDir = %q, want %q", dir, want)
 	}
 }
+
+func TestDetectInstallFindsRealInstallWithSignatureFiles(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Linux-specific default paths")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	installDir := filepath.Join(home, ".steam", "steam", "steamapps", "common", "Stellaris")
+	if err := os.MkdirAll(installDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(installDir, "launcher-settings.json"), []byte("{}"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	dir, found := Stellaris.DetectInstall()
+	if !found {
+		t.Fatal("expected DetectInstall to find the install")
+	}
+	if dir != installDir {
+		t.Errorf("DetectInstall dir = %q, want %q", dir, installDir)
+	}
+}
+
+func TestDetectInstallFalseWhenSignatureFileMissing(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Linux-specific default paths")
+	}
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	installDir := filepath.Join(home, ".steam", "steam", "steamapps", "common", "Stellaris")
+	if err := os.MkdirAll(installDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	// No launcher-settings.json written - the folder exists (e.g. a stale
+	// or partial install) but the required signature file doesn't.
+
+	if _, found := Stellaris.DetectInstall(); found {
+		t.Error("expected DetectInstall to report not found without the signature file")
+	}
+}
+
+func TestDetectInstallFalseWhenNoLibraryHasIt(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("Linux-specific default paths")
+	}
+	t.Setenv("HOME", t.TempDir())
+
+	if _, found := Stellaris.DetectInstall(); found {
+		t.Error("expected DetectInstall to report not found with no Steam library at all")
+	}
+}

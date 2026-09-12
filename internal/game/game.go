@@ -11,6 +11,7 @@ import (
 	"runtime"
 
 	"github.com/Official-Husko/parallax-mod-manager/internal/mod"
+	"github.com/Official-Husko/parallax-mod-manager/internal/steam"
 )
 
 // DLCEntry is one piece of official DLC, listed so it can be toggled like a
@@ -116,4 +117,22 @@ func (g GameConfig) ResolveExecutable(installDir string) (ExecutableInfo, error)
 	}
 
 	return ExecutableInfo{Path: filepath.Join(installDir, ls.ExePath), Args: ls.ExeArgs}, nil
+}
+
+// DetectInstall searches this machine's default Steam libraries for g's
+// install folder and confirms every one of g.SignatureFiles actually exists
+// there before reporting it found - stale Steam library bookkeeping (an
+// uninstalled game, a moved drive) must not produce a false positive.
+// Returns ("", false), never a guess, when nothing checks out.
+func (g GameConfig) DetectInstall() (string, bool) {
+	dir, err := steam.FindGameInstallDir(g.FolderName)
+	if err != nil {
+		return "", false
+	}
+	for _, sig := range g.SignatureFiles {
+		if _, err := os.Stat(filepath.Join(dir, sig)); err != nil {
+			return "", false
+		}
+	}
+	return dir, true
 }

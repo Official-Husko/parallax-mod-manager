@@ -319,33 +319,11 @@ export const preflight = [
 // --- First-run wizard (3f) ---
 
 export const wizardSteps = [
-    {n: '1', label: 'Find games', active: true},
-    {n: '2', label: 'Mod folders', active: false},
-    {n: '3', label: 'Import playsets', active: false},
-    {n: '4', label: 'Preferences', active: false},
-].map((w) => ({
-    ...w,
-    c: w.active ? '#e4e8ee' : '#6a7484',
-    ringC: w.active ? '#c4623a' : '#33404f',
-    dotBg: w.active ? '#c4623a' : 'transparent',
-    numC: w.active ? '#120d0a' : '#6a7484',
-}));
-
-const detectedRaw: [string, string, string, boolean][] = [
-    ['Hearts of Iron IV', '1,284 mods found', '#c4623a', true],
-    ['Stellaris', '742 mods found', '#5b8fc9', true],
-    ['Crusader Kings III', '318 mods found', '#8a6fae', true],
-    ['Victoria 3', '96 mods found', '#5fae7e', true],
-    ['Europa Universalis IV', 'no mod folder', '#3c4858', false],
+    {n: 1, label: 'Find games'},
+    {n: 2, label: 'Mod folders'},
+    {n: 3, label: 'Import playsets'},
+    {n: 4, label: 'Preferences'},
 ];
-
-export const detectedGames = detectedRaw.map((d) => ({
-    name: d[0], mods: d[1], swatch: d[2],
-    boxC: d[3] ? '#c4623a' : '#3c4858',
-    boxBg: d[3] ? '#c4623a' : 'transparent',
-    border: d[3] ? '#2d3846' : '#222b36',
-    bg: d[3] ? '#151c26' : 'transparent',
-}));
 
 // --- Workspace (1a) static detail-panel content ---
 // The selected mod's real Name/Version/Source/Tags come from the actual
