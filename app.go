@@ -603,7 +603,8 @@ func (a *App) startDLCStoreRefresh(cfg game.GameConfig, gameID string, store dlc
 			return
 		}
 		cf := dlcstore.Refresh(a.ctx, cfg.SteamAppID, entries)
-		if err := store.Save(cf); err != nil {
+		saved, err := store.SaveRefreshed(cf)
+		if err != nil || !saved {
 			return
 		}
 		wailsruntime.EventsEmit(a.ctx, "dlc-store-refreshed", gameID)

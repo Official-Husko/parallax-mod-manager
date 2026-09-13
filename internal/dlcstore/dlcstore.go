@@ -122,6 +122,33 @@ func (s Store) Save(cf CacheFile) error {
 	return err
 }
 
+// SaveRefreshed persists a freshly computed Refresh result, unless it
+// fetched zero entries while the existing on-disk cache already has real
+// ones - a real, fully populated DLC catalog doesn't drop to nothing
+// between one day and the next; a completely empty result almost always
+// means every single fetch failed (a network hiccup, rate limiting), not
+// that the DLC genuinely disappeared. Saving it anyway would silently
+// replace good data with an empty cache that then looks "fresh" (a new
+// FetchedAt) for a full MaxAge, blanking every real detail (header image,
+// release year, description, coming-soon status) until the next scheduled
+// refresh a day later. Keeping the last known-good data for one more
+// cycle instead is strictly safer - the next refresh attempt will still
+// happen on schedule.
+//
+// Returns whether a save actually happened, so a caller can skip emitting
+// a "data changed" event when nothing did.
+func (s Store) SaveRefreshed(cf CacheFile) (saved bool, err error) {
+	if len(cf.ByAppID) == 0 {
+		if existing, loadErr := s.Load(); loadErr == nil && len(existing.ByAppID) > 0 {
+			return false, nil
+		}
+	}
+	if err := s.Save(cf); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // NeedsRefresh reports whether cf is missing or older than MaxAge.
 func (s Store) NeedsRefresh(cf CacheFile) bool {
 	if cf.FetchedAt == 0 {

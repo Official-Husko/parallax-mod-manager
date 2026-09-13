@@ -36,6 +36,92 @@ func TestSaveThenLoadRoundTrips(t *testing.T) {
 	}
 }
 
+func TestSaveRefreshedKeepsExistingDataWhenRefreshFetchedNothing(t *testing.T) {
+	s := Store{Dir: t.TempDir(), GameKey: "stellaris"}
+	good := CacheFile{
+		FetchedAt: 1700000000,
+		ByAppID: map[string]StoreData{
+			"716670": {SteamAppID: "716670", Name: "Apocalypse"},
+		},
+	}
+	if err := s.Save(good); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	// Simulate a refresh where every fetch failed (a real, total network
+	// outage or rate-limit hit) - Refresh itself still returns a
+	// CacheFile with a fresh FetchedAt but an empty ByAppID.
+	empty := CacheFile{FetchedAt: 1800000000, ByAppID: map[string]StoreData{}}
+	saved, err := s.SaveRefreshed(empty)
+	if err != nil {
+		t.Fatalf("SaveRefreshed: %v", err)
+	}
+	if saved {
+		t.Error("saved = true, want false - an empty refresh must not overwrite real existing data")
+	}
+
+	got, err := s.Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got.FetchedAt != good.FetchedAt {
+		t.Errorf("FetchedAt = %d, want the original %d (unchanged)", got.FetchedAt, good.FetchedAt)
+	}
+	if got.ByAppID["716670"].Name != "Apocalypse" {
+		t.Errorf("ByAppID = %+v, want the original data preserved", got.ByAppID)
+	}
+}
+
+func TestSaveRefreshedSavesEmptyResultWhenNothingExistedBefore(t *testing.T) {
+	s := Store{Dir: t.TempDir(), GameKey: "stellaris"}
+	// A genuinely fresh install with no prior cache - an empty result here
+	// is a normal first outcome (e.g. no network at first launch), not a
+	// suspicious regression, so it should still be saved (and retried on
+	// the normal schedule) rather than looping forever with nothing on
+	// disk at all.
+	empty := CacheFile{FetchedAt: 1700000000, ByAppID: map[string]StoreData{}}
+	saved, err := s.SaveRefreshed(empty)
+	if err != nil {
+		t.Fatalf("SaveRefreshed: %v", err)
+	}
+	if !saved {
+		t.Error("saved = false, want true when there was no prior data to protect")
+	}
+
+	got, err := s.Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got.FetchedAt != empty.FetchedAt {
+		t.Errorf("FetchedAt = %d, want %d", got.FetchedAt, empty.FetchedAt)
+	}
+}
+
+func TestSaveRefreshedSavesNonEmptyResultNormally(t *testing.T) {
+	s := Store{Dir: t.TempDir(), GameKey: "stellaris"}
+	old := CacheFile{FetchedAt: 1700000000, ByAppID: map[string]StoreData{"1": {SteamAppID: "1", Name: "Old"}}}
+	if err := s.Save(old); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	fresh := CacheFile{FetchedAt: 1800000000, ByAppID: map[string]StoreData{"716670": {SteamAppID: "716670", Name: "Apocalypse"}}}
+	saved, err := s.SaveRefreshed(fresh)
+	if err != nil {
+		t.Fatalf("SaveRefreshed: %v", err)
+	}
+	if !saved {
+		t.Error("saved = false, want true for a normal non-empty refresh result")
+	}
+
+	got, err := s.Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got.ByAppID["716670"].Name != "Apocalypse" || len(got.ByAppID) != 1 {
+		t.Errorf("ByAppID = %+v, want only the fresh data", got.ByAppID)
+	}
+}
+
 func TestLoadMissingFileReturnsRealEmptyCacheNeedingRefresh(t *testing.T) {
 	s := Store{Dir: t.TempDir(), GameKey: "stellaris"}
 	cf, err := s.Load()
