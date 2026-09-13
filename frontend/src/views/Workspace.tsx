@@ -312,7 +312,7 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
                         </div>
                         <div className="list-rows">
                             {available.map((m) => (
-                                <div key={m.ID} className="mod-row" onClick={() => setSelectedId(m.ID)}>
+                                <div key={m.ID} className={`mod-row ${m.ID === selectedId ? 'selected' : ''}`} onClick={() => setSelectedId(m.ID)}>
                                     <input
                                         type="checkbox"
                                         checked={selectedAvailable.has(m.ID)}
@@ -506,7 +506,11 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, allMods, conflict
 }) {
     const [files, setFiles] = useState<library.ModFiles | null>(null);
     const [filesError, setFilesError] = useState('');
-    const [thumbnail, setThumbnail] = useState('');
+    // null = still loading (or nothing selected); '' = loaded, confirmed no
+    // thumbnail; anything else = a real data: URI. Kept distinct from ''
+    // so the box can show a loading placeholder instead of momentarily
+    // flashing "NO THUMBNAIL" every time the selected mod changes.
+    const [thumbnail, setThumbnail] = useState<string | null>(null);
 
     useEffect(() => {
         setFiles(null);
@@ -522,16 +526,18 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, allMods, conflict
     }, [gameId, mod?.ID]);
 
     useEffect(() => {
-        setThumbnail('');
+        setThumbnail(null);
         if (!mod) {
             return;
         }
         let cancelled = false;
         ModThumbnail(gameId, mod.ID)
             .then((src) => { if (!cancelled) setThumbnail(src); })
-            .catch(() => undefined);
+            .catch(() => { if (!cancelled) setThumbnail(''); });
         return () => { cancelled = true; };
     }, [gameId, mod?.ID]);
+
+    const filesLoading = !!mod && !files && !filesError;
 
     function openFolder() {
         if (mod) {
@@ -544,12 +550,14 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, allMods, conflict
     return (
         <div className="detail-panel">
             <div className="thumbnail">
-                {thumbnail
-                    ? <>
-                        <div className="thumbnail-backdrop" style={{backgroundImage: `url(${thumbnail})`}}/>
-                        <img className="thumbnail-fg" src={thumbnail} alt={mod ? `${mod.Name} thumbnail` : ''}/>
-                    </>
-                    : <span className="mono">{mod ? 'NO THUMBNAIL' : 'MOD THUMBNAIL'}</span>}
+                {mod && thumbnail === null
+                    ? <div className="skeleton thumbnail-skeleton"/>
+                    : thumbnail
+                        ? <>
+                            <div className="thumbnail-backdrop" style={{backgroundImage: `url(${thumbnail})`}}/>
+                            <img className="thumbnail-fg" src={thumbnail} alt={mod ? `${mod.Name} thumbnail` : ''}/>
+                        </>
+                        : <span className="mono">{mod ? 'NO THUMBNAIL' : 'MOD THUMBNAIL'}</span>}
             </div>
             {!mod && <p className="detail-empty">Select a mod to see its details.</p>}
             {mod && (
@@ -560,7 +568,11 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, allMods, conflict
                             <span className="mono id">{mod.Source === 'workshop' && mod.RemoteFileID ? mod.RemoteFileID : mod.ID}</span>
                         </div>
                         <div className="detail-name">{mod.Name}</div>
-                        <div className="detail-sub">{files?.LastModified ? `Updated ${timeAgo(files.LastModified)}` : ''}</div>
+                        <div className="detail-sub">
+                            {filesLoading
+                                ? <span className="skeleton skeleton-text" style={{width: '90px'}}/>
+                                : files?.LastModified ? `Updated ${timeAgo(files.LastModified)}` : ''}
+                        </div>
                     </div>
                     <div className="detail-tabs">
                         {(['overview', 'files', 'conflicts', 'changes'] as DetailTab[]).map((t) => (
@@ -571,12 +583,21 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, allMods, conflict
                     </div>
                     <div className="detail-content">
                         {tab === 'overview' && (
-                            <OverviewTab mod={mod} files={files} allMods={allMods} conflicts={myConflicts} onOpenFolder={openFolder}/>
+                            <OverviewTab mod={mod} files={files} filesLoading={filesLoading} allMods={allMods} conflicts={myConflicts} onOpenFolder={openFolder}/>
                         )}
                         {tab === 'files' && (
                             <div className="file-tree">
                                 {filesError && <p className="status-page error">{filesError}</p>}
-                                {!filesError && !files && <p className="detail-empty">Reading files...</p>}
+                                {!filesError && !files && (
+                                    <>
+                                        {[80, 60, 70, 50, 65].map((w, i) => (
+                                            <div key={i} className="file-row">
+                                                <span className="skeleton" style={{width: '10px', height: '10px'}}/>
+                                                <span className="skeleton skeleton-text" style={{width: `${w}px`}}/>
+                                            </div>
+                                        ))}
+                                    </>
+                                )}
                                 {!filesError && files && files.Entries.length === 0 && (
                                     <p className="detail-empty">This mod's content folder is empty.</p>
                                 )}
@@ -666,9 +687,10 @@ function timeAgo(unixSeconds: number): string {
     return 'just now';
 }
 
-function OverviewTab({mod, files, allMods, conflicts, onOpenFolder}: {
+function OverviewTab({mod, files, filesLoading, allMods, conflicts, onOpenFolder}: {
     mod: library.ModSummary;
     files: library.ModFiles | null;
+    filesLoading: boolean;
     allMods: library.ModSummary[];
     conflicts: library.ConflictSummary[];
     onOpenFolder: () => void;
@@ -685,7 +707,11 @@ function OverviewTab({mod, files, allMods, conflicts, onOpenFolder}: {
                 <span className="label">Supports</span><span className="value mono ok">{mod.SupportedVersion || '-'}</span>
                 <span className="label">Size</span>
                 <span className="value mono">
-                    {files ? `${formatBytes(files.TotalSize)} · ${files.Entries.length.toLocaleString()}${files.Truncated ? '+' : ''} files` : '...'}
+                    {files
+                        ? `${formatBytes(files.TotalSize)} · ${files.Entries.length.toLocaleString()}${files.Truncated ? '+' : ''} files`
+                        : filesLoading
+                            ? <span className="skeleton skeleton-text" style={{width: '110px'}}/>
+                            : '-'}
                 </span>
                 <span className="label">Tags</span><span className="value">{mod.Tags.length ? mod.Tags.join(', ') : '-'}</span>
             </div>

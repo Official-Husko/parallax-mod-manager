@@ -370,3 +370,27 @@
     letter-spacing: .12em;
     padding: 0 14px 9px;
 }
+
+/* Shared loading-placeholder bar: reserves the shape of content that's
+   still being fetched (a mod's real files/thumbnail, both async per-mod
+   lookups) so it doesn't visibly pop in and shift things around once it
+   arrives - swap it for the real content in place, not alongside empty
+   space that then collapses. */
+@keyframes skeleton-pulse {
+    0%, 100% { opacity: .5; }
+    50% { opacity: 1; }
+}
+
+.skeleton {
+    display: inline-block;
+    background: var(--border-light);
+    border-radius: 3px;
+    animation: skeleton-pulse 1.4s ease-in-out infinite;
+}
+
+/* A placeholder standing in for one line of text - width is set per use
+   (it's the one dimension that varies with what the real text would be). */
+.skeleton-text {
+    height: .85em;
+    vertical-align: middle;
+}
