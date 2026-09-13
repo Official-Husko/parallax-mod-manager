@@ -22,6 +22,10 @@ export function GameMedia(arg1, arg2) {
   return window['go']['main']['App']['GameMedia'](arg1, arg2);
 }
 
+export function GeneratePatch(arg1, arg2) {
+  return window['go']['main']['App']['GeneratePatch'](arg1, arg2);
+}
+
 export function GetPreferences() {
   return window['go']['main']['App']['GetPreferences']();
 }
@@ -34,12 +38,32 @@ export function ListGames() {
   return window['go']['main']['App']['ListGames']();
 }
 
+export function ListModFiles(arg1, arg2) {
+  return window['go']['main']['App']['ListModFiles'](arg1, arg2);
+}
+
 export function ListPlaysets(arg1) {
   return window['go']['main']['App']['ListPlaysets'](arg1);
 }
 
 export function LoadPlayset(arg1, arg2) {
   return window['go']['main']['App']['LoadPlayset'](arg1, arg2);
+}
+
+export function ModSizes(arg1) {
+  return window['go']['main']['App']['ModSizes'](arg1);
+}
+
+export function ModThumbnail(arg1, arg2) {
+  return window['go']['main']['App']['ModThumbnail'](arg1, arg2);
+}
+
+export function OpenModFolder(arg1, arg2) {
+  return window['go']['main']['App']['OpenModFolder'](arg1, arg2);
+}
+
+export function ReadModFile(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ReadModFile'](arg1, arg2, arg3);
 }
 
 export function SavePlayset(arg1) {

@@ -96,7 +96,8 @@ func TestFromScriptFileNilInput(t *testing.T) {
 }
 
 func TestFromLocaleCatalogUsesLanguageInType(t *testing.T) {
-	cat, err := locale.Parse([]byte("l_english:\n KEY_ONE:0 \"Value One\"\n"))
+	src := []byte("l_english:\n KEY_ONE:0 \"Value One\"\n")
+	cat, err := locale.Parse(src)
 	if err != nil {
 		t.Fatalf("locale.Parse: %v", err)
 	}
@@ -105,11 +106,19 @@ func TestFromLocaleCatalogUsesLanguageInType(t *testing.T) {
 		t.Fatalf("expected 1 definition, got %d", len(defs))
 	}
 	d := defs[0]
-	if d.Type != Type("localization/english") {
-		t.Errorf("Type = %q, want %q", d.Type, "localization/english")
+	// British spelling - matches the real on-disk folder name Paradox
+	// games actually use, confirmed against a real Stellaris install.
+	if d.Type != Type("localisation/english") {
+		t.Errorf("Type = %q, want %q", d.Type, "localisation/english")
 	}
 	if d.ID != "KEY_ONE" {
 		t.Errorf("ID = %q", d.ID)
+	}
+	if d.Span.EndOffset <= d.Span.StartOffset {
+		t.Errorf("Span = %+v, want a real non-empty byte range", d.Span)
+	}
+	if got := string(src[d.Span.StartOffset:d.Span.EndOffset]); got != ` KEY_ONE:0 "Value One"` {
+		t.Errorf("Span slice = %q, want the entry's exact raw source line", got)
 	}
 }
 

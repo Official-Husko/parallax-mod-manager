@@ -1,7 +1,7 @@
 import './Library.css';
 import {h} from 'preact';
 import {useEffect, useState} from 'preact/hooks';
-import {DetectGames, ScanGame} from '../../wailsjs/go/main/App';
+import {DetectGames, ModSizes, ScanGame} from '../../wailsjs/go/main/App';
 import type {library} from '../../wailsjs/go/models';
 import {GameLogo} from '../components/GameLogo';
 import {libCollections} from '../data/mockData';
@@ -23,27 +23,39 @@ type Row = {
 export function Library() {
     const [state, setState] = useState<LoadState>({kind: 'loading'});
     const [rows, setRows] = useState<Row[]>([]);
+    const [sizes, setSizes] = useState<Record<string, number>>({});
     const [selectedGame, setSelectedGame] = useState('');
     const [search, setSearch] = useState('');
 
     useEffect(() => {
+        let cancelled = false;
         DetectGames()
-            .then(async (games) => {
+            .then((games) => {
+                if (cancelled) return;
                 setState({kind: 'ready', games});
-                const perGame = await Promise.all(games.map(async (g) => {
-                    try {
-                        const summary = await ScanGame(g.ID, '');
-                        return summary.Mods.map((m): Row => ({
-                            modId: m.ID, name: m.Name, version: m.Version, source: m.Source,
-                            gameId: g.ID, gameName: g.DisplayName,
-                        }));
-                    } catch {
-                        return [];
-                    }
-                }));
-                setRows(perGame.flat());
+                // Each game's mod list (fast - just descriptor reads) and its
+                // real on-disk sizes (a separate, independent call) are
+                // fetched per game rather than awaited all at once, so the
+                // table starts filling in as soon as the first game
+                // responds instead of waiting on the slowest one.
+                for (const g of games) {
+                    ScanGame(g.ID, '')
+                        .then((summary) => {
+                            if (cancelled) return;
+                            const gameRows = summary.Mods.map((m): Row => ({
+                                modId: m.ID, name: m.Name, version: m.Version, source: m.Source,
+                                gameId: g.ID, gameName: g.DisplayName,
+                            }));
+                            setRows((prev) => [...prev.filter((r) => r.gameId !== g.ID), ...gameRows]);
+                        })
+                        .catch(() => undefined);
+                    ModSizes(g.ID)
+                        .then((s) => { if (!cancelled) setSizes((prev) => ({...prev, ...s})); })
+                        .catch(() => undefined);
+                }
             })
-            .catch((err) => setState({kind: 'error', message: String(err)}));
+            .catch((err) => { if (!cancelled) setState({kind: 'error', message: String(err)}); });
+        return () => { cancelled = true; };
     }, []);
 
     const games = state.kind === 'ready' ? state.games : [];
@@ -131,7 +143,7 @@ export function Library() {
                                 <span className="game-name">{r.gameName}</span>
                             </span>
                             <span className="col-ver mono">{r.version || '-'}</span>
-                            <span className="col-size mono">-</span>
+                            <span className="col-size mono">{r.modId in sizes ? formatBytes(sizes[r.modId]) : '-'}</span>
                             <span className="col-played">-</span>
                             <span className="col-state mono">-</span>
                         </div>
@@ -149,4 +161,16 @@ export function Library() {
             </div>
         </div>
     );
+}
+
+function formatBytes(n: number): string {
+    if (n < 1024) return `${n} B`;
+    const units = ['KB', 'MB', 'GB', 'TB'];
+    let value = n / 1024;
+    let unit = 0;
+    while (value >= 1024 && unit < units.length - 1) {
+        value /= 1024;
+        unit++;
+    }
+    return `${value.toFixed(value < 10 ? 2 : 1)} ${units[unit]}`;
 }

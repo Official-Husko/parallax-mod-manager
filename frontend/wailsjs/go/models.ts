@@ -1,9 +1,26 @@
 export namespace library {
 	
+	export class ConflictCandidate {
+	    ModID: string;
+	    ModName: string;
+	    FilePath: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ConflictCandidate(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ModID = source["ModID"];
+	        this.ModName = source["ModName"];
+	        this.FilePath = source["FilePath"];
+	    }
+	}
 	export class ConflictSummary {
 	    Type: string;
 	    ID: string;
-	    Candidates: string[];
+	    Candidates: ConflictCandidate[];
+	    Winner: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new ConflictSummary(source);
@@ -13,8 +30,27 @@ export namespace library {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.Type = source["Type"];
 	        this.ID = source["ID"];
-	        this.Candidates = source["Candidates"];
+	        this.Candidates = this.convertValues(source["Candidates"], ConflictCandidate);
+	        this.Winner = source["Winner"];
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class DetectedGame {
 	    ID: string;
@@ -38,6 +74,22 @@ export namespace library {
 	        this.ModCount = source["ModCount"];
 	    }
 	}
+	export class FileEntry {
+	    RelPath: string;
+	    IsDir: boolean;
+	    Size: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new FileEntry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.RelPath = source["RelPath"];
+	        this.IsDir = source["IsDir"];
+	        this.Size = source["Size"];
+	    }
+	}
 	export class GameInfo {
 	    ID: string;
 	    DisplayName: string;
@@ -52,12 +104,52 @@ export namespace library {
 	        this.DisplayName = source["DisplayName"];
 	    }
 	}
+	export class ModFiles {
+	    Entries: FileEntry[];
+	    TotalSize: number;
+	    Truncated: boolean;
+	    LastModified: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ModFiles(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Entries = this.convertValues(source["Entries"], FileEntry);
+	        this.TotalSize = source["TotalSize"];
+	        this.Truncated = source["Truncated"];
+	        this.LastModified = source["LastModified"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class ModSummary {
 	    ID: string;
 	    Name: string;
 	    Version: string;
+	    SupportedVersion: string;
 	    Source: string;
 	    Tags: string[];
+	    Dependencies: string[];
+	    RemoteFileID: string;
+	    ShortDescription: string;
 	    Enabled: boolean;
 	
 	    static createFrom(source: any = {}) {
@@ -69,9 +161,31 @@ export namespace library {
 	        this.ID = source["ID"];
 	        this.Name = source["Name"];
 	        this.Version = source["Version"];
+	        this.SupportedVersion = source["SupportedVersion"];
 	        this.Source = source["Source"];
 	        this.Tags = source["Tags"];
+	        this.Dependencies = source["Dependencies"];
+	        this.RemoteFileID = source["RemoteFileID"];
+	        this.ShortDescription = source["ShortDescription"];
 	        this.Enabled = source["Enabled"];
+	    }
+	}
+	export class PatchResult {
+	    Written: boolean;
+	    PatchedKeys: number;
+	    SkippedKeys: number;
+	    ModID: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new PatchResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Written = source["Written"];
+	        this.PatchedKeys = source["PatchedKeys"];
+	        this.SkippedKeys = source["SkippedKeys"];
+	        this.ModID = source["ModID"];
 	    }
 	}
 	export class Summary {
@@ -143,6 +257,8 @@ export namespace preferences {
 	    closeAfterLaunch: boolean;
 	    warnOnPatchMismatch: boolean;
 	    lastSelectedGame: string;
+	    autosortDependencies: boolean;
+	    autosortFixesLast: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Preferences(source);
@@ -154,6 +270,8 @@ export namespace preferences {
 	        this.closeAfterLaunch = source["closeAfterLaunch"];
 	        this.warnOnPatchMismatch = source["warnOnPatchMismatch"];
 	        this.lastSelectedGame = source["lastSelectedGame"];
+	        this.autosortDependencies = source["autosortDependencies"];
+	        this.autosortFixesLast = source["autosortFixesLast"];
 	    }
 	}
 

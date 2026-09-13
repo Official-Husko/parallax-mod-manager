@@ -136,13 +136,13 @@ func TestFileStoreLoadMissingFileReturnsEmptyCache(t *testing.T) {
 	}
 }
 
-func TestFileStoreLoadCorruptJSONFailsClosed(t *testing.T) {
+func TestFileStoreLoadCorruptDataFailsClosed(t *testing.T) {
 	dir := t.TempDir()
 	gameDir := filepath.Join(dir, "stellaris")
 	if err := os.MkdirAll(gameDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(gameDir, "broken_mod.json"), []byte("{not valid json"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(gameDir, "broken_mod"+cacheFileExt), []byte("not a valid gob stream"), 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
@@ -152,24 +152,26 @@ func TestFileStoreLoadCorruptJSONFailsClosed(t *testing.T) {
 		t.Fatalf("Load returned an error instead of failing closed: %v", err)
 	}
 	if len(c.Files) != 0 {
-		t.Errorf("expected an empty fallback cache for corrupt JSON, got %+v", c)
+		t.Errorf("expected an empty fallback cache for corrupt data, got %+v", c)
 	}
 }
 
 func TestFileStoreLoadWrongVersionFailsClosed(t *testing.T) {
 	dir := t.TempDir()
-	gameDir := filepath.Join(dir, "stellaris")
-	if err := os.MkdirAll(gameDir, 0o755); err != nil {
-		t.Fatalf("MkdirAll: %v", err)
-	}
+	store := FileStore{Dir: dir}
+
 	// Version 99999 doesn't exist yet - simulates a cache written by some
-	// future, incompatible version of this program.
-	content := `{"version":99999,"modId":"old_mod","gameKey":"stellaris","files":{"a.txt":{"path":"a.txt","hash":1}}}`
-	if err := os.WriteFile(filepath.Join(gameDir, "old_mod.json"), []byte(content), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
+	// future, incompatible version of this program. Written via a real
+	// Save (not a hand-authored byte string, since gob's wire format isn't
+	// meant to be hand-authored) then bumped and re-saved directly to the
+	// same path.
+	old := newModCache("stellaris", "old_mod")
+	old.Version = 99999
+	old.Files["a.txt"] = FileRecord{Path: "a.txt", Hash: 1}
+	if err := store.Save(context.Background(), old); err != nil {
+		t.Fatalf("Save: %v", err)
 	}
 
-	store := FileStore{Dir: dir}
 	c, err := store.Load(context.Background(), "stellaris", "old_mod")
 	if err != nil {
 		t.Fatalf("Load returned an error instead of failing closed: %v", err)
@@ -191,8 +193,9 @@ func TestFileStoreSaveIsAtomicNoLeftoverTempFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadDir: %v", err)
 	}
-	if len(entries) != 1 || entries[0].Name() != "test_mod.json" {
-		t.Errorf("expected exactly one file test_mod.json, got %+v", entries)
+	wantName := "test_mod" + cacheFileExt
+	if len(entries) != 1 || entries[0].Name() != wantName {
+		t.Errorf("expected exactly one file %s, got %+v", wantName, entries)
 	}
 }
 

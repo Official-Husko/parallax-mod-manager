@@ -26,13 +26,25 @@ type Preferences struct {
 	WarnOnPatchMismatch bool `json:"warnOnPatchMismatch"`
 	// LastSelectedGame is the game ID to preselect on the next launch.
 	LastSelectedGame string `json:"lastSelectedGame"`
+	// AutosortDependencies gates Workspace's Autosort rule that moves a mod
+	// after every dependency it declares (best-effort name match against
+	// currently scanned mods) - see frontend/src/data/autosort.ts.
+	AutosortDependencies bool `json:"autosortDependencies"`
+	// AutosortFixesLast gates Autosort's rule that moves any mod tagged
+	// "Fixes", "Utilities", or "Patch" to the end of the load order -
+	// matches the tagging this project's own generated patch mod already
+	// uses (see internal/library.GeneratePatch) and real-world modding
+	// convention (compatibility patches load last).
+	AutosortFixesLast bool `json:"autosortFixesLast"`
 }
 
 // Defaults returns the preferences a fresh install starts with.
 func Defaults() Preferences {
 	return Preferences{
-		ScanForNewMods:      true,
-		WarnOnPatchMismatch: true,
+		ScanForNewMods:       true,
+		WarnOnPatchMismatch:  true,
+		AutosortDependencies: true,
+		AutosortFixesLast:    true,
 	}
 }
 

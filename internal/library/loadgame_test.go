@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/Official-Husko/parallax-mod-manager/internal/conflict"
@@ -51,6 +52,7 @@ func TestLoadGameCleanScanNoConflicts(t *testing.T) {
 	summary, err := LoadGame(context.Background(), testGameConfig(), Options{
 		CacheDir: t.TempDir(),
 		ModDir:   modDir,
+		Order:    conflict.LoadOrder{"mod_a", "mod_b"},
 	})
 	if err != nil {
 		t.Fatalf("LoadGame: %v", err)
@@ -69,6 +71,79 @@ func TestLoadGameCleanScanNoConflicts(t *testing.T) {
 	}
 }
 
+// TestLoadGameModWithNoTagsOrDependenciesGetsRealEmptySlices pins a real
+// bug: writeMod's descriptor (like most real mods) never declares a
+// "tags" or "dependencies" block, leaving mod.Descriptor.Tags/Dependencies
+// at Go's nil-slice zero value. encoding/json marshals nil as JSON null,
+// and the generated TS binding assigns it straight through - so without
+// normalizing at this boundary, the frontend's ModSummary.Tags/Dependencies
+// (typed string[]) would actually be null, crashing the mod detail panel's
+// first .length/.map call the moment a user selected such a mod.
+func TestLoadGameModWithNoTagsOrDependenciesGetsRealEmptySlices(t *testing.T) {
+	modDir := t.TempDir()
+	writeMod(t, modDir, "mod_a", "Mod A", `thing_a = { cost = 1 }`)
+
+	summary, err := LoadGame(context.Background(), testGameConfig(), Options{
+		CacheDir: t.TempDir(),
+		ModDir:   modDir,
+	})
+	if err != nil {
+		t.Fatalf("LoadGame: %v", err)
+	}
+	if len(summary.Mods) != 1 {
+		t.Fatalf("expected 1 mod, got %d: %+v", len(summary.Mods), summary.Mods)
+	}
+	m := summary.Mods[0]
+	if m.Tags == nil {
+		t.Error("Tags is nil, want a real empty slice (marshals as JSON null, not [])")
+	}
+	if m.Dependencies == nil {
+		t.Error("Dependencies is nil, want a real empty slice (marshals as JSON null, not [])")
+	}
+}
+
+func TestLoadGameOnQuickSummaryFiresBeforeParsingWithFullModList(t *testing.T) {
+	modDir := t.TempDir()
+	writeMod(t, modDir, "mod_a", "Mod A", `thing_a = { cost = 1 }`)
+	writeMod(t, modDir, "mod_b", "Mod B", `thing_b = { cost = 2 }`)
+
+	var quick *Summary
+	summary, err := LoadGame(context.Background(), testGameConfig(), Options{
+		CacheDir: t.TempDir(),
+		ModDir:   modDir,
+		OnQuickSummary: func(s Summary) {
+			if quick != nil {
+				t.Fatal("OnQuickSummary called more than once")
+			}
+			quick = &s
+		},
+	})
+	if err != nil {
+		t.Fatalf("LoadGame: %v", err)
+	}
+	if quick == nil {
+		t.Fatal("OnQuickSummary was never called")
+	}
+	if len(quick.Mods) != 2 {
+		t.Fatalf("quick summary: expected 2 mods, got %d: %+v", len(quick.Mods), quick.Mods)
+	}
+	if len(quick.Conflicts) != 0 {
+		t.Errorf("quick summary: expected no conflicts (none resolved yet), got %+v", quick.Conflicts)
+	}
+	// The names/versions/enabled state should already match the final result.
+	if !reflect.DeepEqual(quick.Mods, summary.Mods) {
+		t.Errorf("quick.Mods = %+v, want equal to final summary.Mods = %+v", quick.Mods, summary.Mods)
+	}
+}
+
+func TestLoadGameNilOnQuickSummaryIsSafe(t *testing.T) {
+	modDir := t.TempDir()
+	writeMod(t, modDir, "mod_a", "Mod A", `thing_a = { cost = 1 }`)
+	if _, err := LoadGame(context.Background(), testGameConfig(), Options{CacheDir: t.TempDir(), ModDir: modDir}); err != nil {
+		t.Fatalf("LoadGame: %v", err)
+	}
+}
+
 func TestLoadGameDetectsGenuineConflict(t *testing.T) {
 	modDir := t.TempDir()
 	writeMod(t, modDir, "mod_a", "Mod A", `shared_thing = { cost = 1 }`)
@@ -77,6 +152,7 @@ func TestLoadGameDetectsGenuineConflict(t *testing.T) {
 	summary, err := LoadGame(context.Background(), testGameConfig(), Options{
 		CacheDir: t.TempDir(),
 		ModDir:   modDir,
+		Order:    conflict.LoadOrder{"mod_a", "mod_b"},
 	})
 	if err != nil {
 		t.Fatalf("LoadGame: %v", err)
@@ -88,8 +164,11 @@ func TestLoadGameDetectsGenuineConflict(t *testing.T) {
 	if c.ID != "shared_thing" {
 		t.Errorf("Conflict.ID = %q, want shared_thing", c.ID)
 	}
-	if len(c.Candidates) != 2 || c.Candidates[0] != "Mod A" || c.Candidates[1] != "Mod B" {
-		t.Errorf("Candidates = %v, want [Mod A, Mod B] (mod display names, not IDs)", c.Candidates)
+	if len(c.Candidates) != 2 || c.Candidates[0].ModName != "Mod A" || c.Candidates[1].ModName != "Mod B" {
+		t.Errorf("Candidates = %+v, want [Mod A, Mod B] (mod display names, not IDs)", c.Candidates)
+	}
+	if c.Winner != "mod_b" {
+		t.Errorf("Winner = %q, want mod_b (LIOS default - last in load order wins)", c.Winner)
 	}
 }
 
@@ -114,10 +193,19 @@ func TestLoadGameMalformedModRecordedAsErrorNotFatal(t *testing.T) {
 	}
 }
 
-func TestLoadGameDefaultOrderEnablesEveryMod(t *testing.T) {
+func TestLoadGameDefaultOrderEnablesNothing(t *testing.T) {
 	modDir := t.TempDir()
 	writeMod(t, modDir, "mod_a", "Mod A", `thing_a = { cost = 1 }`)
 	writeMod(t, modDir, "mod_b", "Mod B", `thing_b = { cost = 2 }`)
+	// A mod that fails to parse would show up as a scan/parse error if it
+	// were ever actually parsed - it never should be, since nothing is
+	// enabled, proving disabled-by-default really does skip parsing too,
+	// not just conflict detection.
+	writeFile(t, modDir, "mod_c.mod", `name = "Mod C"
+path = "mod_c"
+version = "1.0"
+`)
+	writeFile(t, modDir, filepath.Join("mod_c", "common", "x.txt"), `this is not valid { clausewitz syntax`)
 
 	summary, err := LoadGame(context.Background(), testGameConfig(), Options{
 		CacheDir: t.TempDir(),
@@ -126,10 +214,16 @@ func TestLoadGameDefaultOrderEnablesEveryMod(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadGame: %v", err)
 	}
+	if len(summary.Mods) != 3 {
+		t.Fatalf("expected all 3 mods still listed, got %d: %+v", len(summary.Mods), summary.Mods)
+	}
 	for _, m := range summary.Mods {
-		if !m.Enabled {
-			t.Errorf("mod %q Enabled = false, want true (nil Order enables everything)", m.ID)
+		if m.Enabled {
+			t.Errorf("mod %q Enabled = true, want false (nil Order enables nothing - managing a mod is an explicit choice)", m.ID)
 		}
+	}
+	if len(summary.Errors) != 0 {
+		t.Errorf("expected no parse errors (nothing enabled, so mod_c's bad content is never parsed), got %+v", summary.Errors)
 	}
 }
 

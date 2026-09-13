@@ -42,19 +42,45 @@ func TestBuildConflictSummariesResolvesNames(t *testing.T) {
 		{
 			Key: conflict.Key{Type: "common/buildings", ID: "some_building"},
 			Candidates: []definition.Definition{
-				{ModID: "mod_a"},
-				{ModID: "mod_b"},
+				{ModID: "mod_a", FilePath: "common/buildings/a.txt"},
+				{ModID: "mod_b", FilePath: "common/buildings/b.txt"},
 			},
+			Rule: conflict.LIOS,
 		},
 	}
 	names := map[string]string{"mod_a": "Mod A", "mod_b": "Mod B"}
 
 	got := buildConflictSummaries(conflicts, names)
 	want := []ConflictSummary{
-		{Type: "common/buildings", ID: "some_building", Candidates: []string{"Mod A", "Mod B"}},
+		{
+			Type: "common/buildings",
+			ID:   "some_building",
+			Candidates: []ConflictCandidate{
+				{ModID: "mod_a", ModName: "Mod A", FilePath: "common/buildings/a.txt"},
+				{ModID: "mod_b", ModName: "Mod B", FilePath: "common/buildings/b.txt"},
+			},
+			Winner: "mod_b", // LIOS - last in load order wins
+		},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("buildConflictSummaries = %+v, want %+v", got, want)
+	}
+}
+
+func TestBuildConflictSummariesFIOSWinnerIsFirst(t *testing.T) {
+	conflicts := []conflict.Conflict{
+		{
+			Key: conflict.Key{Type: "some_type", ID: "thing"},
+			Candidates: []definition.Definition{
+				{ModID: "mod_a"},
+				{ModID: "mod_b"},
+			},
+			Rule: conflict.FIOS,
+		},
+	}
+	got := buildConflictSummaries(conflicts, nil)
+	if len(got) != 1 || got[0].Winner != "mod_a" {
+		t.Errorf("buildConflictSummaries = %+v, want Winner = mod_a (FIOS - first in load order wins)", got)
 	}
 }
 
@@ -66,7 +92,7 @@ func TestBuildConflictSummariesFallsBackToIDWhenNameMissing(t *testing.T) {
 		},
 	}
 	got := buildConflictSummaries(conflicts, map[string]string{})
-	if len(got) != 1 || len(got[0].Candidates) != 1 || got[0].Candidates[0] != "unknown_mod" {
+	if len(got) != 1 || len(got[0].Candidates) != 1 || got[0].Candidates[0].ModName != "unknown_mod" {
 		t.Errorf("buildConflictSummaries = %+v, want candidate to fall back to ModID", got)
 	}
 }

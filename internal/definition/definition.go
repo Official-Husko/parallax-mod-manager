@@ -17,7 +17,7 @@ import (
 )
 
 // Type is a content category, derived from the mod-relative folder a file
-// lives in (e.g. "common/buildings", "events", "localization/english").
+// lives in (e.g. "common/buildings", "events", "localisation/english").
 type Type string
 
 // Span locates a definition's source text for on-demand re-read (a diff
@@ -76,12 +76,17 @@ func FromScriptFile(modID, relPath string, defType Type, f *script.File) []Defin
 }
 
 // FromLocaleCatalog extracts one Definition per localization entry. Type is
-// conventionally "localization/<language>".
+// "localisation/<language>" - the British spelling, matching the real
+// on-disk folder name Paradox games actually use (confirmed against a
+// real Stellaris install: "localisation/", not "localization/") - a
+// generated patch mod's own localisation content (see
+// internal/library.GeneratePatch) has to land in the folder the game
+// actually reads, not merely a consistently-spelled internal label.
 func FromLocaleCatalog(modID, relPath string, c *locale.Catalog) []Definition {
 	if c == nil {
 		return nil
 	}
-	defType := Type("localization/" + c.Language)
+	defType := Type("localisation/" + c.Language)
 	defs := make([]Definition, 0, len(c.Entries))
 	for i, e := range c.Entries {
 		defs = append(defs, Definition{
@@ -90,8 +95,13 @@ func FromLocaleCatalog(modID, relPath string, c *locale.Catalog) []Definition {
 			ModID:    modID,
 			FilePath: relPath,
 			Hash:     xhash.Definition([]byte(e.Value)),
-			Span:     Span{StartLine: e.Line, EndLine: e.Line},
-			Order:    i,
+			Span: Span{
+				StartOffset: e.StartOffset,
+				EndOffset:   e.EndOffset,
+				StartLine:   e.Line,
+				EndLine:     e.Line,
+			},
+			Order: i,
 		})
 	}
 	return defs

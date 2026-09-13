@@ -10,6 +10,28 @@
     flex-direction: column;
 }
 
+.patch-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    background: #1e1714;
+    border-bottom: 1px solid #4a2f22;
+    font: 500 12px Barlow, sans-serif;
+    color: #e8c7b2;
+    flex: none;
+}
+
+.patch-banner span {
+    flex: 1;
+}
+
+.patch-banner i {
+    cursor: pointer;
+    font-size: 12px;
+    color: #e8c7b2;
+}
+
 .resolver-header {
     display: flex;
     align-items: center;

@@ -3,13 +3,26 @@
 // project has for avoiding the full re-parse most existing mod managers do
 // on every launch. Compare cheap (mtime, size) first; only hash if that
 // differs; only re-parse if the hash differs. Results persist to disk, one
-// JSON file per mod, so a relaunch with an unchanged mod list approaches
+// gob file per mod, so a relaunch with an unchanged mod list approaches
 // "nothing to do" instead of a full re-scan.
+//
+// Encoding: gob, not JSON. A content-heavy mod (a total conversion with
+// thousands of files) can carry tens of thousands of cached Definitions,
+// and encoding/json's per-field name repetition and reflection-heavy
+// (de)serialization measurably dominates Load/Save wall time at that scale -
+// confirmed on a real ~1,800-file Workshop mod, where the JSON cache file
+// reached 165MB and Load/Save alone cost over a second combined, on every
+// single call regardless of how many files were actually unchanged. Gob's
+// self-describing-once-per-type wire format measured roughly half the file
+// size and 3-5x faster encode/decode on that same real data - the fix that
+// actually makes "unchanged mods cost near-zero on relaunch" true at this
+// scale, not just for small mod lists.
 package cache
 
 import (
+	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/gob"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -22,27 +35,34 @@ import (
 // FileRecord or ModCache's structure changes incompatibly; Load fails closed
 // (treats the file as absent) on a mismatch rather than risk decoding a
 // record in a shape it no longer understands.
-const FormatVersion = 1
+const FormatVersion = 2
+
+// cacheFileExt is the on-disk extension for FileStore's gob-encoded cache
+// files - deliberately distinct from the old JSON-format ".json" extension
+// this package used before FormatVersion 2, so a leftover pre-upgrade cache
+// file is simply never found (Load treats it as no cache yet) rather than
+// risk gob-decoding bytes that were never gob to begin with.
+const cacheFileExt = ".gobcache"
 
 // FileRecord is one mod file's cached state.
 type FileRecord struct {
-	Path            string                  `json:"path"` // mod-relative
-	ModTimeUnixNano int64                   `json:"mtime"`
-	Size            int64                   `json:"size"`
-	Hash            uint64                  `json:"hash"` // xhash.Bytes of the raw file content
-	Definitions     []definition.Definition `json:"definitions"`
+	Path            string // mod-relative
+	ModTimeUnixNano int64
+	Size            int64
+	Hash            uint64 // xhash.Bytes of the raw file content
+	Definitions     []definition.Definition
 	// ParseError, when non-empty, sticks the file's last-known-bad status to
 	// its stat+hash: it isn't re-attempted every run until it actually
 	// changes on disk, but a change always gets a fresh try.
-	ParseError string `json:"parseError,omitempty"`
+	ParseError string
 }
 
 // ModCache is one mod's complete cached state.
 type ModCache struct {
-	Version int                   `json:"version"`
-	ModID   string                `json:"modId"`
-	GameKey string                `json:"gameKey"`
-	Files   map[string]FileRecord `json:"files"`
+	Version int
+	ModID   string
+	GameKey string
+	Files   map[string]FileRecord
 }
 
 func newModCache(gameKey, modID string) *ModCache {
@@ -76,18 +96,18 @@ type Store interface {
 	Save(ctx context.Context, c *ModCache) error
 }
 
-// FileStore is the on-disk Store: one JSON file per mod, at
-// <Dir>/<gameKey>/<modID>.json, written atomically (temp file + rename) so a
-// crash mid-write can never leave a half-written, corrupt cache file.
+// FileStore is the on-disk Store: one gob file per mod, at
+// <Dir>/<gameKey>/<modID>.gobcache, written atomically (temp file + rename)
+// so a crash mid-write can never leave a half-written, corrupt cache file.
 type FileStore struct {
 	Dir string
 }
 
 func (s FileStore) path(gameKey, modID string) string {
-	return filepath.Join(s.Dir, gameKey, modID+".json")
+	return filepath.Join(s.Dir, gameKey, modID+cacheFileExt)
 }
 
-// Load reads one mod's cache file. A missing file, a JSON decode error, or a
+// Load reads one mod's cache file. A missing file, a gob decode error, or a
 // Version mismatch all fail closed to a fresh empty ModCache - the caller
 // re-parses that one mod from scratch, nothing crashes, and no partially- or
 // incorrectly-decoded state is ever propagated. This is deliberately
@@ -104,7 +124,7 @@ func (s FileStore) Load(ctx context.Context, gameKey, modID string) (*ModCache, 
 	}
 
 	var c ModCache
-	if err := json.Unmarshal(data, &c); err != nil {
+	if err := gob.NewDecoder(bytes.NewReader(data)).Decode(&c); err != nil {
 		return newModCache(gameKey, modID), nil
 	}
 	if c.Version != FormatVersion {
@@ -121,7 +141,11 @@ func (s FileStore) Save(ctx context.Context, c *ModCache) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	var buf bytes.Buffer
+	if err := gob.NewEncoder(&buf).Encode(c); err != nil {
+		return err
+	}
 	dir := filepath.Join(s.Dir, c.GameKey)
-	_, err := atomicfile.WriteJSON(dir, c.ModID+".json", c)
+	_, err := atomicfile.Write(dir, c.ModID+cacheFileExt, buf.Bytes())
 	return err
 }

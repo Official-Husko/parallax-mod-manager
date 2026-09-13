@@ -9,15 +9,15 @@ claim, and [docs/](docs/) generally for the Paradox-modding domain knowledge thi
 built on.
 
 **Status: early development.** The desktop shell runs a real scan end to end: pick a game, list
-its installed mods, arrange an enabled/ordered playset, save it, and launch the game with that
-playset active. Six Paradox games are registered (data-driven, not hardcoded - see
+its installed mods, arrange an enabled/ordered playset, save it, resolve real conflicts (with
+real load-order winners and a real overlap matrix), and launch the game with that playset
+active. Six Paradox games are registered (data-driven, not hardcoded - see
 [Progress](#progress)), though only Stellaris has actually been verified against a real install
 so far. A first-run wizard detects installed games for real and lets you point it at one
 auto-detection misses. The rest of the app's screens (a cross-game library, DLC management,
-settings, a conflict resolver, playset sharing) exist as a faithful visual preview of where this
-is headed, but aren't functional yet - see [Progress](#progress) for exactly which parts are
-real and which are still a mockup. Nothing here is ready to fully replace your existing mod
-manager yet.
+settings, playset sharing) exist as a faithful visual preview of where this is headed, but
+aren't functional yet - see [Progress](#progress) for exactly which parts are real and which are
+still a mockup. Nothing here is ready to fully replace your existing mod manager yet.
 
 ## Why not just use Irony?
 
@@ -37,7 +37,7 @@ concurrency hardcoded to 4–6 mods regardless of how many CPU cores are availab
 | Content hashing | Fast non-cryptographic (MetroHash) - already reasonable | Same idea (xxHash), plus a single chokepoint package (`internal/xhash`) so it can't accidentally be swapped for something disk-unsafe |
 | Conflict detection | O(n) hash-bucket grouping - already reasonable | Same approach, plus dependency-aware suppression and a same-mod cross-file collapse Irony's design doesn't need to distinguish (see `internal/conflict`) |
 | Cache integrity | One confirmed real bug: bad state trusted silently, corrupting the cache | Versioned format, fails closed to "re-parse this one mod" on any corruption or version mismatch - never propagates bad state |
-| Progress feedback | Phase-level; several GitHub issues report indefinite, indistinguishable-from-hung scans | Per-file progress from the first file scanned |
+| Progress feedback | Phase-level; several GitHub issues report indefinite, indistinguishable-from-hung scans | The mod list itself (names, versions, sources) needs no content parsing, so it renders immediately instead of waiting behind a "Scanning..." wall - confirmed on a real 86-mod install, the list appears in ~1ms versus ~6s for the full conflict-resolved result |
 | Runtime | .NET + Avalonia | Go + Wails (native webview, no bundled runtime) |
 
 This list grows as features land - see [Progress](#progress) below, which is kept current.
@@ -88,7 +88,12 @@ This list grows as features land - see [Progress](#progress) below, which is kep
 - **Incremental cache** (`internal/cache`) - the stat → hash → parse layered, on-disk,
   versioned cache described above. This is the project's core performance thesis, and it's
   the one piece the research found nothing surveyed in this space (not the reference codebase,
-  not the Rust `tiger` validators, not CWTools) has actually built.
+  not the Rust `tiger` validators, not CWTools) has actually built. Persisted as `gob`, not
+  JSON: a real large Workshop mod's cache file (confirmed on a ~1,800-file total conversion)
+  reached 165MB as JSON, and just *loading* it back - before any actual parsing - cost over half
+  a second on every call, undermining the whole point of a 100%-cache-hit relaunch. Gob measured
+  roughly half the file size and 3-5x faster to encode/decode on that same real data; see
+  [docs/performance-strategy.md](docs/performance-strategy.md) for the full before/after.
 - **Parsing pipeline** (`internal/pipeline`) - wires the cache and parsers together behind a
   bounded worker pool; parses one mod's files in parallel, merges results in deterministic
   order (parse in parallel, merge sequentially - load-order correctness, not just speed), and
@@ -127,7 +132,14 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   loses precision past 2^53 - so summary types never carry a raw hash field, only what the UI
   actually needs; and Go `iota` enums (`mod.Source`, etc.) are converted to strings
   (`"workshop"`, not `1`) before crossing the boundary, since a bare int means nothing in JS.
-  Verified against the installed Wails v2 source, not assumed.
+  Verified against the installed Wails v2 source, not assumed. `ScanGame` also emits a
+  `scan-quick` event partway through its own run: a mod's name/version/source needs no content
+  parsing, so the full mod list is known - and pushed to the frontend - well before conflict
+  detection's slower per-mod parsing finishes, letting the Workspace view render the list
+  immediately instead of sitting behind a blocking "Scanning..." state (`internal/library`'s
+  `LoadGame` takes an `OnQuickSummary` callback for this; `app.go` is the only thing that turns
+  it into a Wails event). Confirmed against a real 86-mod install: the list appears in about a
+  millisecond, roughly 5000× before the fully conflict-resolved result lands a few seconds later.
 - **Playsets and game launching** (`internal/playset`, `internal/library`, `app.go`,
   `frontend/src/app.tsx`) - named, ordered mod selections persisted as versioned JSON
   (Paradox's own "playset" term, not a generic "collection"), following the same irreplaceable-
@@ -139,8 +151,9 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   panel, and an actions rail with the playset picker and the launch button) adopts the visual
   design and terminology from `mockup/Mod Manager.dc.html`, a local design reference kept out
   of version control; that mockup also sketches a larger product (a cross-game library, DLC
-  management, a file-level conflict resolver, playset sharing, an update checker) most of which
-  now exists as a static visual preview - see the two entries below for exactly what's real.
+  management, a file-level conflict resolver, playset sharing, an update checker), most of which
+  now exists as a static visual preview (the conflict resolver is a real, working exception -
+  see below) - see the entries below for exactly what's real.
   `app.go`'s `LaunchGame` is the one function in the whole
   codebase that opens Steam and starts the real game process; `internal/atomicfile` now holds
   the shared atomic-JSON-write helper this package, `internal/cache`, and `internal/launch` all
@@ -181,25 +194,99 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   preselected next time. "Warn on patch mismatch" is stored alongside them but stays an
   explicit placeholder - this project has no concept yet of a mod's compatible game version to
   warn about.
+- **Real mod detail panel** (`internal/library`'s `ListModFiles`/`ModFolderPath`, `app.go`,
+  `Workspace.tsx`) - the Workspace's per-mod detail view reads the mod's actual descriptor and
+  on-disk content instead of showing mockup placeholder text: its declared supported-game-version
+  and dependency list (with a best-effort found/not-found check against the other scanned mods,
+  by name - the only thing a plain dependency-name string can be matched against), a real
+  Files tab (walks the mod's real content folder, capped at 2,000 entries so a huge total-
+  conversion mod doesn't hang the tree view, with total size and last-modified time computed
+  from the same walk), a real Conflicts tab (which other mods this one's genuine conflicts
+  involve, from the same conflict detection Workspace already runs - no fabricated file counts
+  or percentages this project has no way to back), and a working "Open folder" button plus a
+  real Steam Workshop page link for Workshop mods (built from the descriptor's own
+  `remote_file_id`, opened via `github.com/pkg/browser` - already this project's Steam-launch
+  mechanism, not a new network dependency). A classic-format mod's descriptor has no description
+  field at all (see docs/paradox-mod-format.md), so that section honestly says so rather than
+  showing invented text; the Changes tab does the same for update history, since that's Steam
+  Workshop's own metadata and this project doesn't fetch anything from the network. The panel's
+  thumbnail is a real image too (`internal/library.ModThumbnail`), resolved the same way real
+  Stellaris Workshop mods actually ship one: the classic descriptor's own `picture` field first
+  (now parsed - `internal/mod`'s classic descriptor parser previously dropped it), falling back
+  to a file literally named `thumbnail.png` in the mod's content root, since Steam Workshop
+  writes one there even when a mod's descriptor never declares a `picture` field at all -
+  confirmed against several real mods on this machine that only work with the fallback in place.
+  A mod with genuinely no usable image (a non-web format like a Paradox-native `.dds` texture,
+  or a descriptor pointing at a file that isn't actually there) honestly shows no thumbnail
+  rather than a broken image or a guess. Confirmed on this project's own real 86-mod Stellaris
+  install: 80 resolve a real thumbnail, 6 genuinely have none.
+- **Real conflict resolver** (`internal/library`'s `ConflictCandidate`/`Winner`/`ReadModFile`,
+  `ConflictResolver.tsx`) - lists every genuine conflict Workspace's own conflict detection
+  already found, real load-order-ranked candidates with the actual computed winner (LIOS/FIOS,
+  the same rule `conflict.Resolve` itself applies - no separate guess), and the winning and
+  losing files' real content side by side (line-level diff highlighting isn't built yet, so it's
+  shown as-is rather than faked as a diff). The overlap matrix is computed client-side from that
+  same real conflict data (which mod pairs share the most contested keys), capped to the 30
+  most-contested mods so the grid stays fast and legible against a large real modlist rather than
+  rendering every mod that touches at least one conflict. The mockup's original "Auto-resolve"
+  and merge-strategy controls were removed rather than left inert; "Generate patch" (below) is
+  the real replacement.
+- **Real patch-mod generation** (`internal/library.GeneratePatch`, `docs/patch-mods.md`) -
+  writes a real, generated mod that pins down the winning definition's *exact original source
+  bytes* (via `definition.Span`, never a re-serialized parse tree) for every genuine conflict,
+  named to sort after everything else so it actually takes effect. Researching this surfaced a
+  real, previously-unknown gap in this project's own conflict detection: Stellaris merges files
+  across mods by ASCIIbetical filename first, falling back to mod load order only when two
+  files share an identical name - confirmed against Paradox's own modding wiki and a second
+  independent source - so the manager's predicted winner and the real game's actual winner can
+  diverge whenever two conflicting mods don't happen to share a filename. A generated patch mod
+  fixes this outright rather than working around it, since its own file names are entirely
+  under this project's control. Localization conflicts are patched too, not just classic script
+  ones - a localisation `Type` gets a real `.yml` file with its own language header and UTF-8
+  BOM, matching what real Paradox locale files carry. Confirmed on this project's own real
+  ~4,800-conflict Stellaris install: every conflict patched with byte-exact content, zero
+  skipped, including 542 localization entries spanning 10 real languages. Classic-descriptor
+  games only; regenerated from a clean slate on every call so a resolved-then-later-removed
+  conflict never leaves a stale override behind.
+- **Real autosort** (`frontend/src/data/autosort.ts`, Workspace's Autosort button, Settings'
+  "Sort rules" panel) - two real, derivable rules, adapted from a proven design (a working
+  sibling Stellaris mod-sorting tool on this machine, cross-checked against its own real-world
+  tag/dependency conventions): a mod tagged Fixes, Utilities, or Patch moves to the end of the
+  load order (the same convention this app's own generated patch mod already follows), and a
+  mod moves to load right after every dependency it declares, matched by name against the
+  other currently enabled mods, via a stable topological sort (Kahn's algorithm, the same
+  class of algorithm the sibling tool itself uses) - efficient by construction (bounded by the
+  mod count, not a repeated-rescan heuristic's worst case) and able to actually detect and
+  report a genuine dependency cycle instead of silently giving up on it. Dependencies are
+  applied last so a tag-based move can never leave one violated. Both rules are individually
+  toggleable in Settings, persisted via
+  `internal/preferences`. Confirmed meaningful on this project's own real 86-mod Stellaris
+  install: 14 mods have genuine declared dependencies (mostly UI Overhaul Dynamic and Planetary
+  Diversity submods needing their base mod first) and 17 are tagged for late placement - this
+  isn't just correct in theory, it does real, useful work on a real modlist. In-memory only
+  (reorders the current load order; the user still has to Save the playset), so there's nothing
+  destructive to undo it - close without saving.
 - **The rest of the design mockup's screens** (`frontend/src/views/Library.tsx`, `Dlc.tsx`,
-  `Settings.tsx`, `ConflictResolver.tsx`, `PlaysetsModal.tsx`, `UpdatesModal.tsx`) - a faithful,
-  fully navigable visual preview of the mockup's cross-game library, DLC management, settings
-  with sort rules, file-level conflict resolver and overlap matrix, and playset picker, built
-  from the mockup's own example content. **Mostly static previews, not working features yet** -
-  they render real Font Awesome Pro icons and this project's dark theme, but (with three
-  exceptions) don't read or write real data. The exceptions: the Workspace screen's actual mod
-  list, load order, conflict detection, playset save/load, and launch are the real, working
-  feature described above (its decorative bits - thumbnail art, description, the
-  Files/Conflicts/Changes tabs - are static preview content like the rest); Settings'
-  "Game profiles" panel shows the same real per-game detection as the first-run wizard
-  (including a working "set path" for anything not auto-detected, and the three real preference
-  toggles described above); and the Library screen's
+  `PlaysetsModal.tsx`, `UpdatesModal.tsx`) - a faithful, fully navigable visual preview of the
+  mockup's cross-game library and DLC management, built from the mockup's own example content.
+  **Mostly static previews, not working features yet** - they render real Font Awesome Pro
+  icons and this project's dark theme, but (with four exceptions) don't read or write real
+  data. The exceptions: the Workspace screen's actual mod list, load order, conflict detection,
+  playset save/load, launch, mod detail panel, conflict resolver, and autosort are the real,
+  working features described above (including the mod detail panel's own real thumbnail art -
+  see below); Settings' "Game profiles" panel
+  shows the same real per-game detection as the first-run wizard (including a working "set
+  path" for anything not auto-detected, and the three real preference toggles described above),
+  and its "Sort rules" panel is the real autosort configuration described above; and the
+  Library screen's
   games sidebar and mod table are real too - it scans every managed game and lists its actual
-  mods (name, source, version), searchable and filterable by game, with columns this project
-  can't compute yet (file size, last played, a mod's "state") honestly shown as `-` rather than
-  invented. Everything else in this list - Settings' "Sort rules" panel, DLC, the conflict
-  resolver, playset sharing, the update checker, and Library's own "collections" and bulk
-  actions - stays a static preview.
+  mods (name, source, version, real on-disk size - computed in parallel across every mod at
+  once, `internal/library.ModSizes`, confirmed under 70ms for 81 real mods totaling 47GB),
+  searchable and filterable by game, with the two columns this project genuinely can't compute
+  yet (last played - no launch history is tracked; a mod's "state" - would need a full
+  conflict-resolve pass per game, too expensive to run just for a browsing view) honestly shown
+  as `-` rather than invented. Everything else in this list - DLC, playset sharing, the update
+  checker, and Library's own "collections" and bulk actions - stays a static preview.
 
 All of the above has unit test coverage (table-driven, fixture-based, `go test -race`
 clean), including tests that prove behavior rather than just assert on it - e.g.
@@ -212,9 +299,9 @@ and `internal/launch`'s `TestWriteStateNeverWritesGameData` (confirms a pre-exis
 
 ### Not yet built
 
-- **Patch-mod generation** - writing a user's resolved conflict choices out as a physical
-  mod on disk, appended to the end of the load order. See
-  [docs/conflict-resolution.md](docs/conflict-resolution.md)'s "Patch mods" section.
+- **Per-conflict manual patch override** - patch generation (see [Done](#done) above)
+  currently auto-patches every genuine conflict using the load-order winner conflict detection
+  already computes; there's no UI yet to pick a *different* winner for a specific conflict.
 - **`mods_registry.json`-backed UUID tracking** - its schema is now confirmed (see
   [docs/game-launching.md](docs/game-launching.md)), but this project doesn't generate or
   persist mod UUIDs yet, which is what's actually blocking `game_data.json` support (above).

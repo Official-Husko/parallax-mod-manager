@@ -14,15 +14,27 @@ export function DetectGames():Promise<Array<library.DetectedGame>>;
 
 export function GameMedia(arg1:string,arg2:string):Promise<string>;
 
+export function GeneratePatch(arg1:string,arg2:Array<string>):Promise<library.PatchResult>;
+
 export function GetPreferences():Promise<preferences.Preferences>;
 
 export function LaunchGame(arg1:string,arg2:string):Promise<void>;
 
 export function ListGames():Promise<Array<library.GameInfo>>;
 
+export function ListModFiles(arg1:string,arg2:string):Promise<library.ModFiles>;
+
 export function ListPlaysets(arg1:string):Promise<Array<string>>;
 
 export function LoadPlayset(arg1:string,arg2:string):Promise<playset.Playset>;
+
+export function ModSizes(arg1:string):Promise<Record<string, number>>;
+
+export function ModThumbnail(arg1:string,arg2:string):Promise<string>;
+
+export function OpenModFolder(arg1:string,arg2:string):Promise<void>;
+
+export function ReadModFile(arg1:string,arg2:string,arg3:string):Promise<string>;
 
 export function SavePlayset(arg1:playset.Playset):Promise<void>;
 

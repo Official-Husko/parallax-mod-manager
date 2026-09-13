@@ -5,7 +5,7 @@ import {DetectGames, BrowseForGameInstall, GetPreferences, SetPreferences} from 
 import type {library, preferences} from '../../wailsjs/go/models';
 import {GameLogo} from '../components/GameLogo';
 import {Toggle} from '../components/Toggle';
-import {overrides, settingsNav, sortLog, sortRules} from '../data/mockData';
+import {settingsNav} from '../data/mockData';
 
 type Section = 'profiles' | 'sort';
 
@@ -139,59 +139,59 @@ function ProfilesPanel() {
 }
 
 function SortRulesPanel() {
+    const [prefs, setPrefs] = useState<preferences.Preferences | null>(null);
+
+    useEffect(() => {
+        GetPreferences().then(setPrefs).catch(() => undefined);
+    }, []);
+
+    function togglePref(key: 'autosortDependencies' | 'autosortFixesLast') {
+        if (!prefs) return;
+        const next = {...prefs, [key]: !prefs[key]};
+        setPrefs(next);
+        SetPreferences(next).catch(() => setPrefs(prefs));
+    }
+
     return (
-        <div className="settings-content split">
-            <div className="settings-main">
-                <div>
-                    <div className="settings-title">Sort rules</div>
-                    <div className="settings-subtitle">
-                        Autosort applies these in order, top first. Every move it makes is attributed to
-                        the rule responsible, so you can see why a mod ended up where it did.
-                    </div>
-                </div>
-                <div className="sort-rules-list">
-                    {sortRules.map((r) => (
-                        <div key={r.name} className="sort-rule-row" style={{borderColor: r.border, background: r.bg}}>
-                            <i className="fa-solid fa-grip-vertical drag-handle"/>
-                            <span className="mono index">{r.i}</span>
-                            <div className="sort-rule-main">
-                                <div className="sort-rule-name">{r.name}</div>
-                                <div className="sort-rule-desc">{r.desc}</div>
-                            </div>
-                            <span className="mono moves">{r.moves}</span>
-                            <Toggle on={r.on}/>
-                        </div>
-                    ))}
-                </div>
-                <div className="sort-rule-actions">
-                    <span className="btn-ghost">+ Custom rule</span>
-                    <span className="btn-ghost">Import community ruleset</span>
-                    <span className="btn-ghost inert" style={{border: 'none', background: 'none'}}>Reset to defaults</span>
-                </div>
-                <div className="overrides-block">
-                    <div className="sidebar-label">MANUAL OVERRIDES · {overrides.length}</div>
-                    {overrides.map((o) => (
-                        <div key={o.text} className="override-row">
-                            <span className="mono kind">{o.kind}</span>
-                            <span className="text">{o.text}</span>
-                            <span className="remove">remove</span>
-                        </div>
-                    ))}
+        <div className="settings-content single">
+            <div>
+                <div className="settings-title">Sort rules</div>
+                <div className="settings-subtitle">
+                    Workspace's Autosort button applies whichever of these are on, top first, only
+                    when you click it - it never reorders anything on its own. Toggle a rule off to
+                    leave it out.
                 </div>
             </div>
-            <div className="sort-log-rail">
-                <div className="sidebar-label">LAST AUTOSORT · 11:04</div>
-                <div className="sort-log-subtitle">17 of 62 mods moved. Each entry names the rule that moved it.</div>
-                <div className="sort-log-list">
-                    {sortLog.map((l) => (
-                        <div key={l.name} className="sort-log-entry" style={{borderColor: l.edge}}>
-                            <div className="sort-log-name">{l.name}</div>
-                            <div className="mono sort-log-move">{l.move}</div>
-                            <div className="sort-log-why">{l.why}</div>
+            {prefs && (
+                <div className="sort-rules-list">
+                    <div className="sort-rule-row">
+                        <span className="mono index">1</span>
+                        <div className="sort-rule-main">
+                            <div className="sort-rule-name">Fixes/Utilities/Patch last</div>
+                            <div className="sort-rule-desc">
+                                A mod tagged Fixes, Utilities, or Patch moves to the end of the load
+                                order - the same convention this app's own generated patch mod follows.
+                            </div>
                         </div>
-                    ))}
+                        <Toggle on={prefs.autosortFixesLast} onClick={() => togglePref('autosortFixesLast')}/>
+                    </div>
+                    <div className="sort-rule-row">
+                        <span className="mono index">2</span>
+                        <div className="sort-rule-main">
+                            <div className="sort-rule-name">Declared dependencies</div>
+                            <div className="sort-rule-desc">
+                                A mod moves to load right after every dependency it declares in its own
+                                descriptor, matched by name against your other enabled mods.
+                            </div>
+                        </div>
+                        <Toggle on={prefs.autosortDependencies} onClick={() => togglePref('autosortDependencies')}/>
+                    </div>
                 </div>
-                <span className="btn-ghost" style={{textAlign: 'center', justifyContent: 'center'}}>Revert this autosort</span>
+            )}
+            <div className="sort-rule-actions">
+                <span className="btn-ghost inert">+ Custom rule</span>
+                <span className="btn-ghost inert">Import community ruleset</span>
+                <span className="btn-ghost inert" style={{border: 'none', background: 'none'}}>Reset to defaults</span>
             </div>
         </div>
     );

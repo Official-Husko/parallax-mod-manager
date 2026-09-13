@@ -4,7 +4,6 @@
 package locale
 
 import (
-	"bufio"
 	"bytes"
 	"fmt"
 	"strconv"
@@ -17,6 +16,13 @@ type Entry struct {
 	Version int
 	Value   string
 	Line    int
+	// StartOffset/EndOffset are the exact byte range of this entry's whole
+	// raw source line (including its original leading whitespace, before
+	// any trimming), within the []byte passed to Parse - excluding the
+	// line's own trailing \r\n or \n. Lets a caller copy this entry's
+	// exact original bytes verbatim (see internal/library.GeneratePatch),
+	// the same way script definitions already do via definition.Span.
+	StartOffset, EndOffset int
 }
 
 // Catalog is one parsed .yml file.
@@ -31,21 +37,43 @@ var utf8BOM = []byte{0xEF, 0xBB, 0xBF}
 
 // Parse parses one localization .yml file's contents. Paradox loc files are
 // conventionally saved with a UTF-8 BOM; it's stripped if present.
+//
+// Lines are split manually (not via bufio.Scanner) so each entry's exact
+// byte range within src can be recorded - see Entry.StartOffset/EndOffset.
+// A trailing "\r" before "\n" is stripped from the line's content, same as
+// bufio.ScanLines already did before this was written by hand.
 func Parse(src []byte) (*Catalog, error) {
-	src = bytes.TrimPrefix(src, utf8BOM)
+	trimmedSrc := bytes.TrimPrefix(src, utf8BOM)
+	// baseOffset corrects StartOffset/EndOffset back to be relative to the
+	// original src the caller passed in (3 when a BOM was present, else
+	// 0) - a real bug once shipped: without this, every offset was
+	// relative to the BOM-stripped view, silently misaligning any byte
+	// range a caller (internal/library.GeneratePatch) sliced out of the
+	// real on-disk file it read itself, since that file still has its
+	// BOM. Confirmed against real Stellaris locale files, which do carry
+	// one.
+	baseOffset := len(src) - len(trimmedSrc)
+	src = trimmedSrc
 
 	cat := &Catalog{}
-	scanner := bufio.NewScanner(bytes.NewReader(src))
-	scanner.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
-
 	lineNo := 0
 	sawHeader := false
-	for scanner.Scan() {
+	for pos := 0; pos < len(src); {
 		lineNo++
-		raw := scanner.Text()
-		line := strings.TrimRight(raw, "\r")
-		trimmed := strings.TrimSpace(line)
+		start := pos
+		end := len(src)
+		if nl := bytes.IndexByte(src[pos:], '\n'); nl >= 0 {
+			end = pos + nl
+			pos = end + 1
+		} else {
+			pos = len(src)
+		}
+		contentEnd := end
+		if contentEnd > start && src[contentEnd-1] == '\r' {
+			contentEnd--
+		}
 
+		trimmed := strings.TrimSpace(string(src[start:contentEnd]))
 		if trimmed == "" {
 			continue
 		}
@@ -67,10 +95,9 @@ func Parse(src []byte) (*Catalog, error) {
 		if err != nil {
 			return nil, err
 		}
+		entry.StartOffset = start + baseOffset
+		entry.EndOffset = contentEnd + baseOffset
 		cat.Entries = append(cat.Entries, entry)
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("locale: %w", err)
 	}
 	if !sawHeader {
 		return nil, fmt.Errorf("locale: empty file, expected a language header")

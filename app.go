@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/pkg/browser"
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/Official-Husko/parallax-mod-manager/internal/conflict"
@@ -262,15 +263,26 @@ func (a *App) BrowseForAnyGameInstall() (library.DetectedGame, error) {
 }
 
 // ScanGame scans, parses, and resolves conflicts for one supported game.
-// playsetName is optional; empty means every mod enabled, ID-sorted (no
-// selection made yet).
+// playsetName is optional; empty means no selection made yet - every
+// scanned mod starts disabled.
 func (a *App) ScanGame(gameID, playsetName string) (library.Summary, error) {
 	cfg, ok := a.registry.Get(gameID)
 	if !ok {
 		return library.Summary{}, fmt.Errorf("app: unknown game %q", gameID)
 	}
 
-	opts := library.Options{CacheDir: a.cacheDir, SteamRoots: a.steamRoots}
+	opts := library.Options{
+		CacheDir:   a.cacheDir,
+		SteamRoots: a.steamRoots,
+		// The mod list itself (names/versions/sources) is known the moment
+		// scanning finishes, well before conflict detection's slower
+		// per-mod content parsing completes - emit it immediately so the
+		// frontend can show the list right away instead of blocking on a
+		// full "Scanning..." page.
+		OnQuickSummary: func(s library.Summary) {
+			wailsruntime.EventsEmit(a.ctx, "scan-quick", gameID, s)
+		},
+	}
 	if playsetName != "" {
 		p, err := a.playsets.Load(a.ctx, gameID, playsetName)
 		if err != nil {
@@ -279,6 +291,76 @@ func (a *App) ScanGame(gameID, playsetName string) (library.Summary, error) {
 		opts.Order = conflict.LoadOrder(p.ModIDs)
 	}
 	return library.LoadGame(a.ctx, cfg, opts)
+}
+
+// ListModFiles returns modID's real on-disk file tree, for the Workspace
+// detail panel's Files tab.
+func (a *App) ListModFiles(gameID, modID string) (library.ModFiles, error) {
+	cfg, ok := a.registry.Get(gameID)
+	if !ok {
+		return library.ModFiles{}, fmt.Errorf("app: unknown game %q", gameID)
+	}
+	return library.ListModFiles(a.ctx, cfg, library.Options{SteamRoots: a.steamRoots}, modID)
+}
+
+// ModThumbnail returns modID's real thumbnail image, if it has a usable
+// one, as a data: URI - the same convention as GameMedia. Empty string, no
+// error, means the mod has no thumbnail. See library.ModThumbnail.
+func (a *App) ModThumbnail(gameID, modID string) (string, error) {
+	cfg, ok := a.registry.Get(gameID)
+	if !ok {
+		return "", fmt.Errorf("app: unknown game %q", gameID)
+	}
+	return library.ModThumbnail(a.ctx, cfg, library.Options{SteamRoots: a.steamRoots}, modID)
+}
+
+// ModSizes returns every one of gameID's scanned mods' real on-disk content
+// size (mod ID -> bytes), for the Library table's Size column.
+func (a *App) ModSizes(gameID string) (map[string]int64, error) {
+	cfg, ok := a.registry.Get(gameID)
+	if !ok {
+		return nil, fmt.Errorf("app: unknown game %q", gameID)
+	}
+	return library.ModSizes(a.ctx, cfg, library.Options{SteamRoots: a.steamRoots})
+}
+
+// ReadModFile returns one real file's text content from inside modID's
+// content directory, for the conflict resolver's side-by-side view.
+func (a *App) ReadModFile(gameID, modID, relPath string) (string, error) {
+	cfg, ok := a.registry.Get(gameID)
+	if !ok {
+		return "", fmt.Errorf("app: unknown game %q", gameID)
+	}
+	return library.ReadModFile(a.ctx, cfg, library.Options{SteamRoots: a.steamRoots}, modID, relPath)
+}
+
+// GeneratePatch resolves every genuine conflict in gameID's current mod
+// set (order, exactly as the caller's own in-memory load order - not a
+// saved playset, since that's what the Conflict Resolver the user is
+// looking at was actually computed from) and writes a real patch mod
+// pinning down each one's winner. See library.GeneratePatch.
+func (a *App) GeneratePatch(gameID string, order []string) (library.PatchResult, error) {
+	cfg, ok := a.registry.Get(gameID)
+	if !ok {
+		return library.PatchResult{}, fmt.Errorf("app: unknown game %q", gameID)
+	}
+	return library.GeneratePatch(a.ctx, cfg, library.Options{
+		SteamRoots: a.steamRoots,
+		Order:      conflict.LoadOrder(order),
+	})
+}
+
+// OpenModFolder opens modID's real content folder in the OS file manager.
+func (a *App) OpenModFolder(gameID, modID string) error {
+	cfg, ok := a.registry.Get(gameID)
+	if !ok {
+		return fmt.Errorf("app: unknown game %q", gameID)
+	}
+	path, err := library.ModFolderPath(a.ctx, cfg, library.Options{SteamRoots: a.steamRoots}, modID)
+	if err != nil {
+		return err
+	}
+	return browser.OpenFile(path)
 }
 
 // ListPlaysets returns every saved playset's name for gameID.

@@ -1,25 +1,23 @@
 import './Workspace.css';
 import {h} from 'preact';
-import {useEffect, useMemo, useState} from 'preact/hooks';
+import {useEffect, useMemo, useRef, useState} from 'preact/hooks';
 import {
+    GetPreferences,
     LaunchGame,
+    ListModFiles,
     ListPlaysets,
     LoadPlayset,
+    ModThumbnail,
+    OpenModFolder,
     SavePlayset,
     ScanGame,
     WatchMods,
 } from '../../wailsjs/go/main/App';
-import {EventsOn} from '../../wailsjs/runtime/runtime';
-import type {library, playset} from '../../wailsjs/go/models';
-import {
-    byDomain,
-    changelog,
-    domains,
-    fileTree,
-    losesTo,
-    preflight,
-    workspaceStaticDetail,
-} from '../data/mockData';
+import {BrowserOpenURL, EventsOn} from '../../wailsjs/runtime/runtime';
+import type {library, playset, preferences} from '../../wailsjs/go/models';
+import {autosort} from '../data/autosort';
+import {domains, preflight} from '../data/mockData';
+import {ConflictResolver} from './ConflictResolver';
 import {PlaysetsModal} from './PlaysetsModal';
 import {PreflightModal} from './PreflightModal';
 
@@ -30,11 +28,10 @@ type Status =
 
 type DetailTab = 'overview' | 'files' | 'conflicts' | 'changes';
 
-export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenConflictResolver, onOpenUpdates}: {
+export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdates}: {
     games: library.GameInfo[];
     selectedGame: string;
     onPlaysetNameChange: (name: string) => void;
-    onOpenConflictResolver: () => void;
     onOpenUpdates: () => void;
 }) {
     const [summary, setSummary] = useState<library.Summary | null>(null);
@@ -46,8 +43,17 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenConfl
     const [playsetList, setPlaysetList] = useState<string[]>([]);
     const [showPlaysets, setShowPlaysets] = useState(false);
     const [showPreflight, setShowPreflight] = useState(false);
+    const [showConflictResolver, setShowConflictResolver] = useState(false);
     const [search, setSearch] = useState('');
     const [status, setStatus] = useState<Status>({kind: 'idle'});
+    const [prefs, setPrefs] = useState<preferences.Preferences | null>(null);
+    // Guards the 'scan-quick' listener below so it only ever applies to the
+    // fresh load it belongs to - a watcher-triggered background refresh
+    // (refreshMods(true)) runs the exact same backend scan and fires the
+    // same event, but must never have its quick preview reset the load
+    // order/selection the way a fresh load's first paint is supposed to.
+    const expectingFreshQuickRef = useRef(false);
+    const quickAppliedRef = useRef(false);
 
     function setPlaysetName(name: string) {
         setPlaysetNameState(name);
@@ -55,30 +61,39 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenConfl
     }
 
     // refreshMods re-fetches the mod summary for the current game.
-    // preserveSelection=false is a real game switch (today's full reset:
-    // clear the playset name and Available selection, rebuild the load
-    // order from scratch). preserveSelection=true is a background refresh
-    // triggered by the mod-folder watcher: it only prunes IDs that no
-    // longer exist from the current load order and Available selection,
-    // leaving everything else exactly as the user left it.
+    // preserveSelection=false is a real game switch (a full reset: clear
+    // the playset name and Available selection, rebuild the load order
+    // from scratch - normally already done early by the 'scan-quick'
+    // preview below, this is just the fallback if that never arrives).
+    // preserveSelection=true is a background refresh triggered by the
+    // mod-folder watcher, or the final result landing after an already-
+    // applied quick preview: either way, only prune IDs that no longer
+    // exist from the current load order and Available selection, leaving
+    // everything else exactly as the user left it.
     async function refreshMods(preserveSelection: boolean) {
         if (!preserveSelection) {
             setPlaysetName('');
             setSelectedAvailable(new Set());
             setStatus({kind: 'busy', message: 'Scanning...'});
+            expectingFreshQuickRef.current = true;
+            quickAppliedRef.current = false;
         }
         try {
             const result = await ScanGame(selectedGame, '');
+            expectingFreshQuickRef.current = false;
             setSummary(result);
-            if (preserveSelection) {
+            if (preserveSelection || quickAppliedRef.current) {
                 const freshIds = new Set(result.Mods.map((m) => m.ID));
                 setOrder((prev) => prev.filter((id) => freshIds.has(id)));
                 setSelectedAvailable((prev) => new Set([...prev].filter((id) => freshIds.has(id))));
             } else {
                 setOrder(result.Mods.filter((m) => m.Enabled).map((m) => m.ID));
+            }
+            if (!preserveSelection) {
                 setStatus({kind: 'idle'});
             }
         } catch (err) {
+            expectingFreshQuickRef.current = false;
             if (!preserveSelection) {
                 setStatus({kind: 'error', message: String(err)});
             }
@@ -98,6 +113,10 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenConfl
     }, [selectedGame]);
 
     useEffect(() => {
+        GetPreferences().then(setPrefs).catch(() => undefined);
+    }, []);
+
+    useEffect(() => {
         if (!selectedGame) {
             return;
         }
@@ -105,6 +124,28 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenConfl
             if (gameId === selectedGame) {
                 refreshMods(true);
             }
+        });
+        return () => unsubscribe();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedGame]);
+
+    // A scan's mod list (names/versions/sources) is known well before
+    // conflict detection's slower per-mod parsing finishes - this preview
+    // arrives first so the list appears immediately instead of staying
+    // hidden behind a blocking "Scanning..." state. Conflicts populate
+    // once the ScanGame call above actually resolves.
+    useEffect(() => {
+        if (!selectedGame) {
+            return;
+        }
+        const unsubscribe = EventsOn('scan-quick', (gameId: string, quick: library.Summary) => {
+            if (gameId !== selectedGame || !expectingFreshQuickRef.current) {
+                return;
+            }
+            setSummary(quick);
+            setOrder(quick.Mods.filter((m) => m.Enabled).map((m) => m.ID));
+            setStatus({kind: 'busy', message: 'Resolving conflicts...'});
+            quickAppliedRef.current = true;
         });
         return () => unsubscribe();
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -122,8 +163,8 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenConfl
     const conflictedIds = useMemo(() => {
         const s = new Set<string>();
         for (const c of summary?.Conflicts ?? []) {
-            for (const id of c.Candidates) {
-                s.add(id);
+            for (const cand of c.Candidates) {
+                s.add(cand.ModID);
             }
         }
         return s;
@@ -160,6 +201,19 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenConfl
         const next = order.slice();
         [next[i], next[j]] = [next[j], next[i]];
         setOrder(next);
+    }
+
+    function handleAutosort() {
+        if (!prefs || order.length === 0) return;
+        const result = autosort(order, modsById, {
+            dependencies: prefs.autosortDependencies,
+            fixesLast: prefs.autosortFixesLast,
+        });
+        setOrder(result.order);
+        if (result.cycleMods.length > 0) {
+            const names = result.cycleMods.map((id) => modsById.get(id)?.Name ?? id).join(', ');
+            setStatus({kind: 'error', message: `Autosort: circular dependency involving ${names} - these couldn't be fully ordered.`});
+        }
     }
 
     async function refreshAfterSave(name: string) {
@@ -220,7 +274,15 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenConfl
 
             {summary && (
                 <div className="workspace-body">
-                    <DetailPanel mod={selectedMod} tab={detailTab} onTab={setDetailTab} onOpenResolver={onOpenConflictResolver}/>
+                    <DetailPanel
+                        mod={selectedMod}
+                        tab={detailTab}
+                        onTab={setDetailTab}
+                        onOpenResolver={() => setShowConflictResolver(true)}
+                        gameId={selectedGame}
+                        allMods={allMods}
+                        conflicts={summary?.Conflicts ?? []}
+                    />
 
                     <div className="list-pane">
                         <div className="list-pane-header">
@@ -281,11 +343,11 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenConfl
                                 <div className="conflict-banner">
                                     <span className="dot"/>
                                     <span className="text">{conflictedIds.size} mods in hard conflicts</span>
-                                    <span className="link-btn amber" onClick={onOpenConflictResolver}>Resolve</span>
+                                    <span className="link-btn amber" onClick={() => setShowConflictResolver(true)}>Resolve</span>
                                 </div>
                             )}
                             <div className="active-actions">
-                                <span className="btn-amber"><i className="fa-solid fa-arrow-down-arrow-up"/> Autosort</span>
+                                <span className="btn-amber" onClick={handleAutosort}><i className="fa-solid fa-arrow-down-arrow-up"/> Autosort</span>
                                 <span className="btn-ghost">Validate</span>
                                 <span className="btn-ghost" onClick={() => setOrder([])}>Clear</span>
                             </div>
@@ -404,9 +466,22 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenConfl
                 <PreflightModal
                     gameName={gameName}
                     modCount={active.length}
-                    onFixConflicts={() => { setShowPreflight(false); onOpenConflictResolver(); }}
+                    onFixConflicts={() => { setShowPreflight(false); setShowConflictResolver(true); }}
                     onLaunchAnyway={handleLaunchAnyway}
                     onClose={() => setShowPreflight(false)}
+                />
+            )}
+
+            {showConflictResolver && (
+                <ConflictResolver
+                    gameId={selectedGame}
+                    conflicts={summary?.Conflicts ?? []}
+                    order={order}
+                    onClose={() => setShowConflictResolver(false)}
+                    onPatchGenerated={(modId) => {
+                        setOrder((prev) => (prev.includes(modId) ? prev : [...prev, modId]));
+                        refreshMods(true);
+                    }}
                 />
             )}
         </div>
@@ -419,16 +494,58 @@ function matchesSearch(m: library.ModSummary, search: string): boolean {
     return m.Name.toLowerCase().includes(q) || m.ID.toLowerCase().includes(q);
 }
 
-function DetailPanel({mod, tab, onTab, onOpenResolver}: {
+function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, allMods, conflicts}: {
     mod: library.ModSummary | null;
     tab: DetailTab;
     onTab: (t: DetailTab) => void;
     onOpenResolver: () => void;
+    gameId: string;
+    allMods: library.ModSummary[];
+    conflicts: library.ConflictSummary[];
 }) {
+    const [files, setFiles] = useState<library.ModFiles | null>(null);
+    const [filesError, setFilesError] = useState('');
+    const [thumbnail, setThumbnail] = useState('');
+
+    useEffect(() => {
+        setFiles(null);
+        setFilesError('');
+        if (!mod) {
+            return;
+        }
+        let cancelled = false;
+        ListModFiles(gameId, mod.ID)
+            .then((f) => { if (!cancelled) setFiles(f); })
+            .catch((err) => { if (!cancelled) setFilesError(String(err)); });
+        return () => { cancelled = true; };
+    }, [gameId, mod?.ID]);
+
+    useEffect(() => {
+        setThumbnail('');
+        if (!mod) {
+            return;
+        }
+        let cancelled = false;
+        ModThumbnail(gameId, mod.ID)
+            .then((src) => { if (!cancelled) setThumbnail(src); })
+            .catch(() => undefined);
+        return () => { cancelled = true; };
+    }, [gameId, mod?.ID]);
+
+    function openFolder() {
+        if (mod) {
+            OpenModFolder(gameId, mod.ID).catch(() => undefined);
+        }
+    }
+
+    const myConflicts = mod ? conflicts.filter((c) => c.Candidates.some((cand) => cand.ModID === mod.ID)) : [];
+
     return (
         <div className="detail-panel">
             <div className="thumbnail">
-                <span className="mono">{workspaceStaticDetail.thumbnailLabel}</span>
+                {thumbnail
+                    ? <img src={thumbnail} alt={mod ? `${mod.Name} thumbnail` : ''}/>
+                    : <span className="mono">{mod ? 'NO THUMBNAIL' : 'MOD THUMBNAIL'}</span>}
             </div>
             {!mod && <p className="detail-empty">Select a mod to see its details.</p>}
             {mod && (
@@ -439,7 +556,7 @@ function DetailPanel({mod, tab, onTab, onOpenResolver}: {
                             <span className="mono id">{mod.ID}</span>
                         </div>
                         <div className="detail-name">{mod.Name}</div>
-                        <div className="detail-sub">{workspaceStaticDetail.updatedLine}</div>
+                        <div className="detail-sub">{files?.LastModified ? `Updated ${timeAgo(files.LastModified)}` : ''}</div>
                     </div>
                     <div className="detail-tabs">
                         {(['overview', 'files', 'conflicts', 'changes'] as DetailTab[]).map((t) => (
@@ -450,59 +567,67 @@ function DetailPanel({mod, tab, onTab, onOpenResolver}: {
                     </div>
                     <div className="detail-content">
                         {tab === 'overview' && (
-                            <OverviewTab mod={mod}/>
+                            <OverviewTab mod={mod} files={files} allMods={allMods} conflicts={myConflicts} onOpenFolder={openFolder}/>
                         )}
                         {tab === 'files' && (
                             <div className="file-tree">
-                                {fileTree.map((f, ix) => (
-                                    <div key={ix} className="file-row" style={{paddingLeft: `${f.pad}px`}}>
-                                        {f.icon && <i className={`fa-solid ${f.icon}`}/>}
-                                        <span className="mono name" style={{color: f.c}}>{f.name}</span>
-                                        <span className="mono badge" style={{color: f.badgeC}}>{f.badge}</span>
+                                {filesError && <p className="status-page error">{filesError}</p>}
+                                {!filesError && !files && <p className="detail-empty">Reading files...</p>}
+                                {!filesError && files && files.Entries.length === 0 && (
+                                    <p className="detail-empty">This mod's content folder is empty.</p>
+                                )}
+                                {files?.Entries.map((f) => (
+                                    <div key={f.RelPath} className="file-row" style={{paddingLeft: `${(f.RelPath.split('/').length - 1) * 14 + 12}px`}}>
+                                        <i className={`fa-solid ${f.IsDir ? 'fa-folder' : 'fa-file'}`}/>
+                                        <span className="mono name">{f.RelPath.split('/').pop()}</span>
+                                        {!f.IsDir && <span className="mono badge">{formatBytes(f.Size)}</span>}
                                     </div>
                                 ))}
+                                {files?.Truncated && (
+                                    <p className="detail-sub" style={{padding: '8px 12px'}}>
+                                        Showing the first {files.Entries.length.toLocaleString()} entries - this mod has more.
+                                    </p>
+                                )}
                             </div>
                         )}
                         {tab === 'conflicts' && (
                             <div className="conflicts-tab">
                                 <div className="conflict-stats">
-                                    <div><div className="stat-num" style={{color: '#d4574e'}}>481</div><div className="stat-label">files contested</div></div>
-                                    <div><div className="stat-num" style={{color: '#e0a340'}}>3</div><div className="stat-label">mods involved</div></div>
-                                    <div><div className="stat-num" style={{color: '#5fae7e'}}>1.2%</div><div className="stat-label">of this mod</div></div>
+                                    <div>
+                                        <div className="stat-num" style={{color: myConflicts.length ? '#d4574e' : '#5fae7e'}}>{myConflicts.length}</div>
+                                        <div className="stat-label">contested {myConflicts.length === 1 ? 'key' : 'keys'}</div>
+                                    </div>
                                 </div>
-                                <div className="section">
-                                    <div className="section-label">LOSES TO</div>
-                                    {losesTo.map((l) => (
-                                        <div key={l.name} className="loses-row">
-                                            <div className="loses-head"><span>{l.name}</span><span className="mono">{l.n}</span></div>
-                                            <div className="loses-bar"><div style={{width: l.w, background: l.c}}/></div>
-                                        </div>
-                                    ))}
-                                </div>
-                                <div className="section">
-                                    <div className="section-label">BY DOMAIN</div>
-                                    {byDomain.map((d) => (
-                                        <div key={d.path} className="domain-row mono">
-                                            <span>{d.path}</span><span style={{color: d.c}}>{d.n}</span>
-                                        </div>
-                                    ))}
-                                </div>
+                                {myConflicts.length === 0 && (
+                                    <p className="detail-empty">No genuine conflicts detected for this mod.</p>
+                                )}
+                                {myConflicts.length > 0 && (
+                                    <div className="section">
+                                        <div className="section-label">CONFLICTS WITH</div>
+                                        {myConflicts.map((c) => (
+                                            <div key={c.Type + c.ID} className="loses-row">
+                                                <div className="loses-head">
+                                                    <span className="mono">{c.Type}: {c.ID}</span>
+                                                    {c.Winner === mod.ID
+                                                        ? <span className="wins-badge">WINS</span>
+                                                        : <span className="mono note">loses</span>}
+                                                </div>
+                                                <div className="section-body">
+                                                    vs. {c.Candidates.filter((cand) => cand.ModID !== mod.ID).map((cand) => cand.ModName).join(', ')}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                                 <span className="resolver-btn" onClick={onOpenResolver}>Open in resolver</span>
                             </div>
                         )}
                         {tab === 'changes' && (
                             <div className="changes-tab">
-                                {changelog.map((c) => (
-                                    <div key={c.ver} className="change-entry" style={{borderColor: c.edge}}>
-                                        <div className="change-head">
-                                            <span className="mono ver">{c.ver}</span>
-                                            <span className="mono date">{c.date}</span>
-                                            {c.tag && <span className="mono tag" style={{color: c.tagC}}>{c.tag}</span>}
-                                        </div>
-                                        <div className="change-body">{c.body}</div>
-                                        <div className="change-files mono">{c.files}</div>
-                                    </div>
-                                ))}
+                                <p className="detail-empty">
+                                    Update history isn't available - Parallax Mod Manager doesn't fetch anything from
+                                    Steam Workshop, so this mod's own change log isn't something it can show.
+                                </p>
                             </div>
                         )}
                     </div>
@@ -512,40 +637,84 @@ function DetailPanel({mod, tab, onTab, onOpenResolver}: {
     );
 }
 
-function OverviewTab({mod}: { mod: library.ModSummary }) {
+function formatBytes(n: number): string {
+    if (n < 1024) return `${n} B`;
+    const units = ['KB', 'MB', 'GB', 'TB'];
+    let value = n / 1024;
+    let unit = 0;
+    while (value >= 1024 && unit < units.length - 1) {
+        value /= 1024;
+        unit++;
+    }
+    return `${value.toFixed(value < 10 ? 2 : 1)} ${units[unit]}`;
+}
+
+function timeAgo(unixSeconds: number): string {
+    const seconds = Math.max(0, Date.now() / 1000 - unixSeconds);
+    const units: [number, string][] = [
+        [31536000, 'year'], [2592000, 'month'], [86400, 'day'],
+        [3600, 'hour'], [60, 'minute'],
+    ];
+    for (const [secs, label] of units) {
+        const n = Math.floor(seconds / secs);
+        if (n >= 1) return `${n} ${label}${n === 1 ? '' : 's'} ago`;
+    }
+    return 'just now';
+}
+
+function OverviewTab({mod, files, allMods, conflicts, onOpenFolder}: {
+    mod: library.ModSummary;
+    files: library.ModFiles | null;
+    allMods: library.ModSummary[];
+    conflicts: library.ConflictSummary[];
+    onOpenFolder: () => void;
+}) {
+    const knownNames = useMemo(() => new Set(allMods.map((m) => m.Name)), [allMods]);
+    const workshopUrl = mod.Source === 'workshop' && mod.RemoteFileID
+        ? `https://steamcommunity.com/sharedfiles/filedetails/?id=${mod.RemoteFileID}`
+        : '';
+
     return (
         <>
             <div className="overview-grid">
                 <span className="label">Version</span><span className="value mono">{mod.Version || '-'}</span>
-                <span className="label">Supports</span><span className="value mono ok">{workspaceStaticDetail.supports}</span>
-                <span className="label">Size</span><span className="value mono">{workspaceStaticDetail.size}</span>
-                <span className="label">Category</span><span className="value">{workspaceStaticDetail.category}</span>
+                <span className="label">Supports</span><span className="value mono ok">{mod.SupportedVersion || '-'}</span>
+                <span className="label">Size</span>
+                <span className="value mono">
+                    {files ? `${formatBytes(files.TotalSize)} · ${files.Entries.length.toLocaleString()}${files.Truncated ? '+' : ''} files` : '...'}
+                </span>
+                <span className="label">Tags</span><span className="value">{mod.Tags.length ? mod.Tags.join(', ') : '-'}</span>
             </div>
             <div className="section">
                 <div className="section-label">DESCRIPTION</div>
-                <div className="section-body">{workspaceStaticDetail.description}</div>
+                <div className="section-body">{mod.ShortDescription || 'No description provided.'}</div>
             </div>
             <div className="section">
                 <div className="section-label">REQUIRES</div>
-                {workspaceStaticDetail.requires.map((r) => (
-                    <div key={r.name} className="requires-row">
-                        <span style={{color: r.c}}>●</span>{r.name}
-                        <span className="mono note" style={{color: r.c}}>{r.note}</span>
-                    </div>
-                ))}
+                {mod.Dependencies.length === 0 && <div className="section-body">This mod declares no dependencies.</div>}
+                {mod.Dependencies.map((name) => {
+                    const found = knownNames.has(name);
+                    return (
+                        <div key={name} className="requires-row">
+                            <span style={{color: found ? '#5fae7e' : '#e0a340'}}>●</span>{name}
+                            <span className="mono note" style={{color: found ? '#5fae7e' : '#e0a340'}}>
+                                {found ? 'found' : 'not found'}
+                            </span>
+                        </div>
+                    );
+                })}
             </div>
-            <div className="section">
-                <div className="section-label">OVERWRITES · {workspaceStaticDetail.overwrites.length} MODS</div>
-                {workspaceStaticDetail.overwrites.map((o) => (
-                    <div key={o.name} className="overwrite-row">
-                        <div className="overwrite-bar"><div style={{width: `${o.pct}%`, background: o.c}}/></div>
-                        <span className="mono">{o.name}</span>
-                    </div>
-                ))}
-            </div>
+            {conflicts.length > 0 && (
+                <div className="section">
+                    <div className="section-label">CONFLICTS · {conflicts.length} {conflicts.length === 1 ? 'KEY' : 'KEYS'}</div>
+                    <div className="section-body">See the Conflicts tab for details.</div>
+                </div>
+            )}
             <div className="detail-footer-actions">
-                <span className="btn-ghost inert">Open folder</span>
-                <span className="btn-ghost inert">Workshop page</span>
+                <span className="btn-ghost" onClick={onOpenFolder}>Open folder</span>
+                {workshopUrl
+                    ? <span className="btn-ghost" onClick={() => BrowserOpenURL(workshopUrl)}>Workshop page</span>
+                    : <span className="btn-ghost inert">Workshop page</span>}
             </div>
         </>
     );

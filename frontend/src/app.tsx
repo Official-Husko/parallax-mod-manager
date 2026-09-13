@@ -9,7 +9,6 @@ import {Workspace} from './views/Workspace';
 import {Library} from './views/Library';
 import {Dlc} from './views/Dlc';
 import {Settings} from './views/Settings';
-import {ConflictResolver} from './views/ConflictResolver';
 import {UpdatesModal} from './views/UpdatesModal';
 import {FirstRunWizard} from './views/FirstRunWizard';
 import {getManagedGames} from './data/managedGames';
@@ -40,7 +39,6 @@ export function App() {
     const [prefs, setPrefs] = useState<preferences.Preferences | null>(null);
     const [playsetName, setPlaysetName] = useState('');
     const [onboarded, setOnboarded] = useState(wasOnboarded());
-    const [showConflictResolver, setShowConflictResolver] = useState(false);
     const [showUpdates, setShowUpdates] = useState(false);
     const [error, setError] = useState('');
     const [notice, setNotice] = useState('');
@@ -122,7 +120,6 @@ export function App() {
                     games={games}
                     selectedGame={selectedGame}
                     onPlaysetNameChange={setPlaysetName}
-                    onOpenConflictResolver={() => setShowConflictResolver(true)}
                     onOpenUpdates={() => setShowUpdates(true)}
                 />
             )}
@@ -130,7 +127,6 @@ export function App() {
             {!error && view === 'dlc' && <Dlc/>}
             {!error && view === 'settings' && <Settings/>}
 
-            {showConflictResolver && <ConflictResolver onClose={() => setShowConflictResolver(false)}/>}
             {showUpdates && <UpdatesModal onClose={() => setShowUpdates(false)}/>}
         </div>
     );

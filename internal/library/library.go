@@ -9,6 +9,14 @@
 // JS's 2^53 safe-integer range) or arrives meaningless (an iota has no
 // semantics on the JS side). Keep it that way - convert to a string at this
 // boundary rather than passing a raw numeric field through.
+//
+// Likewise, a []string/[]T field here must never be allowed to stay a nil
+// slice: encoding/json marshals nil as JSON null, and the generated TS
+// binding assigns it straight through (e.g. `this.Tags = source["Tags"]`),
+// so a mod with no declared tags/dependencies would otherwise hand the
+// frontend a real null where its type says string[] - crashing the first
+// .length/.map call against it. See nonNilStrings and ModFiles.Entries'
+// construction in modfiles.go.
 package library
 
 import (
@@ -90,15 +98,34 @@ func detectGame(ctx context.Context, cfg game.GameConfig, installDir string, ins
 
 // ModSummary is one mod, summarized for display.
 type ModSummary struct {
-	ID      string
-	Name    string
-	Version string
-	Source  string // "local" | "workshop" | "paradox-launcher"
-	Tags    []string
+	ID               string
+	Name             string
+	Version          string
+	SupportedVersion string // the descriptor's own compatibility claim, e.g. "3.9.*" - never verified against the actual installed game version
+	Source           string // "local" | "workshop" | "paradox-launcher"
+	Tags             []string
+	Dependencies     []string // other mods' names this one declares it expects to load before it - names only, per docs/paradox-mod-format.md, not resolved to another mod's ID
+	// RemoteFileID is the Steam Workshop file id, non-empty only for
+	// Source == "workshop" - enough for a caller to link to the mod's real
+	// Workshop page without this project fetching anything itself.
+	RemoteFileID string
+	// ShortDescription is only ever populated for JSON-format descriptors
+	// (see docs/paradox-mod-format.md) - the classic format has no
+	// description field at all, so this stays empty for those rather than
+	// inventing one.
+	ShortDescription string
 	// Enabled reflects membership in the Options.Order used for this
 	// LoadGame call - a disabled mod is listed here but was never parsed
 	// or considered for conflicts (see LoadGame).
 	Enabled bool
+}
+
+// ConflictCandidate is one mod competing for a contested Type+ID pair,
+// summarized for display.
+type ConflictCandidate struct {
+	ModID    string
+	ModName  string
+	FilePath string // mod-relative - the file the competing definition came from
 }
 
 // ConflictSummary is one genuine, unresolved conflict, summarized for
@@ -106,7 +133,12 @@ type ModSummary struct {
 type ConflictSummary struct {
 	Type       string
 	ID         string
-	Candidates []string // competing mods' display names, ascending load-order position
+	Candidates []ConflictCandidate // ascending load-order position
+	// Winner is the ModID of the candidate that actually applies in-game,
+	// per Rule (last-in wins for LIOS, first-in wins for FIOS) - the same
+	// load-order semantics conflict.Resolve itself already applies, see
+	// docs/conflict-resolution.md.
+	Winner string
 }
 
 // Summary is everything a LoadGame call produces.
@@ -137,18 +169,42 @@ type Options struct {
 	// enabled - a mod absent from it is disabled: excluded from parsing
 	// and conflict detection entirely (see LoadGame), and marked
 	// Enabled: false in the summary. nil means "no selection made yet" -
-	// every scanned mod is enabled, ID-sorted (the original placeholder
-	// behavior, kept as the default for a fresh, playset-less scan).
+	// every scanned mod starts disabled (an empty load order), the same
+	// "nothing pre-chosen, managing a mod is an explicit choice" default
+	// the first-run wizard already uses for games.
 	Order conflict.LoadOrder
+	// OnQuickSummary, if set, is called once every mod is known (right
+	// after scanning, before any of the slow per-mod content parsing that
+	// conflict detection needs) with a Summary that already has every
+	// mod's name/version/source/enabled state but an empty Conflicts list -
+	// letting a caller show the mod list immediately instead of waiting for
+	// parsing to finish. The final return value is always the complete,
+	// authoritative Summary; this is purely an earlier, partial preview.
+	OnQuickSummary func(Summary)
 }
 
-// LoadGame scans cfg's mod folder, parses every *enabled* mod through the
-// existing cache-backed pipeline, resolves conflicts using opts.Order (or,
-// absent one, every mod enabled and ID-sorted), and summarizes the result.
-func LoadGame(ctx context.Context, cfg game.GameConfig, opts Options) (Summary, error) {
+// resolvedGame is the raw, unsummarized output of scanning, parsing, and
+// resolving conflicts for one game - shared by LoadGame (which summarizes
+// it for the frontend) and GeneratePatch (which needs each conflict
+// candidate's original mod.Mod, in particular ContentPath, and the raw
+// conflict.Conflict data ConflictSummary deliberately doesn't expose, like
+// each candidate's byte-range Span).
+type resolvedGame struct {
+	mods         []mod.Mod
+	modSummaries []ModSummary
+	names        map[string]string
+	result       conflict.Result
+	errs         []string
+}
+
+// resolveConflicts scans cfg's mod folder, parses every *enabled* mod
+// through the existing cache-backed pipeline, and resolves conflicts using
+// opts.Order (or, absent one, nothing enabled) - the pipeline LoadGame and
+// GeneratePatch both need.
+func resolveConflicts(ctx context.Context, cfg game.GameConfig, opts Options) (resolvedGame, error) {
 	scanResult, err := scan.Scan(ctx, scan.Options{Game: cfg, SteamRoots: opts.SteamRoots, ModDir: opts.ModDir})
 	if err != nil {
-		return Summary{}, fmt.Errorf("library: scanning %s: %w", cfg.ID, err)
+		return resolvedGame{}, fmt.Errorf("library: scanning %s: %w", cfg.ID, err)
 	}
 
 	mods := append([]mod.Mod(nil), scanResult.Mods...)
@@ -161,33 +217,46 @@ func LoadGame(ctx context.Context, cfg game.GameConfig, opts Options) (Summary, 
 
 	order := opts.Order
 	if order == nil {
-		order = make(conflict.LoadOrder, 0, len(mods))
-		for _, m := range mods {
-			order = append(order, m.ID)
-		}
+		order = conflict.LoadOrder{}
 	}
 	enabled := make(map[string]bool, len(order))
 	for _, id := range order {
 		enabled[id] = true
 	}
 
+	// Every mod's name/version/source is already known from its descriptor
+	// alone - no content parsing needed - so the full mod list can be built,
+	// and handed to opts.OnQuickSummary, before any of the slow per-mod
+	// parsing below even starts.
 	names := make(map[string]string, len(mods))
 	modSummaries := make([]ModSummary, 0, len(mods))
-	var inputs []conflict.Input
-
 	for _, m := range mods {
 		names[m.ID] = displayName(m)
-		isEnabled := enabled[m.ID]
 		modSummaries = append(modSummaries, ModSummary{
-			ID:      m.ID,
-			Name:    displayName(m),
-			Version: m.Descriptor.Version,
-			Source:  sourceString(m.Source),
-			Tags:    m.Descriptor.Tags,
-			Enabled: isEnabled,
+			ID:               m.ID,
+			Name:             displayName(m),
+			Version:          m.Descriptor.Version,
+			SupportedVersion: m.Descriptor.SupportedVersion,
+			Source:           sourceString(m.Source),
+			Tags:             nonNilStrings(m.Descriptor.Tags),
+			Dependencies:     nonNilStrings(m.Descriptor.Dependencies),
+			ShortDescription: m.Descriptor.ShortDescription,
+			RemoteFileID:     m.Descriptor.RemoteFileID,
+			Enabled:          enabled[m.ID],
 		})
+	}
 
-		if !isEnabled {
+	if opts.OnQuickSummary != nil {
+		opts.OnQuickSummary(Summary{
+			Game:   GameInfo{ID: cfg.ID, DisplayName: cfg.DisplayName},
+			Mods:   append([]ModSummary(nil), modSummaries...),
+			Errors: append([]string(nil), errs...),
+		})
+	}
+
+	var inputs []conflict.Input
+	for _, m := range mods {
+		if !enabled[m.ID] {
 			// A disabled mod is never parsed: it can't contribute to a
 			// conflict it isn't loaded for, and skipping the parse
 			// entirely is a real performance win, not just a correctness
@@ -205,11 +274,22 @@ func LoadGame(ctx context.Context, cfg game.GameConfig, opts Options) (Summary, 
 
 	result := conflict.Resolve(order, inputs, conflict.Options{})
 
+	return resolvedGame{mods: mods, modSummaries: modSummaries, names: names, result: result, errs: errs}, nil
+}
+
+// LoadGame scans cfg's mod folder, parses every *enabled* mod through the
+// existing cache-backed pipeline, resolves conflicts using opts.Order (or,
+// absent one, nothing enabled), and summarizes the result.
+func LoadGame(ctx context.Context, cfg game.GameConfig, opts Options) (Summary, error) {
+	rg, err := resolveConflicts(ctx, cfg, opts)
+	if err != nil {
+		return Summary{}, err
+	}
 	return Summary{
 		Game:      GameInfo{ID: cfg.ID, DisplayName: cfg.DisplayName},
-		Mods:      modSummaries,
-		Conflicts: buildConflictSummaries(result.Conflicts, names),
-		Errors:    errs,
+		Mods:      rg.modSummaries,
+		Conflicts: buildConflictSummaries(rg.result.Conflicts, rg.names),
+		Errors:    rg.errs,
 	}, nil
 }
 
@@ -220,6 +300,20 @@ func displayName(m mod.Mod) string {
 		return m.Descriptor.Name
 	}
 	return m.ID
+}
+
+// nonNilStrings returns s unchanged if non-nil, or a real empty (non-nil)
+// slice otherwise. A descriptor with no declared tags/dependencies leaves
+// the corresponding field as Go's nil-slice zero value, which encoding/json
+// marshals as JSON null rather than []; the generated TS binding assigns
+// that straight through (`this.Tags = source["Tags"]`), so without this the
+// frontend gets a real null where its type says string[] and crashes the
+// first time it calls .length/.map on it - see this package's doc comment.
+func nonNilStrings(s []string) []string {
+	if s == nil {
+		return []string{}
+	}
+	return s
 }
 
 // sourceString converts mod.Source's iota enum to a stable string safe to
@@ -236,23 +330,38 @@ func sourceString(s mod.Source) string {
 }
 
 // buildConflictSummaries maps conflict.Conflicts to ConflictSummary,
-// resolving each candidate's ModID to a display name via names.
+// resolving each candidate's ModID to a display name via names and the
+// actual winner per c.Rule.
 func buildConflictSummaries(conflicts []conflict.Conflict, names map[string]string) []ConflictSummary {
 	summaries := make([]ConflictSummary, 0, len(conflicts))
 	for _, c := range conflicts {
-		candidates := make([]string, 0, len(c.Candidates))
+		candidates := make([]ConflictCandidate, 0, len(c.Candidates))
 		for _, d := range c.Candidates {
-			if name, ok := names[d.ModID]; ok {
-				candidates = append(candidates, name)
-			} else {
-				candidates = append(candidates, d.ModID)
+			name, ok := names[d.ModID]
+			if !ok {
+				name = d.ModID
 			}
+			candidates = append(candidates, ConflictCandidate{ModID: d.ModID, ModName: name, FilePath: d.FilePath})
 		}
 		summaries = append(summaries, ConflictSummary{
 			Type:       string(c.Key.Type),
 			ID:         c.Key.ID,
 			Candidates: candidates,
+			Winner:     winnerModID(c),
 		})
 	}
 	return summaries
+}
+
+// winnerModID returns the ModID of c's actually-applying candidate per
+// c.Rule (last-in wins for LIOS, first-in wins for FIOS - c.Candidates is
+// already ascending load-order position). Empty if c has no candidates.
+func winnerModID(c conflict.Conflict) string {
+	if len(c.Candidates) == 0 {
+		return ""
+	}
+	if c.Rule == conflict.FIOS {
+		return c.Candidates[0].ModID
+	}
+	return c.Candidates[len(c.Candidates)-1].ModID
 }

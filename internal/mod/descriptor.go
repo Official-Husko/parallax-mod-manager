@@ -42,6 +42,8 @@ func parseClassicDescriptor(data []byte) (Descriptor, error) {
 			d.SupportedVersion = e.Value.Raw
 		case "remote_file_id":
 			d.RemoteFileID = e.Value.Raw
+		case "picture":
+			d.Picture = e.Value.Raw
 		case "user_dir":
 			d.UserDir = e.Value.Raw
 		case "replace_path":
@@ -162,6 +164,7 @@ func WriteClassicDescriptor(d Descriptor) []byte {
 	field("path", d.Path)
 	field("version", d.Version)
 	field("supported_version", d.SupportedVersion)
+	field("picture", d.Picture)
 	block("tags", d.Tags)
 	field("remote_file_id", d.RemoteFileID)
 	field("user_dir", d.UserDir)

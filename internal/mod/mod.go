@@ -66,6 +66,12 @@ type Descriptor struct {
 	Tags             []string
 	Dependencies     []string
 	ReplacePath      []string
+	// Picture is a thumbnail image's filename, relative to the mod's
+	// content root - classic format only (e.g. "thumbnail.png",
+	// "thumb.jpg"). Often absent even for a real Workshop mod that still
+	// ships a "thumbnail.png" Steam writes unconditionally - see
+	// internal/library.ModThumbnail, which checks both.
+	Picture string
 
 	RemoteFileID string // classic format: Steam Workshop file id
 	UserDir      string // classic format

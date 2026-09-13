@@ -1,0 +1,224 @@
+package library
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+)
+
+func TestListModFilesListsRealFilesAndFolders(t *testing.T) {
+	modDir := t.TempDir()
+	writeMod(t, modDir, "mod_a", "Mod A", `thing = { cost = 1 }`)
+	// writeMod already wrote mod_a/common/x.txt - add another nested file.
+	writeFile(t, modDir, filepath.Join("mod_a", "gfx", "icon.dds"), "fake-binary-data")
+
+	files, err := ListModFiles(context.Background(), testGameConfig(), Options{ModDir: modDir}, "mod_a")
+	if err != nil {
+		t.Fatalf("ListModFiles: %v", err)
+	}
+
+	byPath := map[string]FileEntry{}
+	for _, e := range files.Entries {
+		byPath[e.RelPath] = e
+	}
+
+	common, ok := byPath["common"]
+	if !ok || !common.IsDir {
+		t.Errorf("expected a dir entry for %q, got %+v (ok=%v)", "common", common, ok)
+	}
+	x, ok := byPath["common/x.txt"]
+	if !ok || x.IsDir {
+		t.Errorf("expected a file entry for %q, got %+v (ok=%v)", "common/x.txt", x, ok)
+	}
+	icon, ok := byPath["gfx/icon.dds"]
+	if !ok || icon.IsDir || icon.Size != int64(len("fake-binary-data")) {
+		t.Errorf("expected a file entry for %q with size %d, got %+v (ok=%v)", "gfx/icon.dds", len("fake-binary-data"), icon, ok)
+	}
+
+	wantTotal := int64(len("thing = { cost = 1 }") + len("fake-binary-data"))
+	if files.TotalSize != wantTotal {
+		t.Errorf("TotalSize = %d, want %d", files.TotalSize, wantTotal)
+	}
+	if files.Truncated {
+		t.Error("Truncated = true, want false for a small mod")
+	}
+
+	wantModTime := time.Now()
+	if err := os.Chtimes(filepath.Join(modDir, "mod_a", "gfx", "icon.dds"), wantModTime, wantModTime); err != nil {
+		t.Fatalf("Chtimes: %v", err)
+	}
+	files, err = ListModFiles(context.Background(), testGameConfig(), Options{ModDir: modDir}, "mod_a")
+	if err != nil {
+		t.Fatalf("ListModFiles (second run): %v", err)
+	}
+	if files.LastModified != wantModTime.Unix() {
+		t.Errorf("LastModified = %d, want %d", files.LastModified, wantModTime.Unix())
+	}
+}
+
+func TestListModFilesTruncatesHugeMods(t *testing.T) {
+	modDir := t.TempDir()
+	writeFile(t, modDir, "big_mod.mod", `name = "Big Mod"
+path = "big_mod"
+`)
+	for i := 0; i < maxModFileEntries+50; i++ {
+		writeFile(t, modDir, filepath.Join("big_mod", "common", string(rune('a'+i%26))+string(rune('0'+i/26))+".txt"), "x")
+	}
+
+	files, err := ListModFiles(context.Background(), testGameConfig(), Options{ModDir: modDir}, "big_mod")
+	if err != nil {
+		t.Fatalf("ListModFiles: %v", err)
+	}
+	if !files.Truncated {
+		t.Error("expected Truncated = true for a mod with more than maxModFileEntries files")
+	}
+	if len(files.Entries) > maxModFileEntries {
+		t.Errorf("len(Entries) = %d, want at most %d", len(files.Entries), maxModFileEntries)
+	}
+	// TotalSize must still reflect everything, not just the capped list.
+	if files.TotalSize != int64(maxModFileEntries+50) {
+		t.Errorf("TotalSize = %d, want %d (every file is 1 byte)", files.TotalSize, maxModFileEntries+50)
+	}
+}
+
+// TestListModFilesEmptyContentDirReturnsRealEmptySlice pins a real bug: a
+// mod whose content folder has no files at all left ModFiles.Entries at
+// Go's nil-slice zero value, which encoding/json marshals as JSON null -
+// the generated TS binding assigns that straight through, so the frontend's
+// Entries (typed FileEntry[]) would actually be null, crashing the file
+// tab's own "this mod's content folder is empty" check (files.Entries.length)
+// before it could ever show that message.
+func TestListModFilesEmptyContentDirReturnsRealEmptySlice(t *testing.T) {
+	modDir := t.TempDir()
+	writeFile(t, modDir, "empty_mod.mod", `name = "Empty Mod"
+path = "empty_mod"
+`)
+	if err := os.MkdirAll(filepath.Join(modDir, "empty_mod"), 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	files, err := ListModFiles(context.Background(), testGameConfig(), Options{ModDir: modDir}, "empty_mod")
+	if err != nil {
+		t.Fatalf("ListModFiles: %v", err)
+	}
+	if files.Entries == nil {
+		t.Error("Entries is nil, want a real empty slice (marshals as JSON null, not [])")
+	}
+	if len(files.Entries) != 0 {
+		t.Errorf("Entries = %+v, want empty", files.Entries)
+	}
+}
+
+func TestListModFilesUnknownModErrors(t *testing.T) {
+	modDir := t.TempDir()
+	writeMod(t, modDir, "mod_a", "Mod A", `thing = { cost = 1 }`)
+
+	if _, err := ListModFiles(context.Background(), testGameConfig(), Options{ModDir: modDir}, "does_not_exist"); err == nil {
+		t.Fatal("expected an error for an unknown mod ID")
+	}
+}
+
+func TestModSizesSumsEveryModsRealContent(t *testing.T) {
+	modDir := t.TempDir()
+	writeMod(t, modDir, "mod_a", "Mod A", `thing = { cost = 1 }`) // "thing = { cost = 1 }" -> common/x.txt
+	writeFile(t, modDir, filepath.Join("mod_a", "gfx", "icon.dds"), "fake-binary-data")
+	writeMod(t, modDir, "mod_b", "Mod B", `other = { cost = 2 }`)
+
+	sizes, err := ModSizes(context.Background(), testGameConfig(), Options{ModDir: modDir})
+	if err != nil {
+		t.Fatalf("ModSizes: %v", err)
+	}
+	wantA := int64(len("thing = { cost = 1 }") + len("fake-binary-data"))
+	wantB := int64(len("other = { cost = 2 }"))
+	if sizes["mod_a"] != wantA {
+		t.Errorf("mod_a size = %d, want %d", sizes["mod_a"], wantA)
+	}
+	if sizes["mod_b"] != wantB {
+		t.Errorf("mod_b size = %d, want %d", sizes["mod_b"], wantB)
+	}
+}
+
+func TestModSizesEmptyModDirReturnsEmptyMap(t *testing.T) {
+	sizes, err := ModSizes(context.Background(), testGameConfig(), Options{ModDir: t.TempDir()})
+	if err != nil {
+		t.Fatalf("ModSizes: %v", err)
+	}
+	if len(sizes) != 0 {
+		t.Errorf("expected an empty map, got %+v", sizes)
+	}
+}
+
+func TestReadModFileReturnsRealContent(t *testing.T) {
+	modDir := t.TempDir()
+	writeMod(t, modDir, "mod_a", "Mod A", `thing = { cost = 1 }`)
+
+	content, err := ReadModFile(context.Background(), testGameConfig(), Options{ModDir: modDir}, "mod_a", "common/x.txt")
+	if err != nil {
+		t.Fatalf("ReadModFile: %v", err)
+	}
+	if content != `thing = { cost = 1 }` {
+		t.Errorf("content = %q, want %q", content, `thing = { cost = 1 }`)
+	}
+}
+
+func TestReadModFileRejectsPathEscapingContentDir(t *testing.T) {
+	modDir := t.TempDir()
+	writeMod(t, modDir, "mod_a", "Mod A", `thing = { cost = 1 }`)
+	// A real secret living next to (not inside) mod_a's own content dir.
+	if err := os.WriteFile(filepath.Join(modDir, "secret.txt"), []byte("top secret"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	_, err := ReadModFile(context.Background(), testGameConfig(), Options{ModDir: modDir}, "mod_a", "../secret.txt")
+	if err == nil {
+		t.Fatal("expected an error for a relPath escaping the mod's content directory")
+	}
+}
+
+func TestReadModFileRejectsDirectory(t *testing.T) {
+	modDir := t.TempDir()
+	writeMod(t, modDir, "mod_a", "Mod A", `thing = { cost = 1 }`)
+
+	_, err := ReadModFile(context.Background(), testGameConfig(), Options{ModDir: modDir}, "mod_a", "common")
+	if err == nil {
+		t.Fatal("expected an error when relPath names a directory")
+	}
+}
+
+func TestReadModFileRejectsOversizedFile(t *testing.T) {
+	modDir := t.TempDir()
+	writeMod(t, modDir, "mod_a", "Mod A", `thing = { cost = 1 }`)
+	big := make([]byte, maxReadModFileSize+1)
+	writeFile(t, modDir, filepath.Join("mod_a", "gfx", "huge.txt"), string(big))
+
+	_, err := ReadModFile(context.Background(), testGameConfig(), Options{ModDir: modDir}, "mod_a", "gfx/huge.txt")
+	if err == nil {
+		t.Fatal("expected an error for a file over maxReadModFileSize")
+	}
+}
+
+func TestModFolderPathReturnsRealContentPath(t *testing.T) {
+	modDir := t.TempDir()
+	writeMod(t, modDir, "mod_a", "Mod A", `thing = { cost = 1 }`)
+
+	path, err := ModFolderPath(context.Background(), testGameConfig(), Options{ModDir: modDir}, "mod_a")
+	if err != nil {
+		t.Fatalf("ModFolderPath: %v", err)
+	}
+	want := filepath.Join(modDir, "mod_a")
+	if path != want {
+		t.Errorf("ModFolderPath = %q, want %q", path, want)
+	}
+	if info, err := os.Stat(path); err != nil || !info.IsDir() {
+		t.Errorf("expected %q to be a real, existing directory", path)
+	}
+}
+
+func TestModFolderPathUnknownModErrors(t *testing.T) {
+	modDir := t.TempDir()
+	if _, err := ModFolderPath(context.Background(), testGameConfig(), Options{ModDir: modDir}, "does_not_exist"); err == nil {
+		t.Fatal("expected an error for an unknown mod ID")
+	}
+}
