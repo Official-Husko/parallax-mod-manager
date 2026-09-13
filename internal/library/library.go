@@ -263,6 +263,13 @@ func resolveConflicts(ctx context.Context, cfg game.GameConfig, opts Options) (r
 			// detail (see docs/performance-strategy.md).
 			continue
 		}
+		if m.ContentMissing {
+			// scan.Scan already recorded a clear, human-readable error for
+			// this in errs above (via scanResult.Errors) - attempting to
+			// parse it here would only produce a second, worse message
+			// (a raw filesystem error) for the exact same problem.
+			continue
+		}
 
 		defs, err := pipeline.LoadMod(ctx, m, cfg, pipeline.Options{Store: cache.FileStore{Dir: opts.CacheDir}})
 		if err != nil {

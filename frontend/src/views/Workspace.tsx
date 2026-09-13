@@ -283,6 +283,7 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
                         gameId={selectedGame}
                         allMods={allMods}
                         conflicts={summary?.Conflicts ?? []}
+                        onError={(message) => setStatus({kind: 'error', message})}
                     />
 
                     <div className="list-pane">
@@ -495,7 +496,7 @@ function matchesSearch(m: library.ModSummary, search: string): boolean {
     return m.Name.toLowerCase().includes(q) || m.ID.toLowerCase().includes(q);
 }
 
-function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, allMods, conflicts}: {
+function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, allMods, conflicts, onError}: {
     mod: library.ModSummary | null;
     tab: DetailTab;
     onTab: (t: DetailTab) => void;
@@ -503,6 +504,7 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, allMods, conflict
     gameId: string;
     allMods: library.ModSummary[];
     conflicts: library.ConflictSummary[];
+    onError: (message: string) => void;
 }) {
     const [files, setFiles] = useState<library.ModFiles | null>(null);
     const [filesError, setFilesError] = useState('');
@@ -541,7 +543,7 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, allMods, conflict
 
     function openFolder() {
         if (mod) {
-            OpenModFolder(gameId, mod.ID).catch(() => undefined);
+            OpenModFolder(gameId, mod.ID).catch((err) => onError(String(err)));
         }
     }
 

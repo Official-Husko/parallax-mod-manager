@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -108,6 +109,31 @@ path = "empty_mod"
 	}
 	if len(files.Entries) != 0 {
 		t.Errorf("Entries = %+v, want empty", files.Entries)
+	}
+}
+
+// TestListModFilesReportsFriendlyErrorForMissingContent pins a real bug: a
+// mod whose descriptor points at a content path that doesn't exist (a
+// stale path, moved/renamed folder, or a drive that isn't connected right
+// now - a real case hit on a real machine) used to surface only once
+// something actually tried to read it, as a raw filesystem error like
+// "lstat ...: no such file or directory" - confusing and leaking an
+// internal path-resolution detail straight into the UI. findMod now checks
+// mod.Mod.ContentMissing (computed by scan.Scan) first and returns a
+// clear, human-readable message instead.
+func TestListModFilesReportsFriendlyErrorForMissingContent(t *testing.T) {
+	modDir := t.TempDir()
+	writeFile(t, modDir, "stale_mod.mod", `name = "Stale Mod"
+path = "/this/path/does/not/exist/stale_mod"
+`)
+
+	_, err := ListModFiles(context.Background(), testGameConfig(), Options{ModDir: modDir}, "stale_mod")
+	if err == nil {
+		t.Fatal("expected an error for a mod with missing content")
+	}
+	msg := err.Error()
+	if strings.Contains(msg, "lstat") || strings.Contains(msg, "no such file") {
+		t.Errorf("error = %q, want a human-readable message, not a raw filesystem error", msg)
 	}
 }
 

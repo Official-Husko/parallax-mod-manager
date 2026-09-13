@@ -226,6 +226,9 @@ func findMod(ctx context.Context, cfg game.GameConfig, opts Options, modID strin
 	}
 	for _, m := range scanResult.Mods {
 		if m.ID == modID {
+			if m.ContentMissing {
+				return mod.Mod{}, fmt.Errorf("library: %w", m.ContentMissingError())
+			}
 			return m, nil
 		}
 	}

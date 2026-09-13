@@ -5,6 +5,7 @@
 package mod
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 )
@@ -93,4 +94,28 @@ type Mod struct {
 	Source         Source
 	DescriptorPath string // absolute path to the descriptor file
 	ContentPath    string // absolute path to the mod's actual content root
+	// ContentMissing is true when ContentPath doesn't exist on disk -
+	// computed once by internal/scan (which resolves ContentPath in the
+	// first place) rather than re-derived independently by everything that
+	// later touches a mod's content. A descriptor's declared path can go
+	// stale (the mod moved, was renamed, or lives on a drive that isn't
+	// currently connected), or a Workshop item's content simply hasn't
+	// finished downloading yet - either way, every caller that would
+	// otherwise hit a raw, unfriendly filesystem error (internal/library's
+	// ListModFiles/ReadModFile/ModThumbnail/GeneratePatch, and
+	// resolveConflicts' parsing pass) checks this first instead.
+	ContentMissing bool
+}
+
+// ContentMissingError explains why m.ContentMissing is true, in plain
+// language - covers both real causes seen in practice, a Workshop item
+// that hasn't finished downloading yet or a descriptor's declared path
+// having gone stale, without pretending to know which one it is, since
+// ContentMissing itself can't distinguish them. Callers should check
+// ContentMissing before calling this; it doesn't verify anything itself.
+func (m Mod) ContentMissingError() error {
+	if m.Source == SourceWorkshop {
+		return fmt.Errorf("%s's content isn't downloaded yet (or its Workshop folder is missing): %s", m.ID, m.ContentPath)
+	}
+	return fmt.Errorf("%s's content folder doesn't exist: %s (its descriptor may be pointing at a moved or renamed folder, or a drive that isn't connected right now)", m.ID, m.ContentPath)
 }

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/Official-Husko/parallax-mod-manager/internal/game"
@@ -36,6 +37,12 @@ path = "pdx_00001"
 `)
 	// Not a descriptor - must be ignored.
 	writeDescriptor(t, modDir, "readme.txt", "not a descriptor")
+
+	for _, dir := range []string{"my_local_mod", "ugc_1830063425", "pdx_00001"} {
+		if err := os.MkdirAll(filepath.Join(modDir, dir), 0o755); err != nil {
+			t.Fatalf("MkdirAll: %v", err)
+		}
+	}
 
 	opts := Options{Game: game.Stellaris, ModDir: modDir}
 	result, err := Scan(context.Background(), opts)
@@ -113,11 +120,54 @@ func TestScanMissingModDirIsNotAnError(t *testing.T) {
 	}
 }
 
+// TestScanFlagsContentMissingWithFriendlyError pins a real bug found via a
+// real, genuinely-stale local mod on a real machine: a descriptor whose
+// "path" field points at a drive that isn't mounted under that name
+// anymore (moved, renamed, or disconnected). Before this, the mod was
+// scanned successfully with a ContentPath that didn't exist, and the
+// problem only surfaced much later as a raw, unfriendly filesystem error
+// (e.g. "lstat ...: no such file or directory") the first time something
+// tried to actually read from it - one specific real case being the
+// Workspace detail panel's Files tab. Scan now catches this itself, right
+// where ContentPath is resolved, with one clear, human-readable message -
+// and keeps the mod in Result.Mods (rather than dropping it) so it's still
+// visible in the load order instead of silently vanishing.
+func TestScanFlagsContentMissingWithFriendlyError(t *testing.T) {
+	modDir := t.TempDir()
+	writeDescriptor(t, modDir, "stale.mod", `name = "Stale Mod"
+path = "/this/path/does/not/exist/stale_mod"`)
+
+	opts := Options{Game: game.Stellaris, ModDir: modDir}
+	result, err := Scan(context.Background(), opts)
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	if len(result.Mods) != 1 {
+		t.Fatalf("expected the mod to still be listed despite its missing content, got %d mods: %+v", len(result.Mods), result.Mods)
+	}
+	if !result.Mods[0].ContentMissing {
+		t.Error("ContentMissing = false, want true")
+	}
+	if len(result.Errors) != 1 {
+		t.Fatalf("expected exactly 1 scan error, got %+v", result.Errors)
+	}
+	msg := result.Errors[0].Err.Error()
+	if strings.Contains(msg, "lstat") || strings.Contains(msg, "no such file") {
+		t.Errorf("error = %q, want a human-readable message, not a raw filesystem error", msg)
+	}
+	if !strings.Contains(msg, "stale") {
+		t.Errorf("error = %q, want it to name the mod", msg)
+	}
+}
+
 func TestScanMalformedDescriptorIsNonFatal(t *testing.T) {
 	modDir := t.TempDir()
 	writeDescriptor(t, modDir, "good.mod", `name = "Good Mod"
 path = "good"`)
 	writeDescriptor(t, modDir, "bad.mod", `name = "unterminated string`)
+	if err := os.MkdirAll(filepath.Join(modDir, "good"), 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
 
 	opts := Options{Game: game.Stellaris, ModDir: modDir}
 	result, err := Scan(context.Background(), opts)

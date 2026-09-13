@@ -141,13 +141,19 @@ func Scan(ctx context.Context, opts Options) (Result, error) {
 			}
 		}
 
-		result.Mods = append(result.Mods, mod.Mod{
+		newMod := mod.Mod{
 			ID:             id,
 			Descriptor:     desc,
 			Source:         source,
 			DescriptorPath: descriptorPath,
 			ContentPath:    contentPath,
-		})
+		}
+		if info, statErr := os.Stat(contentPath); statErr != nil || !info.IsDir() {
+			newMod.ContentMissing = true
+			result.Errors = append(result.Errors, ScanError{Path: descriptorPath, Err: newMod.ContentMissingError()})
+		}
+
+		result.Mods = append(result.Mods, newMod)
 	}
 
 	// Steam and the Paradox Launcher don't always create a mod/
