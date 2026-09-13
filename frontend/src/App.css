@@ -257,16 +257,30 @@
     flex: none;
 }
 
-.badge-workshop {
-    background: var(--blue);
-}
-
-.badge-local {
-    background: #7a8899;
-}
-
 .badge-paradox-launcher {
     background: var(--amber);
+}
+
+/* Workshop's real Steam logo, and a local mod's folder icon (tinted by
+   name via inline style - see SourceBadge.tsx) - sized to match the old
+   letter-box badges' footprint so row layout doesn't shift. */
+.src-icon-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    flex: none;
+}
+
+.src-icon-badge svg {
+    width: 15px;
+    height: 15px;
+    display: block;
+}
+
+.src-icon-badge .fa-folder {
+    font-size: 14px;
 }
 
 .toggle-pill {

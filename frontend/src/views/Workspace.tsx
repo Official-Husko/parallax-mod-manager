@@ -17,6 +17,7 @@ import {BrowserOpenURL, EventsOn} from '../../wailsjs/runtime/runtime';
 import type {library, playset, preferences} from '../../wailsjs/go/models';
 import {autosort} from '../data/autosort';
 import {domains, preflight} from '../data/mockData';
+import {SourceBadge} from '../components/SourceBadge';
 import {ConflictResolver} from './ConflictResolver';
 import {PlaysetsModal} from './PlaysetsModal';
 import {PreflightModal} from './PreflightModal';
@@ -318,7 +319,7 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
                                         onClick={(e) => e.stopPropagation()}
                                         onChange={() => toggleAvailable(m.ID)}
                                     />
-                                    <span className={`src-badge ${sourceBadgeClass(m.Source)}`}>{sourceBadgeLabel(m.Source)}</span>
+                                    <SourceBadge source={m.Source} name={m.Name}/>
                                     <span className="name">{m.Name}</span>
                                     <span className="ver mono">{m.Version || '-'}</span>
                                     <span className="author mono">-</span>
@@ -555,7 +556,7 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, allMods, conflict
                 <>
                     <div className="detail-header">
                         <div className="detail-badges">
-                            <span className={`src-badge ${sourceBadgeClass(mod.Source)}`}>{sourceBadgeLabel(mod.Source)}</span>
+                            <SourceBadge source={mod.Source} name={mod.Name}/>
                             <span className="mono id">{mod.Source === 'workshop' && mod.RemoteFileID ? mod.RemoteFileID : mod.ID}</span>
                         </div>
                         <div className="detail-name">{mod.Name}</div>
@@ -723,24 +724,3 @@ function OverviewTab({mod, files, allMods, conflicts, onOpenFolder}: {
     );
 }
 
-function sourceBadgeClass(source: string): string {
-    switch (source) {
-        case 'workshop':
-            return 'badge-workshop';
-        case 'paradox-launcher':
-            return 'badge-paradox-launcher';
-        default:
-            return 'badge-local';
-    }
-}
-
-function sourceBadgeLabel(source: string): string {
-    switch (source) {
-        case 'workshop':
-            return 'W';
-        case 'paradox-launcher':
-            return 'P';
-        default:
-            return 'L';
-    }
-}

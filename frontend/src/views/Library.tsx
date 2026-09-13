@@ -4,6 +4,7 @@ import {useEffect, useState} from 'preact/hooks';
 import {DetectGames, ModSizes, ScanGame} from '../../wailsjs/go/main/App';
 import type {library} from '../../wailsjs/go/models';
 import {GameLogo} from '../components/GameLogo';
+import {SourceBadge} from '../components/SourceBadge';
 import {libCollections} from '../data/mockData';
 
 type LoadState =
@@ -135,8 +136,8 @@ export function Library() {
                     {visibleRows.map((r) => (
                         <div key={`${r.gameId}:${r.modId}`} className="library-row">
                             <span className="col-check"><span className="checkbox"/></span>
-                            <span className={`col-src src-badge ${r.source === 'workshop' ? 'badge-workshop' : 'badge-local'}`}>
-                                {r.source === 'workshop' ? 'W' : 'L'}
+                            <span className="col-src">
+                                <SourceBadge source={r.source} name={r.name}/>
                             </span>
                             <span className="col-name name">{r.name}</span>
                             <span className="col-game">
