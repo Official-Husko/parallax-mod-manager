@@ -74,6 +74,22 @@ export namespace library {
 	        this.ModCount = source["ModCount"];
 	    }
 	}
+	export class EmptyModCandidate {
+	    ID: string;
+	    Name: string;
+	    Reason: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new EmptyModCandidate(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.Name = source["Name"];
+	        this.Reason = source["Reason"];
+	    }
+	}
 	export class FileEntry {
 	    RelPath: string;
 	    IsDir: boolean;
@@ -186,6 +202,20 @@ export namespace library {
 	        this.PatchedKeys = source["PatchedKeys"];
 	        this.SkippedKeys = source["SkippedKeys"];
 	        this.ModID = source["ModID"];
+	    }
+	}
+	export class PurgeResult {
+	    Deleted: string[];
+	    Errors: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new PurgeResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Deleted = source["Deleted"];
+	        this.Errors = source["Errors"];
 	    }
 	}
 	export class Summary {

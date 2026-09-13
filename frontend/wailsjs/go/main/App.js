@@ -18,6 +18,10 @@ export function DetectGames() {
   return window['go']['main']['App']['DetectGames']();
 }
 
+export function FindEmptyMods(arg1) {
+  return window['go']['main']['App']['FindEmptyMods'](arg1);
+}
+
 export function GameMedia(arg1, arg2) {
   return window['go']['main']['App']['GameMedia'](arg1, arg2);
 }
@@ -60,6 +64,10 @@ export function ModThumbnail(arg1, arg2) {
 
 export function OpenModFolder(arg1, arg2) {
   return window['go']['main']['App']['OpenModFolder'](arg1, arg2);
+}
+
+export function PurgeMods(arg1, arg2) {
+  return window['go']['main']['App']['PurgeMods'](arg1, arg2);
 }
 
 export function ReadModFile(arg1, arg2, arg3) {

@@ -14,6 +14,10 @@
     color: var(--red);
 }
 
+.workspace-status.success {
+    color: var(--green);
+}
+
 .workspace-body {
     flex: 1;
     min-height: 0;
@@ -500,6 +504,19 @@
     display: flex;
     gap: 6px;
     flex-wrap: wrap;
+}
+
+.filter-chips .spacer {
+    flex: 1;
+}
+
+/* Amber/red is reserved for warnings and hard conflicts respectively (see
+   App.css) - "Purge empty" is a real destructive action (deletes real
+   descriptor files, after a confirmation dialog), so red fits here. */
+.chip-danger {
+    color: var(--red);
+    border-color: var(--red);
+    cursor: pointer;
 }
 
 .list-rows {

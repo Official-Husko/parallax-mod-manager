@@ -334,6 +334,27 @@ func (a *App) ReadModFile(gameID, modID, relPath string) (string, error) {
 	return library.ReadModFile(a.ctx, cfg, library.Options{SteamRoots: a.steamRoots}, modID, relPath)
 }
 
+// FindEmptyMods lists gameID's real local mods with no usable content, for
+// the Workspace's "Purge empty" review dialog. See library.FindEmptyMods.
+func (a *App) FindEmptyMods(gameID string) ([]library.EmptyModCandidate, error) {
+	cfg, ok := a.registry.Get(gameID)
+	if !ok {
+		return nil, fmt.Errorf("app: unknown game %q", gameID)
+	}
+	return library.FindEmptyMods(a.ctx, cfg, library.Options{SteamRoots: a.steamRoots})
+}
+
+// PurgeMods deletes the descriptor file for each of modIDs, after the user
+// has reviewed and confirmed them in the "Purge empty" dialog. See
+// library.PurgeMods.
+func (a *App) PurgeMods(gameID string, modIDs []string) (library.PurgeResult, error) {
+	cfg, ok := a.registry.Get(gameID)
+	if !ok {
+		return library.PurgeResult{}, fmt.Errorf("app: unknown game %q", gameID)
+	}
+	return library.PurgeMods(a.ctx, cfg, library.Options{SteamRoots: a.steamRoots}, modIDs)
+}
+
 // GeneratePatch resolves every genuine conflict in gameID's current mod
 // set (order, exactly as the caller's own in-memory load order - not a
 // saved playset, since that's what the Conflict Resolver the user is

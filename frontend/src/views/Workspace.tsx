@@ -21,11 +21,13 @@ import {SourceBadge} from '../components/SourceBadge';
 import {ConflictResolver} from './ConflictResolver';
 import {PlaysetsModal} from './PlaysetsModal';
 import {PreflightModal} from './PreflightModal';
+import {PurgeEmptyModal} from './PurgeEmptyModal';
 
 type Status =
     | { kind: 'idle' }
     | { kind: 'busy'; message: string }
-    | { kind: 'error'; message: string };
+    | { kind: 'error'; message: string }
+    | { kind: 'success'; message: string };
 
 type DetailTab = 'overview' | 'files' | 'conflicts' | 'changes';
 
@@ -45,6 +47,7 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
     const [showPlaysets, setShowPlaysets] = useState(false);
     const [showPreflight, setShowPreflight] = useState(false);
     const [showConflictResolver, setShowConflictResolver] = useState(false);
+    const [showPurgeModal, setShowPurgeModal] = useState(false);
     const [search, setSearch] = useState('');
     const [status, setStatus] = useState<Status>({kind: 'idle'});
     const [prefs, setPrefs] = useState<preferences.Preferences | null>(null);
@@ -217,6 +220,22 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
         }
     }
 
+    function handlePurged(result: library.PurgeResult) {
+        const deleted = result.Deleted ?? [];
+        const errors = result.Errors ?? [];
+        if (deleted.length > 0) {
+            setOrder((prev) => prev.filter((id) => !deleted.includes(id)));
+        }
+        if (errors.length > 0) {
+            setStatus({kind: 'error', message: `Deleted ${deleted.length} mod${deleted.length === 1 ? '' : 's'}, but: ${errors.join('; ')}`});
+        } else if (deleted.length > 0) {
+            setStatus({kind: 'success', message: `Deleted ${deleted.length} empty mod${deleted.length === 1 ? '' : 's'}.`});
+        }
+        if (deleted.length > 0) {
+            refreshMods(true);
+        }
+    }
+
     async function refreshAfterSave(name: string) {
         const names = await ListPlaysets(selectedGame);
         setPlaysetList(names);
@@ -272,6 +291,7 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
         <div className="workspace">
             {status.kind === 'busy' && <p className="workspace-status">{status.message}</p>}
             {status.kind === 'error' && <p className="workspace-status error">{status.message}</p>}
+            {status.kind === 'success' && <p className="workspace-status success">{status.message}</p>}
 
             {summary && (
                 <div className="workspace-body">
@@ -309,6 +329,8 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
                                 <span className="chip chip-inert">Outdated</span>
                                 <span className="chip chip-inert">Never used</span>
                                 <span className="chip chip-inert">+ Filter</span>
+                                <div className="spacer"/>
+                                <span className="chip chip-danger" onClick={() => setShowPurgeModal(true)}>Purge empty</span>
                             </div>
                         </div>
                         <div className="list-rows">
@@ -484,6 +506,14 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
                         setOrder((prev) => (prev.includes(modId) ? prev : [...prev, modId]));
                         refreshMods(true);
                     }}
+                />
+            )}
+
+            {showPurgeModal && (
+                <PurgeEmptyModal
+                    gameId={selectedGame}
+                    onClose={() => setShowPurgeModal(false)}
+                    onPurged={handlePurged}
                 />
             )}
         </div>

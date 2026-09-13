@@ -12,6 +12,8 @@ export function DeletePlayset(arg1:string,arg2:string):Promise<void>;
 
 export function DetectGames():Promise<Array<library.DetectedGame>>;
 
+export function FindEmptyMods(arg1:string):Promise<Array<library.EmptyModCandidate>>;
+
 export function GameMedia(arg1:string,arg2:string):Promise<string>;
 
 export function GeneratePatch(arg1:string,arg2:Array<string>):Promise<library.PatchResult>;
@@ -33,6 +35,8 @@ export function ModSizes(arg1:string):Promise<Record<string, number>>;
 export function ModThumbnail(arg1:string,arg2:string):Promise<string>;
 
 export function OpenModFolder(arg1:string,arg2:string):Promise<void>;
+
+export function PurgeMods(arg1:string,arg2:Array<string>):Promise<library.PurgeResult>;
 
 export function ReadModFile(arg1:string,arg2:string,arg3:string):Promise<string>;
 
