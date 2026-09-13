@@ -135,6 +135,12 @@ path = "/this/path/does/not/exist/stale_mod"
 	if strings.Contains(msg, "lstat") || strings.Contains(msg, "no such file") {
 		t.Errorf("error = %q, want a human-readable message, not a raw filesystem error", msg)
 	}
+	if strings.Contains(msg, "/this/path/does/not/exist") {
+		t.Errorf("error = %q, want it to omit the raw absolute path - not useful to a user", msg)
+	}
+	if !strings.Contains(msg, "Stale Mod") {
+		t.Errorf("error = %q, want it to name the mod", msg)
+	}
 }
 
 func TestListModFilesUnknownModErrors(t *testing.T) {

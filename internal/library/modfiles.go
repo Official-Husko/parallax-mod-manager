@@ -227,7 +227,10 @@ func findMod(ctx context.Context, cfg game.GameConfig, opts Options, modID strin
 	for _, m := range scanResult.Mods {
 		if m.ID == modID {
 			if m.ContentMissing {
-				return mod.Mod{}, fmt.Errorf("library: %w", m.ContentMissingError())
+				// No "library: " prefix here, unlike every other error in
+				// this file - this one is meant to be read directly by a
+				// user (see ContentMissingError), not a log.
+				return mod.Mod{}, m.ContentMissingError()
 			}
 			return m, nil
 		}

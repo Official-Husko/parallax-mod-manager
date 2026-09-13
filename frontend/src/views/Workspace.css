@@ -230,6 +230,31 @@
     flex-direction: column;
 }
 
+/* A mod whose content can't be reached (moved, renamed, a disconnected
+   drive, Workshop content still downloading) - amber, not red, per this
+   project's own color language (red is reserved for hard conflicts only,
+   see App.css). This is a "can't show this" state, not a failure. */
+.content-missing {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 10px;
+    padding: 36px 24px;
+    color: var(--text-muted);
+}
+
+.content-missing i {
+    font-size: 22px;
+    color: var(--amber);
+}
+
+.content-missing p {
+    font-size: 12.5px;
+    line-height: 1.5;
+    max-width: 230px;
+}
+
 .file-row {
     display: flex;
     align-items: center;

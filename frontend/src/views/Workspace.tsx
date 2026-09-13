@@ -589,7 +589,12 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, allMods, conflict
                         )}
                         {tab === 'files' && (
                             <div className="file-tree">
-                                {filesError && <p className="status-page error">{filesError}</p>}
+                                {filesError && (
+                                    <div className="content-missing">
+                                        <i className="fa-solid fa-folder-xmark"/>
+                                        <p>{filesError}</p>
+                                    </div>
+                                )}
                                 {!filesError && !files && (
                                     <>
                                         {[80, 60, 70, 50, 65].map((w, i) => (

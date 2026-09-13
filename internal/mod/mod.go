@@ -107,15 +107,24 @@ type Mod struct {
 	ContentMissing bool
 }
 
-// ContentMissingError explains why m.ContentMissing is true, in plain
-// language - covers both real causes seen in practice, a Workshop item
-// that hasn't finished downloading yet or a descriptor's declared path
-// having gone stale, without pretending to know which one it is, since
-// ContentMissing itself can't distinguish them. Callers should check
+// ContentMissingError explains why m.ContentMissing is true, in plain,
+// short language meant to actually be read by a user (not a log) - covers
+// both real causes seen in practice, a Workshop item that hasn't finished
+// downloading yet or a descriptor's declared path having gone stale,
+// without pretending to know which one it is, since ContentMissing itself
+// can't distinguish them. Deliberately omits the real ContentPath - a full
+// absolute path (confirmed confusing in practice: a drive remounted under
+// a different name produces something like
+// "/run/media/user/Old Drive Name/...") is debugging detail, not something
+// a user needs to see to understand what's wrong. Callers should check
 // ContentMissing before calling this; it doesn't verify anything itself.
 func (m Mod) ContentMissingError() error {
-	if m.Source == SourceWorkshop {
-		return fmt.Errorf("%s's content isn't downloaded yet (or its Workshop folder is missing): %s", m.ID, m.ContentPath)
+	name := m.Descriptor.Name
+	if name == "" {
+		name = m.ID
 	}
-	return fmt.Errorf("%s's content folder doesn't exist: %s (its descriptor may be pointing at a moved or renamed folder, or a drive that isn't connected right now)", m.ID, m.ContentPath)
+	if m.Source == SourceWorkshop {
+		return fmt.Errorf("%s hasn't finished downloading from Steam Workshop yet", name)
+	}
+	return fmt.Errorf("%s's content folder can't be found - it may have moved, or its drive isn't connected", name)
 }
