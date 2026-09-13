@@ -556,7 +556,7 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, allMods, conflict
                     <div className="detail-header">
                         <div className="detail-badges">
                             <span className={`src-badge ${sourceBadgeClass(mod.Source)}`}>{sourceBadgeLabel(mod.Source)}</span>
-                            <span className="mono id">{mod.ID}</span>
+                            <span className="mono id">{mod.Source === 'workshop' && mod.RemoteFileID ? mod.RemoteFileID : mod.ID}</span>
                         </div>
                         <div className="detail-name">{mod.Name}</div>
                         <div className="detail-sub">{files?.LastModified ? `Updated ${timeAgo(files.LastModified)}` : ''}</div>
