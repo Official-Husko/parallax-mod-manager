@@ -544,7 +544,10 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, allMods, conflict
         <div className="detail-panel">
             <div className="thumbnail">
                 {thumbnail
-                    ? <img src={thumbnail} alt={mod ? `${mod.Name} thumbnail` : ''}/>
+                    ? <>
+                        <div className="thumbnail-backdrop" style={{backgroundImage: `url(${thumbnail})`}}/>
+                        <img className="thumbnail-fg" src={thumbnail} alt={mod ? `${mod.Name} thumbnail` : ''}/>
+                    </>
                     : <span className="mono">{mod ? 'NO THUMBNAIL' : 'MOD THUMBNAIL'}</span>}
             </div>
             {!mod && <p className="detail-empty">Select a mod to see its details.</p>}

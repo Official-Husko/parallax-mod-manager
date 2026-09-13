@@ -33,6 +33,7 @@
 }
 
 .thumbnail {
+    position: relative;
     height: 150px;
     flex: none;
     background: repeating-linear-gradient(115deg, #1b2330 0 9px, #19202c 9px 18px);
@@ -43,10 +44,25 @@
     overflow: hidden;
 }
 
-.thumbnail img {
+/* The same image, blurred and darkened, fills the box behind the real
+   thumbnail - fills the space around an image whose aspect ratio doesn't
+   match the box instead of leaving a plain gray gap. */
+.thumbnail-backdrop {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    filter: blur(20px) brightness(0.55);
+    transform: scale(1.15); /* hides the blur's soft edge past the box's own border */
+}
+
+/* object-fit: contain - the real thumbnail must always show in full, never
+   cropped, regardless of its own real aspect ratio. */
+.thumbnail-fg {
+    position: relative;
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain;
 }
 
 .thumbnail span {
