@@ -105,6 +105,26 @@
     color: var(--text-dim);
     letter-spacing: .12em;
     flex: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.reset-override-link {
+    margin-left: auto;
+    color: var(--rust);
+    text-transform: none;
+    letter-spacing: normal;
+    cursor: pointer;
+}
+
+.reset-override-link:hover {
+    text-decoration: underline;
+}
+
+.reset-override-link.inert {
+    opacity: .5;
+    pointer-events: none;
 }
 
 .files-col {
@@ -172,6 +192,25 @@
     align-items: center;
     gap: 8px;
     margin-bottom: 5px;
+}
+
+.winner-radio {
+    font-size: 12px;
+    cursor: pointer;
+    flex: none;
+}
+
+.winner-radio.radio-on {
+    cursor: default;
+}
+
+.winner-radio.radio-off:hover {
+    color: var(--text-muted);
+}
+
+.winner-radio.inert {
+    cursor: default;
+    pointer-events: none;
 }
 
 .contender-head .pos {
@@ -286,6 +325,55 @@
     width: 20px;
     text-align: right;
     flex: none;
+}
+
+/* --- Syntax highlighting, for the two real editable text formats this
+   project's mods contain: Clausewitz script (.txt/.gui/.gfx/.asset/
+   .shader/.fxh - see internal/script/lexer.go) and Paradox locale .yml
+   files (see internal/locale/locale.go). A file this project doesn't
+   recognize as either just renders as .tok-plain, unstyled. */
+
+.tok-comment {
+    color: #5c6773;
+    font-style: italic;
+}
+
+.tok-string, .tok-locale-string {
+    color: #b8cc7a;
+}
+
+.tok-number, .tok-locale-version {
+    color: #d19a66;
+}
+
+.tok-key, .tok-locale-header {
+    color: var(--file-script);
+    font-weight: 600;
+}
+
+.tok-locale-key {
+    color: var(--text-bright);
+}
+
+.tok-operator {
+    color: var(--text-muted);
+}
+
+.tok-brace {
+    color: var(--text-bright);
+    font-weight: 600;
+}
+
+.tok-variable {
+    color: #c792ea;
+}
+
+.tok-bool {
+    color: var(--amber);
+}
+
+.tok-ident, .tok-plain {
+    color: var(--text-mid);
 }
 
 .diff-footer {

@@ -1,0 +1,87 @@
+.file-tree-rows {
+    display: flex;
+    flex-direction: column;
+}
+
+.file-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    height: 24px;
+    padding-right: 10px;
+}
+
+.file-row > i {
+    font-size: 12px;
+    flex: none;
+    width: 13px;
+    text-align: center;
+}
+
+.file-row .name {
+    flex: 1;
+    min-width: 0;
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* A dedicated class rather than the generic .badge ConflictResolver.css
+   also defines - that shared name was the real cause of this text once
+   being unreadable: ConflictResolver's own .badge sets a dark
+   (var(--bg-panel)) color meant to sit on a bright background, and with no
+   background set here at all, it rendered as near-black text on this
+   panel's own dark background. A same-named class in another view's CSS
+   file was always going to collide sooner or later since nothing here is
+   module-scoped - this one gets its own name instead of trying to win a
+   specificity fight. */
+.file-row .file-size {
+    font-size: 9.5px;
+    color: var(--text-dim);
+    flex: none;
+}
+
+/* VS Code-style tree guides: one fixed-width column per ancestor
+   directory, each either a continuing vertical line (that ancestor still
+   has more siblings coming) or blank (it was the last child, so nothing
+   should visually connect past it). Root-level rows get no guide column
+   at all - there's no visible root node to connect to. */
+.tree-guides {
+    display: flex;
+    align-self: stretch;
+    flex: none;
+}
+
+.guide {
+    width: 14px;
+    flex: none;
+    position: relative;
+}
+
+.guide.continue::before {
+    content: '';
+    position: absolute;
+    left: 6px;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--border-light);
+}
+
+.guide.connector .v-line {
+    position: absolute;
+    left: 6px;
+    top: 0;
+    width: 1px;
+    background: var(--border-light);
+}
+
+.guide.connector .h-line {
+    position: absolute;
+    left: 6px;
+    top: 50%;
+    width: 8px;
+    height: 1px;
+    background: var(--border-light);
+}

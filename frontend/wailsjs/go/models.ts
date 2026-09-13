@@ -1,5 +1,93 @@
+export namespace dlc {
+	
+	export class Entry {
+	    ID: string;
+	    Name: string;
+	    Category: string;
+	    SteamID: string;
+	    SizeBytes: number;
+	    Installed: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Entry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.Name = source["Name"];
+	        this.Category = source["Category"];
+	        this.SteamID = source["SteamID"];
+	        this.SizeBytes = source["SizeBytes"];
+	        this.Installed = source["Installed"];
+	    }
+	}
+
+}
+
+export namespace dlcstore {
+	
+	export class StoreData {
+	    SteamAppID: string;
+	    Name: string;
+	    ShortDescription: string;
+	    HeaderImage: string;
+	    ReleaseDate: string;
+	    ComingSoon: boolean;
+	    Screenshots: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new StoreData(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.SteamAppID = source["SteamAppID"];
+	        this.Name = source["Name"];
+	        this.ShortDescription = source["ShortDescription"];
+	        this.HeaderImage = source["HeaderImage"];
+	        this.ReleaseDate = source["ReleaseDate"];
+	        this.ComingSoon = source["ComingSoon"];
+	        this.Screenshots = source["Screenshots"];
+	    }
+	}
+
+}
+
 export namespace library {
 	
+	export class AuthorProfile {
+	    SteamID: string;
+	    Profile: steamapi.Profile;
+	
+	    static createFrom(source: any = {}) {
+	        return new AuthorProfile(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.SteamID = source["SteamID"];
+	        this.Profile = this.convertValues(source["Profile"], steamapi.Profile);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class ConflictCandidate {
 	    ModID: string;
 	    ModName: string;
@@ -21,6 +109,7 @@ export namespace library {
 	    ID: string;
 	    Candidates: ConflictCandidate[];
 	    Winner: string;
+	    Overridden: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new ConflictSummary(source);
@@ -32,6 +121,7 @@ export namespace library {
 	        this.ID = source["ID"];
 	        this.Candidates = this.convertValues(source["Candidates"], ConflictCandidate);
 	        this.Winner = source["Winner"];
+	        this.Overridden = source["Overridden"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -302,6 +392,85 @@ export namespace preferences {
 	        this.lastSelectedGame = source["lastSelectedGame"];
 	        this.autosortDependencies = source["autosortDependencies"];
 	        this.autosortFixesLast = source["autosortFixesLast"];
+	    }
+	}
+
+}
+
+export namespace steamapi {
+	
+	export class ChangelogEntry {
+	    Headline: string;
+	    Author: string;
+	    AuthorProfileURL: string;
+	    Body: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ChangelogEntry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Headline = source["Headline"];
+	        this.Author = source["Author"];
+	        this.AuthorProfileURL = source["AuthorProfileURL"];
+	        this.Body = source["Body"];
+	    }
+	}
+	export class Profile {
+	    Name: string;
+	    AvatarURL: string;
+	    ProfileURL: string;
+	    MemberSince: string;
+	    Location: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Profile(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Name = source["Name"];
+	        this.AvatarURL = source["AvatarURL"];
+	        this.ProfileURL = source["ProfileURL"];
+	        this.MemberSince = source["MemberSince"];
+	        this.Location = source["Location"];
+	    }
+	}
+	export class PublishedFileDetails {
+	    ID: string;
+	    Result: number;
+	    Title: string;
+	    Description: string;
+	    PreviewURL: string;
+	    Creator: string;
+	    TimeCreated: number;
+	    TimeUpdated: number;
+	    Subscriptions: number;
+	    Favorited: number;
+	    Views: number;
+	    FileSize: number;
+	    Tags: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new PublishedFileDetails(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.Result = source["Result"];
+	        this.Title = source["Title"];
+	        this.Description = source["Description"];
+	        this.PreviewURL = source["PreviewURL"];
+	        this.Creator = source["Creator"];
+	        this.TimeCreated = source["TimeCreated"];
+	        this.TimeUpdated = source["TimeUpdated"];
+	        this.Subscriptions = source["Subscriptions"];
+	        this.Favorited = source["Favorited"];
+	        this.Views = source["Views"];
+	        this.FileSize = source["FileSize"];
+	        this.Tags = source["Tags"];
 	    }
 	}
 

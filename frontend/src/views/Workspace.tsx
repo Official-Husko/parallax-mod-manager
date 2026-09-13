@@ -2,22 +2,27 @@ import './Workspace.css';
 import {h} from 'preact';
 import {useEffect, useMemo, useRef, useState} from 'preact/hooks';
 import {
+    AuthorProfiles,
     GetPreferences,
     LaunchGame,
     ListModFiles,
     ListPlaysets,
     LoadPlayset,
+    ModChangelog,
     ModThumbnail,
     OpenModFolder,
     SavePlayset,
     ScanGame,
     WatchMods,
+    WorkshopDetails,
 } from '../../wailsjs/go/main/App';
 import {BrowserOpenURL, EventsOn} from '../../wailsjs/runtime/runtime';
-import type {library, playset, preferences} from '../../wailsjs/go/models';
+import type {library, playset, preferences, steamapi} from '../../wailsjs/go/models';
 import {autosort} from '../data/autosort';
 import {domains, preflight} from '../data/mockData';
+import {formatBytes} from '../data/format';
 import {SourceBadge} from '../components/SourceBadge';
+import {FileTree} from '../components/FileTree';
 import {ConflictResolver} from './ConflictResolver';
 import {PlaysetsModal} from './PlaysetsModal';
 import {PreflightModal} from './PreflightModal';
@@ -44,6 +49,10 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
     const [detailTab, setDetailTab] = useState<DetailTab>('overview');
     const [playsetName, setPlaysetNameState] = useState('');
     const [playsetList, setPlaysetList] = useState<string[]>([]);
+    // The active playset's DLC toggles - preserved across save/launch so
+    // Workspace never silently wipes what the DLC screen set. Empty for a
+    // brand-new, unsaved playset; loaded from the real file otherwise.
+    const [disabledDlc, setDisabledDlc] = useState<string[]>([]);
     const [showPlaysets, setShowPlaysets] = useState(false);
     const [showPreflight, setShowPreflight] = useState(false);
     const [showConflictResolver, setShowConflictResolver] = useState(false);
@@ -58,9 +67,16 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
     // order/selection the way a fresh load's first paint is supposed to.
     const expectingFreshQuickRef = useRef(false);
     const quickAppliedRef = useRef(false);
+    // Mirrors playsetName for refreshMods' background-refresh path below,
+    // which is also called from the 'mods-changed' watcher subscription -
+    // a useEffect closure that only re-subscribes on [selectedGame], so a
+    // playsetName read there directly would see whatever it was when that
+    // effect last ran, not necessarily the currently loaded playset.
+    const playsetNameRef = useRef('');
 
     function setPlaysetName(name: string) {
         setPlaysetNameState(name);
+        playsetNameRef.current = name;
         onPlaysetNameChange(name);
     }
 
@@ -77,13 +93,23 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
     async function refreshMods(preserveSelection: boolean) {
         if (!preserveSelection) {
             setPlaysetName('');
+            setDisabledDlc([]);
             setSelectedAvailable(new Set());
             setStatus({kind: 'busy', message: 'Scanning...'});
             expectingFreshQuickRef.current = true;
             quickAppliedRef.current = false;
         }
         try {
-            const result = await ScanGame(selectedGame, '');
+            // A background refresh (preserveSelection=true) must re-scan
+            // against whichever playset is actually currently loaded, not
+            // an empty selection - otherwise it would recompute Conflicts
+            // from a real conflict list back down to none (the backend
+            // treats an empty playset name as "nothing enabled yet"),
+            // silently emptying the Conflict Resolver every time a
+            // background refresh fires (the mod-folder watcher, a purge,
+            // a patch generation, or a manual conflict override) even
+            // though nothing about the user's actual selection changed.
+            const result = await ScanGame(selectedGame, preserveSelection ? playsetNameRef.current : '');
             expectingFreshQuickRef.current = false;
             setSummary(result);
             if (preserveSelection || quickAppliedRef.current) {
@@ -247,7 +273,11 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
         if (!playsetName.trim()) return;
         setStatus({kind: 'busy', message: 'Saving...'});
         try {
-            const p = {name: playsetName.trim(), gameKey: selectedGame, modIds: order, disabledDlc: []} as playset.Playset;
+            // disabledDlc is preserved as loaded (see handleLoadPlayset),
+            // not reset - Workspace edits the load order, not DLC toggles
+            // (that's the DLC screen's job), so a save here must never
+            // silently wipe whatever was really set there.
+            const p = {name: playsetName.trim(), gameKey: selectedGame, modIds: order, disabledDlc: disabledDlc} as playset.Playset;
             await SavePlayset(p);
             await refreshAfterSave(p.name);
             setStatus({kind: 'idle'});
@@ -262,6 +292,7 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
             const p = await LoadPlayset(selectedGame, name);
             setOrder(p.modIds ?? []);
             setPlaysetName(p.name);
+            setDisabledDlc(p.disabledDlc ?? []);
             const result = await ScanGame(selectedGame, p.name);
             setSummary(result);
             setShowPlaysets(false);
@@ -276,7 +307,7 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
         setShowPreflight(false);
         setStatus({kind: 'busy', message: 'Launching...'});
         try {
-            const p = {name: playsetName.trim(), gameKey: selectedGame, modIds: order, disabledDlc: []} as playset.Playset;
+            const p = {name: playsetName.trim(), gameKey: selectedGame, modIds: order, disabledDlc: disabledDlc} as playset.Playset;
             await SavePlayset(p);
             await LaunchGame(selectedGame, p.name);
             setStatus({kind: 'idle'});
@@ -481,7 +512,7 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
                     gameName={gameName}
                     names={playsetList}
                     onActivate={handleLoadPlayset}
-                    onNew={() => { setOrder([]); setPlaysetName(''); setShowPlaysets(false); }}
+                    onNew={() => { setOrder([]); setPlaysetName(''); setDisabledDlc([]); setShowPlaysets(false); }}
                     onClose={() => setShowPlaysets(false)}
                 />
             )}
@@ -506,6 +537,7 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
                         setOrder((prev) => (prev.includes(modId) ? prev : [...prev, modId]));
                         refreshMods(true);
                     }}
+                    onOverrideChanged={() => refreshMods(true)}
                 />
             )}
 
@@ -570,6 +602,108 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, allMods, conflict
     }, [gameId, mod?.ID]);
 
     const filesLoading = !!mod && !files && !filesError;
+
+    // Real Steam Workshop metadata for the Changes tab - fetched once for
+    // the whole game (one batched request across every Workshop mod, see
+    // WorkshopDetails) the first time it's actually needed, not eagerly
+    // for every mod selection.
+    const [workshopDetails, setWorkshopDetails] = useState<Map<string, steamapi.PublishedFileDetails>>(new Map());
+    const [workshopDetailsState, setWorkshopDetailsState] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle');
+    const [workshopDetailsError, setWorkshopDetailsError] = useState('');
+
+    useEffect(() => {
+        // A previous game's fetched data must never be shown against this
+        // game's mods.
+        setWorkshopDetails(new Map());
+        setWorkshopDetailsState('idle');
+    }, [gameId]);
+
+    useEffect(() => {
+        if (tab !== 'changes' || !mod || mod.Source !== 'workshop' || workshopDetailsState !== 'idle') {
+            return;
+        }
+        setWorkshopDetailsState('loading');
+        let cancelled = false;
+        WorkshopDetails(gameId)
+            .then((list) => {
+                if (cancelled) return;
+                setWorkshopDetails(new Map(list.map((d) => [d.ID, d])));
+                setWorkshopDetailsState('loaded');
+            })
+            .catch((err) => {
+                if (cancelled) return;
+                setWorkshopDetailsError(String(err));
+                setWorkshopDetailsState('error');
+            });
+        return () => { cancelled = true; };
+    }, [tab, mod, gameId, workshopDetailsState]);
+
+    // Real Steam Community profiles for Workshop mod authors - fetched
+    // once the Workshop details themselves have loaded (AuthorProfiles
+    // reuses that same in-memory data on the backend, so this never
+    // triggers a second Workshop metadata fetch), keyed by creator
+    // SteamID64.
+    const [authorProfiles, setAuthorProfiles] = useState<Map<string, steamapi.Profile>>(new Map());
+    const [authorProfilesState, setAuthorProfilesState] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle');
+
+    useEffect(() => {
+        setAuthorProfiles(new Map());
+        setAuthorProfilesState('idle');
+    }, [gameId]);
+
+    useEffect(() => {
+        if (workshopDetailsState !== 'loaded' || authorProfilesState !== 'idle') {
+            return;
+        }
+        setAuthorProfilesState('loading');
+        let cancelled = false;
+        AuthorProfiles(gameId)
+            .then((list) => {
+                if (cancelled) return;
+                setAuthorProfiles(new Map(list.map((p) => [p.SteamID, p.Profile])));
+                setAuthorProfilesState('loaded');
+            })
+            .catch(() => {
+                if (cancelled) return;
+                setAuthorProfilesState('error');
+            });
+        return () => { cancelled = true; };
+    }, [workshopDetailsState, gameId, authorProfilesState]);
+
+    // Real Steam Workshop update notes for the Changes tab - fetched per
+    // mod, on demand, the first time that mod's own Changes tab is
+    // opened (there's no batching endpoint for this, unlike
+    // WorkshopDetails - see docs/steam-web-api.md), then kept in memory
+    // keyed by published file id.
+    const [changelogs, setChangelogs] = useState<Map<string, steamapi.ChangelogEntry[]>>(new Map());
+    const [changelogState, setChangelogState] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle');
+    const [changelogError, setChangelogError] = useState('');
+
+    useEffect(() => {
+        setChangelogs(new Map());
+        setChangelogState('idle');
+    }, [gameId]);
+
+    useEffect(() => {
+        const remoteFileID = mod?.RemoteFileID;
+        if (tab !== 'changes' || !mod || mod.Source !== 'workshop' || !remoteFileID || changelogs.has(remoteFileID)) {
+            return;
+        }
+        setChangelogState('loading');
+        let cancelled = false;
+        ModChangelog(remoteFileID)
+            .then((entries) => {
+                if (cancelled) return;
+                setChangelogs((prev) => new Map(prev).set(remoteFileID, entries));
+                setChangelogState('loaded');
+            })
+            .catch((err) => {
+                if (cancelled) return;
+                setChangelogError(String(err));
+                setChangelogState('error');
+            });
+        return () => { cancelled = true; };
+    }, [tab, mod, changelogs]);
 
     function openFolder() {
         if (mod) {
@@ -638,13 +772,7 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, allMods, conflict
                                 {!filesError && files && files.Entries.length === 0 && (
                                     <p className="detail-empty">This mod's content folder is empty.</p>
                                 )}
-                                {files?.Entries.map((f) => (
-                                    <div key={f.RelPath} className="file-row" style={{paddingLeft: `${(f.RelPath.split('/').length - 1) * 14 + 12}px`}}>
-                                        <i className={`fa-solid ${f.IsDir ? 'fa-folder' : 'fa-file'}`}/>
-                                        <span className="mono name">{f.RelPath.split('/').pop()}</span>
-                                        {!f.IsDir && <span className="mono badge">{formatBytes(f.Size)}</span>}
-                                    </div>
-                                ))}
+                                {files && files.Entries.length > 0 && <FileTree entries={files.Entries}/>}
                                 {files?.Truncated && (
                                     <p className="detail-sub" style={{padding: '8px 12px'}}>
                                         Showing the first {files.Entries.length.toLocaleString()} entries - this mod has more.
@@ -686,10 +814,89 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, allMods, conflict
                         )}
                         {tab === 'changes' && (
                             <div className="changes-tab">
-                                <p className="detail-empty">
-                                    Update history isn't available - Parallax Mod Manager doesn't fetch anything from
-                                    Steam Workshop, so this mod's own change log isn't something it can show.
-                                </p>
+                                {mod.Source !== 'workshop' && (
+                                    <p className="detail-empty">
+                                        Update history isn't available - only Steam Workshop mods have a real page to
+                                        fetch it from.
+                                    </p>
+                                )}
+                                {mod.Source === 'workshop' && workshopDetailsState === 'loading' && (
+                                    <p className="detail-empty">Checking Steam Workshop...</p>
+                                )}
+                                {mod.Source === 'workshop' && workshopDetailsState === 'error' && (
+                                    <div className="content-missing">
+                                        <i className="fa-solid fa-circle-exclamation"/>
+                                        <p>{workshopDetailsError}</p>
+                                    </div>
+                                )}
+                                {mod.Source === 'workshop' && workshopDetailsState === 'loaded' && (() => {
+                                    const d = mod.RemoteFileID ? workshopDetails.get(mod.RemoteFileID) : undefined;
+                                    if (!d || d.Result !== 1) {
+                                        return <p className="detail-empty">No Steam Workshop data found for this mod.</p>;
+                                    }
+                                    const author = d.Creator ? authorProfiles.get(d.Creator) : undefined;
+                                    return (
+                                        <>
+                                            {author && (
+                                                <div className="author-row" onClick={() => BrowserOpenURL(author.ProfileURL)}>
+                                                    {author.AvatarURL
+                                                        ? <img className="author-avatar" src={author.AvatarURL} alt={author.Name}/>
+                                                        : <span className="author-avatar author-avatar-fallback"/>}
+                                                    <div className="author-info">
+                                                        <span className="author-name">{author.Name}</span>
+                                                        {author.MemberSince && (
+                                                            <span className="author-sub">Member since {author.MemberSince}</span>
+                                                        )}
+                                                    </div>
+                                                    <i className="fa-solid fa-arrow-up-right-from-square author-link-icon"/>
+                                                </div>
+                                            )}
+                                            <div className="overview-grid">
+                                                <span className="label">Subscribers</span><span className="value mono">{d.Subscriptions.toLocaleString()}</span>
+                                                <span className="label">Favorited</span><span className="value mono">{d.Favorited.toLocaleString()}</span>
+                                                <span className="label">Views</span><span className="value mono">{d.Views.toLocaleString()}</span>
+                                                <span className="label">Last updated</span><span className="value mono">{timeAgo(d.TimeUpdated)}</span>
+                                            </div>
+                                            {d.Description && (
+                                                <div className="section">
+                                                    <div className="section-label">STEAM DESCRIPTION</div>
+                                                    <div className="section-body">{stripBBCode(d.Description)}</div>
+                                                </div>
+                                            )}
+                                            <div className="section">
+                                                <div className="section-label">RECENT UPDATES</div>
+                                                {changelogState === 'loading' && (
+                                                    <p className="detail-empty">Checking Steam Workshop...</p>
+                                                )}
+                                                {changelogState === 'error' && (
+                                                    <div className="content-missing">
+                                                        <i className="fa-solid fa-circle-exclamation"/>
+                                                        <p>{changelogError}</p>
+                                                    </div>
+                                                )}
+                                                {mod.RemoteFileID && changelogs.has(mod.RemoteFileID) && (() => {
+                                                    const entries = changelogs.get(mod.RemoteFileID)!;
+                                                    if (entries.length === 0) {
+                                                        return <p className="detail-empty">No update notes found for this mod yet.</p>;
+                                                    }
+                                                    return (
+                                                        <div className="changelog-list">
+                                                            {entries.map((entry, i) => (
+                                                                <div key={i} className="changelog-entry">
+                                                                    <div className="changelog-entry-head">
+                                                                        <span className="mono">{entry.Headline}</span>
+                                                                        {entry.Author && <span className="changelog-entry-author">by {entry.Author}</span>}
+                                                                    </div>
+                                                                    {entry.Body && <div className="changelog-entry-body">{entry.Body}</div>}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </div>
+                                        </>
+                                    );
+                                })()}
                             </div>
                         )}
                     </div>
@@ -699,17 +906,6 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, allMods, conflict
     );
 }
 
-function formatBytes(n: number): string {
-    if (n < 1024) return `${n} B`;
-    const units = ['KB', 'MB', 'GB', 'TB'];
-    let value = n / 1024;
-    let unit = 0;
-    while (value >= 1024 && unit < units.length - 1) {
-        value /= 1024;
-        unit++;
-    }
-    return `${value.toFixed(value < 10 ? 2 : 1)} ${units[unit]}`;
-}
 
 function timeAgo(unixSeconds: number): string {
     const seconds = Math.max(0, Date.now() / 1000 - unixSeconds);
@@ -722,6 +918,14 @@ function timeAgo(unixSeconds: number): string {
         if (n >= 1) return `${n} ${label}${n === 1 ? '' : 's'} ago`;
     }
     return 'just now';
+}
+
+// stripBBCode gives a readable plain-text preview of a real Steam Workshop
+// description - those are BBCode ([b], [url=...], [img]...), not something
+// worth building a real renderer for here. Not a full parser, just enough
+// to keep raw markup out of view.
+function stripBBCode(s: string): string {
+    return s.replace(/\[[^\]]*\]/g, '').trim();
 }
 
 function OverviewTab({mod, files, filesLoading, allMods, conflicts, onOpenFolder}: {

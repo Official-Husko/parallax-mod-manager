@@ -1,0 +1,31 @@
+to get more details use public steam endpoints for mods:
+
+curl -X POST \
+  -d "itemcount=1" \
+  -d "publishedfileids[0]=1780481482" \
+  https://api.steampowered.com/ISteamRemoteStorage/GetPublishedFileDetails/v1/
+
+curl -X POST \
+  -d "itemcount=3" \
+  -d "publishedfileids[0]=123" \
+  -d "publishedfileids[1]=456" \
+  -d "publishedfileids[2]=789" \
+  https://api.steampowered.com/ISteamRemoteStorage/GetPublishedFileDetails/v1/
+
+Get the author details from here:
+
+https://steamcommunity.com/profiles/76561198296248714/?xml=1
+
+
+https://steamcommunity.com/sharedfiles/filedetails/changelog/3685431219?p=2
+Getting the changelog for changes to display it will require some scraping
+
+
+FOR DLCS:
+Get all of the details for the base game
+
+https://store.steampowered.com/api/appdetails?appids=440
+
+then get the dlc ids and get each dlc and its details
+
+https://store.steampowered.com/api/appdetails?appids=629330

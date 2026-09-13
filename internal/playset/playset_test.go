@@ -31,6 +31,38 @@ func TestSaveThenLoadRoundTrips(t *testing.T) {
 	}
 }
 
+// TestLoadNormalizesMissingSlicesToRealEmptySlices pins a real bug: a
+// playset file saved before DisabledDLC existed (or one hand-edited to
+// omit a field, or literally containing "disabledDlc": null) leaves that
+// Go field at its nil-slice zero value, which crosses the Wails/JS
+// boundary as null where the frontend's type says string[] - crashing the
+// first .length/.map call against it, the same class of bug already found
+// once for library.ModSummary.
+func TestLoadNormalizesMissingSlicesToRealEmptySlices(t *testing.T) {
+	store := FileStore{Dir: t.TempDir()}
+	dir := filepath.Join(store.Dir, "stellaris")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	// A pre-DisabledDLC-era file: no "disabledDlc" key at all, and
+	// "modIds" explicitly null for good measure.
+	raw := `{"version":1,"name":"Old Playset","gameKey":"stellaris","modIds":null}`
+	if err := os.WriteFile(filepath.Join(dir, "Old Playset.json"), []byte(raw), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	got, err := store.Load(context.Background(), "stellaris", "Old Playset")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got.DisabledDLC == nil {
+		t.Error("DisabledDLC is nil, want a real empty slice (marshals as JSON null, not [])")
+	}
+	if got.ModIDs == nil {
+		t.Error("ModIDs is nil, want a real empty slice (marshals as JSON null, not [])")
+	}
+}
+
 func TestLoadMissingReturnsErrNotFound(t *testing.T) {
 	store := FileStore{Dir: t.TempDir()}
 	_, err := store.Load(context.Background(), "stellaris", "never_saved")

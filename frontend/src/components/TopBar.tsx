@@ -16,7 +16,10 @@ export function TopBar({view, onNavigate, gamePicker}: {
     onNavigate: (v: ViewKey) => void;
     gamePicker?: {
         gameLabel: string;
-        profileLabel: string;
+        // Optional - a view with no notion of "the active playset" (e.g.
+        // DLC, which edits a saved playset by name from its own picker
+        // instead) simply omits this rather than showing a fake one.
+        playsetLabel?: string;
         games?: { ID: string; DisplayName: string }[];
         onSelectGame?: (id: string) => void;
     };
@@ -69,10 +72,12 @@ export function TopBar({view, onNavigate, gamePicker}: {
                             </div>
                         )}
                     </div>
-                    <div className="topbar-profile">
-                        <span className="profile-label">Profile</span>
-                        <span className="profile-name">{gamePicker.profileLabel}</span>
-                    </div>
+                    {gamePicker.playsetLabel && (
+                        <div className="topbar-playset">
+                            <span className="playset-label">Playset</span>
+                            <span className="playset-name">{gamePicker.playsetLabel}</span>
+                        </div>
+                    )}
                 </>
             )}
             <div className="topbar-spacer"/>

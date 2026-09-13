@@ -29,6 +29,7 @@ import (
 	"github.com/Official-Husko/parallax-mod-manager/internal/conflict"
 	"github.com/Official-Husko/parallax-mod-manager/internal/game"
 	"github.com/Official-Husko/parallax-mod-manager/internal/mod"
+	"github.com/Official-Husko/parallax-mod-manager/internal/patchoverride"
 	"github.com/Official-Husko/parallax-mod-manager/internal/pipeline"
 	"github.com/Official-Husko/parallax-mod-manager/internal/scan"
 )
@@ -134,11 +135,18 @@ type ConflictSummary struct {
 	Type       string
 	ID         string
 	Candidates []ConflictCandidate // ascending load-order position
-	// Winner is the ModID of the candidate that actually applies in-game,
-	// per Rule (last-in wins for LIOS, first-in wins for FIOS) - the same
-	// load-order semantics conflict.Resolve itself already applies, see
-	// docs/conflict-resolution.md.
+	// Winner is the ModID of the candidate that actually applies in-game:
+	// a manual override from Options.Overrides, if one names a mod that's
+	// still a real candidate for this key, otherwise the automatic
+	// winner per Rule (last-in wins for LIOS, first-in wins for FIOS) -
+	// the same load-order semantics conflict.Resolve itself already
+	// applies. See docs/patch-mods.md.
 	Winner string
+	// Overridden is true when Winner came from a manual override rather
+	// than the automatic load-order rule - lets the UI show a conflict
+	// the user has explicitly decided on differently from one still using
+	// the default.
+	Overridden bool
 }
 
 // Summary is everything a LoadGame call produces.
@@ -173,6 +181,14 @@ type Options struct {
 	// "nothing pre-chosen, managing a mod is an explicit choice" default
 	// the first-run wizard already uses for games.
 	Order conflict.LoadOrder
+	// Overrides maps a conflict's patchoverride.Key (its "Type:ID") to a
+	// ModID manually chosen to win it, overriding the automatic
+	// load-order winner conflict.Resolve would otherwise pick - see
+	// docs/patch-mods.md. nil (the zero value) means no manual overrides;
+	// an override naming a mod that isn't actually a candidate for that
+	// key (removed, disabled, or simply never a real one) is ignored
+	// rather than erroring, falling back to the automatic winner.
+	Overrides map[string]string
 	// OnQuickSummary, if set, is called once every mod is known (right
 	// after scanning, before any of the slow per-mod content parsing that
 	// conflict detection needs) with a Summary that already has every
@@ -295,7 +311,7 @@ func LoadGame(ctx context.Context, cfg game.GameConfig, opts Options) (Summary, 
 	return Summary{
 		Game:      GameInfo{ID: cfg.ID, DisplayName: cfg.DisplayName},
 		Mods:      rg.modSummaries,
-		Conflicts: buildConflictSummaries(rg.result.Conflicts, rg.names),
+		Conflicts: buildConflictSummaries(rg.result.Conflicts, rg.names, opts.Overrides),
 		Errors:    rg.errs,
 	}, nil
 }
@@ -338,8 +354,9 @@ func sourceString(s mod.Source) string {
 
 // buildConflictSummaries maps conflict.Conflicts to ConflictSummary,
 // resolving each candidate's ModID to a display name via names and the
-// actual winner per c.Rule.
-func buildConflictSummaries(conflicts []conflict.Conflict, names map[string]string) []ConflictSummary {
+// effective winner (a manual override from overrides, or the automatic
+// one per c.Rule) via effectiveWinner.
+func buildConflictSummaries(conflicts []conflict.Conflict, names map[string]string, overrides map[string]string) []ConflictSummary {
 	summaries := make([]ConflictSummary, 0, len(conflicts))
 	for _, c := range conflicts {
 		candidates := make([]ConflictCandidate, 0, len(c.Candidates))
@@ -350,19 +367,22 @@ func buildConflictSummaries(conflicts []conflict.Conflict, names map[string]stri
 			}
 			candidates = append(candidates, ConflictCandidate{ModID: d.ModID, ModName: name, FilePath: d.FilePath})
 		}
+		winner, overridden := effectiveWinner(c, overrides)
 		summaries = append(summaries, ConflictSummary{
 			Type:       string(c.Key.Type),
 			ID:         c.Key.ID,
 			Candidates: candidates,
-			Winner:     winnerModID(c),
+			Winner:     winner,
+			Overridden: overridden,
 		})
 	}
 	return summaries
 }
 
-// winnerModID returns the ModID of c's actually-applying candidate per
-// c.Rule (last-in wins for LIOS, first-in wins for FIOS - c.Candidates is
-// already ascending load-order position). Empty if c has no candidates.
+// winnerModID returns the ModID of c's automatically-applying candidate
+// per c.Rule (last-in wins for LIOS, first-in wins for FIOS -
+// c.Candidates is already ascending load-order position). Empty if c has
+// no candidates.
 func winnerModID(c conflict.Conflict) string {
 	if len(c.Candidates) == 0 {
 		return ""
@@ -371,4 +391,24 @@ func winnerModID(c conflict.Conflict) string {
 		return c.Candidates[0].ModID
 	}
 	return c.Candidates[len(c.Candidates)-1].ModID
+}
+
+// effectiveWinner returns c's real, applying winner: overrides[Key(c)] if
+// it names a mod that's still genuinely one of c's own candidates,
+// otherwise winnerModID's automatic pick. An override naming a mod
+// that's been removed, disabled, or was never actually a candidate for
+// this key is silently ignored rather than erroring - a stale override
+// falling back to the automatic winner is the same safe behavior a
+// missing override already has, not a new failure mode to guard against
+// separately. The second return value reports which case happened, for
+// ConflictSummary.Overridden.
+func effectiveWinner(c conflict.Conflict, overrides map[string]string) (winner string, overridden bool) {
+	if chosen, ok := overrides[patchoverride.Key(string(c.Key.Type), c.Key.ID)]; ok {
+		for _, cand := range c.Candidates {
+			if cand.ModID == chosen {
+				return chosen, true
+			}
+		}
+	}
+	return winnerModID(c), false
 }

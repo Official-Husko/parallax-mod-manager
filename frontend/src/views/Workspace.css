@@ -178,6 +178,97 @@
     color: var(--text-mid);
 }
 
+.author-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: var(--bg-panel);
+    cursor: pointer;
+    transition: background .12s ease;
+}
+
+.author-row:hover {
+    background: var(--bg-hover, #232f3d);
+}
+
+.author-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 6px;
+    flex: none;
+    object-fit: cover;
+}
+
+.author-avatar-fallback {
+    background: var(--bg-elevated, #1b2530);
+}
+
+.author-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.author-name {
+    font: 600 12.5px Barlow, sans-serif;
+    color: var(--text-mid);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.author-sub {
+    font: 400 10.5px Barlow, sans-serif;
+    color: var(--text-dim);
+}
+
+.author-link-icon {
+    margin-left: auto;
+    color: var(--text-dim);
+    font-size: 11px;
+    flex: none;
+}
+
+.changelog-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.changelog-entry {
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: var(--bg-panel);
+}
+
+.changelog-entry-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 5px;
+}
+
+.changelog-entry-head .mono {
+    font-size: 10.5px;
+    color: var(--text-mid);
+}
+
+.changelog-entry-author {
+    font: 400 10.5px Barlow, sans-serif;
+    color: var(--text-dim);
+    flex: none;
+}
+
+.changelog-entry-body {
+    font: 400 12px/1.5 Barlow, sans-serif;
+    color: var(--text-mid);
+    white-space: pre-line;
+}
+
 .requires-row {
     display: flex;
     align-items: center;
@@ -259,34 +350,12 @@
     max-width: 230px;
 }
 
-.file-row {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    height: 24px;
-    padding-right: 10px;
-}
-
-.file-row i {
-    font-size: 9px;
-    color: var(--text-muted);
-    flex: none;
-    width: 10px;
-}
-
-.file-row .name {
-    flex: 1;
-    min-width: 0;
-    font-size: 11px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.file-row .badge {
-    font-size: 9.5px;
-    flex: none;
-}
+/* .file-row itself (base layout: height, gap, padding) and its icon/name
+   styling now live in components/FileTree.css, which every render of this
+   view already pulls in (Workspace.tsx always imports FileTree) - kept
+   there so the real tree rows and this tab's own loading-skeleton
+   placeholder rows share one definition instead of two that could drift
+   apart. */
 
 .conflicts-tab {
     display: flex;

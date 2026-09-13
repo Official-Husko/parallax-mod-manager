@@ -76,6 +76,12 @@ type PatchResult struct {
 // content gets a real ".yml" file with its own language header line and
 // UTF-8 BOM, not the plain ".txt" script files get - see
 // patchContentFile).
+//
+// A conflict named in opts.Overrides is patched using that manually
+// chosen mod instead of the automatic load-order winner (see
+// effectiveWinner) - the exact same effective winner ConflictSummary.Winner
+// already shows for that conflict, so what a user sees in the Conflict
+// Resolver is always what actually gets patched.
 func GeneratePatch(ctx context.Context, cfg game.GameConfig, opts Options) (PatchResult, error) {
 	if cfg.DescriptorType != mod.DescriptorClassic {
 		return PatchResult{}, fmt.Errorf("library: patch generation is only supported for classic-descriptor games, %s is not one", cfg.ID)
@@ -133,7 +139,7 @@ func GeneratePatch(ctx context.Context, cfg game.GameConfig, opts Options) (Patc
 	patched, skipped := 0, 0
 
 	for _, c := range rg.result.Conflicts {
-		winner := winnerModID(c)
+		winner, _ := effectiveWinner(c, opts.Overrides)
 		var winnerDef *definition.Definition
 		for i := range c.Candidates {
 			if c.Candidates[i].ModID == winner {

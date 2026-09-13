@@ -91,12 +91,16 @@ export function App() {
     const gamePicker = view === 'workspace'
         ? {
             gameLabel: gameName,
-            profileLabel: playsetName || '(unsaved)',
+            playsetLabel: playsetName || '(unsaved)',
             games: games.map((g) => ({ID: g.ID, DisplayName: g.DisplayName})),
             onSelectGame: selectGame,
         }
         : view === 'dlc'
-            ? {gameLabel: 'Hearts of Iron IV', profileLabel: 'Kaiserreich MP'}
+            ? {
+                gameLabel: gameName,
+                games: games.map((g) => ({ID: g.ID, DisplayName: g.DisplayName})),
+                onSelectGame: selectGame,
+            }
             : undefined;
 
     const accentStyle = accent
@@ -124,7 +128,7 @@ export function App() {
                 />
             )}
             {!error && view === 'library' && <Library/>}
-            {!error && view === 'dlc' && <Dlc/>}
+            {!error && view === 'dlc' && <Dlc games={games} selectedGame={selectedGame}/>}
             {!error && view === 'settings' && <Settings/>}
 
             {showUpdates && <UpdatesModal onClose={() => setShowUpdates(false)}/>}

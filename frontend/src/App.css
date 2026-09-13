@@ -31,10 +31,50 @@
     --red: #d4574e;
     --green: #5fae7e;
     --blue: #5b8fc9;
+    /* File-tree icon colors (Workspace's Files tab) - a deliberately wider,
+       richer set than the app's own narrow chrome accent palette above:
+       distinguishing content types by color (script vs. localisation vs.
+       texture vs. audio...) is the whole point here, the same way a code
+       editor's file-type icons use far more hues than its own UI chrome. */
+    --file-script: #6fa8dc;
+    --file-locale: #6fcf97;
+    --file-image: #b18cd9;
+    --file-audio: #e08fb0;
+    --file-font: #7fd4c1;
 }
 
 * {
     box-sizing: border-box;
+}
+
+/* Wails on Linux renders through webkit2gtk, which is WebKit-based - the
+   -webkit-scrollbar pseudo-elements work here, unlike a plain browser
+   context where you couldn't assume that. Applied globally (not per-view)
+   so every scrollable panel looks consistent, not just whichever one
+   happened to get styled first. */
+::-webkit-scrollbar {
+    width: 11px;
+    height: 11px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: var(--border-light);
+    background-clip: padding-box;
+    border: 3px solid transparent;
+    border-radius: 7px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background-color: var(--text-dim);
+    background-clip: padding-box;
+}
+
+::-webkit-scrollbar-corner {
+    background: transparent;
 }
 
 #app {
@@ -143,19 +183,19 @@
     background: #1b232e;
 }
 
-.topbar-profile {
+.topbar-playset {
     display: flex;
     align-items: center;
     gap: 7px;
     margin-left: 6px;
 }
 
-.profile-label {
+.playset-label {
     font: 400 11.5px Barlow, sans-serif;
     color: var(--text-dim);
 }
 
-.profile-name {
+.playset-name {
     font: 500 11.5px Barlow, sans-serif;
     color: var(--amber);
     border-bottom: 1px dotted #7a6236;
@@ -290,10 +330,15 @@
     border-radius: 9px;
     position: relative;
     flex: none;
+    transition: background-color .18s ease;
 }
 
 .toggle-pill.clickable {
     cursor: pointer;
+}
+
+.toggle-pill.clickable:active {
+    transform: scale(.94);
 }
 
 .toggle-pill.on {
@@ -304,23 +349,38 @@
     background: var(--border-light);
 }
 
+/* The knob always sits at left:2px and slides via transform instead of
+   switching between left/right - a browser can't smoothly interpolate a
+   position swap between two different offset properties, only a single
+   one changing value, so the on/off states below only ever change
+   transform and background-color. */
 .toggle-knob {
     position: absolute;
+    left: 2px;
     top: 2px;
     width: 14px;
     height: 14px;
     border-radius: 50%;
-    background: var(--bg-panel);
+    background: var(--text-dim);
+    transition: transform .18s cubic-bezier(.34, 1.4, .64, 1), background-color .18s ease, width .12s ease;
 }
 
 .toggle-pill.on .toggle-knob {
-    right: 2px;
+    transform: translateX(14px);
     background: var(--bg-panel);
 }
 
 .toggle-pill.off .toggle-knob {
-    left: 2px;
+    transform: translateX(0);
     background: var(--text-dim);
+}
+
+.toggle-pill.clickable:active .toggle-knob {
+    width: 17px;
+}
+
+.toggle-pill.on.clickable:active .toggle-knob {
+    transform: translateX(11px);
 }
 
 .overlay {

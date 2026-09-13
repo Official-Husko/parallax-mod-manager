@@ -4,59 +4,60 @@
     display: flex;
 }
 
-.dlc-sidebar {
-    width: 206px;
+/* Selected-pack detail - on the left, per the design mockup's own
+   left/right split (type+picker one side, detail the other), just
+   mirrored from the mockup's original left/right assignment. */
+.dlc-detail {
+    width: 260px;
     flex: none;
     border-right: 1px solid var(--border);
     background: var(--bg-rail);
-    padding: 14px 0;
     display: flex;
     flex-direction: column;
+    gap: 10px;
+    padding: 14px;
     overflow-y: auto;
 }
 
-.dlc-type-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 7px 14px;
-    font: 500 12.5px Barlow, sans-serif;
+/* .thumbnail (shared with the mod detail panel - see Workspace.css)
+   already supplies the box's own height/background/centering; this only
+   bleeds it to the edges of .dlc-detail's own padding, same as the mod
+   panel's thumbnail sits flush at the top of its own unpadded container. */
+.dlc-detail-image {
+    margin: -14px -14px 0;
 }
 
-.dlc-type-row .n {
-    font-size: 10px;
-    color: var(--text-muted);
+.dlc-detail-name {
+    font: 700 15px/1.25 Barlow, sans-serif;
+    color: var(--text-bright);
 }
 
-.dlc-preset-row {
-    padding: 6px 14px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font: 500 12px Barlow, sans-serif;
-}
-
-.dlc-preset-row .dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    flex: none;
-}
-
-.save-preset-wrap {
-    padding: 10px 14px 0;
-}
-
-.sidebar-footer {
-    margin-top: auto;
-    padding: 12px 14px 0;
-    border-top: 1px solid #212b36;
-}
-
-.sidebar-footer .line {
+.dlc-detail-meta {
     font-size: 11px;
-    line-height: 1.5;
     color: var(--text-muted);
+}
+
+.dlc-detail-desc {
+    font: 400 12px/1.55 Barlow, sans-serif;
+    color: var(--text-mid);
+}
+
+/* Real Steam screenshots - the only real content this project has for a
+   catalog-only DLC (nothing local to show anything about at all). Click
+   to open full-size in the system browser, same as other external links
+   in this app. */
+.dlc-screenshots {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+}
+
+.dlc-screenshots img {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    border-radius: 4px;
+    cursor: pointer;
 }
 
 .dlc-main {
@@ -71,7 +72,7 @@
     border-bottom: 1px solid var(--border);
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
 }
 
 .dlc-toolbar .search-box {
@@ -92,6 +93,7 @@
 
 .dlc-columns {
     height: 26px;
+    flex: none;
     border-bottom: 1px solid var(--border);
     background: var(--bg-header);
     font-size: 9.5px;
@@ -107,6 +109,56 @@
 .dlc-row {
     height: 38px;
     border-bottom: 1px solid #1a212b;
+    cursor: pointer;
+}
+
+.dlc-row:hover {
+    background: var(--bg-row-alt);
+}
+
+.dlc-row.active {
+    background: #1a222e;
+}
+
+/* A playset disables an id that isn't among the currently discovered
+   DLC - shown, not hidden, since the disabled state is still real and
+   still gets saved; just nothing to toggle for something that can't be
+   found. Not styled as a hard error (red) - a stale reference is a minor,
+   easily-fixed thing, not a failure. */
+.dlc-row.orphaned {
+    cursor: default;
+    opacity: .6;
+}
+
+.dlc-row.orphaned:hover {
+    background: transparent;
+}
+
+.dlc-badge {
+    font: 600 8.5px "Azeret Mono", monospace;
+    color: var(--amber);
+    border: 1px solid var(--amber);
+    border-radius: 3px;
+    padding: 1px 5px;
+}
+
+/* A DLC known to Steam's catalog but never installed here - informational,
+   not a problem the way a stale "not found" reference is, so a neutral
+   color rather than amber. */
+.dlc-badge.muted {
+    color: var(--text-dim);
+    border-color: var(--border-light);
+}
+
+.dlc-forget {
+    color: var(--text-dim);
+    font-size: 11px;
+    cursor: pointer;
+    padding: 0 14px 0 4px;
+}
+
+.dlc-forget:hover {
+    color: var(--red);
 }
 
 .col-on {
@@ -124,33 +176,31 @@
 }
 
 .col-type {
-    width: 120px;
+    width: 130px;
     flex: none;
     font: 400 11.5px Barlow, sans-serif;
     color: var(--text-muted);
-}
-
-.col-year {
-    width: 76px;
-    flex: none;
-    font-size: 11px;
-    color: var(--text-muted);
-}
-
-.col-size {
-    width: 70px;
-    flex: none;
-    font-size: 11px;
-    color: var(--text-muted);
-}
-
-.col-use {
-    width: 200px;
-    flex: none;
-    font-size: 10.5px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.col-year {
+    width: 80px;
+    flex: none;
+    font-size: 11px;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.col-size {
+    width: 80px;
+    flex: none;
+    font-size: 11px;
+    color: var(--text-muted);
+    text-align: right;
 }
 
 .dlc-footer {
@@ -166,81 +216,73 @@
     color: var(--text-muted);
 }
 
-.dlc-detail {
-    width: 286px;
+/* Type filter + playset picker - on the right, mirroring the mockup's own
+   left sidebar (TYPE + PRESETS stacked) just moved to the other side. */
+.dlc-sidebar {
+    width: 220px;
     flex: none;
     border-left: 1px solid var(--border);
     background: var(--bg-rail);
+    padding: 14px 0;
     display: flex;
     flex-direction: column;
-    padding: 14px;
-    gap: 14px;
     overflow-y: auto;
 }
 
-.dlc-detail-name {
-    font: 700 15px/1.25 Barlow, sans-serif;
-    color: var(--text-bright);
-    margin-bottom: 4px;
+.dlc-empty {
+    padding: 4px 14px 0;
+    font-size: 11.5px;
+    color: var(--text-dim);
+    line-height: 1.5;
 }
 
-.dlc-detail-meta {
-    font: 400 11.5px Barlow, sans-serif;
-    color: var(--text-muted);
-    margin-bottom: 10px;
-}
-
-.dlc-detail-desc {
-    font: 400 12px/1.55 Barlow, sans-serif;
-    color: var(--text-mid);
-}
-
-.required-list {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    font: 400 12px Barlow, sans-serif;
-    color: var(--text-mid);
-}
-
-.dlc-warning {
-    background: #1e1714;
-    border: 1px solid #4a2f22;
-    border-radius: 5px;
-    padding: 10px 12px;
-}
-
-.dlc-warning-label {
-    font: 600 10px "Azeret Mono", monospace;
-    color: var(--amber);
-    letter-spacing: .08em;
-    margin-bottom: 5px;
-}
-
-.dlc-warning-body {
-    font: 400 11.5px/1.5 Barlow, sans-serif;
-    color: #e8c7b2;
-}
-
-.not-owned-list {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-    font: 400 12px Barlow, sans-serif;
-    color: var(--text-muted);
-}
-
-.dlc-detail-bottom {
-    margin-top: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 9px;
-}
-
-.checksum-row {
+.dlc-type-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    padding: 7px 14px;
+    font: 500 12.5px Barlow, sans-serif;
+    color: var(--text-mid);
+    cursor: pointer;
+}
+
+.dlc-type-row:hover {
+    background: var(--bg-row-alt);
+}
+
+.dlc-type-row.active {
+    color: var(--text-bright);
+    background: #1e2734;
+}
+
+.dlc-type-row .n {
+    color: var(--text-dim);
+}
+
+.dlc-playset-row {
+    padding: 8px 14px;
+    font: 500 12.5px Barlow, sans-serif;
+    color: var(--text-mid);
+    cursor: pointer;
+}
+
+.dlc-playset-row:hover {
+    background: var(--bg-row-alt);
+}
+
+.dlc-playset-row.active {
+    color: var(--text-bright);
+    background: #1e2734;
+}
+
+.sidebar-footer {
+    margin-top: auto;
+    padding: 12px 14px 0;
+    border-top: 1px solid #212b36;
+}
+
+.sidebar-footer .line {
     font-size: 11px;
+    line-height: 1.5;
     color: var(--text-muted);
 }

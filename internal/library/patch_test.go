@@ -58,6 +58,37 @@ func TestGeneratePatchWritesWinningContentVerbatim(t *testing.T) {
 	}
 }
 
+func TestGeneratePatchHonorsManualOverride(t *testing.T) {
+	modDir := t.TempDir()
+	writeMod(t, modDir, "mod_a", "Mod A", `shared_thing = { cost = 1 }`)
+	writeMod(t, modDir, "mod_b", "Mod B", `shared_thing = { cost = 2 }`)
+
+	result, err := GeneratePatch(context.Background(), testGameConfig(), Options{
+		CacheDir:  t.TempDir(),
+		ModDir:    modDir,
+		Order:     conflict.LoadOrder{"mod_a", "mod_b"}, // mod_b would automatically win (LIOS)
+		Overrides: map[string]string{"common:shared_thing": "mod_a"},
+	})
+	if err != nil {
+		t.Fatalf("GeneratePatch: %v", err)
+	}
+	if !result.Written {
+		t.Fatal("expected Written = true")
+	}
+
+	contentPath := filepath.Join(modDir, patchModID, "common", patchModID+".txt")
+	data, err := os.ReadFile(contentPath)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	if !strings.Contains(string(data), `shared_thing = { cost = 1 }`) {
+		t.Errorf("patch content = %q, want the manually overridden mod_a's exact source", data)
+	}
+	if strings.Contains(string(data), `cost = 2`) {
+		t.Errorf("patch content = %q, should not contain the automatic winner (mod_b) once overridden", data)
+	}
+}
+
 func TestGeneratePatchNoConflictsWritesNothing(t *testing.T) {
 	modDir := t.TempDir()
 	writeMod(t, modDir, "mod_a", "Mod A", `thing_a = { cost = 1 }`)

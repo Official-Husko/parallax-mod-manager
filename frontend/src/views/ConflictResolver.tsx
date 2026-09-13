@@ -1,8 +1,9 @@
 import './ConflictResolver.css';
 import {h} from 'preact';
 import {useEffect, useMemo, useState} from 'preact/hooks';
-import {GeneratePatch, ReadModFile} from '../../wailsjs/go/main/App';
+import {GeneratePatch, ReadModFile, SetPatchOverride} from '../../wailsjs/go/main/App';
 import type {library} from '../../wailsjs/go/models';
+import {highlightLine, syntaxForPath, type FileSyntax} from '../data/highlight';
 
 // maxMatrixMods caps how many mods the overlap matrix renders - a real
 // modlist can have 50+ mods touching at least one contested key, and an
@@ -15,12 +16,13 @@ function conflictKey(c: library.ConflictSummary): string {
     return `${c.Type}:${c.ID}`;
 }
 
-export function ConflictResolver({gameId, conflicts, order, onClose, onPatchGenerated}: {
+export function ConflictResolver({gameId, conflicts, order, onClose, onPatchGenerated, onOverrideChanged}: {
     gameId: string;
     conflicts: library.ConflictSummary[];
     order: string[];
     onClose: () => void;
     onPatchGenerated: (modId: string) => void;
+    onOverrideChanged: () => void;
 }) {
     const [mode, setMode] = useState<'list' | 'matrix'>('list');
     const [search, setSearch] = useState('');
@@ -101,6 +103,7 @@ export function ConflictResolver({gameId, conflicts, order, onClose, onPatchGene
                         onSearch={setSearch}
                         selected={selected}
                         onSelect={(c) => setSelectedKey(conflictKey(c))}
+                        onOverrideChanged={onOverrideChanged}
                     />
                 )}
                 {conflicts.length > 0 && mode === 'matrix' && <MatrixView conflicts={conflicts}/>}
@@ -109,13 +112,14 @@ export function ConflictResolver({gameId, conflicts, order, onClose, onPatchGene
     );
 }
 
-function ListView({gameId, conflicts, search, onSearch, selected, onSelect}: {
+function ListView({gameId, conflicts, search, onSearch, selected, onSelect, onOverrideChanged}: {
     gameId: string;
     conflicts: library.ConflictSummary[];
     search: string;
     onSearch: (s: string) => void;
     selected: library.ConflictSummary | null;
     onSelect: (c: library.ConflictSummary) => void;
+    onOverrideChanged: () => void;
 }) {
     return (
         <div className="resolver-body">
@@ -144,7 +148,7 @@ function ListView({gameId, conflicts, search, onSearch, selected, onSelect}: {
                                 onClick={() => onSelect(c)}
                             >
                                 <div className="mono path">{c.Type}</div>
-                                <div className="note">{c.ID} · {c.Candidates.length} mods</div>
+                                <div className="note">{c.ID} · {c.Candidates.length} mods{c.Overridden ? ' · manual' : ''}</div>
                             </div>
                         );
                     })}
@@ -152,15 +156,41 @@ function ListView({gameId, conflicts, search, onSearch, selected, onSelect}: {
                 </div>
             </div>
 
-            {selected && <ContendersAndContent key={conflictKey(selected)} gameId={gameId} conflict={selected}/>}
+            {selected && (
+                <ContendersAndContent
+                    key={conflictKey(selected)}
+                    gameId={gameId}
+                    conflict={selected}
+                    onOverrideChanged={onOverrideChanged}
+                />
+            )}
         </div>
     );
 }
 
-function ContendersAndContent({gameId, conflict}: { gameId: string; conflict: library.ConflictSummary }) {
+function ContendersAndContent({gameId, conflict, onOverrideChanged}: {
+    gameId: string;
+    conflict: library.ConflictSummary;
+    onOverrideChanged: () => void;
+}) {
     const [leftContent, setLeftContent] = useState<string | null>(null);
     const [rightContent, setRightContent] = useState<string | null>(null);
     const [error, setError] = useState('');
+    const [overrideBusy, setOverrideBusy] = useState(false);
+    const [overrideError, setOverrideError] = useState('');
+
+    async function chooseWinner(modId: string) {
+        setOverrideBusy(true);
+        setOverrideError('');
+        try {
+            await SetPatchOverride(gameId, conflict.Type, conflict.ID, modId);
+            onOverrideChanged();
+        } catch (err) {
+            setOverrideError(String(err));
+        } finally {
+            setOverrideBusy(false);
+        }
+    }
 
     const winnerIdx = conflict.Candidates.findIndex((c) => c.ModID === conflict.Winner);
     // Compare the winner against whichever candidate sits right before it
@@ -191,22 +221,35 @@ function ContendersAndContent({gameId, conflict}: { gameId: string; conflict: li
     return (
         <>
             <div className="contenders-col">
-                <div className="col-header">CONTENDERS · LOAD ORDER</div>
+                <div className="col-header">
+                    CONTENDERS · LOAD ORDER
+                    {conflict.Overridden && (
+                        <span className={`reset-override-link ${overrideBusy ? 'inert' : ''}`} onClick={() => !overrideBusy && chooseWinner('')}>
+                            Reset to automatic
+                        </span>
+                    )}
+                </div>
                 <div className="contenders-list">
                     {conflict.Candidates.map((c, i) => {
                         const wins = c.ModID === conflict.Winner;
                         return (
                             <div key={c.ModID} className={`contender-card ${wins ? 'wins' : ''}`}>
                                 <div className="contender-head">
+                                    <i
+                                        className={`fa-solid ${wins ? 'fa-circle-dot radio-on' : 'fa-circle radio-off'} winner-radio ${overrideBusy ? 'inert' : ''}`}
+                                        title={wins ? 'Currently wins this conflict' : 'Make this mod win this conflict'}
+                                        onClick={() => !overrideBusy && !wins && chooseWinner(c.ModID)}
+                                    />
                                     <span className="mono pos">{i + 1}</span>
                                     <span className="name">{c.ModName}</span>
-                                    {wins && <span className="wins-badge">WINS</span>}
+                                    {wins && <span className="wins-badge">{conflict.Overridden ? 'WINS · MANUAL' : 'WINS'}</span>}
                                 </div>
                                 <div className="mono meta">{c.FilePath}</div>
                             </div>
                         );
                     })}
                 </div>
+                {overrideError && <p className="status-page error" style={{padding: '0 13px 10px'}}>{overrideError}</p>}
             </div>
 
             <div className="diff-col">
@@ -220,23 +263,23 @@ function ContendersAndContent({gameId, conflict}: { gameId: string; conflict: li
                     <div className="diff-body mono">
                         <div className="diff-pane">
                             {loser
-                                ? <ContentPane label={`${loser.ModName} (loses)`} content={leftContent}/>
-                                : <ContentPane label="Only one mod touches this key" content=""/>}
+                                ? <ContentPane label={`${loser.ModName} (loses)`} content={leftContent} syntax={syntaxForPath(loser.FilePath)}/>
+                                : <ContentPane label="Only one mod touches this key" content="" syntax="plain"/>}
                         </div>
                         <div className="diff-pane">
-                            {winner && <ContentPane label={`${winner.ModName} (wins)`} content={rightContent}/>}
+                            {winner && <ContentPane label={`${winner.ModName} (wins)`} content={rightContent} syntax={syntaxForPath(winner.FilePath)}/>}
                         </div>
                     </div>
                 )}
                 <div className="diff-footer">
-                    <span className="mono">Line-level diff highlighting isn't built yet - this shows each file's real content as-is.</span>
+                    <span className="mono">Line-level diff highlighting isn't built yet - this shows each file's real, syntax-highlighted content as-is.</span>
                 </div>
             </div>
         </>
     );
 }
 
-function ContentPane({label, content}: { label: string; content: string | null }) {
+function ContentPane({label, content, syntax}: { label: string; content: string | null; syntax: FileSyntax }) {
     return (
         <>
             <div className="file-item" style={{borderLeft: 'none', padding: '5px 11px'}}>
@@ -250,7 +293,12 @@ function ContentPane({label, content}: { label: string; content: string | null }
             )}
             {content != null && content.split('\n').map((line, i) => (
                 <div key={i} className="diff-line">
-                    <span className="ln">{i + 1}</span><span>{line}</span>
+                    <span className="ln">{i + 1}</span>
+                    <span>
+                        {highlightLine(line, syntax).map((tok, j) => (
+                            <span key={j} className={`tok-${tok.kind}`}>{tok.text}</span>
+                        ))}
+                    </span>
                 </div>
             ))}
         </>

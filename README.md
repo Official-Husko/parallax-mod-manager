@@ -14,10 +14,10 @@ real load-order winners and a real overlap matrix), and launch the game with tha
 active. Six Paradox games are registered (data-driven, not hardcoded - see
 [Progress](#progress)), though only Stellaris has actually been verified against a real install
 so far. A first-run wizard detects installed games for real and lets you point it at one
-auto-detection misses. The rest of the app's screens (a cross-game library, DLC management,
-settings, playset sharing) exist as a faithful visual preview of where this is headed, but
-aren't functional yet - see [Progress](#progress) for exactly which parts are real and which are
-still a mockup. Nothing here is ready to fully replace your existing mod manager yet.
+auto-detection misses. DLC toggling per playset is real too. The rest of the app's screens (a
+cross-game library, playset sharing) exist as a faithful visual preview of where this is headed,
+but aren't functional yet - see [Progress](#progress) for exactly which parts are real and which
+are still a mockup. Nothing here is ready to fully replace your existing mod manager yet.
 
 ## Why not just use Irony?
 
@@ -224,9 +224,14 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   `ConflictResolver.tsx`) - lists every genuine conflict Workspace's own conflict detection
   already found, real load-order-ranked candidates with the actual computed winner (LIOS/FIOS,
   the same rule `conflict.Resolve` itself applies - no separate guess), and the winning and
-  losing files' real content side by side (line-level diff highlighting isn't built yet, so it's
-  shown as-is rather than faked as a diff). The overlap matrix is computed client-side from that
-  same real conflict data (which mod pairs share the most contested keys), capped to the 30
+  losing files' real content side by side, with real syntax highlighting (`frontend/src/data/
+  highlight.ts`) for both editable formats this project's mods actually contain - Clausewitz
+  script and Paradox locale `.yml` - tokenized by the exact same rules this project's own real
+  parsers use (`internal/script/lexer.go`, `internal/locale/locale.go`), not a separate guessed
+  grammar, so a key, string, number, comment, `@variable`, or `yes`/`no` literal is colored
+  exactly as this project's own scanner would classify it (line-level diff highlighting isn't
+  built yet, so it's shown as-is rather than faked as a diff). The overlap matrix is computed
+  client-side from that same real conflict data (which mod pairs share the most contested keys), capped to the 30
   most-contested mods so the grid stays fast and legible against a large real modlist rather than
   rendering every mod that touches at least one conflict. The mockup's original "Auto-resolve"
   and merge-strategy controls were removed rather than left inert; "Generate patch" (below) is
@@ -248,6 +253,17 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   skipped, including 542 localization entries spanning 10 real languages. Classic-descriptor
   games only; regenerated from a clean slate on every call so a resolved-then-later-removed
   conflict never leaves a stale override behind.
+  A real **per-conflict manual override** (`internal/patchoverride`) lets a user pick a specific
+  different winner for one contested key, instead of the automatic load-order rule - a clickable
+  radio next to any losing candidate in the Conflict Resolver, and a "Reset to automatic" link
+  once one's set. One override file per game (matching patch generation's own one-per-game scope,
+  for the same reason), degrading gracefully like `internal/preferences` rather than erroring like
+  `internal/playset` - low-stakes, re-derivable data where a missing or corrupt file just means
+  every conflict falls back to its automatic winner. A stale override (the chosen mod removed,
+  disabled, or never a real candidate for that key) is silently ignored rather than erroring, the
+  same safe fallback a missing override already has. Both the Conflict Resolver's own display and
+  `GeneratePatch`'s actual byte-copying read the exact same computed winner, so what a user sees
+  win is always what gets patched - never two separate calculations that could drift apart.
 - **Real autosort** (`frontend/src/data/autosort.ts`, Workspace's Autosort button, Settings'
   "Sort rules" panel) - two real, derivable rules, adapted from a proven design (a working
   sibling Stellaris mod-sorting tool on this machine, cross-checked against its own real-world
@@ -266,15 +282,102 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   isn't just correct in theory, it does real, useful work on a real modlist. In-memory only
   (reorders the current load order; the user still has to Save the playset), so there's nothing
   destructive to undo it - close without saving.
-- **The rest of the design mockup's screens** (`frontend/src/views/Library.tsx`, `Dlc.tsx`,
+- **Real DLC toggling** (`internal/dlc`, `Dlc.tsx`) - lets a user disable specific installed
+  DLC for a saved playset. The write path was already real and already launched
+  (`internal/launch` has written `dlc_load.json`'s `disabled_dlcs` field since playsets shipped);
+  the missing piece was discovering what DLC actually exists to toggle. Confirmed against a real
+  Stellaris install: each DLC is its own folder under `<InstallDir>/dlc/`, holding one `.dlc`
+  metadata file in the same plain Clausewitz format a classic descriptor uses - 35 real DLC
+  entries discovered this way, spanning every real category (`expansion`, `story_pack`,
+  `species_pack`, `content_pack`). Classic-descriptor games only, matching every other
+  classic-only precedent in this codebase - see [docs/game-launching.md](docs/game-launching.md).
+  Editing DLC for a playset is a deliberately separate, simpler flow from Workspace's own live,
+  not-yet-saved editing session: pick a saved playset, toggle, save - and Workspace itself no
+  longer silently wipes a playset's DLC choices on its own next save, a real bug this closes
+  (it previously always wrote an empty `disabled_dlcs` list on save, regardless of what was
+  really there). "Profile" was the mockup's own name for this same saved-load-order-plus-DLC
+  concept; this project only ever calls it a **playset**, so every "Profile" label in the UI
+  (the top bar included) now says that instead.
+- **Real Steam Workshop and Store data** (`internal/steamapi`, `internal/dlcstore`) - the first
+  and only place in this project that calls out to a third party over the network; everything
+  else works entirely from local files. Two confirmed, unauthenticated public endpoints (see
+  [docs/steam-web-api.md](docs/steam-web-api.md) for exact request/response shapes and the real
+  gotchas found - `file_size` arriving as a JSON string, descriptions being BBCode, the Store's
+  `appdetails` silently returning `null` instead of an error for a batched multi-id request):
+  - **Workshop item metadata** (`GetPublishedFileDetails`) powers the mod detail panel's Changes
+    tab for Workshop mods - real subscriber/favorite/view counts, last-updated time, and the
+    author's own real description, closing a gap classic descriptors can't fill on their own
+    (they have no description field at all). Every currently-scanned Workshop mod's id is
+    batched into a single request, fetched once, and kept in memory for the app's own runtime
+    (`library.WorkshopDetailsCache`) - confirmed against this project's real 86-mod Stellaris
+    install: 81 real Workshop mods enriched in one request.
+  - **Author details** (Steam Community's own profile XML endpoint) shows a Workshop mod's real
+    author name, avatar, and a clickable link to their real profile right in the Changes tab -
+    confirmed against a real author's public profile during development. Distinct creator ids
+    are derived from whatever Workshop metadata is already in memory (no second Workshop fetch
+    triggered), deduplicated across mods sharing an author, and fetched once per id for the
+    app's runtime (`library.AuthorProfileCache`). A failed lookup (private-in-an-unusual-way
+    profile, bad id) is simply absent, not an error - confirmed against Steam's own real
+    different-shaped response for an invalid id.
+  - **Recent update notes**, in the same Changes tab - the mod's real changelog, since classic
+    descriptors have no version-history field of their own to read. There's no public API for
+    this one; `internal/steamapi.GetChangelog` reads it straight from the item's own real
+    changelog page HTML (the only place in this project that parses HTML rather than a
+    documented JSON/XML response), scoped to its 10 most recent entries. A real, confirmed quirk
+    in that page's own markup (an invalid `<div>` nested inside a `<p>`, which a spec-compliant
+    parser auto-closes empty exactly like a browser would) shapes how the real body text is
+    recovered - see [docs/steam-web-api.md](docs/steam-web-api.md) for the full finding. Fetched
+    per mod, on demand, the first time that mod's own Changes tab is opened, not batched across
+    every scanned mod - there's no batching endpoint for a page fetch.
+  - **Store listing details** (`appdetails`) powers the DLC screen's detail panel (header image,
+    release year, short description - deliberately never price: this only ever fetches Store
+    data for DLC the user already has installed, so a price has no use here). Persisted per game
+    with a timestamp and refreshed at most once a day (`internal/dlcstore`, `dlcstore.MaxAge`) -
+    a call always returns whatever's cached immediately, even if stale, and kicks off a
+    background refresh (never more than one per game at once) when the cache is missing or too
+    old, emitting an event once fresher data actually lands rather than blocking on a live Steam
+    round-trip. Bridges the two different DLC identifier spaces (a Store app id vs.
+    `disabled_dlcs`' local folder name) via each DLC's own real `steam_id` field, confirmed
+    present in every real `.dlc` file checked.
+  - **Every DLC Steam knows about for the game, not just what's installed** - a real, honest
+    answer to "how do we handle DLC the user doesn't own?" Steam ownership can't actually be
+    determined from local files for most Paradox DLC: a real Stellaris install's own
+    `appmanifest_<appid>.acf` tracks only 2 of 35 real local DLC folders as separately-installed
+    depots (both free items) - the other 33, full paid expansions included, ship to every owner
+    of the base game regardless of which DLC they specifically bought. A "not owned" badge built
+    from local signals would be wrong most of the time. Instead, `internal/dlcstore.Refresh`
+    fetches the base game's own official Steam catalog (`appdetails`' `dlc: []` field - 32 real
+    entries for Stellaris, including unreleased content flagged `coming_soon`) and shows every
+    entry not already installed as a real, honestly-labeled **NOT INSTALLED** row - real name
+    and header image, never toggleable, since there's no local folder to actually enable. A
+    genuinely unreleased ("Coming soon") DLC gets real detail too, not just a name: Steam's own
+    `coming_soon` flag replaces what would otherwise be a confusing blank release date with an
+    honest "Coming soon" label, and its real screenshot gallery (Steam's own preview images,
+    click to open full-size) shows in the detail panel - the only real content this project has
+    for something with no local footprint to read anything else from.
+  - **A real type filter and per-pack size**, matching the design mockup's own DLC screen
+    layout: each installed DLC's real `category` field (`internal/dlc.Entry.Category`, e.g.
+    `species_pack`) groups the list into a filterable sidebar with real counts, shown as
+    "Species Pack" rather than the raw slug. Size is real disk usage of the DLC's own folder
+    (`internal/dlc`'s own directory walk, not Steam - the Store API has no size field to fetch)
+    - confirmed meaningfully varied on a real Stellaris install: from ~76KB for a free bonus
+    pack up to ~110MB for a full expansion, ~1.2GB total across all installed DLC. The mockup's
+    own "required by mods" and multiplayer-checksum fields aren't shown - Paradox mods don't
+    declare DLC dependencies anywhere this project can parse.
+  - **A playset's disabled DLC that's no longer found locally is shown, not silently dropped** -
+    a real, easy-to-hit case (removing a DLC folder, or a drive disconnecting, reproduces it
+    exactly): the id stays in the playset's real `disabledDlc` list either way, so it's shown as
+    its own **NOT FOUND** row (dimmed, no working toggle - nothing to verify) with a one-click
+    way to clear the stale reference, plus a footer count so it's never just invisible.
+- **The rest of the design mockup's screens** (`frontend/src/views/Library.tsx`,
   `PlaysetsModal.tsx`, `UpdatesModal.tsx`) - a faithful, fully navigable visual preview of the
-  mockup's cross-game library and DLC management, built from the mockup's own example content.
+  mockup's cross-game library, built from the mockup's own example content.
   **Mostly static previews, not working features yet** - they render real Font Awesome Pro
-  icons and this project's dark theme, but (with four exceptions) don't read or write real
+  icons and this project's dark theme, but (with five exceptions) don't read or write real
   data. The exceptions: the Workspace screen's actual mod list, load order, conflict detection,
   playset save/load, launch, mod detail panel, conflict resolver, and autosort are the real,
   working features described above (including the mod detail panel's own real thumbnail art -
-  see below); Settings' "Game profiles" panel
+  see below); the DLC screen described above; Settings' "Game profiles" panel
   shows the same real per-game detection as the first-run wizard (including a working "set
   path" for anything not auto-detected, and the three real preference toggles described above),
   and its "Sort rules" panel is the real autosort configuration described above; and the
@@ -285,7 +388,7 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   searchable and filterable by game, with the two columns this project genuinely can't compute
   yet (last played - no launch history is tracked; a mod's "state" - would need a full
   conflict-resolve pass per game, too expensive to run just for a browsing view) honestly shown
-  as `-` rather than invented. Everything else in this list - DLC, playset sharing, the update
+  as `-` rather than invented. Everything else in this list - playset sharing, the update
   checker, and Library's own "collections" and bulk actions - stays a static preview.
 
 All of the above has unit test coverage (table-driven, fixture-based, `go test -race`
@@ -299,9 +402,6 @@ and `internal/launch`'s `TestWriteStateNeverWritesGameData` (confirms a pre-exis
 
 ### Not yet built
 
-- **Per-conflict manual patch override** - patch generation (see [Done](#done) above)
-  currently auto-patches every genuine conflict using the load-order winner conflict detection
-  already computes; there's no UI yet to pick a *different* winner for a specific conflict.
 - **`mods_registry.json`-backed UUID tracking** - its schema is now confirmed (see
   [docs/game-launching.md](docs/game-launching.md)), but this project doesn't generate or
   persist mod UUIDs yet, which is what's actually blocking `game_data.json` support (above).
@@ -316,10 +416,9 @@ and `internal/launch`'s `TestWriteStateNeverWritesGameData` (confirms a pre-exis
 - **Remote games-list updates** - `data/games.jsonc` supports a live on-disk override already
   (see above), but nothing fetches an update from its own `source` URL yet; that's a deliberate
   follow-up, not an oversight (see `internal/game.LoadRegistry`'s doc comment).
-- **Real functionality behind the rest of the design mockup** - the cross-game library, DLC
-  management, a settings screen with an attributable autosort rule engine, a file-level conflict
-  resolver with an overlap matrix, and playset sharing via codes all exist as static visual
-  previews now (see [Progress](#progress) above) but don't read or write real data yet. See
+- **Real functionality behind the rest of the design mockup** - the cross-game library's own
+  "collections" and bulk actions, and playset sharing via codes, still exist as static visual
+  previews (see [Progress](#progress) above) but don't read or write real data yet. See
   `mockup/Mod Manager.dc.html` (local reference file, git-ignored) for the full design these are
   built from.
 

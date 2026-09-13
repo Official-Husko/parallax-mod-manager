@@ -134,6 +134,17 @@ func (s FileStore) Load(ctx context.Context, gameKey, name string) (Playset, err
 	if stored.Version != FormatVersion {
 		return Playset{}, fmt.Errorf("playset: %q has format version %d, this build expects %d", name, stored.Version, FormatVersion)
 	}
+	// A playset file saved before DisabledDLC existed (or one hand-edited
+	// to omit it) leaves this field at Go's nil-slice zero value, which
+	// crosses the JS boundary as null where the frontend's type says
+	// string[] - the same real bug already found once for ModSummary (see
+	// library.go's package doc comment).
+	if stored.Playset.DisabledDLC == nil {
+		stored.Playset.DisabledDLC = []string{}
+	}
+	if stored.Playset.ModIDs == nil {
+		stored.Playset.ModIDs = []string{}
+	}
 	return stored.Playset, nil
 }
 

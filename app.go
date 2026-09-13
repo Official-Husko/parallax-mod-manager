@@ -7,21 +7,26 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/pkg/browser"
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/Official-Husko/parallax-mod-manager/internal/conflict"
+	"github.com/Official-Husko/parallax-mod-manager/internal/dlc"
+	"github.com/Official-Husko/parallax-mod-manager/internal/dlcstore"
 	"github.com/Official-Husko/parallax-mod-manager/internal/game"
 	"github.com/Official-Husko/parallax-mod-manager/internal/gamemedia"
 	"github.com/Official-Husko/parallax-mod-manager/internal/launch"
 	"github.com/Official-Husko/parallax-mod-manager/internal/library"
 	"github.com/Official-Husko/parallax-mod-manager/internal/mod"
+	"github.com/Official-Husko/parallax-mod-manager/internal/patchoverride"
 	"github.com/Official-Husko/parallax-mod-manager/internal/playset"
 	"github.com/Official-Husko/parallax-mod-manager/internal/preferences"
 	"github.com/Official-Husko/parallax-mod-manager/internal/scan"
 	"github.com/Official-Husko/parallax-mod-manager/internal/steam"
+	"github.com/Official-Husko/parallax-mod-manager/internal/steamapi"
 	"github.com/Official-Husko/parallax-mod-manager/internal/watch"
 )
 
@@ -42,9 +47,31 @@ type App struct {
 	gameMedia       gamemedia.Store
 	preferences     preferences.Preferences
 	preferencesPath string
-	steamRoots      []string
-	modWatcher      *watch.FolderWatcher
-	watchedGameID   string
+	// patchOverrides persists manual per-conflict winner overrides for
+	// GeneratePatch - see internal/patchoverride and docs/patch-mods.md.
+	// Dir is empty (methods degrade gracefully) when configDir couldn't
+	// be resolved.
+	patchOverrides patchoverride.Store
+	steamRoots     []string
+	modWatcher     *watch.FolderWatcher
+	watchedGameID  string
+	// workshopDetails holds real Steam Workshop metadata in memory for the
+	// app's runtime - see library.WorkshopDetailsCache. Zero-value usable.
+	workshopDetails library.WorkshopDetailsCache
+	// authorProfiles holds real Steam Community profiles for Workshop mod
+	// authors in memory for the app's runtime - see
+	// library.AuthorProfileCache. Zero-value usable.
+	authorProfiles library.AuthorProfileCache
+	// changelogs holds real Steam Workshop update notes in memory for the
+	// app's runtime, fetched per mod on demand - see
+	// library.ChangelogCache. Zero-value usable.
+	changelogs library.ChangelogCache
+	// dlcRefreshing tracks which games already have a DLC Store-data
+	// background refresh in flight, so a burst of DLCStoreData calls
+	// (e.g. the DLC screen re-rendering) never kicks off more than one at
+	// once for the same game.
+	dlcRefreshingMu sync.Mutex
+	dlcRefreshing   map[string]bool
 }
 
 // NewApp creates a new App application struct. Real setup (resolving OS
@@ -80,6 +107,7 @@ func (a *App) startup(ctx context.Context) {
 	}
 	if configErr == nil {
 		a.playsets = playset.FileStore{Dir: filepath.Join(configDir, "parallax-mod-manager", "playsets")}
+		a.patchOverrides = patchoverride.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "patch_overrides")}
 	}
 
 	mediaFS, err := fs.Sub(embeddedGameMedia, "data/game_media")
@@ -274,6 +302,7 @@ func (a *App) ScanGame(gameID, playsetName string) (library.Summary, error) {
 	opts := library.Options{
 		CacheDir:   a.cacheDir,
 		SteamRoots: a.steamRoots,
+		Overrides:  a.patchOverrides.Load(gameID),
 		// The mod list itself (names/versions/sources) is known the moment
 		// scanning finishes, well before conflict detection's slower
 		// per-mod content parsing completes - emit it immediately so the
@@ -359,7 +388,9 @@ func (a *App) PurgeMods(gameID string, modIDs []string) (library.PurgeResult, er
 // set (order, exactly as the caller's own in-memory load order - not a
 // saved playset, since that's what the Conflict Resolver the user is
 // looking at was actually computed from) and writes a real patch mod
-// pinning down each one's winner. See library.GeneratePatch.
+// pinning down each one's winner - a manual override from
+// SetPatchOverride, if the user set one for that conflict, otherwise the
+// automatic load-order winner. See library.GeneratePatch.
 func (a *App) GeneratePatch(gameID string, order []string) (library.PatchResult, error) {
 	cfg, ok := a.registry.Get(gameID)
 	if !ok {
@@ -368,7 +399,27 @@ func (a *App) GeneratePatch(gameID string, order []string) (library.PatchResult,
 	return library.GeneratePatch(a.ctx, cfg, library.Options{
 		SteamRoots: a.steamRoots,
 		Order:      conflict.LoadOrder(order),
+		Overrides:  a.patchOverrides.Load(gameID),
 	})
+}
+
+// SetPatchOverride persists a manual winner override for one specific
+// conflict, identified by its Type and ID (library.ConflictSummary's own
+// fields) - modID must be one of that conflict's real candidates to take
+// effect (an invalid one is stored but simply ignored by
+// library.GeneratePatch and the next ScanGame's conflict summary, falling
+// back to the automatic winner - see internal/library's effectiveWinner),
+// or "" to clear a previous override and revert to that automatic
+// winner. See docs/patch-mods.md.
+func (a *App) SetPatchOverride(gameID, conflictType, conflictID, modID string) error {
+	overrides := a.patchOverrides.Load(gameID)
+	key := patchoverride.Key(conflictType, conflictID)
+	if modID == "" {
+		delete(overrides, key)
+	} else {
+		overrides[key] = modID
+	}
+	return a.patchOverrides.Save(gameID, overrides)
 }
 
 // OpenModFolder opens modID's real content folder in the OS file manager.
@@ -387,6 +438,176 @@ func (a *App) OpenModFolder(gameID, modID string) error {
 // ListPlaysets returns every saved playset's name for gameID.
 func (a *App) ListPlaysets(gameID string) ([]string, error) {
 	return a.playsets.List(a.ctx, gameID)
+}
+
+// ListDLC lists gameID's real DLC, for the DLC screen's per-playset toggle
+// list - both what's actually installed (toggleable) and, merged in from
+// the last Steam Store refresh (see DLCStoreData), anything else the base
+// game's own official Steam catalog lists but that isn't installed here
+// (shown, never toggleable - see library.MergeDLCCatalog). A cache read
+// failure here is non-fatal: the merge is best-effort, so an installed-
+// only listing is still returned rather than failing the whole call.
+func (a *App) ListDLC(gameID string) ([]dlc.Entry, error) {
+	cfg, ok := a.registry.Get(gameID)
+	if !ok {
+		return nil, fmt.Errorf("app: unknown game %q", gameID)
+	}
+	local, err := library.ListDLC(cfg)
+	if err != nil {
+		return nil, err
+	}
+	if a.cacheDir == "" {
+		return local, nil
+	}
+	cf, err := (dlcstore.Store{Dir: a.cacheDir, GameKey: gameID}).Load()
+	if err != nil {
+		return local, nil
+	}
+	return library.MergeDLCCatalog(local, cf), nil
+}
+
+// WorkshopDetails returns real Steam Workshop metadata (title,
+// description, subscriber/view counts, last-updated time) for gameID's
+// currently scanned Workshop mods, for the mod detail panel's Changes tab.
+// Fetched once per mod in a single batched request and kept in memory for
+// the rest of the app's runtime - see library.WorkshopDetailsCache.
+//
+// Returns a slice, not a map keyed by published file id (each entry's own
+// ID field is that key) - a struct only ever reachable through a Go map's
+// value type doesn't get its own TS class generated by this project's
+// installed Wails version, unlike one reachable through a slice.
+func (a *App) WorkshopDetails(gameID string) ([]steamapi.PublishedFileDetails, error) {
+	cfg, ok := a.registry.Get(gameID)
+	if !ok {
+		return nil, fmt.Errorf("app: unknown game %q", gameID)
+	}
+	byID, err := a.workshopDetails.Get(a.ctx, cfg, library.Options{SteamRoots: a.steamRoots})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]steamapi.PublishedFileDetails, 0, len(byID))
+	for _, d := range byID {
+		result = append(result, d)
+	}
+	return result, nil
+}
+
+// AuthorProfiles returns real Steam Community profile data (display name,
+// avatar, member-since date, profile link) for every distinct creator
+// among gameID's currently scanned Workshop mods, for the mod detail
+// panel's Changes tab. Reuses whatever WorkshopDetails has already
+// fetched this runtime rather than re-fetching - a profile is only ever
+// looked up for a creator this project already learned about from real
+// Workshop data it fetched for its own purposes.
+//
+// Returns a slice of self-identifying AuthorProfile (SteamID + Profile),
+// not a map keyed by SteamID64 - see WorkshopDetails' doc comment for the
+// Wails codegen reason slices are used instead of maps here.
+func (a *App) AuthorProfiles(gameID string) ([]library.AuthorProfile, error) {
+	cfg, ok := a.registry.Get(gameID)
+	if !ok {
+		return nil, fmt.Errorf("app: unknown game %q", gameID)
+	}
+	byID, err := a.workshopDetails.Get(a.ctx, cfg, library.Options{SteamRoots: a.steamRoots})
+	if err != nil {
+		return nil, err
+	}
+	seen := make(map[string]bool, len(byID))
+	steamIDs := make([]string, 0, len(byID))
+	for _, d := range byID {
+		if d.Creator != "" && !seen[d.Creator] {
+			seen[d.Creator] = true
+			steamIDs = append(steamIDs, d.Creator)
+		}
+	}
+	profiles, err := a.authorProfiles.Get(a.ctx, steamIDs)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]library.AuthorProfile, 0, len(profiles))
+	for id, p := range profiles {
+		result = append(result, library.AuthorProfile{SteamID: id, Profile: p})
+	}
+	return result, nil
+}
+
+// ModChangelog returns a Workshop mod's real, most recent Steam update
+// notes, for the mod detail panel's Changes tab. publishedFileID is the
+// mod's own RemoteFileID, already known to the frontend from its scanned
+// mod record - this doesn't need a game context of its own, unlike most
+// bound methods here. Fetched once per id and kept in memory for the
+// app's runtime - see library.ChangelogCache.
+func (a *App) ModChangelog(publishedFileID string) ([]steamapi.ChangelogEntry, error) {
+	if publishedFileID == "" {
+		return nil, fmt.Errorf("app: empty published file id")
+	}
+	return a.changelogs.Get(a.ctx, publishedFileID)
+}
+
+// DLCStoreData returns gameID's cached real Steam Store data for its
+// installed DLC (header image, price, short description) - see
+// dlcstore.Store. Always returns immediately with whatever's on disk, even
+// if stale; when the cache is missing or older than dlcstore.MaxAge, a
+// background refresh is kicked off (never more than one at a time per
+// game) and a "dlc-store-refreshed" event fires once it's saved, so the
+// frontend can re-fetch when fresher data is actually ready rather than
+// blocking this call on a live Steam round-trip.
+//
+// Returns a slice, not a map keyed by DLC id (each entry's own ID field is
+// that key) - see WorkshopDetails' doc comment for why.
+func (a *App) DLCStoreData(gameID string) ([]dlcstore.StoreData, error) {
+	cfg, ok := a.registry.Get(gameID)
+	if !ok {
+		return nil, fmt.Errorf("app: unknown game %q", gameID)
+	}
+
+	store := dlcstore.Store{Dir: a.cacheDir, GameKey: gameID}
+	cf, err := store.Load()
+	if err != nil {
+		return nil, err
+	}
+
+	if a.cacheDir != "" && store.NeedsRefresh(cf) {
+		a.startDLCStoreRefresh(cfg, gameID, store)
+	}
+	result := make([]dlcstore.StoreData, 0, len(cf.ByAppID))
+	for _, d := range cf.ByAppID {
+		result = append(result, d)
+	}
+	return result, nil
+}
+
+// startDLCStoreRefresh kicks off a background Steam Store refresh for
+// gameID, unless one is already in flight.
+func (a *App) startDLCStoreRefresh(cfg game.GameConfig, gameID string, store dlcstore.Store) {
+	a.dlcRefreshingMu.Lock()
+	if a.dlcRefreshing == nil {
+		a.dlcRefreshing = map[string]bool{}
+	}
+	if a.dlcRefreshing[gameID] {
+		a.dlcRefreshingMu.Unlock()
+		return
+	}
+	a.dlcRefreshing[gameID] = true
+	a.dlcRefreshingMu.Unlock()
+
+	go func() {
+		defer func() {
+			a.dlcRefreshingMu.Lock()
+			delete(a.dlcRefreshing, gameID)
+			a.dlcRefreshingMu.Unlock()
+		}()
+
+		entries, err := library.ListDLC(cfg)
+		if err != nil {
+			return
+		}
+		cf := dlcstore.Refresh(a.ctx, cfg.SteamAppID, entries)
+		if err := store.Save(cf); err != nil {
+			return
+		}
+		wailsruntime.EventsEmit(a.ctx, "dlc-store-refreshed", gameID)
+	}()
 }
 
 // LoadPlayset returns one saved playset.
