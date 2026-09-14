@@ -178,6 +178,17 @@
     color: var(--text-mid);
 }
 
+/* A mod's real description has no natural length limit (some real Steam
+   Workshop descriptions run to many paragraphs) - caps it to roughly the
+   height of a real, moderate-length description (confirmed against a
+   real Stellaris Workshop mod's actual text) before scrolling, rather
+   than letting an unusually long one push everything below it (Requires,
+   Conflicts, the footer actions) far down the panel. */
+.description-scroll {
+    max-height: 220px;
+    overflow-y: auto;
+}
+
 .author-row {
     display: flex;
     align-items: center;

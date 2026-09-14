@@ -21,7 +21,7 @@ import type {library, playset, preferences, steamapi} from '../../wailsjs/go/mod
 import {autosort} from '../data/autosort';
 import {dismiss, notify, updateNotification} from '../data/notifications';
 import {domains, preflight} from '../data/mockData';
-import {formatBytes} from '../data/format';
+import {formatBytes, truncate} from '../data/format';
 import {SourceBadge} from '../components/SourceBadge';
 import {FileTree} from '../components/FileTree';
 import {ConflictResolver} from './ConflictResolver';
@@ -36,6 +36,15 @@ type Status =
     | { kind: 'success'; message: string };
 
 type DetailTab = 'overview' | 'files' | 'conflicts' | 'changes';
+
+// Hard caps for the couple of places a mod's real title or a Steam
+// author's real display name gets shown at a fixed, prominent size with
+// no natural width-driven CSS ellipsis to lean on (the detail panel's own
+// big title, the author card) - see truncate() in data/format.ts. List
+// rows elsewhere already handle overflow via CSS (a real, bounded column
+// width), so they don't need this.
+const MAX_DETAIL_NAME_LENGTH = 70;
+const MAX_AUTHOR_NAME_LENGTH = 40;
 
 export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdates}: {
     games: library.GameInfo[];
@@ -193,7 +202,6 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
     // panel.
     const [workshopDetails, setWorkshopDetails] = useState<Map<string, steamapi.PublishedFileDetails>>(new Map());
     const [workshopDetailsState, setWorkshopDetailsState] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle');
-    const [workshopDetailsError, setWorkshopDetailsError] = useState('');
     // Guards re-entry into the fetch effect below via a ref, not state -
     // a real bug found and fixed here: the effect used to gate on
     // workshopDetailsState itself (idle/loading/loaded/error) while also
@@ -252,7 +260,6 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
             .catch((err) => {
                 settled = true;
                 if (cancelled) { dismiss(notifId); return; }
-                setWorkshopDetailsError(String(err));
                 setWorkshopDetailsState('error');
                 updateNotification(notifId, {
                     kind: 'error',
@@ -554,7 +561,6 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
                         onError={(message) => setStatus({kind: 'error', message})}
                         workshopDetails={workshopDetails}
                         workshopDetailsState={workshopDetailsState}
-                        workshopDetailsError={workshopDetailsError}
                         authorProfiles={authorProfiles}
                     />
 
@@ -820,7 +826,7 @@ function authorNameFor(
     return authorProfiles.get(d.Creator)?.Name ?? '';
 }
 
-function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, allMods, conflicts, onError, workshopDetails, workshopDetailsState, workshopDetailsError, authorProfiles}: {
+function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, allMods, conflicts, onError, workshopDetails, workshopDetailsState, authorProfiles}: {
     mod: library.ModSummary | null;
     tab: DetailTab;
     onTab: (t: DetailTab) => void;
@@ -835,7 +841,6 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, allMods, conflict
     // own state of the same name for how/when this populates.
     workshopDetails: Map<string, steamapi.PublishedFileDetails>;
     workshopDetailsState: 'idle' | 'loading' | 'loaded' | 'error';
-    workshopDetailsError: string;
     authorProfiles: Map<string, steamapi.Profile>;
 }) {
     const [files, setFiles] = useState<library.ModFiles | null>(null);
@@ -878,10 +883,10 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, allMods, conflict
     // workshopDetails state) - Result !== 1 means Steam itself reports
     // the item as gone/banned/private, treated the same as "not found"
     // everywhere this is used (the Changes tab, the detail header's
-    // author/updated line, Overview's description fallback).
+    // updated line, Overview's author card/stats/description).
     const steamDetails = mod?.RemoteFileID ? workshopDetails.get(mod.RemoteFileID) : undefined;
     const validSteamDetails = steamDetails && steamDetails.Result === 1 ? steamDetails : undefined;
-    const authorName = authorNameFor(mod, workshopDetails, authorProfiles);
+    const author = validSteamDetails?.Creator ? authorProfiles.get(validSteamDetails.Creator) : undefined;
 
     // Real Steam Workshop update notes for the Changes tab - fetched per
     // mod, on demand, the first time that mod's own Changes tab is
@@ -946,18 +951,17 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, allMods, conflict
                             <SourceBadge source={mod.Source} name={mod.Name}/>
                             <span className="mono id">{mod.Source === 'workshop' && mod.RemoteFileID ? mod.RemoteFileID : mod.ID}</span>
                         </div>
-                        <div className="detail-name">{mod.Name}</div>
+                        <div className="detail-name" title={mod.Name}>{truncate(mod.Name, MAX_DETAIL_NAME_LENGTH)}</div>
                         <div className="detail-sub">
                             {(() => {
                                 // A workshop mod's real Steam data (once fetched) gives a
                                 // more meaningful "updated" than local file mtime - the
-                                // Workshop item's own last-updated time, plus the real
-                                // author name when it's resolved, matching the mockup's
-                                // own "Author Name · updated 3 days ago" convention.
+                                // Workshop item's own real last-updated time. The author
+                                // name used to sit here too, but now has its own real card
+                                // in the Overview tab, right below the details grid - no
+                                // need to duplicate it in this compact header line as well.
                                 if (validSteamDetails) {
-                                    return authorName
-                                        ? `${authorName} · updated ${timeAgo(validSteamDetails.TimeUpdated)}`
-                                        : `Updated ${timeAgo(validSteamDetails.TimeUpdated)}`;
+                                    return `Updated ${timeAgo(validSteamDetails.TimeUpdated)}`;
                                 }
                                 if (filesLoading || (mod.Source === 'workshop' && workshopDetailsState === 'loading')) {
                                     return <span className="skeleton skeleton-text" style={{width: '90px'}}/>;
@@ -982,7 +986,8 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, allMods, conflict
                                 allMods={allMods}
                                 conflicts={myConflicts}
                                 onOpenFolder={openFolder}
-                                steamDescription={validSteamDetails?.Description ? stripBBCode(validSteamDetails.Description) : ''}
+                                steamDetails={validSteamDetails}
+                                author={author}
                             />
                         )}
                         {tab === 'files' && (
@@ -1054,83 +1059,41 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, allMods, conflict
                                         fetch it from.
                                     </p>
                                 )}
-                                {mod.Source === 'workshop' && workshopDetailsState === 'loading' && (
-                                    <p className="detail-empty">Checking Steam Workshop...</p>
+                                {mod.Source === 'workshop' && !mod.RemoteFileID && (
+                                    <p className="detail-empty">No Steam Workshop data found for this mod.</p>
                                 )}
-                                {mod.Source === 'workshop' && workshopDetailsState === 'error' && (
-                                    <div className="content-missing">
-                                        <i className="fa-solid fa-circle-exclamation"/>
-                                        <p>{workshopDetailsError}</p>
-                                    </div>
-                                )}
-                                {mod.Source === 'workshop' && workshopDetailsState === 'loaded' && (() => {
-                                    const d = validSteamDetails;
-                                    if (!d) {
-                                        return <p className="detail-empty">No Steam Workshop data found for this mod.</p>;
-                                    }
-                                    const author = d.Creator ? authorProfiles.get(d.Creator) : undefined;
-                                    return (
-                                        <>
-                                            {author && (
-                                                <div className="author-row" onClick={() => BrowserOpenURL(author.ProfileURL)}>
-                                                    {author.AvatarURL
-                                                        ? <img className="author-avatar" src={author.AvatarURL} alt={author.Name}/>
-                                                        : <span className="author-avatar author-avatar-fallback"/>}
-                                                    <div className="author-info">
-                                                        <span className="author-name">{author.Name}</span>
-                                                        {author.MemberSince && (
-                                                            <span className="author-sub">Member since {author.MemberSince}</span>
-                                                        )}
-                                                    </div>
-                                                    <i className="fa-solid fa-arrow-up-right-from-square author-link-icon"/>
-                                                </div>
-                                            )}
-                                            <div className="overview-grid">
-                                                <span className="label">Subscribers</span><span className="value mono">{d.Subscriptions.toLocaleString()}</span>
-                                                <span className="label">Favorited</span><span className="value mono">{d.Favorited.toLocaleString()}</span>
-                                                <span className="label">Views</span><span className="value mono">{d.Views.toLocaleString()}</span>
-                                                <span className="label">Last updated</span><span className="value mono">{timeAgo(d.TimeUpdated)}</span>
+                                {mod.Source === 'workshop' && mod.RemoteFileID && (
+                                    <>
+                                        {changelogState === 'loading' && (
+                                            <p className="detail-empty">Checking Steam Workshop...</p>
+                                        )}
+                                        {changelogState === 'error' && (
+                                            <div className="content-missing">
+                                                <i className="fa-solid fa-circle-exclamation"/>
+                                                <p>{changelogError}</p>
                                             </div>
-                                            {d.Description && (
-                                                <div className="section">
-                                                    <div className="section-label">STEAM DESCRIPTION</div>
-                                                    <div className="section-body">{stripBBCode(d.Description)}</div>
-                                                </div>
-                                            )}
-                                            <div className="section">
-                                                <div className="section-label">RECENT UPDATES</div>
-                                                {changelogState === 'loading' && (
-                                                    <p className="detail-empty">Checking Steam Workshop...</p>
-                                                )}
-                                                {changelogState === 'error' && (
-                                                    <div className="content-missing">
-                                                        <i className="fa-solid fa-circle-exclamation"/>
-                                                        <p>{changelogError}</p>
-                                                    </div>
-                                                )}
-                                                {mod.RemoteFileID && changelogs.has(mod.RemoteFileID) && (() => {
-                                                    const entries = changelogs.get(mod.RemoteFileID)!;
-                                                    if (entries.length === 0) {
-                                                        return <p className="detail-empty">No update notes found for this mod yet.</p>;
-                                                    }
-                                                    return (
-                                                        <div className="changelog-list">
-                                                            {entries.map((entry, i) => (
-                                                                <div key={i} className="changelog-entry">
-                                                                    <div className="changelog-entry-head">
-                                                                        <span className="mono">{entry.Headline}</span>
-                                                                        {entry.Author && <span className="changelog-entry-author">by {entry.Author}</span>}
-                                                                    </div>
-                                                                    {entry.Body && <div className="changelog-entry-body">{entry.Body}</div>}
-                                                                </div>
-                                                            ))}
+                                        )}
+                                        {changelogs.has(mod.RemoteFileID) && (() => {
+                                            const entries = changelogs.get(mod.RemoteFileID!)!;
+                                            if (entries.length === 0) {
+                                                return <p className="detail-empty">No update notes found for this mod yet.</p>;
+                                            }
+                                            return (
+                                                <div className="changelog-list">
+                                                    {entries.map((entry, i) => (
+                                                        <div key={i} className="changelog-entry">
+                                                            <div className="changelog-entry-head">
+                                                                <span className="mono">{entry.Headline}</span>
+                                                                {entry.Author && <span className="changelog-entry-author">by {entry.Author}</span>}
+                                                            </div>
+                                                            {entry.Body && <div className="changelog-entry-body">{entry.Body}</div>}
                                                         </div>
-                                                    );
-                                                })()}
-                                            </div>
-                                        </>
-                                    );
-                                })()}
+                                                    ))}
+                                                </div>
+                                            );
+                                        })()}
+                                    </>
+                                )}
                             </div>
                         )}
                     </div>
@@ -1162,23 +1125,28 @@ function stripBBCode(s: string): string {
     return s.replace(/\[[^\]]*\]/g, '').trim();
 }
 
-function OverviewTab({mod, files, filesLoading, allMods, conflicts, onOpenFolder, steamDescription}: {
+function OverviewTab({mod, files, filesLoading, allMods, conflicts, onOpenFolder, steamDetails, author}: {
     mod: library.ModSummary;
     files: library.ModFiles | null;
     filesLoading: boolean;
     allMods: library.ModSummary[];
     conflicts: library.ConflictSummary[];
     onOpenFolder: () => void;
-    // The mod's real Steam Workshop description (BBCode already stripped),
-    // when it's a Workshop mod and that's been fetched - classic
-    // descriptors rarely set their own short_description field, so this is
-    // the real content behind "DESCRIPTION" for most Workshop mods.
-    steamDescription: string;
+    // This mod's real Steam Workshop metadata (subscriber/view counts,
+    // last-updated time, description) and its real uploader's Steam
+    // Community profile, when it's a Workshop mod and both have been
+    // fetched - undefined otherwise (a local mod, or not loaded/found).
+    // Both used to live in the Changes tab; that tab is for real update
+    // history now, so the author card and item stats moved here, right
+    // below the details grid, alongside the description they came with.
+    steamDetails: steamapi.PublishedFileDetails | undefined;
+    author: steamapi.Profile | undefined;
 }) {
     const knownNames = useMemo(() => new Set(allMods.map((m) => m.Name)), [allMods]);
     const workshopUrl = mod.Source === 'workshop' && mod.RemoteFileID
         ? `https://steamcommunity.com/sharedfiles/filedetails/?id=${mod.RemoteFileID}`
         : '';
+    const steamDescription = steamDetails?.Description ? stripBBCode(steamDetails.Description) : '';
 
     return (
         <>
@@ -1195,9 +1163,31 @@ function OverviewTab({mod, files, filesLoading, allMods, conflicts, onOpenFolder
                 </span>
                 <span className="label">Tags</span><span className="value">{mod.Tags.length ? mod.Tags.join(', ') : '-'}</span>
             </div>
+            {author && (
+                <div className="author-row" onClick={() => BrowserOpenURL(author.ProfileURL)}>
+                    {author.AvatarURL
+                        ? <img className="author-avatar" src={author.AvatarURL} alt={author.Name}/>
+                        : <span className="author-avatar author-avatar-fallback"/>}
+                    <div className="author-info">
+                        <span className="author-name" title={author.Name}>{truncate(author.Name, MAX_AUTHOR_NAME_LENGTH)}</span>
+                        {author.MemberSince && (
+                            <span className="author-sub">Member since {author.MemberSince}</span>
+                        )}
+                    </div>
+                    <i className="fa-solid fa-arrow-up-right-from-square author-link-icon"/>
+                </div>
+            )}
+            {steamDetails && (
+                <div className="overview-grid">
+                    <span className="label">Subscribers</span><span className="value mono">{steamDetails.Subscriptions.toLocaleString()}</span>
+                    <span className="label">Favorited</span><span className="value mono">{steamDetails.Favorited.toLocaleString()}</span>
+                    <span className="label">Views</span><span className="value mono">{steamDetails.Views.toLocaleString()}</span>
+                    <span className="label">Last updated</span><span className="value mono">{timeAgo(steamDetails.TimeUpdated)}</span>
+                </div>
+            )}
             <div className="section">
                 <div className="section-label">DESCRIPTION</div>
-                <div className="section-body">{mod.ShortDescription || steamDescription || 'No description provided.'}</div>
+                <div className="section-body description-scroll">{mod.ShortDescription || steamDescription || 'No description provided.'}</div>
             </div>
             <div className="section">
                 <div className="section-label">REQUIRES</div>
