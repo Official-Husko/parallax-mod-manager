@@ -1,0 +1,167 @@
+.notification-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    flex: none;
+}
+
+.notification {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    font: 500 12px Barlow, sans-serif;
+    border-bottom: 1px solid var(--border);
+    overflow: hidden;
+    animation: notification-in .22s cubic-bezier(.2, .8, .3, 1.1);
+}
+
+/* A dismissed notification stays mounted (see NotificationStack.tsx) just
+   long enough for this to play, then gets removed for real - collapsing
+   height/padding/border alongside the fade so the items below it slide
+   up smoothly instead of the gap just snapping shut. max-height's start
+   value only needs to comfortably cover the tallest real notification
+   (a message plus a progress bar); it has no effect on anything shorter
+   since max-height never shrinks content that already fits under it. */
+.notification.exiting {
+    animation: notification-out .2s ease-in forwards;
+    pointer-events: none;
+}
+
+@keyframes notification-in {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes notification-out {
+    from {
+        opacity: 1;
+        max-height: 120px;
+        padding-top: 8px;
+        padding-bottom: 8px;
+    }
+    to {
+        opacity: 0;
+        max-height: 0;
+        padding-top: 0;
+        padding-bottom: 0;
+        border-bottom-width: 0;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .notification, .notification.exiting {
+        animation: none;
+    }
+}
+
+.notification i:first-child {
+    flex: none;
+    font-size: 12px;
+}
+
+.notification-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.notification-message {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.notification-action {
+    flex: none;
+    font: 600 11px Barlow, sans-serif;
+    text-decoration: underline;
+    cursor: pointer;
+    opacity: .9;
+}
+
+.notification-action:hover {
+    opacity: 1;
+}
+
+.notification-close {
+    cursor: pointer;
+    font-size: 12px;
+    flex: none;
+    opacity: .8;
+}
+
+.notification-close:hover {
+    opacity: 1;
+}
+
+.notification-info {
+    background: #1e1714;
+    color: #e8c7b2;
+}
+
+.notification-info i:first-child {
+    color: var(--amber);
+}
+
+.notification-success {
+    background: #142019;
+    color: #b8dcc4;
+}
+
+.notification-success i:first-child {
+    color: var(--green);
+}
+
+.notification-error {
+    background: #201414;
+    color: #e8b9b2;
+}
+
+.notification-error i:first-child {
+    color: var(--red);
+}
+
+.notification-progress {
+    background: #131c26;
+    color: #b7cbe0;
+}
+
+.notification-progress i:first-child {
+    color: var(--blue);
+}
+
+.notification-progress-track {
+    height: 4px;
+    border-radius: 2px;
+    background: #223349;
+    overflow: hidden;
+}
+
+.notification-progress-fill {
+    height: 100%;
+    background: var(--blue);
+    border-radius: 2px;
+    transition: width .3s ease;
+}
+
+/* No real percentage to show (the fetch this describes has no
+   incremental progress to report, just "still going") - a sliding
+   indeterminate bar instead of a static, potentially-stuck-looking one. */
+.notification-progress-fill.indeterminate {
+    width: 40% !important;
+    animation: notification-progress-indeterminate 1.2s ease-in-out infinite;
+}
+
+@keyframes notification-progress-indeterminate {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(250%); }
+}

@@ -5,6 +5,8 @@ import {GetPreferences, ListGames, SetPreferences, StartupNotice} from '../wails
 import type {library, preferences} from '../wailsjs/go/models';
 import {TopBar} from './components/TopBar';
 import type {ViewKey} from './components/TopBar';
+import {NotificationStack} from './components/NotificationStack';
+import {notify} from './data/notifications';
 import {Workspace} from './views/Workspace';
 import {Library} from './views/Library';
 import {Dlc} from './views/Dlc';
@@ -41,13 +43,28 @@ export function App() {
     const [onboarded, setOnboarded] = useState(wasOnboarded());
     const [showUpdates, setShowUpdates] = useState(false);
     const [error, setError] = useState('');
-    const [notice, setNotice] = useState('');
+    // Every view this session has actually navigated to at least once -
+    // 'workspace' up front since it's the default. Once a view is in
+    // here it's mounted for good (see the render below); this set only
+    // ever grows, so a view already visited is never torn down and
+    // rebuilt again just because the user looked at a different tab -
+    // see the comment above the view wrappers for why that mattered.
+    // Library isn't in the initial set on purpose: unlike the other
+    // three, its own first mount kicks off a real scan across every
+    // managed game at once (Library.tsx), not just the selected one -
+    // eagerly mounting it up front would run that unasked-for work on
+    // every single app launch, even for a session that never opens it.
+    const [visitedViews, setVisitedViews] = useState<Set<ViewKey>>(new Set(['workspace']));
+
+    useEffect(() => {
+        setVisitedViews((prev) => (prev.has(view) ? prev : new Set(prev).add(view)));
+    }, [view]);
 
     useEffect(() => {
         if (!onboarded) {
             return;
         }
-        StartupNotice().then(setNotice).catch(() => undefined);
+        StartupNotice().then((text) => { if (text) notify('info', text); }).catch(() => undefined);
         Promise.all([ListGames(), GetPreferences().catch(() => null)])
             .then(([list, loadedPrefs]) => {
                 setPrefs(loadedPrefs);
@@ -109,27 +126,56 @@ export function App() {
 
     return (
         <div id="app" style={accentStyle}>
-            {notice && (
-                <div className="app-notice">
-                    <span>{notice}</span>
-                    <i className="fa-solid fa-xmark" onClick={() => setNotice('')}/>
-                </div>
-            )}
             <TopBar view={view} onNavigate={setView} gamePicker={gamePicker}/>
+            <NotificationStack/>
 
             {error && <p className="status-page error">{error}</p>}
 
-            {!error && view === 'workspace' && (
-                <Workspace
-                    games={games}
-                    selectedGame={selectedGame}
-                    onPlaysetNameChange={setPlaysetName}
-                    onOpenUpdates={() => setShowUpdates(true)}
-                />
+            {/* Every view stays mounted once shown, switching only via
+                display:contents/none rather than a real conditional
+                render - a real conditional (view === 'x' && <X/>) used to
+                fully unmount a view the moment the user navigated away,
+                which was a real bug, not just wasted re-fetching:
+                Workspace's own eager Steam Workshop fetch (author names,
+                descriptions - see Workspace.tsx) never got a chance to
+                finish if the user checked the DLC page and came back
+                before it resolved, since the whole component - and its
+                in-flight request - was torn down and restarted from zero
+                every single time. The same unmount was silently dropping
+                any *unsaved* live edits too (Workspace's in-progress load
+                order, Dlc's own not-yet-saved toggle changes) the instant
+                the user navigated elsewhere, which is a correctness
+                problem on its own, independent of the fetch-timing one.
+                display:contents makes the wrapper itself invisible to
+                layout when active (its children become #app's own direct
+                flex items, exactly as if there were no wrapper at all);
+                display:none removes it and its children from layout
+                entirely when inactive, without unmounting anything. */}
+            {!error && visitedViews.has('workspace') && (
+                <div style={{display: view === 'workspace' ? 'contents' : 'none'}}>
+                    <Workspace
+                        games={games}
+                        selectedGame={selectedGame}
+                        onPlaysetNameChange={setPlaysetName}
+                        onOpenUpdates={() => setShowUpdates(true)}
+                    />
+                </div>
             )}
-            {!error && view === 'library' && <Library/>}
-            {!error && view === 'dlc' && <Dlc games={games} selectedGame={selectedGame}/>}
-            {!error && view === 'settings' && <Settings/>}
+            {!error && visitedViews.has('library') && (
+                <div style={{display: view === 'library' ? 'contents' : 'none'}}>
+                    <Library/>
+                </div>
+            )}
+            {!error && visitedViews.has('dlc') && (
+                <div style={{display: view === 'dlc' ? 'contents' : 'none'}}>
+                    <Dlc games={games} selectedGame={selectedGame}/>
+                </div>
+            )}
+            {!error && visitedViews.has('settings') && (
+                <div style={{display: view === 'settings' ? 'contents' : 'none'}}>
+                    <Settings/>
+                </div>
+            )}
 
             {showUpdates && <UpdatesModal onClose={() => setShowUpdates(false)}/>}
         </div>

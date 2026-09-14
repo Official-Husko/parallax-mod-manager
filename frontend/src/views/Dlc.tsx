@@ -2,7 +2,7 @@ import './Dlc.css';
 import {h} from 'preact';
 import {useEffect, useMemo, useState} from 'preact/hooks';
 import {DLCStoreData, ListDLC, ListPlaysets, LoadPlayset, SavePlayset} from '../../wailsjs/go/main/App';
-import {BrowserOpenURL, EventsOn} from '../../wailsjs/runtime/runtime';
+import {EventsOn} from '../../wailsjs/runtime/runtime';
 import type {dlc, dlcstore, library, playset} from '../../wailsjs/go/models';
 import {Toggle} from '../components/Toggle';
 import {formatBytes} from '../data/format';
@@ -226,7 +226,6 @@ export function Dlc({games, selectedGame}: {
                                 </>
                                 : <span className="mono">NO PREVIEW</span>}
                         </div>
-                        <div className="sidebar-label">SELECTED</div>
                         <div className="dlc-detail-name">{selectedEntry.Name}</div>
                         <div className="dlc-detail-meta mono">
                             {selectedEntry.Installed ? formatCategory(selectedEntry.Category) : 'Not installed'}
@@ -240,16 +239,6 @@ export function Dlc({games, selectedGame}: {
                                 Steam Store details for this DLC haven't been fetched yet - they're refreshed at
                                 most once a day in the background.
                             </p>
-                        )}
-                        {selectedStoreData && selectedStoreData.Screenshots.length > 0 && (
-                            <>
-                                <div className="sidebar-label">SCREENSHOTS</div>
-                                <div className="dlc-screenshots">
-                                    {selectedStoreData.Screenshots.map((url) => (
-                                        <img key={url} src={url} alt="" onClick={() => BrowserOpenURL(url)}/>
-                                    ))}
-                                </div>
-                            </>
                         )}
                     </>
                 )}
@@ -299,7 +288,7 @@ export function Dlc({games, selectedGame}: {
                                 return (
                                     <div
                                         key={key}
-                                        className={`dlc-row ${key === selectedDLCId ? 'active' : ''} ${!d.Installed ? 'orphaned' : ''}`}
+                                        className={`dlc-row ${key === selectedDLCId ? 'active' : ''} ${!d.Installed ? 'not-installed' : ''}`}
                                         onClick={() => setSelectedDLCId(key)}
                                     >
                                         <span className="col-on" onClick={(e) => e.stopPropagation()}>

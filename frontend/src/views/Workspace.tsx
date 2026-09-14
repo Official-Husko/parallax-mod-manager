@@ -19,6 +19,7 @@ import {
 import {BrowserOpenURL, EventsOn} from '../../wailsjs/runtime/runtime';
 import type {library, playset, preferences, steamapi} from '../../wailsjs/go/models';
 import {autosort} from '../data/autosort';
+import {dismiss, notify, updateNotification} from '../data/notifications';
 import {domains, preflight} from '../data/mockData';
 import {formatBytes} from '../data/format';
 import {SourceBadge} from '../components/SourceBadge';
@@ -193,33 +194,99 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
     const [workshopDetails, setWorkshopDetails] = useState<Map<string, steamapi.PublishedFileDetails>>(new Map());
     const [workshopDetailsState, setWorkshopDetailsState] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle');
     const [workshopDetailsError, setWorkshopDetailsError] = useState('');
+    // Guards re-entry into the fetch effect below via a ref, not state -
+    // a real bug found and fixed here: the effect used to gate on
+    // workshopDetailsState itself (idle/loading/loaded/error) while also
+    // listing that same state in its own dependency array. Calling
+    // setWorkshopDetailsState('loading') right after starting the fetch
+    // changed that dependency, which made Preact run this effect's own
+    // cleanup (setting cancelled = true) as part of the very next render
+    // - typically within milliseconds, always well before a real network
+    // request could possibly resolve. So by the time WorkshopDetails(...)
+    // actually came back, its .then/.catch always saw cancelled === true
+    // and silently bailed out without ever calling setWorkshopDetails or
+    // setWorkshopDetailsState('loaded') - meaning this fetch could never
+    // succeed, not occasionally but every single time, regardless of
+    // network speed or tab-switching. Confirmed with a real, isolated
+    // Preact+hooks reproduction before and after this fix. A ref sits
+    // outside the render/effect dependency system entirely, so setting
+    // it doesn't trigger Preact to re-evaluate this effect at all.
+    const workshopDetailsStartedRef = useRef(false);
+    // A dedicated retry trigger, separate from workshopDetailsState -
+    // changing it is the only thing besides selectedGame that's allowed
+    // to make the fetch effect below run again, and unlike
+    // workshopDetailsState, the effect itself never touches this, so
+    // including it as a dependency can't cause the same self-cancelling
+    // bug the fix above is about.
+    const [workshopDetailsRetryTick, setWorkshopDetailsRetryTick] = useState(0);
 
     useEffect(() => {
         // A previous game's fetched data must never be shown against this
         // game's mods.
         setWorkshopDetails(new Map());
         setWorkshopDetailsState('idle');
+        workshopDetailsStartedRef.current = false;
     }, [selectedGame]);
 
     useEffect(() => {
-        if (!summary || workshopDetailsState !== 'idle') {
+        if (!summary || workshopDetailsStartedRef.current) {
             return;
         }
+        workshopDetailsStartedRef.current = true;
         setWorkshopDetailsState('loading');
+        const notifId = notify('progress', 'Fetching Steam Workshop mod details...');
         let cancelled = false;
+        let settled = false;
         WorkshopDetails(selectedGame)
             .then((list) => {
-                if (cancelled) return;
+                settled = true;
+                if (cancelled) { dismiss(notifId); return; }
                 setWorkshopDetails(new Map(list.map((d) => [d.ID, d])));
                 setWorkshopDetailsState('loaded');
+                updateNotification(notifId, {
+                    kind: 'success',
+                    message: `Fetched Steam Workshop details for ${list.length} mod${list.length === 1 ? '' : 's'}.`,
+                    action: undefined,
+                });
             })
             .catch((err) => {
-                if (cancelled) return;
+                settled = true;
+                if (cancelled) { dismiss(notifId); return; }
                 setWorkshopDetailsError(String(err));
                 setWorkshopDetailsState('error');
+                updateNotification(notifId, {
+                    kind: 'error',
+                    message: `Couldn't load Steam Workshop details: ${String(err)}`,
+                    action: {
+                        label: 'Retry',
+                        onClick: () => {
+                            workshopDetailsStartedRef.current = false;
+                            setWorkshopDetailsRetryTick((t) => t + 1);
+                            dismiss(notifId);
+                        },
+                    },
+                });
             });
-        return () => { cancelled = true; };
-    }, [summary, selectedGame, workshopDetailsState]);
+        return () => {
+            cancelled = true;
+            // Only a fetch that's still genuinely in flight when this
+            // effect tears down should have its "fetching..." toast
+            // pulled - once settled, the success/error message it became
+            // is real information the user hasn't necessarily seen yet
+            // and should live out its own normal lifecycle (auto-dismiss
+            // for success, stay until dismissed for error), not vanish
+            // just because selectedGame changed or the effect re-ran.
+            if (!settled) dismiss(notifId);
+        };
+        // Deliberately !!summary, not summary itself - summary gets a new
+        // object reference on every rescan (the quick preview, then the
+        // full result, then any later background refresh), and none of
+        // those later reference changes should tear down and restart an
+        // already-in-flight or already-finished fetch; only "did a
+        // summary become available at all yet" (or a real user Retry)
+        // should.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [!!summary, selectedGame, workshopDetailsRetryTick]);
 
     // Real Steam Community profiles for Workshop mod authors - fetched
     // once the Workshop details themselves have loaded (AuthorProfiles
@@ -228,30 +295,97 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
     // SteamID64.
     const [authorProfiles, setAuthorProfiles] = useState<Map<string, steamapi.Profile>>(new Map());
     const [authorProfilesState, setAuthorProfilesState] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle');
+    // Same self-cancelling-effect bug as workshopDetailsStartedRef above,
+    // and the same fix - a ref-based re-entry guard instead of gating on
+    // (and listing as a dependency of) the very state this effect itself
+    // sets.
+    const authorProfilesStartedRef = useRef(false);
 
     useEffect(() => {
         setAuthorProfiles(new Map());
         setAuthorProfilesState('idle');
+        authorProfilesStartedRef.current = false;
     }, [selectedGame]);
 
+    const [authorProfilesRetryTick, setAuthorProfilesRetryTick] = useState(0);
+
     useEffect(() => {
-        if (workshopDetailsState !== 'loaded' || authorProfilesState !== 'idle') {
+        if (workshopDetailsState !== 'loaded' || authorProfilesStartedRef.current) {
             return;
         }
+        authorProfilesStartedRef.current = true;
         setAuthorProfilesState('loading');
+        // How many distinct real authors this game's Workshop mods
+        // actually have - known once workshopDetails itself is loaded,
+        // used below to tell "no authors to look up" from "look-up came
+        // back suspiciously empty" (see the doc comment this replaced).
+        const expectedCount = new Set(
+            [...workshopDetails.values()].map((d) => d.Creator).filter((id) => !!id),
+        ).size;
+        const notifId = notify('progress', 'Fetching Steam author profiles...');
         let cancelled = false;
+        let settled = false;
         AuthorProfiles(selectedGame)
             .then((list) => {
-                if (cancelled) return;
+                settled = true;
+                if (cancelled) { dismiss(notifId); return; }
                 setAuthorProfiles(new Map(list.map((p) => [p.SteamID, p.Profile])));
                 setAuthorProfilesState('loaded');
+                const retryAction = {
+                    label: 'Retry',
+                    onClick: () => {
+                        authorProfilesStartedRef.current = false;
+                        setAuthorProfilesRetryTick((t) => t + 1);
+                        dismiss(notifId);
+                    },
+                };
+                if (list.length === 0 && expectedCount > 0) {
+                    // AuthorProfileCache.Get swallows every individual
+                    // profile-fetch failure (matching this project's own
+                    // non-fatal-per-item philosophy elsewhere - one bad id
+                    // must not fail the whole call), so a genuine failure
+                    // here (Steam Community unreachable, rate-limited)
+                    // resolves as a real, error-free empty result, not a
+                    // rejected promise - correct behavior, but otherwise
+                    // silently indistinguishable from "there was nothing to
+                    // look up at all". This is specifically the suspicious
+                    // case: authors were expected, none came back.
+                    updateNotification(notifId, {
+                        kind: 'error',
+                        message: `Steam author profiles came back empty for ${expectedCount} author${expectedCount === 1 ? '' : 's'} - Steam Community may be temporarily unreachable.`,
+                        action: retryAction,
+                    });
+                } else {
+                    updateNotification(notifId, {
+                        kind: 'success',
+                        message: `Fetched ${list.length} author profile${list.length === 1 ? '' : 's'}.`,
+                        action: undefined,
+                    });
+                }
             })
-            .catch(() => {
-                if (cancelled) return;
+            .catch((err) => {
+                settled = true;
+                if (cancelled) { dismiss(notifId); return; }
                 setAuthorProfilesState('error');
+                updateNotification(notifId, {
+                    kind: 'error',
+                    message: `Couldn't load Steam author profiles: ${String(err)}`,
+                    action: {
+                        label: 'Retry',
+                        onClick: () => {
+                            authorProfilesStartedRef.current = false;
+                            setAuthorProfilesRetryTick((t) => t + 1);
+                            dismiss(notifId);
+                        },
+                    },
+                });
             });
-        return () => { cancelled = true; };
-    }, [workshopDetailsState, selectedGame, authorProfilesState]);
+        return () => {
+            cancelled = true;
+            if (!settled) dismiss(notifId);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [workshopDetailsState, selectedGame, authorProfilesRetryTick]);
 
     const allMods = summary?.Mods ?? [];
     const modsById = useMemo(() => {
@@ -457,17 +591,11 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
                             <span className="column-header-ver">VERSION</span>
                             <span className="column-header-author">AUTHOR</span>
                         </div>
-                        {workshopDetailsState === 'error' && (
-                            <div className="workshop-fetch-error">
-                                <i className="fa-solid fa-triangle-exclamation"/>
-                                <span>Couldn't load Steam Workshop details (author names, descriptions): {workshopDetailsError}</span>
-                                <span className="link-btn" onClick={() => { setWorkshopDetailsState('idle'); setWorkshopDetailsError(''); }}>Retry</span>
-                            </div>
-                        )}
                         <div className="list-rows">
                             {available.map((m) => {
                                 const author = authorNameFor(m, workshopDetails, authorProfiles);
-                                const authorLoading = m.Source === 'workshop' && workshopDetailsState === 'loading';
+                                const authorLoading = m.Source === 'workshop'
+                                    && (workshopDetailsState === 'loading' || (workshopDetailsState === 'loaded' && authorProfilesState === 'loading'));
                                 return (
                                 <div key={m.ID} className={`mod-row ${m.ID === selectedId ? 'selected' : ''}`} onClick={() => setSelectedId(m.ID)}>
                                     <input

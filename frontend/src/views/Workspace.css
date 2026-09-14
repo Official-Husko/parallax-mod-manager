@@ -633,38 +633,6 @@
     text-align: right;
 }
 
-/* Surfaces a real WorkshopDetails/AuthorProfiles fetch failure directly in
-   the Available list - the only place this data's absence is otherwise
-   silently indistinguishable from "no author found"/"still loading",
-   since a production build has no devtools console to check instead. */
-.workshop-fetch-error {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    padding: 7px 13px;
-    background: #1e1714;
-    border-bottom: 1px solid #4a2f22;
-    font: 500 11px Barlow, sans-serif;
-    color: #e8b9b2;
-    flex: none;
-}
-
-.workshop-fetch-error i {
-    color: var(--amber);
-    flex: none;
-}
-
-.workshop-fetch-error span:not(.link-btn) {
-    flex: 1;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.workshop-fetch-error .link-btn {
-    flex: none;
-}
-
 .list-rows {
     flex: 1;
     overflow-y: auto;

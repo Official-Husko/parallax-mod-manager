@@ -42,24 +42,6 @@
     color: var(--text-mid);
 }
 
-/* Real Steam screenshots - the only real content this project has for a
-   catalog-only DLC (nothing local to show anything about at all). Click
-   to open full-size in the system browser, same as other external links
-   in this app. */
-.dlc-screenshots {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 6px;
-}
-
-.dlc-screenshots img {
-    width: 100%;
-    aspect-ratio: 16 / 9;
-    object-fit: cover;
-    border-radius: 4px;
-    cursor: pointer;
-}
-
 .dlc-main {
     flex: 1;
     min-width: 0;
@@ -124,7 +106,10 @@
    DLC - shown, not hidden, since the disabled state is still real and
    still gets saved; just nothing to toggle for something that can't be
    found. Not styled as a hard error (red) - a stale reference is a minor,
-   easily-fixed thing, not a failure. */
+   easily-fixed thing, not a failure. This row (the separate orphanedIds
+   list, not a real dlc.Entry) has no click handler of its own - only its
+   "forget" icon does - so it's genuinely non-interactive, unlike
+   .not-installed below. */
 .dlc-row.orphaned {
     cursor: default;
     opacity: .6;
@@ -132,6 +117,16 @@
 
 .dlc-row.orphaned:hover {
     background: transparent;
+}
+
+/* A real dlc.Entry from the base game's own Steam catalog that isn't
+   installed locally - still a normal, clickable row (selecting it shows
+   its real Store details), just visually dimmed and never toggleable.
+   Never share styling with .orphaned above: that one has no click
+   handler at all, so disabling its hover/cursor is correct: This one
+   does, and needs its hover to keep working. */
+.dlc-row.not-installed {
+    opacity: .6;
 }
 
 .dlc-badge {

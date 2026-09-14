@@ -312,13 +312,22 @@ This list grows as features land - see [Progress](#progress) below, which is kep
     (`library.WorkshopDetailsCache`) - confirmed against this project's real 86-mod Stellaris
     install: 81 real Workshop mods enriched in one request.
   - **Author details** (Steam Community's own profile XML endpoint) shows a Workshop mod's real
-    author name, avatar, and a clickable link to their real profile right in the Changes tab -
+    author name, avatar, and a clickable link to their real profile right in the Changes tab, the
+    Workspace's Available list, and next to the detail panel's own "updated x days ago" line -
     confirmed against a real author's public profile during development. Distinct creator ids
     are derived from whatever Workshop metadata is already in memory (no second Workshop fetch
     triggered), deduplicated across mods sharing an author, and fetched once per id for the
     app's runtime (`library.AuthorProfileCache`). A failed lookup (private-in-an-unusual-way
     profile, bad id) is simply absent, not an error - confirmed against Steam's own real
-    different-shaped response for an invalid id.
+    different-shaped response for an invalid id. Both this fetch and the Workshop metadata fetch
+    it depends on run automatically in the background the moment a game's mod scan produces a
+    list, for every mod the scan finds - not lazily per mod selection. A real bug here (found and
+    fixed): both fetch effects used to gate their own re-entry on the very loading-state value
+    they set, which made Preact tear down and cancel each fetch via its own cleanup within
+    milliseconds of starting it - every single time, regardless of network speed - so this data
+    could never actually finish loading. Confirmed with an isolated Preact+hooks reproduction
+    before and after the fix; the effects now use a plain ref for re-entry guarding instead,
+    which isn't part of the render/dependency system Preact reacts to.
   - **Recent update notes**, in the same Changes tab - the mod's real changelog, since classic
     descriptors have no version-history field of their own to read. There's no public API for
     this one; `internal/steamapi.GetChangelog` reads it straight from the item's own real
@@ -390,6 +399,30 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   conflict-resolve pass per game, too expensive to run just for a browsing view) honestly shown
   as `-` rather than invented. Everything else in this list - playset sharing, the update
   checker, and Library's own "collections" and bulk actions - stays a static preview.
+- **A real, stacking notification system** (`frontend/src/data/notifications.ts`,
+  `NotificationStack.tsx`) - replaces the single ad-hoc startup-notice banner with a proper
+  toast stack anchored right below the top bar, so it never covers the app's own title or game
+  picker. Multiple notifications stack; info/success ones auto-dismiss after 5 seconds, errors
+  and in-progress ones stay until resolved or dismissed by hand. A `progress` kind carries a real
+  (or indeterminate, when there's genuinely nothing to measure) progress bar and can be updated
+  in place as work continues - used for the Workshop/author-profile background fetch described
+  above, so a user sees "Fetching Steam Workshop mod details..." turn into a real success or
+  error message (with a working Retry action) rather than wondering whether anything is
+  happening at all. A plain module-level store, not a new state-management dependency - any
+  component calls `notify()`/`updateNotification()`/`dismiss()` directly; one `<NotificationStack/>`
+  in `app.tsx` renders whatever's currently active.
+- **Every top-level view stays mounted once visited, instead of unmounting on navigation** - a
+  real bug found while chasing why the Workshop/author fetch above never seemed to finish:
+  `app.tsx` used to fully unmount a view (`{view === 'x' && <X/>}`) the instant the user
+  navigated away from it, tearing down its component state and cancelling any in-flight request
+  every single time - so switching to the DLC page and back, for instance, could restart
+  Workspace's whole background fetch from zero before it ever got the chance to complete. The
+  same unmount was also silently discarding real unsaved work (an in-progress load-order edit in
+  Workspace, an unsaved DLC toggle) the moment the user navigated elsewhere. Views now switch via
+  CSS (`display: contents` when active, `display: none` otherwise) instead of a real conditional
+  render, and only mount lazily on first visit - except Library, which stays lazy even then,
+  since its own first load kicks off a real scan across every managed game at once and
+  shouldn't run on every app launch for a session that never opens it.
 
 All of the above has unit test coverage (table-driven, fixture-based, `go test -race`
 clean), including tests that prove behavior rather than just assert on it - e.g.
