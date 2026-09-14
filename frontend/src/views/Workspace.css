@@ -588,6 +588,83 @@
     cursor: pointer;
 }
 
+/* Column labels for the Available list - the same "separated header
+   beneath the search and filters" role Active's own .domain-header
+   already plays (same height, so the two panels' actual rows start at
+   the same vertical offset). Column widths/gaps mirror .mod-row's own
+   exactly, so each label sits directly above its real column. */
+.column-header {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    height: 22px;
+    padding: 0 13px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-header);
+    flex: none;
+    font: 600 9px "Azeret Mono", monospace;
+    color: var(--text-muted);
+    letter-spacing: .1em;
+}
+
+.column-header-spacer {
+    /* Matches the checkbox (13px) + gap (9px) + SourceBadge (16px) that
+       precede the name column in every real .mod-row. */
+    width: 38px;
+    flex: none;
+}
+
+.column-header-name {
+    flex: 1;
+    min-width: 0;
+}
+
+.column-header-ver {
+    flex: none;
+    /* Roughly as wide as a real version string ("v1.2.3") - .mod-row's own
+       .ver has no fixed width (it's flex:none, sized to its own content),
+       so this is an approximation, not a guaranteed pixel-exact match. */
+    width: 50px;
+}
+
+.column-header-author {
+    flex: none;
+    width: 74px;
+    text-align: right;
+}
+
+/* Surfaces a real WorkshopDetails/AuthorProfiles fetch failure directly in
+   the Available list - the only place this data's absence is otherwise
+   silently indistinguishable from "no author found"/"still loading",
+   since a production build has no devtools console to check instead. */
+.workshop-fetch-error {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 7px 13px;
+    background: #1e1714;
+    border-bottom: 1px solid #4a2f22;
+    font: 500 11px Barlow, sans-serif;
+    color: #e8b9b2;
+    flex: none;
+}
+
+.workshop-fetch-error i {
+    color: var(--amber);
+    flex: none;
+}
+
+.workshop-fetch-error span:not(.link-btn) {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.workshop-fetch-error .link-btn {
+    flex: none;
+}
+
 .list-rows {
     flex: 1;
     overflow-y: auto;
@@ -704,7 +781,12 @@
 }
 
 .list-pane-footer {
-    height: 30px;
+    /* Matches .active-legend's own real (2-line) height, so Available and
+       Active bottom out at the same edge - a single line of content here
+       just sits a little more centered/padded rather than looking cramped
+       at a shorter height that no longer matches Active's own footer. */
+    height: 42px;
+    box-sizing: border-box;
     flex: none;
     border-top: 1px solid var(--border);
     display: flex;
@@ -806,6 +888,10 @@
 }
 
 .active-legend {
+    /* Explicit, matching .list-pane-footer's own height exactly (rather
+       than each relying on their different real content to happen to add
+       up the same) - see .list-pane-footer's own comment. */
+    height: 42px;
     flex: none;
     border-top: 1px solid var(--border);
     display: flex;
@@ -814,6 +900,7 @@
     padding: 6px 13px;
     gap: 3px;
     background: var(--bg-header);
+    box-sizing: border-box;
 }
 
 .legend-keys {

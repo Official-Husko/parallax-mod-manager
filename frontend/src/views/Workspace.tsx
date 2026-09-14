@@ -58,6 +58,7 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
     const [showConflictResolver, setShowConflictResolver] = useState(false);
     const [showPurgeModal, setShowPurgeModal] = useState(false);
     const [search, setSearch] = useState('');
+    const [activeSearch, setActiveSearch] = useState('');
     const [status, setStatus] = useState<Status>({kind: 'idle'});
     const [prefs, setPrefs] = useState<preferences.Preferences | null>(null);
     // Guards the 'scan-quick' listener below so it only ever applies to the
@@ -181,6 +182,77 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedGame]);
 
+    // Real Steam Workshop metadata (title stats, description, author id)
+    // for every currently scanned Workshop mod - fetched once per game, in
+    // one batched request, as soon as a scan actually produces a mod list,
+    // not lazily per-mod-selection - the Available list's author column
+    // and every mod's detail header need this before any particular mod
+    // is even selected. Lives here (not in DetailPanel) so the Available/
+    // Active lists can show real author names too, not just the detail
+    // panel.
+    const [workshopDetails, setWorkshopDetails] = useState<Map<string, steamapi.PublishedFileDetails>>(new Map());
+    const [workshopDetailsState, setWorkshopDetailsState] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle');
+    const [workshopDetailsError, setWorkshopDetailsError] = useState('');
+
+    useEffect(() => {
+        // A previous game's fetched data must never be shown against this
+        // game's mods.
+        setWorkshopDetails(new Map());
+        setWorkshopDetailsState('idle');
+    }, [selectedGame]);
+
+    useEffect(() => {
+        if (!summary || workshopDetailsState !== 'idle') {
+            return;
+        }
+        setWorkshopDetailsState('loading');
+        let cancelled = false;
+        WorkshopDetails(selectedGame)
+            .then((list) => {
+                if (cancelled) return;
+                setWorkshopDetails(new Map(list.map((d) => [d.ID, d])));
+                setWorkshopDetailsState('loaded');
+            })
+            .catch((err) => {
+                if (cancelled) return;
+                setWorkshopDetailsError(String(err));
+                setWorkshopDetailsState('error');
+            });
+        return () => { cancelled = true; };
+    }, [summary, selectedGame, workshopDetailsState]);
+
+    // Real Steam Community profiles for Workshop mod authors - fetched
+    // once the Workshop details themselves have loaded (AuthorProfiles
+    // reuses that same in-memory data on the backend, so this never
+    // triggers a second Workshop metadata fetch), keyed by creator
+    // SteamID64.
+    const [authorProfiles, setAuthorProfiles] = useState<Map<string, steamapi.Profile>>(new Map());
+    const [authorProfilesState, setAuthorProfilesState] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle');
+
+    useEffect(() => {
+        setAuthorProfiles(new Map());
+        setAuthorProfilesState('idle');
+    }, [selectedGame]);
+
+    useEffect(() => {
+        if (workshopDetailsState !== 'loaded' || authorProfilesState !== 'idle') {
+            return;
+        }
+        setAuthorProfilesState('loading');
+        let cancelled = false;
+        AuthorProfiles(selectedGame)
+            .then((list) => {
+                if (cancelled) return;
+                setAuthorProfiles(new Map(list.map((p) => [p.SteamID, p.Profile])));
+                setAuthorProfilesState('loaded');
+            })
+            .catch(() => {
+                if (cancelled) return;
+                setAuthorProfilesState('error');
+            });
+        return () => { cancelled = true; };
+    }, [workshopDetailsState, selectedGame, authorProfilesState]);
+
     const allMods = summary?.Mods ?? [];
     const modsById = useMemo(() => {
         const m = new Map<string, library.ModSummary>();
@@ -203,6 +275,17 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
     const orderSet = useMemo(() => new Set(order), [order]);
     const available = allMods.filter((m) => !orderSet.has(m.ID) && matchesSearch(m, search));
     const active = order.map((id) => modsById.get(id)).filter((m): m is library.ModSummary => !!m);
+    // Active's own row list, search-filtered for display only - Autosort,
+    // Save, and the legend/footer all still operate on the full, real
+    // active list above, matching Available's own filtered-list-is-
+    // display-only precedent (reordering/removal act on a mod id
+    // directly, never a filtered index, so this never risks moving or
+    // dropping the wrong mod).
+    const visibleActive = active.filter((m) => matchesSearch(m, activeSearch));
+    // Real load-order position (1-based), independent of activeSearch
+    // filtering - a filtered row must still show where it actually sits
+    // in the real load order, not its index within the filtered results.
+    const positionById = useMemo(() => new Map(active.map((m, i) => [m.ID, i + 1])), [active]);
     const selectedMod = selectedId ? modsById.get(selectedId) ?? null : null;
 
     const workshopCount = allMods.filter((m) => m.Source === 'workshop').length;
@@ -335,6 +418,10 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
                         allMods={allMods}
                         conflicts={summary?.Conflicts ?? []}
                         onError={(message) => setStatus({kind: 'error', message})}
+                        workshopDetails={workshopDetails}
+                        workshopDetailsState={workshopDetailsState}
+                        workshopDetailsError={workshopDetailsError}
+                        authorProfiles={authorProfiles}
                     />
 
                     <div className="list-pane">
@@ -364,8 +451,24 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
                                 <span className="chip chip-danger" onClick={() => setShowPurgeModal(true)}>Purge empty</span>
                             </div>
                         </div>
+                        <div className="column-header">
+                            <span className="column-header-spacer"/>
+                            <span className="column-header-name">NAME</span>
+                            <span className="column-header-ver">VERSION</span>
+                            <span className="column-header-author">AUTHOR</span>
+                        </div>
+                        {workshopDetailsState === 'error' && (
+                            <div className="workshop-fetch-error">
+                                <i className="fa-solid fa-triangle-exclamation"/>
+                                <span>Couldn't load Steam Workshop details (author names, descriptions): {workshopDetailsError}</span>
+                                <span className="link-btn" onClick={() => { setWorkshopDetailsState('idle'); setWorkshopDetailsError(''); }}>Retry</span>
+                            </div>
+                        )}
                         <div className="list-rows">
-                            {available.map((m) => (
+                            {available.map((m) => {
+                                const author = authorNameFor(m, workshopDetails, authorProfiles);
+                                const authorLoading = m.Source === 'workshop' && workshopDetailsState === 'loading';
+                                return (
                                 <div key={m.ID} className={`mod-row ${m.ID === selectedId ? 'selected' : ''}`} onClick={() => setSelectedId(m.ID)}>
                                     <input
                                         type="checkbox"
@@ -376,9 +479,14 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
                                     <SourceBadge source={m.Source} name={m.Name}/>
                                     <span className="name">{m.Name}</span>
                                     <span className="ver mono">{m.Version || '-'}</span>
-                                    <span className="author mono">-</span>
+                                    <span className="author mono" title={author}>
+                                        {authorLoading
+                                            ? <span className="skeleton skeleton-text" style={{width: '50px', marginLeft: 'auto'}}/>
+                                            : (author || '-')}
+                                    </span>
                                 </div>
-                            ))}
+                                );
+                            })}
                         </div>
                         <div className="list-pane-footer">
                             <span className="mono">{selectedAvailable.size} selected</span>
@@ -390,9 +498,17 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
                         <div className="list-pane-header">
                             <div className="list-pane-title-row">
                                 <span className="title">ACTIVE LOAD ORDER</span>
-                                <span className="count mono">{active.length}</span>
+                                <span className="count mono">{visibleActive.length}</span>
                                 <div className="spacer"/>
                                 <span className="sort-label">Bottom wins <i className="fa-solid fa-chevron-down"/></span>
+                            </div>
+                            <div className="search-box">
+                                <i className="fa-solid fa-magnifying-glass"/>
+                                <input
+                                    placeholder={`Search ${active.length} mods...`}
+                                    value={activeSearch}
+                                    onInput={(e) => setActiveSearch((e.target as HTMLInputElement).value)}
+                                />
                             </div>
                             {conflictedIds.size > 0 && (
                                 <div className="conflict-banner">
@@ -414,7 +530,10 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
                             </span>
                         </div>
                         <div className="list-rows">
-                            {active.map((m, i) => {
+                            {visibleActive.length === 0 && active.length > 0 && (
+                                <p className="detail-empty" style={{padding: 14}}>No matches.</p>
+                            )}
+                            {visibleActive.map((m) => {
                                 const conflicted = conflictedIds.has(m.ID);
                                 return (
                                     <div
@@ -422,7 +541,7 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
                                         className={`mod-row active-row ${m.ID === selectedId ? 'selected' : ''} ${conflicted ? 'has-conflict' : ''}`}
                                         onClick={() => setSelectedId(m.ID)}
                                     >
-                                        <span className="position mono">{i + 1}</span>
+                                        <span className="position mono">{positionById.get(m.ID)}</span>
                                         <i className="fa-solid fa-grip-vertical drag-handle"/>
                                         <span className="name">{m.Name}</span>
                                         <span className="domain-segments">
@@ -558,7 +677,22 @@ function matchesSearch(m: library.ModSummary, search: string): boolean {
     return m.Name.toLowerCase().includes(q) || m.ID.toLowerCase().includes(q);
 }
 
-function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, allMods, conflicts, onError}: {
+// authorNameFor resolves a mod's real Steam Workshop author name, if it's
+// a Workshop mod and both its own Workshop metadata and that creator's
+// profile have been fetched - "" otherwise (a local mod, or data not
+// loaded yet), for callers to fall back to their own placeholder.
+function authorNameFor(
+    m: library.ModSummary | null,
+    workshopDetails: Map<string, steamapi.PublishedFileDetails>,
+    authorProfiles: Map<string, steamapi.Profile>,
+): string {
+    if (!m || m.Source !== 'workshop' || !m.RemoteFileID) return '';
+    const d = workshopDetails.get(m.RemoteFileID);
+    if (!d || d.Result !== 1 || !d.Creator) return '';
+    return authorProfiles.get(d.Creator)?.Name ?? '';
+}
+
+function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, allMods, conflicts, onError, workshopDetails, workshopDetailsState, workshopDetailsError, authorProfiles}: {
     mod: library.ModSummary | null;
     tab: DetailTab;
     onTab: (t: DetailTab) => void;
@@ -567,6 +701,14 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, allMods, conflict
     allMods: library.ModSummary[];
     conflicts: library.ConflictSummary[];
     onError: (message: string) => void;
+    // Real Steam Workshop metadata/author profiles - fetched once per game
+    // at the Workspace level (not lazily per mod-selection here), since
+    // the Available/Active lists need the same data too. See Workspace's
+    // own state of the same name for how/when this populates.
+    workshopDetails: Map<string, steamapi.PublishedFileDetails>;
+    workshopDetailsState: 'idle' | 'loading' | 'loaded' | 'error';
+    workshopDetailsError: string;
+    authorProfiles: Map<string, steamapi.Profile>;
 }) {
     const [files, setFiles] = useState<library.ModFiles | null>(null);
     const [filesError, setFilesError] = useState('');
@@ -603,72 +745,15 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, allMods, conflict
 
     const filesLoading = !!mod && !files && !filesError;
 
-    // Real Steam Workshop metadata for the Changes tab - fetched once for
-    // the whole game (one batched request across every Workshop mod, see
-    // WorkshopDetails) the first time it's actually needed, not eagerly
-    // for every mod selection.
-    const [workshopDetails, setWorkshopDetails] = useState<Map<string, steamapi.PublishedFileDetails>>(new Map());
-    const [workshopDetailsState, setWorkshopDetailsState] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle');
-    const [workshopDetailsError, setWorkshopDetailsError] = useState('');
-
-    useEffect(() => {
-        // A previous game's fetched data must never be shown against this
-        // game's mods.
-        setWorkshopDetails(new Map());
-        setWorkshopDetailsState('idle');
-    }, [gameId]);
-
-    useEffect(() => {
-        if (tab !== 'changes' || !mod || mod.Source !== 'workshop' || workshopDetailsState !== 'idle') {
-            return;
-        }
-        setWorkshopDetailsState('loading');
-        let cancelled = false;
-        WorkshopDetails(gameId)
-            .then((list) => {
-                if (cancelled) return;
-                setWorkshopDetails(new Map(list.map((d) => [d.ID, d])));
-                setWorkshopDetailsState('loaded');
-            })
-            .catch((err) => {
-                if (cancelled) return;
-                setWorkshopDetailsError(String(err));
-                setWorkshopDetailsState('error');
-            });
-        return () => { cancelled = true; };
-    }, [tab, mod, gameId, workshopDetailsState]);
-
-    // Real Steam Community profiles for Workshop mod authors - fetched
-    // once the Workshop details themselves have loaded (AuthorProfiles
-    // reuses that same in-memory data on the backend, so this never
-    // triggers a second Workshop metadata fetch), keyed by creator
-    // SteamID64.
-    const [authorProfiles, setAuthorProfiles] = useState<Map<string, steamapi.Profile>>(new Map());
-    const [authorProfilesState, setAuthorProfilesState] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle');
-
-    useEffect(() => {
-        setAuthorProfiles(new Map());
-        setAuthorProfilesState('idle');
-    }, [gameId]);
-
-    useEffect(() => {
-        if (workshopDetailsState !== 'loaded' || authorProfilesState !== 'idle') {
-            return;
-        }
-        setAuthorProfilesState('loading');
-        let cancelled = false;
-        AuthorProfiles(gameId)
-            .then((list) => {
-                if (cancelled) return;
-                setAuthorProfiles(new Map(list.map((p) => [p.SteamID, p.Profile])));
-                setAuthorProfilesState('loaded');
-            })
-            .catch(() => {
-                if (cancelled) return;
-                setAuthorProfilesState('error');
-            });
-        return () => { cancelled = true; };
-    }, [workshopDetailsState, gameId, authorProfilesState]);
+    // steamDetails is this mod's own real Workshop metadata, if it's a
+    // Workshop mod and it's been fetched yet (see Workspace's
+    // workshopDetails state) - Result !== 1 means Steam itself reports
+    // the item as gone/banned/private, treated the same as "not found"
+    // everywhere this is used (the Changes tab, the detail header's
+    // author/updated line, Overview's description fallback).
+    const steamDetails = mod?.RemoteFileID ? workshopDetails.get(mod.RemoteFileID) : undefined;
+    const validSteamDetails = steamDetails && steamDetails.Result === 1 ? steamDetails : undefined;
+    const authorName = authorNameFor(mod, workshopDetails, authorProfiles);
 
     // Real Steam Workshop update notes for the Changes tab - fetched per
     // mod, on demand, the first time that mod's own Changes tab is
@@ -735,9 +820,22 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, allMods, conflict
                         </div>
                         <div className="detail-name">{mod.Name}</div>
                         <div className="detail-sub">
-                            {filesLoading
-                                ? <span className="skeleton skeleton-text" style={{width: '90px'}}/>
-                                : files?.LastModified ? `Updated ${timeAgo(files.LastModified)}` : ''}
+                            {(() => {
+                                // A workshop mod's real Steam data (once fetched) gives a
+                                // more meaningful "updated" than local file mtime - the
+                                // Workshop item's own last-updated time, plus the real
+                                // author name when it's resolved, matching the mockup's
+                                // own "Author Name · updated 3 days ago" convention.
+                                if (validSteamDetails) {
+                                    return authorName
+                                        ? `${authorName} · updated ${timeAgo(validSteamDetails.TimeUpdated)}`
+                                        : `Updated ${timeAgo(validSteamDetails.TimeUpdated)}`;
+                                }
+                                if (filesLoading || (mod.Source === 'workshop' && workshopDetailsState === 'loading')) {
+                                    return <span className="skeleton skeleton-text" style={{width: '90px'}}/>;
+                                }
+                                return files?.LastModified ? `Updated ${timeAgo(files.LastModified)}` : '';
+                            })()}
                         </div>
                     </div>
                     <div className="detail-tabs">
@@ -749,7 +847,15 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, allMods, conflict
                     </div>
                     <div className="detail-content">
                         {tab === 'overview' && (
-                            <OverviewTab mod={mod} files={files} filesLoading={filesLoading} allMods={allMods} conflicts={myConflicts} onOpenFolder={openFolder}/>
+                            <OverviewTab
+                                mod={mod}
+                                files={files}
+                                filesLoading={filesLoading}
+                                allMods={allMods}
+                                conflicts={myConflicts}
+                                onOpenFolder={openFolder}
+                                steamDescription={validSteamDetails?.Description ? stripBBCode(validSteamDetails.Description) : ''}
+                            />
                         )}
                         {tab === 'files' && (
                             <div className="file-tree">
@@ -830,8 +936,8 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, allMods, conflict
                                     </div>
                                 )}
                                 {mod.Source === 'workshop' && workshopDetailsState === 'loaded' && (() => {
-                                    const d = mod.RemoteFileID ? workshopDetails.get(mod.RemoteFileID) : undefined;
-                                    if (!d || d.Result !== 1) {
+                                    const d = validSteamDetails;
+                                    if (!d) {
                                         return <p className="detail-empty">No Steam Workshop data found for this mod.</p>;
                                     }
                                     const author = d.Creator ? authorProfiles.get(d.Creator) : undefined;
@@ -928,13 +1034,18 @@ function stripBBCode(s: string): string {
     return s.replace(/\[[^\]]*\]/g, '').trim();
 }
 
-function OverviewTab({mod, files, filesLoading, allMods, conflicts, onOpenFolder}: {
+function OverviewTab({mod, files, filesLoading, allMods, conflicts, onOpenFolder, steamDescription}: {
     mod: library.ModSummary;
     files: library.ModFiles | null;
     filesLoading: boolean;
     allMods: library.ModSummary[];
     conflicts: library.ConflictSummary[];
     onOpenFolder: () => void;
+    // The mod's real Steam Workshop description (BBCode already stripped),
+    // when it's a Workshop mod and that's been fetched - classic
+    // descriptors rarely set their own short_description field, so this is
+    // the real content behind "DESCRIPTION" for most Workshop mods.
+    steamDescription: string;
 }) {
     const knownNames = useMemo(() => new Set(allMods.map((m) => m.Name)), [allMods]);
     const workshopUrl = mod.Source === 'workshop' && mod.RemoteFileID
@@ -958,7 +1069,7 @@ function OverviewTab({mod, files, filesLoading, allMods, conflicts, onOpenFolder
             </div>
             <div className="section">
                 <div className="section-label">DESCRIPTION</div>
-                <div className="section-body">{mod.ShortDescription || 'No description provided.'}</div>
+                <div className="section-body">{mod.ShortDescription || steamDescription || 'No description provided.'}</div>
             </div>
             <div className="section">
                 <div className="section-label">REQUIRES</div>
