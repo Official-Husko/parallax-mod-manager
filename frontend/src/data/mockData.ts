@@ -73,16 +73,6 @@ export const updates = updatesRaw.map((u) => ({
     boxBg: u[5] ? '#c4623a' : 'transparent',
 }));
 
-// --- Pre-flight (3e) ---
-
-export const preflight = [
-    {icon: 'fa-check', title: 'All 62 mods present', detail: 'Nothing missing from disk or Workshop.', c: '#5fae7e', action: '', actionC: ''},
-    {icon: 'fa-xmark', title: '4 hard conflicts unresolved', detail: 'Road to 56 and Kaiserreich overwrite 412 shared files.', c: '#d4574e', action: 'Resolve', actionC: '#e0a340'},
-    {icon: 'fa-triangle-exclamation', title: '2 mods target an older patch', detail: 'Expert AI 4.0 and Better Peace Deals were built for 1.15.', c: '#e0a340', action: 'Review', actionC: '#e0a340'},
-    {icon: 'fa-check', title: 'Dependency chain complete', detail: 'Every required mod is active and correctly ordered.', c: '#5fae7e', action: '', actionC: ''},
-    {icon: 'fa-check', title: 'Load order matches your friends', detail: 'Same checksum as Kaiserreich MP shared 11:04.', c: '#5fae7e', action: '', actionC: ''},
-];
-
 // --- First-run wizard (3f) ---
 
 export const wizardSteps = [

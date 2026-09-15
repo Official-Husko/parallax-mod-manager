@@ -20,7 +20,8 @@ import {BrowserOpenURL, EventsOn} from '../../wailsjs/runtime/runtime';
 import type {library, playset, preferences, steamapi} from '../../wailsjs/go/models';
 import {autosort} from '../data/autosort';
 import {dismiss, notify, updateNotification} from '../data/notifications';
-import {domains, preflight} from '../data/mockData';
+import {domains} from '../data/mockData';
+import {buildPreflightItems} from '../data/preflight';
 import {formatBytes, truncate} from '../data/format';
 import {SourceBadge} from '../components/SourceBadge';
 import {FileTree} from '../components/FileTree';
@@ -428,6 +429,10 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
     // in the real load order, not its index within the filtered results.
     const positionById = useMemo(() => new Map(active.map((m, i) => [m.ID, i + 1])), [active]);
     const selectedMod = selectedId ? modsById.get(selectedId) ?? null : null;
+    const preflightItems = useMemo(
+        () => buildPreflightItems(active, summary?.Conflicts ?? [], summary?.Errors ?? []),
+        [active, summary],
+    );
 
     const workshopCount = allMods.filter((m) => m.Source === 'workshop').length;
     const localCount = allMods.filter((m) => m.Source !== 'workshop').length;
@@ -559,6 +564,7 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
                         allMods={allMods}
                         conflicts={summary?.Conflicts ?? []}
                         onError={(message) => setStatus({kind: 'error', message})}
+                        onSelectMod={setSelectedId}
                         workshopDetails={workshopDetails}
                         workshopDetailsState={workshopDetailsState}
                         authorProfiles={authorProfiles}
@@ -723,9 +729,9 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
                         <div className="rail-section">
                             <div className="rail-label">PRE-FLIGHT</div>
                             <div className="preflight-mini">
-                                {preflight.map((p) => (
-                                    <div key={p.title} className="preflight-mini-row">
-                                        <i className={`fa-solid ${p.icon}`} style={{color: p.c}}/>
+                                {preflightItems.map((p) => (
+                                    <div key={p.title} className="preflight-mini-row" title={p.detail}>
+                                        <i className={`fa-solid ${p.icon}`} style={{color: p.color}}/>
                                         <span>{p.title}</span>
                                     </div>
                                 ))}
@@ -735,7 +741,7 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
                         <div className="rail-section">
                             <div className="rail-label">UPDATES</div>
                             <div className="updates-card">
-                                <span>9 available</span>
+                                <span>Not checked yet</span>
                                 <span className="link-btn amber" onClick={onOpenUpdates}>Review</span>
                             </div>
                         </div>
@@ -774,6 +780,7 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
                 <PreflightModal
                     gameName={gameName}
                     modCount={active.length}
+                    items={preflightItems}
                     onFixConflicts={() => { setShowPreflight(false); setShowConflictResolver(true); }}
                     onLaunchAnyway={handleLaunchAnyway}
                     onClose={() => setShowPreflight(false)}
@@ -826,7 +833,7 @@ function authorNameFor(
     return authorProfiles.get(d.Creator)?.Name ?? '';
 }
 
-function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, allMods, conflicts, onError, workshopDetails, workshopDetailsState, authorProfiles}: {
+function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, allMods, conflicts, onError, onSelectMod, workshopDetails, workshopDetailsState, authorProfiles}: {
     mod: library.ModSummary | null;
     tab: DetailTab;
     onTab: (t: DetailTab) => void;
@@ -835,6 +842,7 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, allMods, conflict
     allMods: library.ModSummary[];
     conflicts: library.ConflictSummary[];
     onError: (message: string) => void;
+    onSelectMod: (id: string) => void;
     // Real Steam Workshop metadata/author profiles - fetched once per game
     // at the Workspace level (not lazily per mod-selection here), since
     // the Available/Active lists need the same data too. See Workspace's
@@ -986,6 +994,7 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, allMods, conflict
                                 allMods={allMods}
                                 conflicts={myConflicts}
                                 onOpenFolder={openFolder}
+                                onSelectMod={onSelectMod}
                                 steamDetails={validSteamDetails}
                                 author={author}
                             />
@@ -1125,24 +1134,37 @@ function stripBBCode(s: string): string {
     return s.replace(/\[[^\]]*\]/g, '').trim();
 }
 
-function OverviewTab({mod, files, filesLoading, allMods, conflicts, onOpenFolder, steamDetails, author}: {
+function OverviewTab({mod, files, filesLoading, allMods, conflicts, onOpenFolder, onSelectMod, steamDetails, author}: {
     mod: library.ModSummary;
     files: library.ModFiles | null;
     filesLoading: boolean;
     allMods: library.ModSummary[];
     conflicts: library.ConflictSummary[];
     onOpenFolder: () => void;
+    // Selects a dependency's own real mod in the Available/Active list,
+    // the same way clicking its row there would - see the REQUIRES
+    // section below.
+    onSelectMod: (id: string) => void;
     // This mod's real Steam Workshop metadata (subscriber/view counts,
-    // last-updated time, description) and its real uploader's Steam
-    // Community profile, when it's a Workshop mod and both have been
-    // fetched - undefined otherwise (a local mod, or not loaded/found).
-    // Both used to live in the Changes tab; that tab is for real update
-    // history now, so the author card and item stats moved here, right
-    // below the details grid, alongside the description they came with.
+    // description) and its real uploader's Steam Community profile, when
+    // it's a Workshop mod and both have been fetched - undefined
+    // otherwise (a local mod, or not loaded/found). Both used to live in
+    // the Changes tab; that tab is for real update history now, so the
+    // author card and item stats moved here, alongside the description
+    // they came with.
     steamDetails: steamapi.PublishedFileDetails | undefined;
     author: steamapi.Profile | undefined;
 }) {
-    const knownNames = useMemo(() => new Set(allMods.map((m) => m.Name)), [allMods]);
+    // Maps a dependency's declared name to the real mod ID it resolves
+    // to, when one of the currently-scanned mods actually has that name -
+    // lets a REQUIRES row both show "installed" and jump straight to
+    // that mod, from the one real match this project can find (Paradox
+    // mods only ever declare a dependency by name, never a stable ID).
+    const idByName = useMemo(() => {
+        const m = new Map<string, string>();
+        for (const other of allMods) m.set(other.Name, other.ID);
+        return m;
+    }, [allMods]);
     const workshopUrl = mod.Source === 'workshop' && mod.RemoteFileID
         ? `https://steamcommunity.com/sharedfiles/filedetails/?id=${mod.RemoteFileID}`
         : '';
@@ -1150,19 +1172,6 @@ function OverviewTab({mod, files, filesLoading, allMods, conflicts, onOpenFolder
 
     return (
         <>
-            <div className="overview-grid">
-                <span className="label">Version</span><span className="value mono">{mod.Version || '-'}</span>
-                <span className="label">Supports</span><span className="value mono ok">{mod.SupportedVersion || '-'}</span>
-                <span className="label">Size</span>
-                <span className="value mono">
-                    {files
-                        ? `${formatBytes(files.TotalSize)} · ${files.Entries.length.toLocaleString()}${files.Truncated ? '+' : ''} files`
-                        : filesLoading
-                            ? <span className="skeleton skeleton-text" style={{width: '110px'}}/>
-                            : '-'}
-                </span>
-                <span className="label">Tags</span><span className="value">{mod.Tags.length ? mod.Tags.join(', ') : '-'}</span>
-            </div>
             {author && (
                 <div className="author-row" onClick={() => BrowserOpenURL(author.ProfileURL)}>
                     {author.AvatarURL
@@ -1177,12 +1186,24 @@ function OverviewTab({mod, files, filesLoading, allMods, conflicts, onOpenFolder
                     <i className="fa-solid fa-arrow-up-right-from-square author-link-icon"/>
                 </div>
             )}
+            <div className="overview-grid">
+                <span className="label">Version</span><span className="value mono">{mod.Version || '-'}</span>
+                <span className="label">Supports</span><span className="value mono ok">{mod.SupportedVersion || '-'}</span>
+                <span className="label">Size</span>
+                <span className="value mono">
+                    {files
+                        ? `${formatBytes(files.TotalSize)} · ${files.Entries.length.toLocaleString()}${files.Truncated ? '+' : ''} files`
+                        : filesLoading
+                            ? <span className="skeleton skeleton-text" style={{width: '110px'}}/>
+                            : '-'}
+                </span>
+                <span className="label">Tags</span><span className="value">{mod.Tags.length ? mod.Tags.join(', ') : '-'}</span>
+            </div>
             {steamDetails && (
                 <div className="overview-grid">
                     <span className="label">Subscribers</span><span className="value mono">{steamDetails.Subscriptions.toLocaleString()}</span>
                     <span className="label">Favorited</span><span className="value mono">{steamDetails.Favorited.toLocaleString()}</span>
                     <span className="label">Views</span><span className="value mono">{steamDetails.Views.toLocaleString()}</span>
-                    <span className="label">Last updated</span><span className="value mono">{timeAgo(steamDetails.TimeUpdated)}</span>
                 </div>
             )}
             <div className="section">
@@ -1193,13 +1214,16 @@ function OverviewTab({mod, files, filesLoading, allMods, conflicts, onOpenFolder
                 <div className="section-label">REQUIRES</div>
                 {mod.Dependencies.length === 0 && <div className="section-body">This mod declares no dependencies.</div>}
                 {mod.Dependencies.map((name) => {
-                    const found = knownNames.has(name);
+                    const id = idByName.get(name);
+                    const found = id !== undefined;
                     return (
-                        <div key={name} className="requires-row">
-                            <span style={{color: found ? '#5fae7e' : '#e0a340'}}>●</span>{name}
-                            <span className="mono note" style={{color: found ? '#5fae7e' : '#e0a340'}}>
-                                {found ? 'found' : 'not found'}
-                            </span>
+                        <div
+                            key={name}
+                            className={`requires-row ${found ? 'clickable' : ''}`}
+                            onClick={found ? () => onSelectMod(id) : undefined}
+                            title={found ? 'View this mod' : 'Not found among the currently scanned mods'}
+                        >
+                            <span className={`requires-dot ${found ? 'found' : 'missing'}`}>●</span>{name}
                         </div>
                     );
                 })}

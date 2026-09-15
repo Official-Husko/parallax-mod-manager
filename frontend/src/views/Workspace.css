@@ -187,6 +187,13 @@
 .description-scroll {
     max-height: 220px;
     overflow-y: auto;
+    overflow-x: hidden;
+    /* A real description can contain a long unbroken run of characters
+       (a URL, a run-on word) that's wider than the panel - break it
+       rather than letting it push the box into horizontal scroll, which
+       overflow-y: auto alone doesn't prevent on its own. */
+    overflow-wrap: break-word;
+    word-break: break-word;
 }
 
 .author-row {
@@ -287,11 +294,25 @@
     font: 400 12px Barlow, sans-serif;
     color: var(--text-mid);
     margin-bottom: 5px;
+    border-radius: 4px;
+    padding: 2px 4px;
+    margin-left: -4px;
 }
 
-.requires-row .note {
-    font-size: 11px;
-    margin-left: auto;
+.requires-row.clickable {
+    cursor: pointer;
+}
+
+.requires-row.clickable:hover {
+    background: var(--bg-panel);
+}
+
+.requires-dot.found {
+    color: var(--green);
+}
+
+.requires-dot.missing {
+    color: var(--red);
 }
 
 .overwrite-row {
@@ -693,6 +714,14 @@
     width: 74px;
     text-align: right;
     flex: none;
+    /* Without these, a long real author name (e.g. "Superior General
+       Delvardus") doesn't wrap - it just renders past this column's own
+       74px width instead, visually overlapping the row's other columns,
+       since overflow defaults to visible and flex:none alone doesn't
+       clip content wider than the box. */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .mod-row .position {

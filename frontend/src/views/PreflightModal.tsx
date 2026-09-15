@@ -1,10 +1,11 @@
 import './PreflightModal.css';
 import {h} from 'preact';
-import {preflight} from '../data/mockData';
+import type {PreflightItem} from '../data/preflight';
 
-export function PreflightModal({gameName, modCount, onFixConflicts, onLaunchAnyway, onClose}: {
+export function PreflightModal({gameName, modCount, items, onFixConflicts, onLaunchAnyway, onClose}: {
     gameName: string;
     modCount: number;
+    items: PreflightItem[];
     onFixConflicts: () => void;
     onLaunchAnyway: () => void;
     onClose: () => void;
@@ -17,14 +18,13 @@ export function PreflightModal({gameName, modCount, onFixConflicts, onLaunchAnyw
                     <div className="mono subtitle">{gameName} · {modCount} mods</div>
                 </div>
                 <div className="preflight-dialog-body">
-                    {preflight.map((p) => (
+                    {items.map((p) => (
                         <div key={p.title} className="preflight-row">
-                            <i className={`fa-solid ${p.icon}`} style={{color: p.c}}/>
+                            <i className={`fa-solid ${p.icon}`} style={{color: p.color}}/>
                             <div className="preflight-text">
                                 <div className="preflight-title">{p.title}</div>
                                 <div className="preflight-detail">{p.detail}</div>
                             </div>
-                            {p.action && <span className="link-btn" style={{color: p.actionC}}>{p.action}</span>}
                         </div>
                     ))}
                 </div>

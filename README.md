@@ -282,6 +282,19 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   isn't just correct in theory, it does real, useful work on a real modlist. In-memory only
   (reorders the current load order; the user still has to Save the playset), so there's nothing
   destructive to undo it - close without saving.
+- **Real pre-flight checks** (`frontend/src/data/preflight.ts`, the actions rail's PRE-FLIGHT
+  section, and the "Ready to launch?" dialog) - both used to show the exact same five hardcoded
+  mockup rows (fake mod names like "Road to 56", a fake checksum-matches-your-friends line)
+  regardless of what was actually active or actually conflicting. Now genuinely computed from
+  data already in memory: real scan errors (or "All N mods present"), the real conflict count
+  from the same detection the Conflict Resolver uses, and a real declared-dependency check
+  (missing or loading in the wrong order among the currently active mods, the same name-matching
+  Autosort's own dependency rule already uses). Two of the mockup's five original rows have no
+  honest replacement and were dropped rather than faked: detecting the game's own currently-
+  installed version (for "N mods target an older patch") and an online checksum-sharing feature
+  (for "matches your friends") don't exist anywhere in this project. The rail's UPDATES card
+  similarly no longer shows a fabricated count - the real update checker itself remains a
+  separate, not-yet-built feature (see below).
 - **Real DLC toggling** (`internal/dlc`, `Dlc.tsx`) - lets a user disable specific installed
   DLC for a saved playset. The write path was already real and already launched
   (`internal/launch` has written `dlc_load.json`'s `disabled_dlcs` field since playsets shipped);
