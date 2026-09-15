@@ -1,6 +1,7 @@
 import {h} from 'preact';
 import {useEffect, useRef, useState} from 'preact/hooks';
 import {APP_NAME} from '../data/mockData';
+import {colorFromName} from '../data/nameColor';
 
 export type ViewKey = 'library' | 'workspace' | 'dlc' | 'settings';
 
@@ -78,17 +79,28 @@ export function TopBar({view, onNavigate, gamePicker}: {
                             </div>
                         )}
                     </div>
-                    {gamePicker.playsetLabel && (
-                        <div
-                            className={`topbar-playset ${gamePicker.onOpenPlaysetSwitcher ? 'clickable' : ''}`}
-                            onClick={gamePicker.onOpenPlaysetSwitcher}
-                            title={gamePicker.onOpenPlaysetSwitcher ? 'Switch playset' : undefined}
-                        >
-                            <span className="playset-label">Playset</span>
-                            <span className="playset-name">{gamePicker.playsetLabel}</span>
-                            {gamePicker.onOpenPlaysetSwitcher && <i className="fa-solid fa-chevron-down"/>}
-                        </div>
-                    )}
+                    {gamePicker.playsetLabel && (() => {
+                        // "(unsaved)" is a real placeholder (app.tsx's own
+                        // sentinel for "no playset chosen/named yet"), not
+                        // an actual playset name - deriving a color from
+                        // that literal string would be meaningless, so it
+                        // keeps the plain default color instead.
+                        const hasRealName = gamePicker.playsetLabel !== '(unsaved)';
+                        const color = hasRealName ? colorFromName(gamePicker.playsetLabel) : undefined;
+                        return (
+                            <div
+                                className={`topbar-playset ${gamePicker.onOpenPlaysetSwitcher ? 'clickable' : ''}`}
+                                onClick={gamePicker.onOpenPlaysetSwitcher}
+                                title={gamePicker.onOpenPlaysetSwitcher ? 'Switch playset' : undefined}
+                            >
+                                <span className="playset-label">Playset</span>
+                                <span className="playset-name" style={color ? {color, borderBottomColor: color} : undefined}>
+                                    {gamePicker.playsetLabel}
+                                </span>
+                                {gamePicker.onOpenPlaysetSwitcher && <i className="fa-solid fa-chevron-down"/>}
+                            </div>
+                        );
+                    })()}
                 </>
             )}
             <div className="topbar-spacer"/>

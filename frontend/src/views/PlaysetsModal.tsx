@@ -1,5 +1,6 @@
 import './PlaysetsModal.css';
 import {h} from 'preact';
+import {colorFromName} from '../data/nameColor';
 
 export function PlaysetsModal({gameName, names, onActivate, onNew, onClose}: {
     gameName: string;
@@ -22,7 +23,7 @@ export function PlaysetsModal({gameName, names, onActivate, onNew, onClose}: {
                     {names.length === 0 && <div className="playsets-empty">No saved playsets yet - save one from the Workspace.</div>}
                     {names.map((name) => (
                         <div key={name} className="playset-row">
-                            <div className="playset-row-edge"/>
+                            <div className="playset-row-edge" style={{background: colorFromName(name)}}/>
                             <div className="playset-row-main">
                                 <div className="playset-row-head">
                                     <span className="name">{name}</span>
