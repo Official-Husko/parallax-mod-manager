@@ -20,6 +20,7 @@ import {BrowserOpenURL, EventsOn} from '../../wailsjs/runtime/runtime';
 import type {library, playset, preferences, steamapi} from '../../wailsjs/go/models';
 import {autosort} from '../data/autosort';
 import {dismiss, notify, updateNotification} from '../data/notifications';
+import {type ContextMenuItem, openContextMenu} from '../data/contextMenu';
 import {domains} from '../data/mockData';
 import {buildPreflightItems} from '../data/preflight';
 import {formatBytes, truncate} from '../data/format';
@@ -47,11 +48,17 @@ type DetailTab = 'overview' | 'files' | 'conflicts' | 'changes';
 const MAX_DETAIL_NAME_LENGTH = 70;
 const MAX_AUTHOR_NAME_LENGTH = 40;
 
-export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdates}: {
+export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdates, showPlaysets, setShowPlaysets}: {
     games: library.GameInfo[];
     selectedGame: string;
     onPlaysetNameChange: (name: string) => void;
     onOpenUpdates: () => void;
+    // Controlled from app.tsx, not local state - the TopBar's own
+    // playset pill (a sibling of this component, not a parent/child)
+    // needs to open this same real switcher, not a second one of its
+    // own.
+    showPlaysets: boolean;
+    setShowPlaysets: (show: boolean) => void;
 }) {
     const [summary, setSummary] = useState<library.Summary | null>(null);
     const [order, setOrder] = useState<string[]>([]);
@@ -64,7 +71,6 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
     // Workspace never silently wipes what the DLC screen set. Empty for a
     // brand-new, unsaved playset; loaded from the real file otherwise.
     const [disabledDlc, setDisabledDlc] = useState<string[]>([]);
-    const [showPlaysets, setShowPlaysets] = useState(false);
     const [showPreflight, setShowPreflight] = useState(false);
     const [showConflictResolver, setShowConflictResolver] = useState(false);
     const [showPurgeModal, setShowPurgeModal] = useState(false);
@@ -443,6 +449,41 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
         setSelectedAvailable(next);
     }
 
+    // Real OS-file-list-style drag select for the Available list, instead
+    // of the browser's own native text-selection drag (the "blue
+    // highlight" a click-and-drag would otherwise paint across the row
+    // labels) - .mod-row itself gets user-select:none in CSS so that
+    // never fires at all; this replaces it with an actual multi-select
+    // gesture. Pressing down on a row and dragging across others selects
+    // every row in that range (by list position, not just the ones the
+    // cursor happened to land exactly on - matches Explorer/Finder),
+    // replacing whatever was selected before, same as a fresh drag in a
+    // real file browser does. The checkbox itself stays an independent,
+    // precise single-item toggle (see its own stopPropagation below) -
+    // this only starts from a mousedown on the row body.
+    const dragSelectStartIndexRef = useRef<number | null>(null);
+
+    useEffect(() => {
+        function endDragSelect() { dragSelectStartIndexRef.current = null; }
+        window.addEventListener('mouseup', endDragSelect);
+        return () => window.removeEventListener('mouseup', endDragSelect);
+    }, []);
+
+    function selectDragRange(fromIndex: number, toIndex: number) {
+        const [lo, hi] = fromIndex <= toIndex ? [fromIndex, toIndex] : [toIndex, fromIndex];
+        setSelectedAvailable(new Set(available.slice(lo, hi + 1).map((m) => m.ID)));
+    }
+
+    function handleRowMouseDown(index: number, e: MouseEvent) {
+        if (e.button !== 0) return; // left button only - a right-click opens the context menu instead
+        dragSelectStartIndexRef.current = index;
+    }
+
+    function handleRowMouseEnter(index: number) {
+        if (dragSelectStartIndexRef.current === null) return;
+        selectDragRange(dragSelectStartIndexRef.current, index);
+    }
+
     function addSelectedToOrder() {
         if (selectedAvailable.size === 0) return;
         setOrder([...order, ...allMods.filter((m) => selectedAvailable.has(m.ID)).map((m) => m.ID)]);
@@ -460,6 +501,46 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
         const next = order.slice();
         [next[i], next[j]] = [next[j], next[i]];
         setOrder(next);
+    }
+
+    // addToOrder adds one specific mod directly - distinct from
+    // addSelectedToOrder above, which acts on the Available list's own
+    // checkbox selection; this is for the context menu's "Add to load
+    // order" on a row that may not be checkbox-selected at all.
+    function addToOrder(id: string) {
+        if (order.includes(id)) return;
+        setOrder([...order, id]);
+    }
+
+    function openModFolder(id: string) {
+        OpenModFolder(selectedGame, id).catch((err) => setStatus({kind: 'error', message: String(err)}));
+    }
+
+    function copyModId(id: string) {
+        navigator.clipboard.writeText(id).catch(() => undefined);
+    }
+
+    // Real context menu items for one mod row - shared between the
+    // Available and Active lists, since most actions apply to both; the
+    // load-order-specific ones (reorder/remove vs. add) are the only real
+    // difference, controlled by whether the mod is already in order.
+    function modContextMenuItems(m: library.ModSummary): ContextMenuItem[] {
+        const inOrder = order.includes(m.ID);
+        const items: ContextMenuItem[] = inOrder
+            ? [
+                {label: 'Move up', onClick: () => moveInOrder(m.ID, -1), disabled: order.indexOf(m.ID) <= 0},
+                {label: 'Move down', onClick: () => moveInOrder(m.ID, 1), disabled: order.indexOf(m.ID) < 0 || order.indexOf(m.ID) >= order.length - 1},
+                {label: 'Remove from load order', onClick: () => removeFromOrder(m.ID), danger: true},
+            ]
+            : [
+                {label: 'Add to load order', onClick: () => addToOrder(m.ID)},
+            ];
+        items.push({label: 'Open folder', onClick: () => openModFolder(m.ID), separatorBefore: true});
+        if (m.Source === 'workshop' && m.RemoteFileID) {
+            items.push({label: 'Open Workshop page', onClick: () => BrowserOpenURL(`https://steamcommunity.com/sharedfiles/filedetails/?id=${m.RemoteFileID}`)});
+        }
+        items.push({label: 'Copy mod ID', onClick: () => copyModId(m.ID)});
+        return items;
     }
 
     function handleAutosort() {
@@ -604,16 +685,24 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
                             <span className="column-header-author">AUTHOR</span>
                         </div>
                         <div className="list-rows">
-                            {available.map((m) => {
+                            {available.map((m, index) => {
                                 const author = authorNameFor(m, workshopDetails, authorProfiles);
                                 const authorLoading = m.Source === 'workshop'
                                     && (workshopDetailsState === 'loading' || (workshopDetailsState === 'loaded' && authorProfilesState === 'loading'));
                                 return (
-                                <div key={m.ID} className={`mod-row ${m.ID === selectedId ? 'selected' : ''}`} onClick={() => setSelectedId(m.ID)}>
+                                <div
+                                    key={m.ID}
+                                    className={`mod-row ${m.ID === selectedId ? 'selected' : ''}`}
+                                    onClick={() => setSelectedId(m.ID)}
+                                    onContextMenu={(e) => { setSelectedId(m.ID); openContextMenu(e, modContextMenuItems(m)); }}
+                                    onMouseDown={(e) => handleRowMouseDown(index, e)}
+                                    onMouseEnter={() => handleRowMouseEnter(index)}
+                                >
                                     <input
                                         type="checkbox"
                                         checked={selectedAvailable.has(m.ID)}
                                         onClick={(e) => e.stopPropagation()}
+                                        onMouseDown={(e) => e.stopPropagation()}
                                         onChange={() => toggleAvailable(m.ID)}
                                     />
                                     <SourceBadge source={m.Source} name={m.Name}/>
@@ -680,6 +769,7 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
                                         key={m.ID}
                                         className={`mod-row active-row ${m.ID === selectedId ? 'selected' : ''} ${conflicted ? 'has-conflict' : ''}`}
                                         onClick={() => setSelectedId(m.ID)}
+                                        onContextMenu={(e) => { setSelectedId(m.ID); openContextMenu(e, modContextMenuItems(m)); }}
                                     >
                                         <span className="position mono">{positionById.get(m.ID)}</span>
                                         <i className="fa-solid fa-grip-vertical drag-handle"/>

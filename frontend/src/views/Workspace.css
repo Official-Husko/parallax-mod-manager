@@ -678,6 +678,12 @@
     padding: 0 13px;
     border-bottom: 1px solid #1a212b;
     cursor: pointer;
+    /* A click-and-drag across rows now does a real OS-file-list-style
+       multi-select (see Workspace.tsx) - without this, the browser's own
+       native text-selection would still paint its blue highlight across
+       the row labels during that exact same drag, fighting visually with
+       the real selection this app now does instead. */
+    user-select: none;
 }
 
 .mod-row:hover {

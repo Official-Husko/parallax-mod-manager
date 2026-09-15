@@ -20,6 +20,12 @@ export function TopBar({view, onNavigate, gamePicker}: {
         // DLC, which edits a saved playset by name from its own picker
         // instead) simply omits this rather than showing a fake one.
         playsetLabel?: string;
+        // Opens the real playset switcher (Workspace's own PlaysetsModal -
+        // this component has no idea what that even is, just a callback
+        // to trigger it) - present exactly when playsetLabel is, so the
+        // pill is only ever clickable where there's a real playset
+        // concept to switch.
+        onOpenPlaysetSwitcher?: () => void;
         games?: { ID: string; DisplayName: string }[];
         onSelectGame?: (id: string) => void;
     };
@@ -73,9 +79,14 @@ export function TopBar({view, onNavigate, gamePicker}: {
                         )}
                     </div>
                     {gamePicker.playsetLabel && (
-                        <div className="topbar-playset">
+                        <div
+                            className={`topbar-playset ${gamePicker.onOpenPlaysetSwitcher ? 'clickable' : ''}`}
+                            onClick={gamePicker.onOpenPlaysetSwitcher}
+                            title={gamePicker.onOpenPlaysetSwitcher ? 'Switch playset' : undefined}
+                        >
                             <span className="playset-label">Playset</span>
                             <span className="playset-name">{gamePicker.playsetLabel}</span>
+                            {gamePicker.onOpenPlaysetSwitcher && <i className="fa-solid fa-chevron-down"/>}
                         </div>
                     )}
                 </>

@@ -190,6 +190,20 @@
     margin-left: 6px;
 }
 
+.topbar-playset.clickable {
+    cursor: pointer;
+}
+
+.topbar-playset.clickable i {
+    font-size: 10px;
+    color: var(--text-dim);
+}
+
+.topbar-playset.clickable:hover .playset-name {
+    color: var(--rust);
+    border-bottom-color: var(--rust);
+}
+
 .playset-label {
     font: 400 11.5px Barlow, sans-serif;
     color: var(--text-dim);

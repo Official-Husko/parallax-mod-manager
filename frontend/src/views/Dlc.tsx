@@ -2,10 +2,11 @@ import './Dlc.css';
 import {h} from 'preact';
 import {useEffect, useMemo, useState} from 'preact/hooks';
 import {DLCStoreData, ListDLC, ListPlaysets, LoadPlayset, SavePlayset} from '../../wailsjs/go/main/App';
-import {EventsOn} from '../../wailsjs/runtime/runtime';
+import {BrowserOpenURL, EventsOn} from '../../wailsjs/runtime/runtime';
 import type {dlc, dlcstore, library, playset} from '../../wailsjs/go/models';
 import {Toggle} from '../components/Toggle';
 import {formatBytes} from '../data/format';
+import {type ContextMenuItem, openContextMenu} from '../data/contextMenu';
 
 type DLCState =
     | { kind: 'loading' }
@@ -134,6 +135,24 @@ export function Dlc({games, selectedGame}: {
             if (next.has(id)) next.delete(id); else next.add(id);
             return next;
         });
+    }
+
+    // Real context menu for one DLC row - the enable/disable toggle (only
+    // for something actually installed, matching the row's own Toggle)
+    // plus a real link to its Steam Store page when a Steam app id is
+    // known (true for both installed DLC and a catalog-only entry, so
+    // this works even for something with no local folder to open at
+    // all).
+    function dlcContextMenuItems(d: dlc.Entry): ContextMenuItem[] {
+        const items: ContextMenuItem[] = [];
+        if (d.Installed) {
+            const isDisabled = disabled.has(d.ID);
+            items.push({label: isDisabled ? 'Enable' : 'Disable', onClick: () => toggle(d.ID)});
+        }
+        if (d.SteamID) {
+            items.push({label: 'Open Steam Store page', onClick: () => BrowserOpenURL(`https://store.steampowered.com/app/${d.SteamID}`)});
+        }
+        return items;
     }
 
     // Drops an id from the disabled set outright - used for a DLC this
@@ -290,6 +309,12 @@ export function Dlc({games, selectedGame}: {
                                         key={key}
                                         className={`dlc-row ${key === selectedDLCId ? 'active' : ''} ${!d.Installed ? 'not-installed' : ''}`}
                                         onClick={() => setSelectedDLCId(key)}
+                                        onContextMenu={(e) => {
+                                            e.preventDefault();
+                                            setSelectedDLCId(key);
+                                            const items = dlcContextMenuItems(d);
+                                            if (items.length > 0) openContextMenu(e, items);
+                                        }}
                                     >
                                         <span className="col-on" onClick={(e) => e.stopPropagation()}>
                                             {d.Installed && <Toggle on={!disabled.has(d.ID)} onClick={() => toggle(d.ID)}/>}
@@ -304,7 +329,11 @@ export function Dlc({games, selectedGame}: {
                                 );
                             })}
                             {orphanedIds.map((id) => (
-                                <div key={id} className="dlc-row orphaned">
+                                <div
+                                    key={id}
+                                    className="dlc-row orphaned"
+                                    onContextMenu={(e) => openContextMenu(e, [{label: 'Remove this stale reference', onClick: () => forget(id), danger: true}])}
+                                >
                                     <span className="col-on"/>
                                     <span className="col-name mono">{id}</span>
                                     <span className="col-type"><span className="dlc-badge">NOT FOUND</span></span>

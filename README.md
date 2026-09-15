@@ -424,6 +424,20 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   happening at all. A plain module-level store, not a new state-management dependency - any
   component calls `notify()`/`updateNotification()`/`dismiss()` directly; one `<NotificationStack/>`
   in `app.tsx` renders whatever's currently active.
+- **A real custom right-click menu, app-wide** (`frontend/src/data/contextMenu.ts`,
+  `ContextMenu.tsx`) - the webview's own native context menu (reload, inspect element, and the
+  like - not meaningful chrome for a packaged desktop app) is suppressed everywhere via a single
+  app-wide listener in `app.tsx`; anywhere that doesn't open a real menu of its own just shows no
+  menu at all on right-click, rather than ever falling back to the browser default. Wired up with
+  real, working actions (not a placeholder) on Workspace's Available/Active mod rows - reorder,
+  remove, add to load order, open the mod's real folder, open its real Workshop page, copy its
+  ID - and on the DLC screen's rows - enable/disable, open the real Steam Store page, clear a
+  stale disabled-DLC reference - all of it reusing actions that already existed elsewhere in the
+  UI, not new backend surface. The menu clamps itself on-screen (measured against its own real
+  rendered size, not a guessed width) so it never opens off the edge of the window, and closes on
+  an outside click, Escape, scroll, or the window losing focus - the same behavior a native
+  context menu itself has. Same plain module-level store pattern as the notification system
+  above, for the same reason (no new state-management dependency).
 - **Every top-level view stays mounted once visited, instead of unmounting on navigation** - a
   real bug found while chasing why the Workshop/author fetch above never seemed to finish:
   `app.tsx` used to fully unmount a view (`{view === 'x' && <X/>}`) the instant the user

@@ -6,6 +6,7 @@ import type {library, preferences} from '../wailsjs/go/models';
 import {TopBar} from './components/TopBar';
 import type {ViewKey} from './components/TopBar';
 import {NotificationStack} from './components/NotificationStack';
+import {ContextMenu} from './components/ContextMenu';
 import {notify} from './data/notifications';
 import {Workspace} from './views/Workspace';
 import {Library} from './views/Library';
@@ -42,6 +43,12 @@ export function App() {
     const [playsetName, setPlaysetName] = useState('');
     const [onboarded, setOnboarded] = useState(wasOnboarded());
     const [showUpdates, setShowUpdates] = useState(false);
+    // Lives here, not inside Workspace, so the TopBar's own playset pill
+    // (a sibling of Workspace, not a parent/child) can open the exact
+    // same real switcher - Workspace still owns everything else about
+    // playsets (the real saved-playset list, loading/saving one), only
+    // this one boolean is controlled from outside it.
+    const [showPlaysets, setShowPlaysets] = useState(false);
     const [error, setError] = useState('');
     // Every view this session has actually navigated to at least once -
     // 'workspace' up front since it's the default. Once a view is in
@@ -59,6 +66,20 @@ export function App() {
     useEffect(() => {
         setVisitedViews((prev) => (prev.has(view) ? prev : new Set(prev).add(view)));
     }, [view]);
+
+    // Replaces the webview's own native right-click menu app-wide with
+    // this app's real one (components/ContextMenu.tsx) - anywhere that
+    // doesn't open a real one of its own via openContextMenu() (see
+    // data/contextMenu.ts) just gets no menu at all on right-click,
+    // rather than ever falling back to the browser's default (reload,
+    // inspect element, and the like - not meaningful chrome for a
+    // packaged desktop app). Runs unconditionally, before the onboarding
+    // check below, so this holds even on the first-run wizard screen.
+    useEffect(() => {
+        const onContextMenu = (e: MouseEvent) => e.preventDefault();
+        document.addEventListener('contextmenu', onContextMenu);
+        return () => document.removeEventListener('contextmenu', onContextMenu);
+    }, []);
 
     useEffect(() => {
         if (!onboarded) {
@@ -99,6 +120,7 @@ export function App() {
         return (
             <div id="app">
                 <FirstRunWizard onFinish={() => { markOnboarded(); setOnboarded(true); }}/>
+                <ContextMenu/>
             </div>
         );
     }
@@ -109,6 +131,7 @@ export function App() {
         ? {
             gameLabel: gameName,
             playsetLabel: playsetName || '(unsaved)',
+            onOpenPlaysetSwitcher: () => setShowPlaysets(true),
             games: games.map((g) => ({ID: g.ID, DisplayName: g.DisplayName})),
             onSelectGame: selectGame,
         }
@@ -158,6 +181,8 @@ export function App() {
                         selectedGame={selectedGame}
                         onPlaysetNameChange={setPlaysetName}
                         onOpenUpdates={() => setShowUpdates(true)}
+                        showPlaysets={showPlaysets}
+                        setShowPlaysets={setShowPlaysets}
                     />
                 </div>
             )}
@@ -178,6 +203,7 @@ export function App() {
             )}
 
             {showUpdates && <UpdatesModal onClose={() => setShowUpdates(false)}/>}
+            <ContextMenu/>
         </div>
     );
 }
