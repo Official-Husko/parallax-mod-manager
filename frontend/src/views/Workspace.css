@@ -670,6 +670,13 @@
     overflow-y: auto;
 }
 
+/* A cross-list drag currently sitting below every real row (or over an
+   empty/search-filtered-empty Active list, where there's no row of its
+   own to hang a .drop-before border on) - see data/listDragMove.ts. */
+.list-rows.drop-at-end {
+    box-shadow: inset 0 -2px 0 0 var(--rust);
+}
+
 .mod-row {
     display: flex;
     align-items: center;
@@ -692,6 +699,23 @@
 
 .mod-row.selected {
     background: #1a222e;
+}
+
+/* Dragging an Available row (or the current multi-selection, if the
+   dragged row is part of it) toward the Active list to drop it into the
+   load order - see data/listDragMove.ts. Dimmed rather than hidden so the
+   drag still has something visible to originate from. */
+.mod-row.dragging {
+    opacity: .45;
+}
+
+/* The line a cross-list drag would insert before, tracking the cursor's
+   real position against each Active row's own vertical midpoint - see
+   data/listDragMove.ts. border-top rather than an absolutely positioned
+   overlay since every .mod-row already sits in normal flow with
+   box-sizing: border-box (App.css), so this never shifts row height. */
+.mod-row.drop-before {
+    border-top: 2px solid var(--rust);
 }
 
 .mod-row .name {
@@ -1095,5 +1119,76 @@
 .play-secondary .btn-ghost {
     flex: 1;
     justify-content: center;
+}
+
+/* A small pill following the cursor while a real drag-move is in progress
+   (see data/listDragMove.ts) - fixed-position, pointer-events: none so it
+   never itself becomes the mouseover/drop target it's reporting on. The
+   arrow direction mirrors which way the mod is actually headed: right for
+   Available -> Active, left for the reverse, or a reorder icon when the
+   drop target is still the same list the drag started in. */
+.drag-ghost {
+    position: fixed;
+    z-index: 200;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    border-radius: 5px;
+    background: #1b232e;
+    border: 1px solid var(--rust);
+    color: var(--text-bright);
+    font: 500 11.5px Barlow, sans-serif;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, .4);
+    max-width: 220px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.drag-ghost i {
+    color: var(--rust);
+    font-size: 10px;
+    flex: none;
+}
+
+/* Dragging more than one mod names each of them (capped, see
+   Workspace.tsx) instead of only a count - overrides the single-row pill
+   above with a small stacked card, since a flat comma-joined line of
+   names would run far too wide to stay readable. */
+.drag-ghost.drag-ghost-multi {
+    display: block;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    padding: 6px 10px;
+}
+
+.drag-ghost-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 3px;
+}
+
+.drag-ghost-head .mono {
+    font-size: 10.5px;
+    color: var(--text-muted);
+}
+
+.drag-ghost-name {
+    padding-left: 16px;
+    font-size: 11px;
+    color: var(--text-mid);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.drag-ghost-more {
+    padding-left: 16px;
+    font-size: 10px;
+    color: var(--text-dim);
 }
 

@@ -438,6 +438,33 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   an outside click, Escape, scroll, or the window losing focus - the same behavior a native
   context menu itself has. Same plain module-level store pattern as the notification system
   above, for the same reason (no new state-management dependency).
+- **Real OS-file-list-style row selection on Workspace's mod rows** (`frontend/src/data/dragMultiSelect.ts`),
+  shared identically by the Available and Active lists - click a row to select just it, or
+  shift+click to extend from the last-clicked row through this one (inclusive, by list position),
+  exactly like Explorer/Finder's own list view (either replaces the prior selection rather than
+  toggling it). `preventDefault()` on the row's own mousedown is what actually stops the browser's
+  native text-selection drag from kicking in instead during a shift+click - CSS `user-select: none`
+  alone wasn't enough on its own. A mousedown-and-drag across rows used to extend the selection the
+  same way, but a plain click/shift+click-only model turned out to be the right split: dragging a
+  row now always means "move it" (below), so the two could no longer share the same gesture without
+  one reading as a bug - dragging to reposition a row was instead silently reselecting every row the
+  cursor crossed.
+- **Real drag-and-drop between Available and Active, and within either list on its own**
+  (`frontend/src/data/listDragMove.ts`), matching how Mod Organizer 2, Vortex, and RimSort/RimPy
+  handle their own active/plugin list: drag a row (or the current multi-selection - dragging one
+  of several already-selected rows drags the whole selection, not just the one under the cursor)
+  from Available into Active to activate it at exactly the dropped position, drag an Active row
+  back into Available to deactivate it at exactly the dropped position, or drag a row within either
+  list to reorder it there - every case gets the identical live insertion line tracking the nearest
+  row boundary, regardless of which list the drag started in or is headed to. A small ghost preview
+  follows the cursor throughout, once the mouse has moved a few real pixels (never on a plain
+  click): a single dragged mod shows its real name, a multi-selection names each one individually
+  (capped at five, with a "+N more" line - not just a bare count) alongside an arrow/reorder icon
+  reflecting where it would actually land. Active's own reordering changes the real, persisted load
+  order; Available's is a temporary, session-local arrangement only (it has no saved order of its
+  own - `availableOrder` in `Workspace.tsx`, reconciled against whatever mods are actually available
+  whenever that set changes, dropping ones that left and appending new ones in their natural sort
+  order while leaving everything else exactly where the user dragged it).
 - **Every top-level view stays mounted once visited, instead of unmounting on navigation** - a
   real bug found while chasing why the Workshop/author fetch above never seemed to finish:
   `app.tsx` used to fully unmount a view (`{view === 'x' && <X/>}`) the instant the user

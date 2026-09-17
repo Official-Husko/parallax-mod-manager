@@ -21,6 +21,8 @@ import type {library, playset, preferences, steamapi} from '../../wailsjs/go/mod
 import {autosort} from '../data/autosort';
 import {dismiss, notify, updateNotification} from '../data/notifications';
 import {type ContextMenuItem, openContextMenu} from '../data/contextMenu';
+import {useDragMultiSelect} from '../data/dragMultiSelect';
+import {type DropTarget, useListDragMove} from '../data/listDragMove';
 import {domains} from '../data/mockData';
 import {buildPreflightItems} from '../data/preflight';
 import {formatBytes, truncate} from '../data/format';
@@ -64,6 +66,22 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
     const [order, setOrder] = useState<string[]>([]);
     const [selectedId, setSelectedId] = useState('');
     const [selectedAvailable, setSelectedAvailable] = useState<Set<string>>(new Set());
+    // Active has no bulk-action checkbox column of its own (unlike
+    // Available), but gets the exact same real multi-select gesture - see
+    // useDragMultiSelect below - so a row's own highlight can reflect a
+    // real multi-row selection there too, not just the single mod shown
+    // in the detail panel.
+    const [selectedActive, setSelectedActive] = useState<Set<string>>(new Set());
+    // The Available list's own temporary, session-local drag arrangement -
+    // unlike Active's `order`, this is never saved anywhere; it exists
+    // purely so dragging a row within Available (to organize while working,
+    // not to activate it) has real positions to reorder, mirroring Active's
+    // own drag-reorder rather than doing nothing. Kept reconciled against
+    // the real Available set by the effect below, not derived fresh every
+    // render, so a drop's own reorder logic (see dragMove's onDrop) can
+    // safely update it with a functional setState the same way Active's
+    // real order already does.
+    const [availableOrder, setAvailableOrder] = useState<string[]>([]);
     const [detailTab, setDetailTab] = useState<DetailTab>('overview');
     const [playsetName, setPlaysetNameState] = useState('');
     const [playsetList, setPlaysetList] = useState<string[]>([]);
@@ -421,7 +439,33 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
     }, [summary]);
 
     const orderSet = useMemo(() => new Set(order), [order]);
-    const available = allMods.filter((m) => !orderSet.has(m.ID) && matchesSearch(m, search));
+    const available = useMemo(
+        () => allMods.filter((m) => !orderSet.has(m.ID) && matchesSearch(m, search)),
+        [allMods, orderSet, search],
+    );
+    // Reconciles availableOrder against the real Available set whenever it
+    // changes: ids that left (activated, purged) are dropped, newly
+    // available ids are appended in their natural (name-sorted) order, and
+    // everything else keeps exactly the position the user last dragged it
+    // to. Runs as an effect (not a plain derived value) specifically so
+    // dragMove's own reorder-within-Available onDrop can update this state
+    // the same safe way Active's real `order` already does - a functional
+    // setAvailableOrder call, never reading a possibly-stale `available`
+    // from inside that closure.
+    useEffect(() => {
+        const availIds = new Set(available.map((m) => m.ID));
+        setAvailableOrder((prev) => {
+            const kept = prev.filter((id) => availIds.has(id));
+            const keptSet = new Set(kept);
+            const appended = available.filter((m) => !keptSet.has(m.ID)).map((m) => m.ID);
+            const next = kept.length === prev.length && appended.length === 0 ? prev : [...kept, ...appended];
+            return next;
+        });
+    }, [available]);
+    const availableOrderedMods = useMemo(
+        () => availableOrder.map((id) => modsById.get(id)).filter((m): m is library.ModSummary => !!m),
+        [availableOrder, modsById],
+    );
     const active = order.map((id) => modsById.get(id)).filter((m): m is library.ModSummary => !!m);
     // Active's own row list, search-filtered for display only - Autosort,
     // Save, and the legend/footer all still operate on the full, real
@@ -449,39 +493,90 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
         setSelectedAvailable(next);
     }
 
-    // Real OS-file-list-style drag select for the Available list, instead
-    // of the browser's own native text-selection drag (the "blue
-    // highlight" a click-and-drag would otherwise paint across the row
-    // labels) - .mod-row itself gets user-select:none in CSS so that
-    // never fires at all; this replaces it with an actual multi-select
-    // gesture. Pressing down on a row and dragging across others selects
-    // every row in that range (by list position, not just the ones the
-    // cursor happened to land exactly on - matches Explorer/Finder),
-    // replacing whatever was selected before, same as a fresh drag in a
-    // real file browser does. The checkbox itself stays an independent,
-    // precise single-item toggle (see its own stopPropagation below) -
-    // this only starts from a mousedown on the row body.
-    const dragSelectStartIndexRef = useRef<number | null>(null);
+    // Real OS-file-list-style multi-select (click/shift+click) for both
+    // the Available and Active lists - see data/dragMultiSelect.ts for the
+    // shared mechanics both of these instances drive identically. The
+    // checkbox itself stays an independent, precise single-item toggle
+    // (see its own stopPropagation below), unaffected by either.
+    const availableDrag = useDragMultiSelect(
+        availableOrder,
+        (ids) => setSelectedAvailable(new Set(ids)),
+        setSelectedId,
+    );
+    const activeIds = useMemo(() => visibleActive.map((m) => m.ID), [visibleActive]);
+    const activeDrag = useDragMultiSelect(
+        activeIds,
+        (ids) => setSelectedActive(new Set(ids)),
+        setSelectedId,
+    );
 
-    useEffect(() => {
-        function endDragSelect() { dragSelectStartIndexRef.current = null; }
-        window.addEventListener('mouseup', endDragSelect);
-        return () => window.removeEventListener('mouseup', endDragSelect);
-    }, []);
+    // Real drag-and-drop between Available and Active, and within each of
+    // them, matching Mod Organizer 2/Vortex/RimSort's own plugin-list
+    // behavior - see data/listDragMove.ts. onDrop only ever touches state
+    // through a functional setState update (never reads `order`/
+    // `availableOrder` from this closure directly), since the hook's own
+    // mouseup listener is registered once and would otherwise see
+    // whichever value was current the first time a drag started.
+    const dragMove = useListDragMove((ids, source, target) => {
+        if (source === 'available' && target.list === 'active') {
+            // Activate: insert at the dropped position in the load order.
+            setOrder((prev) => {
+                const insertAt = target.kind === 'end' ? prev.length : Math.max(0, prev.indexOf(target.id));
+                const toInsert = ids.filter((id) => !prev.includes(id));
+                if (toInsert.length === 0) return prev;
+                return [...prev.slice(0, insertAt), ...toInsert, ...prev.slice(insertAt)];
+            });
+            setSelectedAvailable(new Set());
+        } else if (source === 'active' && target.list === 'available') {
+            // Deactivate: drop out of the load order, landing at the exact
+            // dropped position in Available's own temporary arrangement -
+            // the reconcile effect above then just confirms it's still
+            // there (it is, it was just dropped there) rather than
+            // re-appending it somewhere else.
+            setOrder((prev) => prev.filter((id) => !ids.includes(id)));
+            setAvailableOrder((prev) => reorderInsert(prev, ids, target));
+            setSelectedActive(new Set());
+        } else if (source === 'active' && target.list === 'active') {
+            // Reorder within Active.
+            setOrder((prev) => reorderInsert(prev, ids, target));
+        } else if (source === 'available' && target.list === 'available') {
+            // Reorder within Available: same idea, against the user's own
+            // temporary arrangement rather than a real persisted order.
+            setAvailableOrder((prev) => reorderInsert(prev, ids, target));
+        }
+    });
 
-    function selectDragRange(fromIndex: number, toIndex: number) {
-        const [lo, hi] = fromIndex <= toIndex ? [fromIndex, toIndex] : [toIndex, fromIndex];
-        setSelectedAvailable(new Set(available.slice(lo, hi + 1).map((m) => m.ID)));
+    // Wraps availableDrag/activeDrag's own onRowMouseDown so the exact ids
+    // a mousedown just selected (a single row, or a shift-extended range)
+    // also arm a potential drag-move - it only actually becomes one if the
+    // mouse moves a few real pixels before release (see useListDragMove);
+    // a plain click never does. Mousedown on a row that's already part of
+    // a bigger existing selection preserves that whole selection instead
+    // of collapsing it to just this row first, so dragging one of several
+    // selected rows drags all of them - matching real Explorer/Finder/MO2
+    // (though unlike those, a plain, driftless click here still leaves the
+    // bigger selection in place rather than collapsing it on release; a
+    // deliberately simpler rule than reproducing that exact nuance).
+    function onAvailableRowMouseDown(index: number, e: MouseEvent) {
+        const id = availableOrder[index];
+        if (e.button === 0 && !e.shiftKey && selectedAvailable.has(id) && selectedAvailable.size > 1) {
+            e.preventDefault();
+            dragMove.startDrag(availableOrder.filter((x) => selectedAvailable.has(x)), 'available', e);
+            return;
+        }
+        const ids = availableDrag.onRowMouseDown(index, e);
+        dragMove.startDrag(ids, 'available', e);
     }
 
-    function handleRowMouseDown(index: number, e: MouseEvent) {
-        if (e.button !== 0) return; // left button only - a right-click opens the context menu instead
-        dragSelectStartIndexRef.current = index;
-    }
-
-    function handleRowMouseEnter(index: number) {
-        if (dragSelectStartIndexRef.current === null) return;
-        selectDragRange(dragSelectStartIndexRef.current, index);
+    function onActiveRowMouseDown(index: number, e: MouseEvent) {
+        const id = activeIds[index];
+        if (e.button === 0 && !e.shiftKey && selectedActive.has(id) && selectedActive.size > 1) {
+            e.preventDefault();
+            dragMove.startDrag(activeIds.filter((x) => selectedActive.has(x)), 'active', e);
+            return;
+        }
+        const ids = activeDrag.onRowMouseDown(index, e);
+        dragMove.startDrag(ids, 'active', e);
     }
 
     function addSelectedToOrder() {
@@ -684,19 +779,22 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
                             <span className="column-header-ver">VERSION</span>
                             <span className="column-header-author">AUTHOR</span>
                         </div>
-                        <div className="list-rows">
-                            {available.map((m, index) => {
+                        <div
+                            className={`list-rows ${dragMove.dropTarget?.list === 'available' && dragMove.dropTarget.kind === 'end' ? 'drop-at-end' : ''}`}
+                            ref={dragMove.availableRowsRef}
+                        >
+                            {availableOrderedMods.map((m, index) => {
                                 const author = authorNameFor(m, workshopDetails, authorProfiles);
                                 const authorLoading = m.Source === 'workshop'
                                     && (workshopDetailsState === 'loading' || (workshopDetailsState === 'loaded' && authorProfilesState === 'loading'));
+                                const isDropBefore = dragMove.dropTarget?.list === 'available' && dragMove.dropTarget.kind === 'before' && dragMove.dropTarget.id === m.ID;
                                 return (
                                 <div
                                     key={m.ID}
-                                    className={`mod-row ${m.ID === selectedId ? 'selected' : ''}`}
-                                    onClick={() => setSelectedId(m.ID)}
+                                    data-mod-id={m.ID}
+                                    className={`mod-row ${selectedAvailable.has(m.ID) ? 'selected' : ''} ${dragMove.draggedIds?.includes(m.ID) ? 'dragging' : ''} ${isDropBefore ? 'drop-before' : ''}`}
                                     onContextMenu={(e) => { setSelectedId(m.ID); openContextMenu(e, modContextMenuItems(m)); }}
-                                    onMouseDown={(e) => handleRowMouseDown(index, e)}
-                                    onMouseEnter={() => handleRowMouseEnter(index)}
+                                    onMouseDown={(e) => onAvailableRowMouseDown(index, e)}
                                 >
                                     <input
                                         type="checkbox"
@@ -758,18 +856,20 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
                                 {domains.map((d) => <span key={d}>{d}</span>)}
                             </span>
                         </div>
-                        <div className="list-rows">
+                        <div className={`list-rows ${dragMove.dropTarget?.list === 'active' && dragMove.dropTarget.kind === 'end' ? 'drop-at-end' : ''}`} ref={dragMove.activeRowsRef}>
                             {visibleActive.length === 0 && active.length > 0 && (
                                 <p className="detail-empty" style={{padding: 14}}>No matches.</p>
                             )}
-                            {visibleActive.map((m) => {
+                            {visibleActive.map((m, index) => {
                                 const conflicted = conflictedIds.has(m.ID);
+                                const isDropBefore = dragMove.dropTarget?.list === 'active' && dragMove.dropTarget.kind === 'before' && dragMove.dropTarget.id === m.ID;
                                 return (
                                     <div
                                         key={m.ID}
-                                        className={`mod-row active-row ${m.ID === selectedId ? 'selected' : ''} ${conflicted ? 'has-conflict' : ''}`}
-                                        onClick={() => setSelectedId(m.ID)}
+                                        data-mod-id={m.ID}
+                                        className={`mod-row active-row ${selectedActive.has(m.ID) ? 'selected' : ''} ${conflicted ? 'has-conflict' : ''} ${isDropBefore ? 'drop-before' : ''} ${dragMove.draggedIds?.includes(m.ID) ? 'dragging' : ''}`}
                                         onContextMenu={(e) => { setSelectedId(m.ID); openContextMenu(e, modContextMenuItems(m)); }}
+                                        onMouseDown={(e) => onActiveRowMouseDown(index, e)}
                                     >
                                         <span className="position mono">{positionById.get(m.ID)}</span>
                                         <i className="fa-solid fa-grip-vertical drag-handle"/>
@@ -856,6 +956,45 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
                 </div>
             )}
 
+            {dragMove.pointer && dragMove.draggedIds && (() => {
+                // The icon reflects where this would actually land right
+                // now, not just where it started from - moving into the
+                // other list points toward it (right for Available ->
+                // Active, left for the reverse); reordering in place
+                // (source and target are the same list) gets its own icon
+                // instead of implying movement toward either side.
+                const icon = dragMove.dropTarget?.list === dragMove.draggedSource
+                    ? 'fa-arrows-up-down'
+                    : dragMove.draggedSource === 'available'
+                        ? 'fa-arrow-right'
+                        : 'fa-arrow-left';
+                const style = {left: `${dragMove.pointer.x + 14}px`, top: `${dragMove.pointer.y + 10}px`};
+                const names = dragMove.draggedIds.map((id) => modsById.get(id)?.Name ?? id);
+                if (names.length === 1) {
+                    return (
+                        <div className="drag-ghost" style={style}>
+                            <i className={`fa-solid ${icon}`}/>
+                            <span>{truncate(names[0], 40)}</span>
+                        </div>
+                    );
+                }
+                // The exact mods being dragged, not just a count - capped
+                // so a huge selection doesn't turn the preview into its
+                // own scrollable list.
+                const shown = names.slice(0, 5);
+                const extra = names.length - shown.length;
+                return (
+                    <div className="drag-ghost drag-ghost-multi" style={style}>
+                        <div className="drag-ghost-head">
+                            <i className={`fa-solid ${icon}`}/>
+                            <span className="mono">{names.length} mods</span>
+                        </div>
+                        {shown.map((name, i) => <div key={i} className="drag-ghost-name">{truncate(name, 40)}</div>)}
+                        {extra > 0 && <div className="drag-ghost-more mono">+{extra} more</div>}
+                    </div>
+                );
+            })()}
+
             {showPlaysets && (
                 <PlaysetsModal
                     gameName={gameName}
@@ -900,6 +1039,19 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
             )}
         </div>
     );
+}
+
+// Removes ids from list, then reinserts them (in their given relative
+// order) at target's dropped position within what's left - computing the
+// insertion index against the already-filtered array is what keeps this
+// correct regardless of whether the dragged rows sat before or after the
+// drop point originally. Shared by every reorder-in-place case in
+// dragMove's onDrop above (Active-internal, Available-internal, and an
+// Active -> Available deactivate landing at a specific spot).
+function reorderInsert(list: string[], ids: string[], target: DropTarget): string[] {
+    const remaining = list.filter((id) => !ids.includes(id));
+    const insertAt = target.kind === 'end' ? remaining.length : Math.max(0, remaining.indexOf(target.id));
+    return [...remaining.slice(0, insertAt), ...ids, ...remaining.slice(insertAt)];
 }
 
 function matchesSearch(m: library.ModSummary, search: string): boolean {
