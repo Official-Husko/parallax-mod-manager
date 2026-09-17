@@ -5,6 +5,15 @@ import {colorFromName} from '../data/nameColor';
 
 export type ViewKey = 'library' | 'workspace' | 'dlc' | 'settings';
 
+// The real, underlying version string ("rawVersion" - see
+// internal/game.GameConfig.GameVersion) keeps its leading "v" for
+// wildcard-matching purposes (frontend/src/data/versionCompat.ts strips it
+// again there anyway), but the header's own display, matching the design
+// mockup exactly, drops it - "4.4.6", not "v4.4.6".
+function displayVersion(v: string): string {
+    return v.replace(/^v/i, '');
+}
+
 const NAV_ITEMS: { key: ViewKey; label: string }[] = [
     {key: 'library', label: 'Library'},
     {key: 'workspace', label: 'Workspace'},
@@ -23,6 +32,10 @@ export function TopBar({view, onNavigate, gamePicker}: {
         // doesn't carry one) - shown as nothing at all in that case, never
         // a placeholder or an error.
         gameVersion?: string;
+        // Every managed game's own version, keyed by ID - lets the
+        // dropdown below show each game's real version next to its name,
+        // not just the currently-selected one's.
+        gameVersions?: Record<string, string>;
         // Optional - a view with no notion of "the active playset" (e.g.
         // DLC, which edits a saved playset by name from its own picker
         // instead) simply omits this rather than showing a fake one.
@@ -77,23 +90,31 @@ export function TopBar({view, onNavigate, gamePicker}: {
                             onClick={() => hasGameMenu && setOpen((v) => !v)}
                         >
                             <span className="game-name">{gamePicker.gameLabel}</span>
-                            {gamePicker.gameVersion && <span className="game-version mono">{gamePicker.gameVersion}</span>}
-                            {hasGameMenu && <i className="fa-solid fa-chevron-down"/>}
+                            {(gamePicker.gameVersion || hasGameMenu) && (
+                                <span className="game-version-chevron">
+                                    {gamePicker.gameVersion && <span className="game-version mono">{displayVersion(gamePicker.gameVersion)}</span>}
+                                    {hasGameMenu && <i className="fa-solid fa-chevron-down"/>}
+                                </span>
+                            )}
                         </div>
                         {open && hasGameMenu && (
                             <div className="topbar-game-dropdown">
-                                {gamePicker.games?.map((g) => (
-                                    <div
-                                        key={g.ID}
-                                        className={`topbar-game-option ${g.DisplayName === gamePicker.gameLabel ? 'active' : ''}`}
-                                        onClick={() => {
-                                            gamePicker.onSelectGame!(g.ID);
-                                            setOpen(false);
-                                        }}
-                                    >
-                                        {g.DisplayName}
-                                    </div>
-                                ))}
+                                {gamePicker.games?.map((g) => {
+                                    const version = gamePicker.gameVersions?.[g.ID];
+                                    return (
+                                        <div
+                                            key={g.ID}
+                                            className={`topbar-game-option ${g.DisplayName === gamePicker.gameLabel ? 'active' : ''}`}
+                                            onClick={() => {
+                                                gamePicker.onSelectGame!(g.ID);
+                                                setOpen(false);
+                                            }}
+                                        >
+                                            <span className="option-name">{g.DisplayName}</span>
+                                            {version && <span className="option-version mono">{displayVersion(version)}</span>}
+                                        </div>
+                                    );
+                                })}
                                 {gamePicker.onAddGame && (
                                     <div
                                         className="topbar-game-option add"

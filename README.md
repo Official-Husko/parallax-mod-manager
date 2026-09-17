@@ -497,16 +497,20 @@ This list grows as features land - see [Progress](#progress) below, which is kep
 - **Real, currently-installed game version detection and mod version-compatibility flagging**
   (`internal/game.GameConfig.GameVersion`, `frontend/src/data/versionCompat.ts`) - the TopBar's
   own game pill now shows the real version (e.g. `v4.4.6`) read from the Paradox Launcher's own
-  `launcher-settings.json`, next to whichever game is selected; nothing shown at all when it
-  can't be determined, never a placeholder. That real version also drives a real compatibility
-  check against every mod's own declared `supported_version` (confirmed wildcard format - see
-  [docs/paradox-mod-format.md](docs/paradox-mod-format.md)): a mod confirmed incompatible with
-  the installed version is colored amber (this project's own color language reserves red for
-  hard conflicts only) in both the Available/Active lists' version column and the detail panel's
-  own "Supports" row, which used to always show a flat, meaningless green regardless of whether
-  that was actually true. The TopBar's game switcher also gained a real "+ Add game" entry,
-  always reachable (even managing only one game, not gated behind already having more than one
-  to switch between) - jumps straight to Settings' own "Game profiles" panel.
+  `launcher-settings.json`, as its own distinct segment next to the game name - a compound pill
+  (name, version, the switcher chevron, each its own segment divided by a plain border, only the
+  name carrying a background) matching the design mockup's own topbar exactly, not just loose
+  inline text; nothing shown at all when a version can't be determined, never a placeholder. The
+  switcher dropdown shows every managed game's own real version the same way, not just the
+  currently-selected one's, and gained a real "+ Add game" entry, always reachable (even managing
+  only one game, not gated behind already having more than one to switch between) that jumps
+  straight to Settings' own "Game profiles" panel. The real version also drives a real
+  compatibility check against every mod's own declared `supported_version` (confirmed wildcard
+  format - see [docs/paradox-mod-format.md](docs/paradox-mod-format.md)): a mod confirmed
+  incompatible with the installed version is colored amber (this project's own color language
+  reserves red for hard conflicts only) in both the Available/Active lists' version column and
+  the detail panel's own "Supports" row, which used to always show a flat, meaningless green
+  regardless of whether that was actually true.
 - **Every top-level view stays mounted once visited, instead of unmounting on navigation** - a
   real bug found while chasing why the Workshop/author fetch above never seemed to finish:
   `app.tsx` used to fully unmount a view (`{view === 'x' && <X/>}`) the instant the user

@@ -129,14 +129,22 @@
     margin-left: 10px;
 }
 
+/* A compound pill of two segments - the name, and (when there's a real
+   version and/or a switcher to show) version+chevron sharing one segment
+   together - rather than one flat background with loose inline text.
+   Matches the design mockup's own topbar exactly (mockup/Mod
+   Manager.dc.html, the DLC screen's own header): only the name segment
+   carries a background; the second is divided from it by a single plain
+   left border and shows through to the page behind, in a dimmer color -
+   there's no second divider between the version and the chevron, they
+   share the one segment. */
 .topbar-game-pill {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 0;
     border: 1px solid var(--border-light);
     border-radius: 5px;
-    padding: 5px 11px;
-    background: #1b232e;
+    overflow: hidden;
 }
 
 .topbar-game-pill.switchable {
@@ -146,11 +154,21 @@
 .topbar-game-pill .game-name {
     font: 600 11.5px Barlow, sans-serif;
     color: var(--text-bright);
+    background: #1b232e;
+    padding: 5px 11px;
+}
+
+.topbar-game-pill .game-version-chevron {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 9px;
+    border-left: 1px solid var(--border-light);
 }
 
 .topbar-game-pill .game-version {
-    font-size: 10px;
-    color: var(--text-dim);
+    font: 500 11px "Azeret Mono", monospace;
+    color: var(--text-muted);
 }
 
 .topbar-game-pill i {
@@ -172,6 +190,10 @@
 }
 
 .topbar-game-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
     padding: 7px 11px;
     font: 500 11.5px Barlow, sans-serif;
     color: var(--text-mid);
@@ -186,6 +208,14 @@
 .topbar-game-option.active {
     color: var(--text-bright);
     background: #1b232e;
+}
+
+/* Same color/font language the closed pill's own version segment uses
+   (dim, Azeret Mono) - every row shows its own game's real version, not
+   just the currently-selected one. */
+.topbar-game-option .option-version {
+    font-size: 10px;
+    color: var(--text-dim);
 }
 
 .topbar-game-option.add {

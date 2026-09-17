@@ -50,15 +50,18 @@ export function App() {
     // this one boolean is controlled from outside it.
     const [showPlaysets, setShowPlaysets] = useState(false);
     const [error, setError] = useState('');
-    // The real, currently-installed game version (e.g. "v4.4.6"), read
-    // from the real Paradox Launcher's own launcher-settings.json - see
-    // internal/game.GameConfig.GameVersion. Fetched fresh on every game
-    // switch (which includes the very first one, at startup); "" (shown
-    // as nothing at all, not an error) when it can't be determined - a
-    // game that isn't installed, or whose launcher-settings.json simply
-    // doesn't carry one. Lives here, not inside Workspace, so the TopBar's
-    // own game pill (a sibling of Workspace) can show it too.
-    const [gameVersion, setGameVersion] = useState('');
+    // The real, currently-installed version of every managed game (e.g.
+    // "v4.4.6"), keyed by game ID, read from each one's own real Paradox
+    // Launcher launcher-settings.json - see
+    // internal/game.GameConfig.GameVersion. Fetched fresh whenever the
+    // managed-games list itself changes (which includes the very first
+    // resolve, at startup) - every game at once, not just the selected
+    // one, so the TopBar's own game switcher dropdown can show each
+    // game's version right there, not only the currently active one. A
+    // game missing from this map (not yet resolved, or resolved to "")
+    // just shows nothing - never a placeholder or an error.
+    const [gameVersions, setGameVersions] = useState<Record<string, string>>({});
+    const gameVersion = gameVersions[selectedGame] ?? '';
     // Incremented to ask the (already-mounted, once visited) Settings
     // view to jump to its "Game profiles" panel - see the TopBar's own
     // "+ Add game" entry in its game switcher dropdown. 0 (falsy) means
@@ -121,16 +124,15 @@ export function App() {
     }, [onboarded]);
 
     useEffect(() => {
-        if (!selectedGame) {
-            setGameVersion('');
+        if (games.length === 0) {
+            setGameVersions({});
             return;
         }
         let cancelled = false;
-        GameVersion(selectedGame)
-            .then((v) => { if (!cancelled) setGameVersion(v); })
-            .catch(() => { if (!cancelled) setGameVersion(''); });
+        Promise.all(games.map((g) => GameVersion(g.ID).then((v) => [g.ID, v] as const).catch(() => [g.ID, ''] as const)))
+            .then((pairs) => { if (!cancelled) setGameVersions(Object.fromEntries(pairs)); });
         return () => { cancelled = true; };
-    }, [selectedGame]);
+    }, [games]);
 
     function selectGame(id: string) {
         setSelectedGame(id);
@@ -163,6 +165,7 @@ export function App() {
         ? {
             gameLabel: gameName,
             gameVersion,
+            gameVersions,
             playsetLabel: playsetName || '(unsaved)',
             onOpenPlaysetSwitcher: () => setShowPlaysets(true),
             games: games.map((g) => ({ID: g.ID, DisplayName: g.DisplayName})),
@@ -173,6 +176,7 @@ export function App() {
             ? {
                 gameLabel: gameName,
                 gameVersion,
+                gameVersions,
                 games: games.map((g) => ({ID: g.ID, DisplayName: g.DisplayName})),
                 onSelectGame: selectGame,
                 onAddGame: openGameProfiles,
