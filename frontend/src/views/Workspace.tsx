@@ -4,6 +4,7 @@ import {useEffect, useMemo, useRef, useState} from 'preact/hooks';
 import {
     AuthorProfiles,
     GetPreferences,
+    ImportLauncherPlaysets,
     LaunchGame,
     ListModFiles,
     ListPlaysets,
@@ -17,7 +18,7 @@ import {
     WorkshopDetails,
 } from '../../wailsjs/go/main/App';
 import {BrowserOpenURL, EventsOn} from '../../wailsjs/runtime/runtime';
-import type {library, playset, preferences, steamapi} from '../../wailsjs/go/models';
+import type {launcherdb, library, playset, preferences, steamapi} from '../../wailsjs/go/models';
 import {autosort} from '../data/autosort';
 import {dismiss, notify, updateNotification} from '../data/notifications';
 import {type ContextMenuItem, openContextMenu} from '../data/contextMenu';
@@ -25,6 +26,7 @@ import {useDragMultiSelect} from '../data/dragMultiSelect';
 import {type DropTarget, useListDragMove} from '../data/listDragMove';
 import {domains} from '../data/mockData';
 import {buildPreflightItems} from '../data/preflight';
+import {checkVersionCompatibility} from '../data/versionCompat';
 import {formatBytes, truncate} from '../data/format';
 import {SourceBadge} from '../components/SourceBadge';
 import {FileTree} from '../components/FileTree';
@@ -50,9 +52,15 @@ type DetailTab = 'overview' | 'files' | 'conflicts' | 'changes';
 const MAX_DETAIL_NAME_LENGTH = 70;
 const MAX_AUTHOR_NAME_LENGTH = 40;
 
-export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdates, showPlaysets, setShowPlaysets}: {
+export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange, onOpenUpdates, showPlaysets, setShowPlaysets}: {
     games: library.GameInfo[];
     selectedGame: string;
+    // The real, currently-installed game version (e.g. "v4.4.6"), fetched
+    // once by app.tsx - "" when it couldn't be determined. Used to flag a
+    // mod whose own declared supported_version is confirmed incompatible
+    // (see data/versionCompat.ts) - never to block or hide anything, just
+    // to color/mark it.
+    gameVersion: string;
     onPlaysetNameChange: (name: string) => void;
     onOpenUpdates: () => void;
     // Controlled from app.tsx, not local state - the TopBar's own
@@ -85,6 +93,13 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
     const [detailTab, setDetailTab] = useState<DetailTab>('overview');
     const [playsetName, setPlaysetNameState] = useState('');
     const [playsetList, setPlaysetList] = useState<string[]>([]);
+    // Real playsets found in the Paradox Launcher's own database
+    // (launcher-v2.sqlite), read-only - see docs/launcher-database.md. A
+    // fetch failure here is non-fatal and left silent (an empty list) -
+    // this is a bonus convenience on top of this project's own real
+    // playset storage above, not something worth interrupting the rest of
+    // Workspace with an error banner over.
+    const [launcherPlaysets, setLauncherPlaysets] = useState<launcherdb.Playset[]>([]);
     // The active playset's DLC toggles - preserved across save/launch so
     // Workspace never silently wipes what the DLC screen set. Empty for a
     // brand-new, unsaved playset; loaded from the real file otherwise.
@@ -175,6 +190,9 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
         ListPlaysets(selectedGame)
             .then(setPlaysetList)
             .catch((err) => setStatus({kind: 'error', message: String(err)}));
+        ImportLauncherPlaysets(selectedGame)
+            .then(setLauncherPlaysets)
+            .catch(() => setLauncherPlaysets([]));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedGame]);
 
@@ -707,6 +725,35 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
         }
     }
 
+    // Imports one of the Paradox Launcher's own real playsets (see
+    // ImportLauncherPlaysets above) as the current, unsaved draft - the
+    // same "build it, then explicitly Save" flow "New" already uses in
+    // PlaysetsModal, not an immediate write to this project's own playset
+    // storage. GameRegistryID ("mod/<id>.mod") is converted back to this
+    // project's own bare mod id the same way internal/launch's
+    // classicDescriptorPath builds it going the other direction; only
+    // enabled entries that are actually part of the currently scanned mod
+    // list end up in the imported order - anything else (installed via
+    // the Launcher but not found by this project's own scan, or simply no
+    // longer enabled in the source playset) is skipped and reported.
+    function handleImportLauncherPlayset(p: launcherdb.Playset) {
+        const enabledMods = p.Mods.filter((m) => m.Enabled);
+        const resolved = enabledMods
+            .map((m) => m.GameRegistryID.replace(/^mod\//, '').replace(/\.mod$/, ''))
+            .filter((id) => modsById.has(id));
+        setOrder(resolved);
+        setPlaysetName(p.Name);
+        setSelectedAvailable(new Set());
+        setShowPlaysets(false);
+        const skipped = enabledMods.length - resolved.length;
+        if (skipped > 0) {
+            const subject = skipped === 1 ? '1 mod' : `${skipped} mods`;
+            notify('info', `Imported "${p.Name}" from the Paradox Launcher - ${subject} not currently found here ${skipped === 1 ? 'was' : 'were'} skipped. Save to keep this playset.`);
+        } else {
+            notify('success', `Imported "${p.Name}" from the Paradox Launcher (${resolved.length} mods). Save to keep it.`);
+        }
+    }
+
     async function handleLaunchAnyway() {
         if (!playsetName.trim()) return;
         setShowPreflight(false);
@@ -737,6 +784,7 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
                         onTab={setDetailTab}
                         onOpenResolver={() => setShowConflictResolver(true)}
                         gameId={selectedGame}
+                        gameVersion={gameVersion}
                         allMods={allMods}
                         conflicts={summary?.Conflicts ?? []}
                         onError={(message) => setStatus({kind: 'error', message})}
@@ -788,6 +836,8 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
                                 const authorLoading = m.Source === 'workshop'
                                     && (workshopDetailsState === 'loading' || (workshopDetailsState === 'loaded' && authorProfilesState === 'loading'));
                                 const isDropBefore = dragMove.dropTarget?.list === 'available' && dragMove.dropTarget.kind === 'before' && dragMove.dropTarget.id === m.ID;
+                                const compat = checkVersionCompatibility(m.SupportedVersion, gameVersion);
+                                const incompatible = compat.known && !compat.compatible;
                                 return (
                                 <div
                                     key={m.ID}
@@ -805,7 +855,12 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
                                     />
                                     <SourceBadge source={m.Source} name={m.Name}/>
                                     <span className="name">{m.Name}</span>
-                                    <span className="ver mono">{m.Version || '-'}</span>
+                                    <span
+                                        className={`ver mono ${incompatible ? 'incompatible' : ''}`}
+                                        title={incompatible ? `Built for ${m.SupportedVersion} - you have ${gameVersion}` : undefined}
+                                    >
+                                        {m.Version || '-'}
+                                    </span>
                                     <span className="author mono" title={author}>
                                         {authorLoading
                                             ? <span className="skeleton skeleton-text" style={{width: '50px', marginLeft: 'auto'}}/>
@@ -863,6 +918,8 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
                             {visibleActive.map((m, index) => {
                                 const conflicted = conflictedIds.has(m.ID);
                                 const isDropBefore = dragMove.dropTarget?.list === 'active' && dragMove.dropTarget.kind === 'before' && dragMove.dropTarget.id === m.ID;
+                                const compat = checkVersionCompatibility(m.SupportedVersion, gameVersion);
+                                const incompatible = compat.known && !compat.compatible;
                                 return (
                                     <div
                                         key={m.ID}
@@ -877,7 +934,12 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
                                         <span className="domain-segments">
                                             {domains.map((d) => <span key={d} className="segment clean"/>)}
                                         </span>
-                                        <span className={`flag mono ${conflicted ? 'conflict' : ''}`}>{conflicted ? 'CONF' : ''}</span>
+                                        <span
+                                            className={`flag mono ${conflicted ? 'conflict' : incompatible ? 'incompatible' : ''}`}
+                                            title={!conflicted && incompatible ? `Built for ${m.SupportedVersion} - you have ${gameVersion}` : undefined}
+                                        >
+                                            {conflicted ? 'CONF' : incompatible ? 'VER' : ''}
+                                        </span>
                                         <span className="row-actions">
                                             <i className="fa-solid fa-chevron-up" onClick={(e) => { e.stopPropagation(); moveInOrder(m.ID, -1); }}/>
                                             <i className="fa-solid fa-chevron-down" onClick={(e) => { e.stopPropagation(); moveInOrder(m.ID, 1); }}/>
@@ -999,8 +1061,10 @@ export function Workspace({games, selectedGame, onPlaysetNameChange, onOpenUpdat
                 <PlaysetsModal
                     gameName={gameName}
                     names={playsetList}
+                    launcherPlaysets={launcherPlaysets}
                     onActivate={handleLoadPlayset}
                     onNew={() => { setOrder([]); setPlaysetName(''); setDisabledDlc([]); setShowPlaysets(false); }}
+                    onImport={handleImportLauncherPlayset}
                     onClose={() => setShowPlaysets(false)}
                 />
             )}
@@ -1075,12 +1139,13 @@ function authorNameFor(
     return authorProfiles.get(d.Creator)?.Name ?? '';
 }
 
-function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, allMods, conflicts, onError, onSelectMod, workshopDetails, workshopDetailsState, authorProfiles}: {
+function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, gameVersion, allMods, conflicts, onError, onSelectMod, workshopDetails, workshopDetailsState, authorProfiles}: {
     mod: library.ModSummary | null;
     tab: DetailTab;
     onTab: (t: DetailTab) => void;
     onOpenResolver: () => void;
     gameId: string;
+    gameVersion: string;
     allMods: library.ModSummary[];
     conflicts: library.ConflictSummary[];
     onError: (message: string) => void;
@@ -1239,6 +1304,7 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, allMods, conflict
                                 onSelectMod={onSelectMod}
                                 steamDetails={validSteamDetails}
                                 author={author}
+                                gameVersion={gameVersion}
                             />
                         )}
                         {tab === 'files' && (
@@ -1376,7 +1442,7 @@ function stripBBCode(s: string): string {
     return s.replace(/\[[^\]]*\]/g, '').trim();
 }
 
-function OverviewTab({mod, files, filesLoading, allMods, conflicts, onOpenFolder, onSelectMod, steamDetails, author}: {
+function OverviewTab({mod, files, filesLoading, allMods, conflicts, onOpenFolder, onSelectMod, steamDetails, author, gameVersion}: {
     mod: library.ModSummary;
     files: library.ModFiles | null;
     filesLoading: boolean;
@@ -1396,6 +1462,11 @@ function OverviewTab({mod, files, filesLoading, allMods, conflicts, onOpenFolder
     // they came with.
     steamDetails: steamapi.PublishedFileDetails | undefined;
     author: steamapi.Profile | undefined;
+    // The real, currently-installed game version - drives the "Supports"
+    // row's own color below (see data/versionCompat.ts), instead of the
+    // flat hardcoded "ok" green it used to always show regardless of
+    // whether that was actually true.
+    gameVersion: string;
 }) {
     // Maps a dependency's declared name to the real mod ID it resolves
     // to, when one of the currently-scanned mods actually has that name -
@@ -1411,6 +1482,7 @@ function OverviewTab({mod, files, filesLoading, allMods, conflicts, onOpenFolder
         ? `https://steamcommunity.com/sharedfiles/filedetails/?id=${mod.RemoteFileID}`
         : '';
     const steamDescription = steamDetails?.Description ? stripBBCode(steamDetails.Description) : '';
+    const supportsCompat = checkVersionCompatibility(mod.SupportedVersion, gameVersion);
 
     return (
         <>
@@ -1430,7 +1502,13 @@ function OverviewTab({mod, files, filesLoading, allMods, conflicts, onOpenFolder
             )}
             <div className="overview-grid">
                 <span className="label">Version</span><span className="value mono">{mod.Version || '-'}</span>
-                <span className="label">Supports</span><span className="value mono ok">{mod.SupportedVersion || '-'}</span>
+                <span className="label">Supports</span>
+                <span
+                    className={`value mono ${supportsCompat.known ? (supportsCompat.compatible ? 'ok' : 'warn') : ''}`}
+                    title={supportsCompat.known && !supportsCompat.compatible ? `You have ${gameVersion}` : undefined}
+                >
+                    {mod.SupportedVersion || '-'}
+                </span>
                 <span className="label">Size</span>
                 <span className="value mono">
                     {files

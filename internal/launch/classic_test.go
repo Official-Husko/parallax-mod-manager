@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/google/uuid"
+
 	"github.com/Official-Husko/parallax-mod-manager/internal/conflict"
 	"github.com/Official-Husko/parallax-mod-manager/internal/mod"
 )
@@ -29,8 +31,13 @@ func TestWriteStateWritesExpectedDLCLoad(t *testing.T) {
 		t.Fatalf("WriteState: %v", err)
 	}
 	wantPath := filepath.Join(dir, "dlc_load.json")
-	if len(result.Written) != 1 || result.Written[0] != wantPath {
-		t.Errorf("Result.Written = %v, want [%s]", result.Written, wantPath)
+	wantWritten := []string{
+		wantPath,
+		filepath.Join(dir, "mods_registry.json"),
+		filepath.Join(dir, "game_data.json"),
+	}
+	if !reflect.DeepEqual(result.Written, wantWritten) {
+		t.Errorf("Result.Written = %v, want %v", result.Written, wantWritten)
 	}
 
 	data, err := os.ReadFile(wantPath)
@@ -92,14 +99,14 @@ func TestWriteStateUnknownModPropagatesError(t *testing.T) {
 	}
 }
 
-func TestWriteStateNeverWritesGameData(t *testing.T) {
-	// game_data.json's modsOrder needs a mod-UUID registry this project
-	// doesn't track yet (see docs/game-launching.md) - writing plain mod-ID
-	// strings into that UUID-keyed field would be wrong, so WriteState must
-	// never touch this file at all, not even if a stale copy already
-	// exists from a previous real launcher run.
+func TestWriteStateUpdatesGameDataPreservingUnknownFields(t *testing.T) {
+	// game_data.json carries at least isEulaAccepted alongside modsOrder
+	// (see docs/game-launching.md) - WriteState must update modsOrder with
+	// real registry UUIDs without resetting isEulaAccepted (or dropping any
+	// other field a real launcher run might have written) back to its zero
+	// value.
 	dir := t.TempDir()
-	preexisting := []byte(`{"isEulaAccepted": true, "modsOrder": ["21153e40-4eea-4b4e-bae1-59ec0ccc8016"]}`)
+	preexisting := []byte(`{"isEulaAccepted": true, "someOtherField": "keep me", "modsOrder": ["stale-uuid"]}`)
 	if err := os.WriteFile(filepath.Join(dir, "game_data.json"), preexisting, 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
@@ -114,7 +121,64 @@ func TestWriteStateNeverWritesGameData(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadFile: %v", err)
 	}
-	if string(after) != string(preexisting) {
-		t.Errorf("game_data.json was modified: %q, want untouched %q", after, preexisting)
+	var got map[string]any
+	if err := json.Unmarshal(after, &got); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
 	}
+	if got["isEulaAccepted"] != true {
+		t.Errorf("isEulaAccepted = %v, want true (preserved)", got["isEulaAccepted"])
+	}
+	if got["someOtherField"] != "keep me" {
+		t.Errorf("someOtherField = %v, want %q (preserved)", got["someOtherField"], "keep me")
+	}
+	modsOrder, ok := got["modsOrder"].([]any)
+	if !ok || len(modsOrder) != 1 {
+		t.Fatalf("modsOrder = %v, want exactly one entry", got["modsOrder"])
+	}
+	newUUID, ok := modsOrder[0].(string)
+	if !ok || newUUID == "" || newUUID == "stale-uuid" {
+		t.Errorf("modsOrder[0] = %v, want a real, freshly-resolved UUID", modsOrder[0])
+	}
+	if _, err := uuid.Parse(newUUID); err != nil {
+		t.Errorf("modsOrder[0] = %q, not a valid UUID: %v", newUUID, err)
+	}
+}
+
+func TestWriteStateReusesSameUUIDAcrossLaunches(t *testing.T) {
+	// A mod's registry UUID must stay stable launch to launch - Steam or
+	// the game itself may reference it elsewhere, and minting a fresh one
+	// every time would make mods_registry.json (and anything keyed off it)
+	// churn for no reason.
+	dir := t.TempDir()
+	mods := []mod.Mod{{ID: "ugc_123", Source: mod.SourceWorkshop, Descriptor: mod.Descriptor{Name: "Test", RemoteFileID: "123"}}}
+	order := conflict.LoadOrder{"ugc_123"}
+
+	if _, err := WriteState(order, mods, testClassicGame(), Options{StateDir: dir}); err != nil {
+		t.Fatalf("first WriteState: %v", err)
+	}
+	firstUUID := readModsOrder(t, dir)[0]
+
+	if _, err := WriteState(order, mods, testClassicGame(), Options{StateDir: dir}); err != nil {
+		t.Fatalf("second WriteState: %v", err)
+	}
+	secondUUID := readModsOrder(t, dir)[0]
+
+	if firstUUID != secondUUID {
+		t.Errorf("uuid changed across launches: %q then %q, want the same both times", firstUUID, secondUUID)
+	}
+}
+
+func readModsOrder(t *testing.T, dir string) []string {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(dir, "game_data.json"))
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	var got struct {
+		ModsOrder []string `json:"modsOrder"`
+	}
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	return got.ModsOrder
 }

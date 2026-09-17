@@ -1,3 +1,54 @@
+export namespace collection {
+	
+	export class ModRef {
+	    gameId: string;
+	    modId: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ModRef(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.gameId = source["gameId"];
+	        this.modId = source["modId"];
+	    }
+	}
+	export class Collection {
+	    name: string;
+	    mods: ModRef[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Collection(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.mods = this.convertValues(source["mods"], ModRef);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
 export namespace dlc {
 	
 	export class Entry {
@@ -50,6 +101,63 @@ export namespace dlcstore {
 	        this.ComingSoon = source["ComingSoon"];
 	        this.Screenshots = source["Screenshots"];
 	    }
+	}
+
+}
+
+export namespace launcherdb {
+	
+	export class PlaysetMod {
+	    GameRegistryID: string;
+	    DisplayName: string;
+	    Enabled: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new PlaysetMod(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.GameRegistryID = source["GameRegistryID"];
+	        this.DisplayName = source["DisplayName"];
+	        this.Enabled = source["Enabled"];
+	    }
+	}
+	export class Playset {
+	    ID: string;
+	    Name: string;
+	    IsActive: boolean;
+	    Mods: PlaysetMod[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Playset(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.Name = source["Name"];
+	        this.IsActive = source["IsActive"];
+	        this.Mods = this.convertValues(source["Mods"], PlaysetMod);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 
 }

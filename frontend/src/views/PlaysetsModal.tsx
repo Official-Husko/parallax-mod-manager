@@ -1,12 +1,21 @@
 import './PlaysetsModal.css';
 import {h} from 'preact';
 import {colorFromName} from '../data/nameColor';
+import type {launcherdb} from '../../wailsjs/go/models';
 
-export function PlaysetsModal({gameName, names, onActivate, onNew, onClose}: {
+export function PlaysetsModal({gameName, names, launcherPlaysets, onActivate, onNew, onImport, onClose}: {
     gameName: string;
     names: string[];
+    // Real playsets found in the Paradox Launcher's own database
+    // (launcher-v2.sqlite), read-only - see Workspace.tsx's own fetch and
+    // docs/launcher-database.md. Empty when there's nothing to import (no
+    // such file, a JSON-launcher-format game, or the real Launcher has
+    // simply never been opened against this install) - the section below
+    // only renders when this is non-empty.
+    launcherPlaysets: launcherdb.Playset[];
     onActivate: (name: string) => void;
     onNew: () => void;
+    onImport: (playset: launcherdb.Playset) => void;
     onClose: () => void;
 }) {
     return (
@@ -37,6 +46,25 @@ export function PlaysetsModal({gameName, names, onActivate, onNew, onClose}: {
                             </div>
                         </div>
                     ))}
+                    {launcherPlaysets.length > 0 && (
+                        <div className="playsets-import-section">
+                            <div className="section-label">FROM THE PARADOX LAUNCHER</div>
+                            {launcherPlaysets.map((p) => (
+                                <div key={p.ID} className="playset-row">
+                                    <div className="playset-row-edge" style={{background: colorFromName(p.Name)}}/>
+                                    <div className="playset-row-main">
+                                        <div className="playset-row-head">
+                                            <span className="name">{p.Name}</span>
+                                            <span className="mono state">{p.Mods.length} mods{p.IsActive ? ' · ACTIVE' : ''}</span>
+                                        </div>
+                                    </div>
+                                    <div className="playset-row-actions">
+                                        <span className="btn-ghost activate" onClick={() => onImport(p)}>Import</span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                     <div className="playset-join-row">
                         <span>Join a friend's playset:</span>
                         <span className="mono code-input">PLLX-XXXX-XXXX</span>

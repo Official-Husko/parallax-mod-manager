@@ -105,6 +105,20 @@
     border-color: var(--amber);
 }
 
+.playsets-import-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-top: 4px;
+    border-top: 1px solid var(--border);
+}
+
+.playsets-import-section .section-label {
+    font: 600 9.5px "Azeret Mono", monospace;
+    color: var(--text-dim);
+    letter-spacing: .12em;
+}
+
 .playset-join-row {
     border: 1px dashed var(--border-light);
     border-radius: 6px;

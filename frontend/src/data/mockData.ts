@@ -9,18 +9,6 @@
 
 export const APP_NAME = 'Parallax Mod Manager';
 
-// --- Library (4a) ---
-// The games list and mod table are real (see views/Library.tsx) - only
-// "collections" has no backing concept yet, so it stays static.
-
-export const libCollections = [
-    {label: 'Favourites', n: 41},
-    {label: 'Multiplayer safe', n: 88},
-    {label: 'Total conversions', n: 19},
-    {label: 'QoL / UI', n: 134},
-    {label: 'Archived', n: 207},
-];
-
 // --- Settings: game profiles (3c) + sort rules (4c) ---
 
 export const settingsNav = [

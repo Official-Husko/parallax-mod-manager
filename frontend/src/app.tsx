@@ -1,7 +1,7 @@
 import './App.css'
 import {h} from 'preact';
 import {useEffect, useState} from 'preact/hooks';
-import {GetPreferences, ListGames, SetPreferences, StartupNotice} from '../wailsjs/go/main/App';
+import {GameVersion, GetPreferences, ListGames, SetPreferences, StartupNotice} from '../wailsjs/go/main/App';
 import type {library, preferences} from '../wailsjs/go/models';
 import {TopBar} from './components/TopBar';
 import type {ViewKey} from './components/TopBar';
@@ -50,6 +50,21 @@ export function App() {
     // this one boolean is controlled from outside it.
     const [showPlaysets, setShowPlaysets] = useState(false);
     const [error, setError] = useState('');
+    // The real, currently-installed game version (e.g. "v4.4.6"), read
+    // from the real Paradox Launcher's own launcher-settings.json - see
+    // internal/game.GameConfig.GameVersion. Fetched fresh on every game
+    // switch (which includes the very first one, at startup); "" (shown
+    // as nothing at all, not an error) when it can't be determined - a
+    // game that isn't installed, or whose launcher-settings.json simply
+    // doesn't carry one. Lives here, not inside Workspace, so the TopBar's
+    // own game pill (a sibling of Workspace) can show it too.
+    const [gameVersion, setGameVersion] = useState('');
+    // Incremented to ask the (already-mounted, once visited) Settings
+    // view to jump to its "Game profiles" panel - see the TopBar's own
+    // "+ Add game" entry in its game switcher dropdown. 0 (falsy) means
+    // "no pending request," so Settings' own default section on first
+    // mount is untouched by this.
+    const [settingsProfilesRequest, setSettingsProfilesRequest] = useState(0);
     // Every view this session has actually navigated to at least once -
     // 'workspace' up front since it's the default. Once a view is in
     // here it's mounted for good (see the render below); this set only
@@ -105,6 +120,18 @@ export function App() {
             .catch((err) => setError(String(err)));
     }, [onboarded]);
 
+    useEffect(() => {
+        if (!selectedGame) {
+            setGameVersion('');
+            return;
+        }
+        let cancelled = false;
+        GameVersion(selectedGame)
+            .then((v) => { if (!cancelled) setGameVersion(v); })
+            .catch(() => { if (!cancelled) setGameVersion(''); });
+        return () => { cancelled = true; };
+    }, [selectedGame]);
+
     function selectGame(id: string) {
         setSelectedGame(id);
         if (prefs) {
@@ -127,19 +154,28 @@ export function App() {
 
     const gameName = games.find((g) => g.ID === selectedGame)?.DisplayName ?? selectedGame;
 
+    function openGameProfiles() {
+        setView('settings');
+        setSettingsProfilesRequest((n) => n + 1);
+    }
+
     const gamePicker = view === 'workspace'
         ? {
             gameLabel: gameName,
+            gameVersion,
             playsetLabel: playsetName || '(unsaved)',
             onOpenPlaysetSwitcher: () => setShowPlaysets(true),
             games: games.map((g) => ({ID: g.ID, DisplayName: g.DisplayName})),
             onSelectGame: selectGame,
+            onAddGame: openGameProfiles,
         }
         : view === 'dlc'
             ? {
                 gameLabel: gameName,
+                gameVersion,
                 games: games.map((g) => ({ID: g.ID, DisplayName: g.DisplayName})),
                 onSelectGame: selectGame,
+                onAddGame: openGameProfiles,
             }
             : undefined;
 
@@ -179,6 +215,7 @@ export function App() {
                     <Workspace
                         games={games}
                         selectedGame={selectedGame}
+                        gameVersion={gameVersion}
                         onPlaysetNameChange={setPlaysetName}
                         onOpenUpdates={() => setShowUpdates(true)}
                         showPlaysets={showPlaysets}
@@ -198,7 +235,7 @@ export function App() {
             )}
             {!error && visitedViews.has('settings') && (
                 <div style={{display: view === 'settings' ? 'contents' : 'none'}}>
-                    <Settings/>
+                    <Settings jumpToProfiles={settingsProfilesRequest}/>
                 </div>
             )}
 

@@ -79,6 +79,30 @@
     font-size: 10px;
 }
 
+.sidebar-collection.new {
+    color: var(--amber);
+    cursor: pointer;
+    gap: 6px;
+}
+
+.sidebar-collection.new i {
+    font-size: 10px;
+}
+
+.sidebar-collection-create {
+    padding: 4px 14px;
+}
+
+.sidebar-collection-create input {
+    width: 100%;
+    background: #161d27;
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    padding: 5px 8px;
+    font: 500 12px Barlow, sans-serif;
+    color: var(--text-bright);
+}
+
 .sidebar-footer {
     margin-top: auto;
     padding: 12px 14px 0;
@@ -110,6 +134,34 @@
     display: flex;
     align-items: center;
     gap: 10px;
+}
+
+.library-collection-badge {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font: 500 11.5px Barlow, sans-serif;
+    color: var(--text-mid);
+    background: #1b232e;
+    border: 1px solid var(--border-light);
+    border-radius: 5px;
+    padding: 5px 10px;
+}
+
+.library-collection-badge i.fa-layer-group {
+    color: var(--amber);
+    font-size: 10px;
+}
+
+.library-collection-badge i.fa-trash-can {
+    color: var(--text-dim);
+    font-size: 10px;
+    cursor: pointer;
+    margin-left: 2px;
+}
+
+.library-collection-badge i.fa-trash-can:hover {
+    color: var(--red);
 }
 
 .library-toolbar .search-box {
@@ -155,14 +207,13 @@
 .col-check {
     width: 13px;
     flex: none;
+    display: flex;
 }
 
-.checkbox {
-    display: block;
+.col-check input {
     width: 13px;
     height: 13px;
-    border: 1px solid #3c4858;
-    border-radius: 3px;
+    margin: 0;
 }
 
 .col-src {
@@ -243,6 +294,89 @@
     align-items: center;
     padding: 0 14px;
     gap: 14px;
+}
+
+.library-action-wrap {
+    position: relative;
+}
+
+/* Opens upward from the footer, not downward off the bottom of the
+   window - see data/../views/Library.tsx's ActionPicker. */
+.library-action-picker {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 0;
+    min-width: 180px;
+    max-height: 240px;
+    overflow-y: auto;
+    z-index: 40;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-light);
+    border-radius: 6px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, .35);
+    padding: 6px 0;
+}
+
+.library-action-picker-label {
+    padding: 4px 12px 6px;
+    font-size: 9.5px;
+    letter-spacing: .1em;
+    color: var(--text-dim);
+}
+
+.library-action-picker-empty {
+    padding: 6px 12px;
+    font: 500 11.5px Barlow, sans-serif;
+    color: var(--text-dim);
+}
+
+.library-action-picker-item {
+    padding: 7px 12px;
+    font: 500 11.5px Barlow, sans-serif;
+    color: var(--text-mid);
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.library-action-picker-item:hover {
+    background: var(--bg-row-alt);
+    color: var(--text-bright);
+}
+
+.library-action-picker-item.new {
+    color: var(--amber);
+    border-top: 1px solid var(--border);
+    margin-top: 4px;
+    padding-top: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.library-action-picker-item.new i {
+    font-size: 10px;
+}
+
+.library-action-picker-create {
+    padding: 6px 12px;
+    display: flex;
+    gap: 6px;
+}
+
+.library-action-picker-create input {
+    flex: 1;
+    min-width: 0;
+    background: #161d27;
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    padding: 5px 8px;
+    font: 500 11.5px Barlow, sans-serif;
+    color: var(--text-bright);
+}
+
+.library-action-picker-create .btn-ghost {
+    padding: 4px 9px;
+    font-size: 10.5px;
 }
 
 .library-footer .mono {

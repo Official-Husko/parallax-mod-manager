@@ -109,20 +109,35 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   wins" doesn't care whether the two files belong to the same mod or different ones, so
   detection has to apply the same rule either way. Pure, no file I/O - see
   [docs/conflict-resolution.md](docs/conflict-resolution.md).
-- **Game launching** (`internal/launch`) - writes `dlc_load.json` (the ordered enabled-mods
-  list + disabled-DLC list a classic-descriptor game reads on startup), confirmed
-  byte-for-byte against a real Stellaris install, then launches the game via the Steam
-  protocol URL (falling back to a direct executable for non-Steam installs). Deliberately does
-  *not* touch `game_data.json`: the same real install shows its `modsOrder` field holds mod
-  UUIDs from `mods_registry.json`, a different identifier space than `dlc_load.json` entirely,
-  and this project doesn't track those UUIDs yet - writing plain mod-ID strings into a
-  UUID-keyed field would be wrong, not just incomplete, so the write path stays absent rather
-  than shipping something known to write bad data. The one function in this package allowed to
-  actually open a URL or spawn a process sits behind a small `Launcher` interface - nothing
-  else in the package, and nothing in its test suite, can touch the real OS. Writing state
-  requires an explicit target directory with **no fallback to a real path** - stricter than
-  `internal/scan`'s override, because this package writes rather than reads. See
+- **Game launching, including real `mods_registry.json`/`game_data.json` UUID tracking**
+  (`internal/launch`) - writes `dlc_load.json` (the ordered enabled-mods list + disabled-DLC
+  list a classic-descriptor game reads on startup), confirmed byte-for-byte against a real
+  Stellaris install, then launches the game via the Steam protocol URL (falling back to a
+  direct executable for non-Steam installs). `game_data.json`'s `modsOrder` field holds mod
+  UUIDs from `mods_registry.json`, a different identifier space than `dlc_load.json` entirely -
+  this project now maintains its own UUID per mod there too, reusing an existing entry's UUID
+  (matched by its `gameRegistryId`, the same `"mod/<id>.mod"` string `dlc_load.json` uses) when
+  one's already registered rather than minting a fresh one every launch, so the UUID a mod gets
+  stays stable across launches. Both `mods_registry.json` and `game_data.json` are read-merge-
+  write, not a full overwrite like `dlc_load.json` - entries/fields this project didn't touch
+  (another mod's registry entry, `game_data.json`'s own `isEulaAccepted` flag) round-trip
+  completely untouched rather than getting silently reset or dropped. The one function in this
+  package allowed to actually open a URL or spawn a process sits behind a small `Launcher`
+  interface - nothing else in the package, and nothing in its test suite, can touch the real OS.
+  Writing state requires an explicit target directory with **no fallback to a real path** -
+  stricter than `internal/scan`'s override, because this package writes rather than reads. See
   [docs/game-launching.md](docs/game-launching.md).
+- **Importing existing Paradox Launcher playsets** (`internal/launcherdb`) - reads a game's real
+  `launcher-v2.sqlite`, strictly read-only (confirmed schema against real, live databases for two
+  different classic-descriptor games on this machine, not just a secondary source - see
+  [docs/launcher-database.md](docs/launcher-database.md)), and lists every playset it holds with
+  its own mods in real load-order position. The Workspace's own Playsets switcher shows whatever's
+  found under a "From the Paradox Launcher" section; importing one loads it as the current,
+  unsaved draft - the same "build it, then explicitly Save" flow "New" already uses, not an
+  immediate write into this project's own playset storage - resolving each mod back to this
+  project's own id and reporting (never silently dropping) anything not currently found by this
+  project's own scan. A fixture test proves the read-only connection actually rejects a write,
+  not just documents the intent as a comment.
 - **Wired UI** (`internal/library`, `app.go`, `frontend/src/app.tsx`) - a real scan view: pick a
   game, and `ScanGame` runs the full scan → parse → conflict-resolve chain and renders the mod
   list and any conflicts. `internal/library` owns the orchestration and the frontend-facing
@@ -403,15 +418,29 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   shows the same real per-game detection as the first-run wizard (including a working "set
   path" for anything not auto-detected, and the three real preference toggles described above),
   and its "Sort rules" panel is the real autosort configuration described above; and the
-  Library screen's
-  games sidebar and mod table are real too - it scans every managed game and lists its actual
-  mods (name, source, version, real on-disk size - computed in parallel across every mod at
-  once, `internal/library.ModSizes`, confirmed under 70ms for 81 real mods totaling 47GB),
-  searchable and filterable by game, with the two columns this project genuinely can't compute
-  yet (last played - no launch history is tracked; a mod's "state" - would need a full
+  Library screen is real, including its own "collections" and bulk actions now, not just the
+  games sidebar and mod table - it scans every managed game and lists its actual mods (name,
+  source, version, real on-disk size - computed in parallel across every mod at once,
+  `internal/library.ModSizes`, confirmed under 70ms for 81 real mods totaling 47GB), searchable
+  and filterable by game or by collection, with the two columns this project genuinely can't
+  compute yet (last played - no launch history is tracked; a mod's "state" - would need a full
   conflict-resolve pass per game, too expensive to run just for a browsing view) honestly shown
-  as `-` rather than invented. Everything else in this list - playset sharing, the update
-  checker, and Library's own "collections" and bulk actions - stays a static preview.
+  as `-` rather than invented. **Collections** (`internal/collection`) are a real, persisted,
+  cross-game concept distinct from playsets - a user-named, unordered grouping of mods from any
+  managed game (a "graphics" bucket, a "for my campaign" bucket), stored the same versioned-JSON
+  way playsets are, just without the per-game/load-order scoping a playset needs. **Bulk
+  actions** are real too: checkbox multi-select across the table, "Add to playset" (only enabled
+  when the selection is all one game, since a playset can't span games - loads the target
+  playset, merges in the new mod ids, saves) and "Move to collection" (adds the selection to the
+  target collection, and genuinely removes them from the currently-viewed source collection when
+  one's active and different from the target - a real move, not just an add) via a small
+  click-away picker that can create a new playset/collection inline instead of only picking an
+  existing one. "Uninstall" stays a deliberately inert placeholder for now - this project's only
+  existing mod-deletion path (`PurgeMods`) is narrowly scoped to already-empty local mods on
+  purpose, and a general "delete a mod's real content" action is a materially bigger,
+  higher-stakes capability than what shipped here, not something to add as a side effect of
+  wiring up the rest of the row. Everything else in this list - playset sharing via codes and the
+  update checker - stays a static preview.
 - **A real, stacking notification system** (`frontend/src/data/notifications.ts`,
   `NotificationStack.tsx`) - replaces the single ad-hoc startup-notice banner with a proper
   toast stack anchored right below the top bar, so it never covers the app's own title or game
@@ -465,6 +494,19 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   own - `availableOrder` in `Workspace.tsx`, reconciled against whatever mods are actually available
   whenever that set changes, dropping ones that left and appending new ones in their natural sort
   order while leaving everything else exactly where the user dragged it).
+- **Real, currently-installed game version detection and mod version-compatibility flagging**
+  (`internal/game.GameConfig.GameVersion`, `frontend/src/data/versionCompat.ts`) - the TopBar's
+  own game pill now shows the real version (e.g. `v4.4.6`) read from the Paradox Launcher's own
+  `launcher-settings.json`, next to whichever game is selected; nothing shown at all when it
+  can't be determined, never a placeholder. That real version also drives a real compatibility
+  check against every mod's own declared `supported_version` (confirmed wildcard format - see
+  [docs/paradox-mod-format.md](docs/paradox-mod-format.md)): a mod confirmed incompatible with
+  the installed version is colored amber (this project's own color language reserves red for
+  hard conflicts only) in both the Available/Active lists' version column and the detail panel's
+  own "Supports" row, which used to always show a flat, meaningless green regardless of whether
+  that was actually true. The TopBar's game switcher also gained a real "+ Add game" entry,
+  always reachable (even managing only one game, not gated behind already having more than one
+  to switch between) - jumps straight to Settings' own "Game profiles" panel.
 - **Every top-level view stays mounted once visited, instead of unmounting on navigation** - a
   real bug found while chasing why the Workshop/author fetch above never seemed to finish:
   `app.tsx` used to fully unmount a view (`{view === 'x' && <X/>}`) the instant the user
@@ -484,14 +526,14 @@ clean), including tests that prove behavior rather than just assert on it - e.g.
 on-disk content while forcing an identical stat, and confirms the cache still short-circuits
 the reparse), `internal/conflict`'s `TestDetectKeySameModCrossFileDuplicateCollapsedByRule`
 (confirms LIOS vs. FIOS visibly pick different files for the same mod's own duplicate key),
-and `internal/launch`'s `TestWriteStateNeverWritesGameData` (confirms a pre-existing
-`game_data.json` is left byte-for-byte untouched by a `WriteState` call).
+and `internal/launch`'s `TestWriteStateReusesSameUUIDAcrossLaunches` (confirms a mod's real
+`mods_registry.json` UUID survives two separate `WriteState` calls unchanged, rather than
+churning a fresh one every launch) and `TestWriteStateUpdatesGameDataPreservingUnknownFields`
+(confirms a pre-existing `game_data.json`'s `isEulaAccepted` flag survives a `WriteState` call
+that legitimately does rewrite the file's `modsOrder`).
 
 ### Not yet built
 
-- **`mods_registry.json`-backed UUID tracking** - its schema is now confirmed (see
-  [docs/game-launching.md](docs/game-launching.md)), but this project doesn't generate or
-  persist mod UUIDs yet, which is what's actually blocking `game_data.json` support (above).
 - **JSON-launcher-format games** (Victoria 3, EU5) - `content_load.json`/`playsets.json`'s
   schemas are still unconfirmed against a real install of a game that uses them; Victoria 3 is
   registered with a best-guess descriptor variant flagged as such in `data/games.jsonc`, and EU5
@@ -503,11 +545,12 @@ and `internal/launch`'s `TestWriteStateNeverWritesGameData` (confirms a pre-exis
 - **Remote games-list updates** - `data/games.jsonc` supports a live on-disk override already
   (see above), but nothing fetches an update from its own `source` URL yet; that's a deliberate
   follow-up, not an oversight (see `internal/game.LoadRegistry`'s doc comment).
-- **Real functionality behind the rest of the design mockup** - the cross-game library's own
-  "collections" and bulk actions, and playset sharing via codes, still exist as static visual
-  previews (see [Progress](#progress) above) but don't read or write real data yet. See
-  `mockup/Mod Manager.dc.html` (local reference file, git-ignored) for the full design these are
-  built from.
+- **Playset sharing via codes** - the Library screen's collections and bulk actions are now real
+  (see [Progress](#progress) above); encoding/decoding a playset as a shareable local code
+  ("Import code"/"Share"/"Join a friend's playset" in the Playsets modal) is still a static
+  preview. No server needed for this one - it's a local-only encode/decode scheme, not
+  cloud sync - just not built yet. See `mockup/Mod Manager.dc.html` (local reference file,
+  git-ignored) for the full original design.
 
 ## Development
 

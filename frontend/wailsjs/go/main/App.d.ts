@@ -3,6 +3,8 @@
 import {library} from '../models';
 import {dlcstore} from '../models';
 import {preferences} from '../models';
+import {launcherdb} from '../models';
+import {collection} from '../models';
 import {dlc} from '../models';
 import {playset} from '../models';
 import {steamapi} from '../models';
@@ -15,6 +17,8 @@ export function BrowseForGameInstall(arg1:string):Promise<library.DetectedGame>;
 
 export function DLCStoreData(arg1:string):Promise<Array<dlcstore.StoreData>>;
 
+export function DeleteCollection(arg1:string):Promise<void>;
+
 export function DeletePlayset(arg1:string,arg2:string):Promise<void>;
 
 export function DetectGames():Promise<Array<library.DetectedGame>>;
@@ -23,11 +27,17 @@ export function FindEmptyMods(arg1:string):Promise<Array<library.EmptyModCandida
 
 export function GameMedia(arg1:string,arg2:string):Promise<string>;
 
+export function GameVersion(arg1:string):Promise<string>;
+
 export function GeneratePatch(arg1:string,arg2:Array<string>):Promise<library.PatchResult>;
 
 export function GetPreferences():Promise<preferences.Preferences>;
 
+export function ImportLauncherPlaysets(arg1:string):Promise<Array<launcherdb.Playset>>;
+
 export function LaunchGame(arg1:string,arg2:string):Promise<void>;
+
+export function ListCollections():Promise<Array<collection.Collection>>;
 
 export function ListDLC(arg1:string):Promise<Array<dlc.Entry>>;
 
@@ -50,6 +60,8 @@ export function OpenModFolder(arg1:string,arg2:string):Promise<void>;
 export function PurgeMods(arg1:string,arg2:Array<string>):Promise<library.PurgeResult>;
 
 export function ReadModFile(arg1:string,arg2:string,arg3:string):Promise<string>;
+
+export function SaveCollection(arg1:collection.Collection):Promise<void>;
 
 export function SavePlayset(arg1:playset.Playset):Promise<void>;
 

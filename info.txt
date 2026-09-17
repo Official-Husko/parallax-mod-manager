@@ -1,0 +1,126 @@
+any way to read out the game version from paradox games e.g. stellaris or hoi4 from the game files?
+
+Yes. For Stellaris and HOI4, the cleanest source is launcher-settings.json in the game installation. It contains both a machine-friendly version and the pretty version string. Existing Paradox tooling also uses this file specifically for installed-version detection.
+
+For example, Stellaris installations have had entries like:
+
+{
+  "gameId": "stellaris",
+  "rawVersion": "3.0.3",
+  "version": "Dick v3.0.3 (d281)"
+}
+
+And HOI4 similarly:
+
+{
+  "gameId": "hoi4",
+  "rawVersion": "1.9.1",
+  "version": "Husky v1.9.1 (6d23)"
+}
+
+Those examples are from actual launcher configs.
+
+So for your mod manager I'd treat:
+
+rawVersion = semantic game version
+version    = display version + codename/checksum
+
+For example:
+
+interface ParadoxGameVersion {
+    version: string;       // "4.4.1"
+    displayVersion: string; // e.g. "Phoenix v4.4.1 (abcd)"
+    checksum?: string;      // "abcd"
+}
+
+Then detection can basically be:
+
+const settings = JSON.parse(
+    await fs.readFile(
+        path.join(gameInstallDir, "launcher-settings.json"),
+        "utf8"
+    )
+);
+
+const version = settings.rawVersion;
+const fullVersion = settings.version;
+This is particularly nice for your manager
+
+You already need to locate the game installation directory, so you don't need to depend on the user's Documents folder or start the Paradox Launcher.
+
+Typical Steam installs will look conceptually like:
+
+steamapps/
+└── common/
+    ├── Stellaris/
+    │   ├── stellaris.exe
+    │   ├── launcher-settings.json   ← read this
+    │   └── ...
+    │
+    └── Hearts of Iron IV/
+        ├── hoi4.exe
+        ├── launcher-settings.json   ← read this
+        └── ...
+
+The HOI4 launcher config explicitly exposes gameId, gameDataPath, rawVersion, executable information, etc., so it can actually give your app more than just the version.
+
+I'd make your internal game definition something like:
+
+const games = {
+    stellaris: {
+        steamAppId: 281990,
+        executable: {
+            windows: "stellaris.exe",
+            linux: "stellaris",
+            macos: "stellaris.app"
+        },
+        launcherSettings: "launcher-settings.json",
+        userDir: "Paradox Interactive/Stellaris"
+    },
+
+    hoi4: {
+        steamAppId: 394360,
+        executable: {
+            windows: "hoi4.exe",
+            linux: "hoi4",
+            macos: "hoi4.app"
+        },
+        launcherSettings: "launcher-settings.json",
+        userDir: "Paradox Interactive/Hearts of Iron IV"
+    }
+};
+
+Then you can have one generic function:
+
+async function getParadoxVersion(gameRoot: string) {
+    const file = path.join(gameRoot, "launcher-settings.json");
+
+    const json = JSON.parse(await fs.readFile(file, "utf8"));
+
+    return {
+        gameId: json.gameId,
+        version: json.rawVersion,
+        displayVersion: json.version
+    };
+}
+
+One thing I'd not use as your primary source is Steam's appmanifest_XXXX.acf. Its buildid is useful for knowing whether the Steam build changed, but it isn't the human game version like 1.17.3 or 4.4.1.
+
+Also, this fits your mod compatibility system nicely because Paradox mods use a supported-game-version field such as:
+
+supported_version="4.4.*"
+
+to indicate which game version they're intended for.
+
+So your manager can do:
+
+Installed Stellaris
+4.4.1
+
+MOD                         COMPATIBILITY
+──────────────────────────────────────────
+Gigastructural Engineering  ✓ 4.4.*
+UI Overhaul Dynamic         ✓ 4.4.*
+Old Mod                     ⚠ 3.14.*
+
+For a cross-platform Paradox manager, I'd make launcher-settings.json → rawVersion your primary version provider, then add per-game fallbacks if a future Paradox title changes the layout. That's much cleaner than trying to inspect the executable itself.

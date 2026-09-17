@@ -9,8 +9,18 @@ import {settingsNav} from '../data/mockData';
 
 type Section = 'profiles' | 'sort';
 
-export function Settings() {
+export function Settings({jumpToProfiles}: {
+    // Incremented by app.tsx (the TopBar's own "+ Add game") to ask this
+    // view to switch to the "Game profiles" panel - 0 (the default,
+    // falsy) means no pending request, so this never fights the section
+    // the user's own click already put them on.
+    jumpToProfiles?: number;
+}) {
     const [section, setSection] = useState<Section>('sort');
+
+    useEffect(() => {
+        if (jumpToProfiles) setSection('profiles');
+    }, [jumpToProfiles]);
 
     return (
         <div className="settings">

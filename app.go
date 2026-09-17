@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -13,12 +14,14 @@ import (
 	"github.com/pkg/browser"
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 
+	"github.com/Official-Husko/parallax-mod-manager/internal/collection"
 	"github.com/Official-Husko/parallax-mod-manager/internal/conflict"
 	"github.com/Official-Husko/parallax-mod-manager/internal/dlc"
 	"github.com/Official-Husko/parallax-mod-manager/internal/dlcstore"
 	"github.com/Official-Husko/parallax-mod-manager/internal/game"
 	"github.com/Official-Husko/parallax-mod-manager/internal/gamemedia"
 	"github.com/Official-Husko/parallax-mod-manager/internal/launch"
+	"github.com/Official-Husko/parallax-mod-manager/internal/launcherdb"
 	"github.com/Official-Husko/parallax-mod-manager/internal/library"
 	"github.com/Official-Husko/parallax-mod-manager/internal/mod"
 	"github.com/Official-Husko/parallax-mod-manager/internal/patchoverride"
@@ -39,11 +42,15 @@ const modWatchDebounce = 400 * time.Millisecond
 // package that might be tested" rule doesn't apply, per CLAUDE.md) and
 // delegates everything else to internal/ packages.
 type App struct {
-	ctx             context.Context
-	registry        *game.Registry
-	startupNotice   string
-	cacheDir        string
-	playsets        playset.Store
+	ctx           context.Context
+	registry      *game.Registry
+	startupNotice string
+	cacheDir      string
+	playsets      playset.Store
+	// collections persists user-defined, cross-game mod groupings for the
+	// Library screen - see internal/collection. Distinct from playsets:
+	// not per-game, not a load order.
+	collections     collection.Store
 	gameMedia       gamemedia.Store
 	preferences     preferences.Preferences
 	preferencesPath string
@@ -107,6 +114,7 @@ func (a *App) startup(ctx context.Context) {
 	}
 	if configErr == nil {
 		a.playsets = playset.FileStore{Dir: filepath.Join(configDir, "parallax-mod-manager", "playsets")}
+		a.collections = collection.FileStore{Dir: filepath.Join(configDir, "parallax-mod-manager", "collections")}
 		a.patchOverrides = patchoverride.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "patch_overrides")}
 	}
 
@@ -235,6 +243,23 @@ func (a *App) DetectGames() ([]library.DetectedGame, error) {
 		result = append(result, d)
 	}
 	return result, nil
+}
+
+// GameVersion returns gameID's real, currently-installed version (e.g.
+// "v4.4.6"), for the TopBar's game pill and the Workspace's own mod
+// version-compatibility flagging. "" (never an error) when the game isn't
+// installed, or its launcher-settings.json doesn't carry one - see
+// game.GameConfig.GameVersion.
+func (a *App) GameVersion(gameID string) (string, error) {
+	cfg, ok := a.registry.Get(gameID)
+	if !ok {
+		return "", fmt.Errorf("app: unknown game %q", gameID)
+	}
+	installDir, installed := cfg.DetectInstall()
+	if !installed {
+		return "", nil
+	}
+	return cfg.GameVersion(installDir), nil
 }
 
 // BrowseForGameInstall opens a native folder-picker so a user can point at
@@ -438,6 +463,57 @@ func (a *App) OpenModFolder(gameID, modID string) error {
 // ListPlaysets returns every saved playset's name for gameID.
 func (a *App) ListPlaysets(gameID string) ([]string, error) {
 	return a.playsets.List(a.ctx, gameID)
+}
+
+// ImportLauncherPlaysets reads gameID's real Paradox Launcher database
+// (launcher-v2.sqlite), read-only, for the Workspace playset switcher's
+// own "Import from Paradox Launcher" section - see internal/launcherdb and
+// docs/launcher-database.md. A missing file is reported as an empty list,
+// not an error: plenty of real installs have never had the real Launcher
+// opened against them, and that's not a failure worth surfacing.
+//
+// Classic-descriptor games only, matching every other classic-only
+// precedent in this codebase (EnsureWorkshopStub, patch-mod generation) -
+// launcher-v2.sqlite's schema is confirmed for this format; JSON-launcher
+// games may use a differently-shaped database under the same filename,
+// which this project has no confirmed schema for yet.
+func (a *App) ImportLauncherPlaysets(gameID string) ([]launcherdb.Playset, error) {
+	cfg, ok := a.registry.Get(gameID)
+	if !ok {
+		return nil, fmt.Errorf("app: unknown game %q", gameID)
+	}
+	if cfg.DescriptorType != mod.DescriptorClassic {
+		return []launcherdb.Playset{}, nil
+	}
+	dir, err := cfg.UserDataDir()
+	if err != nil {
+		return nil, err
+	}
+	playsets, err := launcherdb.ListPlaysets(dir)
+	if errors.Is(err, launcherdb.ErrNotFound) {
+		return []launcherdb.Playset{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return playsets, nil
+}
+
+// ListCollections returns every saved collection, full data (not just
+// names) - the Library screen's own sidebar shows each one's real mod
+// count. Cross-game, unlike ListPlaysets - see internal/collection.
+func (a *App) ListCollections() ([]collection.Collection, error) {
+	return a.collections.List(a.ctx)
+}
+
+// SaveCollection creates or overwrites one named collection.
+func (a *App) SaveCollection(c collection.Collection) error {
+	return a.collections.Save(a.ctx, c)
+}
+
+// DeleteCollection removes one named collection.
+func (a *App) DeleteCollection(name string) error {
+	return a.collections.Delete(a.ctx, name)
 }
 
 // ListDLC lists gameID's real DLC, for the DLC screen's per-playset toggle

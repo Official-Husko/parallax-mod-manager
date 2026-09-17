@@ -18,6 +18,10 @@ export function DLCStoreData(arg1) {
   return window['go']['main']['App']['DLCStoreData'](arg1);
 }
 
+export function DeleteCollection(arg1) {
+  return window['go']['main']['App']['DeleteCollection'](arg1);
+}
+
 export function DeletePlayset(arg1, arg2) {
   return window['go']['main']['App']['DeletePlayset'](arg1, arg2);
 }
@@ -34,6 +38,10 @@ export function GameMedia(arg1, arg2) {
   return window['go']['main']['App']['GameMedia'](arg1, arg2);
 }
 
+export function GameVersion(arg1) {
+  return window['go']['main']['App']['GameVersion'](arg1);
+}
+
 export function GeneratePatch(arg1, arg2) {
   return window['go']['main']['App']['GeneratePatch'](arg1, arg2);
 }
@@ -42,8 +50,16 @@ export function GetPreferences() {
   return window['go']['main']['App']['GetPreferences']();
 }
 
+export function ImportLauncherPlaysets(arg1) {
+  return window['go']['main']['App']['ImportLauncherPlaysets'](arg1);
+}
+
 export function LaunchGame(arg1, arg2) {
   return window['go']['main']['App']['LaunchGame'](arg1, arg2);
+}
+
+export function ListCollections() {
+  return window['go']['main']['App']['ListCollections']();
 }
 
 export function ListDLC(arg1) {
@@ -88,6 +104,10 @@ export function PurgeMods(arg1, arg2) {
 
 export function ReadModFile(arg1, arg2, arg3) {
   return window['go']['main']['App']['ReadModFile'](arg1, arg2, arg3);
+}
+
+export function SaveCollection(arg1) {
+  return window['go']['main']['App']['SaveCollection'](arg1);
 }
 
 export function SavePlayset(arg1) {

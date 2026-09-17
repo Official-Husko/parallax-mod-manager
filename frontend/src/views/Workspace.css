@@ -166,6 +166,13 @@
     color: var(--green);
 }
 
+/* This mod's own declared supported_version is confirmed incompatible
+   with the real, currently-installed game version - see
+   data/versionCompat.ts. */
+.overview-grid .value.warn {
+    color: var(--amber);
+}
+
 .section-label {
     font: 600 9.5px "Azeret Mono", monospace;
     color: var(--text-dim);
@@ -738,6 +745,15 @@
     flex: none;
 }
 
+/* This mod's own declared supported_version is confirmed incompatible
+   with the real, currently-installed game version - see
+   data/versionCompat.ts. Amber, not red: a real warning worth surfacing,
+   but this project's own color language reserves red exclusively for
+   hard conflicts. */
+.mod-row .ver.incompatible {
+    color: var(--amber);
+}
+
 .mod-row .author {
     font-size: 11px;
     color: var(--text-muted);
@@ -794,6 +810,14 @@
 
 .flag.conflict {
     color: var(--red);
+}
+
+/* This mod's own declared supported_version is confirmed incompatible
+   with the real, currently-installed game version - see
+   data/versionCompat.ts. Only shown when the row isn't already flagged
+   CONF - a hard conflict is the more urgent thing to surface here. */
+.flag.incompatible {
+    color: var(--amber);
 }
 
 .row-actions {

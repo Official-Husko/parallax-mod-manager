@@ -148,6 +148,11 @@
     color: var(--text-bright);
 }
 
+.topbar-game-pill .game-version {
+    font-size: 10px;
+    color: var(--text-dim);
+}
+
 .topbar-game-pill i {
     font-size: 10px;
     color: var(--text-dim);
@@ -181,6 +186,18 @@
 .topbar-game-option.active {
     color: var(--text-bright);
     background: #1b232e;
+}
+
+.topbar-game-option.add {
+    color: var(--amber);
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    border-top: 1px solid var(--border);
+}
+
+.topbar-game-option.add i {
+    font-size: 10px;
 }
 
 .topbar-playset {
@@ -281,6 +298,11 @@
 
 .link-btn.amber {
     color: var(--amber);
+}
+
+.link-btn.inert {
+    cursor: default;
+    opacity: .5;
 }
 
 .chip {

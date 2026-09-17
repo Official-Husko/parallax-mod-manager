@@ -17,6 +17,12 @@ export function TopBar({view, onNavigate, gamePicker}: {
     onNavigate: (v: ViewKey) => void;
     gamePicker?: {
         gameLabel: string;
+        // The real, currently-installed game version (e.g. "v4.4.6") -
+        // see app.tsx's own GameVersion() fetch. Empty when it couldn't be
+        // determined (not installed, or its launcher-settings.json simply
+        // doesn't carry one) - shown as nothing at all in that case, never
+        // a placeholder or an error.
+        gameVersion?: string;
         // Optional - a view with no notion of "the active playset" (e.g.
         // DLC, which edits a saved playset by name from its own picker
         // instead) simply omits this rather than showing a fake one.
@@ -29,11 +35,22 @@ export function TopBar({view, onNavigate, gamePicker}: {
         onOpenPlaysetSwitcher?: () => void;
         games?: { ID: string; DisplayName: string }[];
         onSelectGame?: (id: string) => void;
+        // Navigates to Settings' "Game profiles" panel - present exactly
+        // when there's a real place for it to go. Shown as its own row in
+        // the dropdown below, always available there (even with only one
+        // or zero managed games) rather than only once there's already
+        // more than one to switch between.
+        onAddGame?: () => void;
     };
 }) {
     const [open, setOpen] = useState(false);
     const boxRef = useRef<HTMLDivElement>(null);
-    const switchable = !!gamePicker?.games && !!gamePicker.onSelectGame && gamePicker.games.length > 1;
+    // The pill opens a dropdown as soon as there's anything real to do in
+    // one - switch games (once there's a real list to switch within) or
+    // add one - not gated on already managing more than one game, so
+    // "+ Add game" stays reachable from a fresh install managing just one
+    // (or zero) games.
+    const hasGameMenu = (!!gamePicker?.games && !!gamePicker.onSelectGame) || !!gamePicker?.onAddGame;
 
     useEffect(() => {
         if (!open) return;
@@ -56,15 +73,16 @@ export function TopBar({view, onNavigate, gamePicker}: {
                 <>
                     <div className="topbar-game-pill-wrap" ref={boxRef}>
                         <div
-                            className={`topbar-game-pill ${switchable ? 'switchable' : ''}`}
-                            onClick={() => switchable && setOpen((v) => !v)}
+                            className={`topbar-game-pill ${hasGameMenu ? 'switchable' : ''}`}
+                            onClick={() => hasGameMenu && setOpen((v) => !v)}
                         >
                             <span className="game-name">{gamePicker.gameLabel}</span>
-                            {switchable && <i className="fa-solid fa-chevron-down"/>}
+                            {gamePicker.gameVersion && <span className="game-version mono">{gamePicker.gameVersion}</span>}
+                            {hasGameMenu && <i className="fa-solid fa-chevron-down"/>}
                         </div>
-                        {open && switchable && (
+                        {open && hasGameMenu && (
                             <div className="topbar-game-dropdown">
-                                {gamePicker.games!.map((g) => (
+                                {gamePicker.games?.map((g) => (
                                     <div
                                         key={g.ID}
                                         className={`topbar-game-option ${g.DisplayName === gamePicker.gameLabel ? 'active' : ''}`}
@@ -76,6 +94,17 @@ export function TopBar({view, onNavigate, gamePicker}: {
                                         {g.DisplayName}
                                     </div>
                                 ))}
+                                {gamePicker.onAddGame && (
+                                    <div
+                                        className="topbar-game-option add"
+                                        onClick={() => {
+                                            gamePicker.onAddGame!();
+                                            setOpen(false);
+                                        }}
+                                    >
+                                        <i className="fa-solid fa-plus"/> Add game
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>

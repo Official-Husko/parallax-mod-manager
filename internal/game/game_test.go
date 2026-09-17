@@ -171,6 +171,115 @@ func TestUserDataDirLinuxDefaultsToLocalShare(t *testing.T) {
 	}
 }
 
+func TestUserDataDirDarwinPrefersDocumentsWhenItReallyExists(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("darwin-specific path resolution")
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("UserHomeDir: %v", err)
+	}
+	documents := filepath.Join(home, "Documents", "Paradox Interactive", "Stellaris")
+	if err := os.MkdirAll(documents, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	t.Cleanup(func() { os.RemoveAll(filepath.Join(home, "Documents", "Paradox Interactive")) })
+
+	dir, err := Stellaris.UserDataDir()
+	if err != nil {
+		t.Fatalf("UserDataDir: %v", err)
+	}
+	if dir != documents {
+		t.Errorf("UserDataDir = %q, want the real, existing %q", dir, documents)
+	}
+}
+
+func TestUserDataDirDarwinFallsBackToApplicationSupportWhenDocumentsFormMissing(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("darwin-specific path resolution")
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("UserHomeDir: %v", err)
+	}
+	// Guard against a real Documents/Paradox Interactive/Stellaris folder
+	// actually existing on whatever machine runs this test, which would
+	// make the "missing" premise false and the assertion below wrong for
+	// reasons unrelated to the code under test.
+	if _, err := os.Stat(filepath.Join(home, "Documents", "Paradox Interactive", "Stellaris")); err == nil {
+		t.Skip("a real Documents/Paradox Interactive/Stellaris exists on this machine - fallback case not exercisable here")
+	}
+
+	dir, err := Stellaris.UserDataDir()
+	if err != nil {
+		t.Fatalf("UserDataDir: %v", err)
+	}
+	want := filepath.Join(home, "Library", "Application Support", "Paradox Interactive", "Stellaris")
+	if dir != want {
+		t.Errorf("UserDataDir = %q, want %q", dir, want)
+	}
+}
+
+func TestGameVersionReadsRawVersion(t *testing.T) {
+	installDir := t.TempDir()
+	// Confirmed real shape (a live Stellaris install's own
+	// launcher-settings.json): "version" is a human-readable display
+	// string with a codename and build hash, "rawVersion" is the precise,
+	// wildcard-comparable one this project actually uses.
+	settings := map[string]any{
+		"version":                  "Pegasus v4.4.6 (fdde)",
+		"rawVersion":               "v4.4.6",
+		"modsCompatibilityVersion": "4.4",
+	}
+	data, err := json.Marshal(settings)
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(installDir, "launcher-settings.json"), data, 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	got := Stellaris.GameVersion(installDir)
+	if got != "v4.4.6" {
+		t.Errorf("GameVersion = %q, want %q", got, "v4.4.6")
+	}
+}
+
+func TestGameVersionEmptyWhenSettingsMissing(t *testing.T) {
+	got := Stellaris.GameVersion(t.TempDir())
+	if got != "" {
+		t.Errorf("GameVersion = %q, want empty (no launcher-settings.json at all)", got)
+	}
+}
+
+func TestGameVersionEmptyWhenSettingsMalformed(t *testing.T) {
+	installDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(installDir, "launcher-settings.json"), []byte("{not valid json"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	got := Stellaris.GameVersion(installDir)
+	if got != "" {
+		t.Errorf("GameVersion = %q, want empty (malformed settings)", got)
+	}
+}
+
+func TestGameVersionEmptyWhenFieldMissing(t *testing.T) {
+	installDir := t.TempDir()
+	// A real settings file that simply predates rawVersion, or belongs to
+	// a game/launcher version that never wrote one.
+	data, err := json.Marshal(map[string]any{"exePath": "stellaris"})
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(installDir, "launcher-settings.json"), data, 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	got := Stellaris.GameVersion(installDir)
+	if got != "" {
+		t.Errorf("GameVersion = %q, want empty (no rawVersion field present)", got)
+	}
+}
+
 // writeAppManifest writes a real-format Steam app manifest (VDF despite the
 // .acf extension) into steamappsDir, confirmed against an actual
 // appmanifest_281990.acf on a real Stellaris install.

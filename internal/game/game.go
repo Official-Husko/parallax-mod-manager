@@ -65,8 +65,15 @@ type GameConfig struct {
 // ships a native Linux binary - no Proton, no Steam compatdata prefix
 // involved at all), respecting $XDG_DATA_HOME and defaulting to
 // ~/.local/share. Windows keeps the standard Documents-folder convention.
-// macOS uses the standard Application Support convention as a reasonable
-// default, but that hasn't been verified against a real install.
+//
+// macOS is still unverified against a real install either way - see
+// docs/game-configuration.md's "macOS specifics" section. Two real,
+// plausible conventions exist (Documents, matching Windows; Application
+// Support, the more typical macOS convention for this kind of state), so
+// rather than committing to one unconfirmed guess, this checks whether the
+// Documents form actually exists first and only falls back to Application
+// Support when it doesn't - correct the moment either guess is confirmed,
+// without needing a code change to pick the winner.
 func (g GameConfig) UserDataDir() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -81,6 +88,10 @@ func (g GameConfig) UserDataDir() (string, error) {
 		}
 		return filepath.Join(dataHome, "Paradox Interactive", g.FolderName), nil
 	case "darwin":
+		documents := filepath.Join(home, "Documents", "Paradox Interactive", g.FolderName)
+		if _, err := os.Stat(documents); err == nil {
+			return documents, nil
+		}
 		return filepath.Join(home, "Library", "Application Support", "Paradox Interactive", g.FolderName), nil
 	default: // windows
 		return filepath.Join(home, "Documents", "Paradox Interactive", g.FolderName), nil
@@ -91,10 +102,38 @@ func (g GameConfig) UserDataDir() (string, error) {
 // which every install already has and which names the real executable -
 // more resilient than hardcoding a binary name/path per OS. See
 // docs/game-configuration.md.
+//
+// RawVersion is confirmed against a real Stellaris install: a precise,
+// wildcard-comparable string like "v4.4.6" - the same "vX.Y.Z" shape a
+// mod's own supported_version field uses (see
+// frontend/src/data/versionCompat.ts, which compares the two client-side),
+// confirmed present both with and without the leading "v" in real
+// installed mods. modsCompatibilityVersion (a coarser "4.4") also exists in
+// the same file but isn't used here - RawVersion alone already has every
+// segment a supported_version pattern could pin against.
 type launcherSettings struct {
 	ExePath      string   `json:"exePath"`
 	ExeArgs      []string `json:"exeArgs"`
 	GameDataPath string   `json:"gameDataPath"`
+	RawVersion   string   `json:"rawVersion"`
+}
+
+// GameVersion reads installDir's launcher-settings.json for the real,
+// currently-installed game version, or "" if it's missing, unreadable, or
+// simply doesn't carry a rawVersion - never an error: not every install
+// has run through a launcher that wrote one, and "no version detected" is
+// a normal, expected outcome for this project to just quietly not show
+// anything for, not a failure to report.
+func (g GameConfig) GameVersion(installDir string) string {
+	data, err := os.ReadFile(filepath.Join(installDir, g.LauncherSettingsPath))
+	if err != nil {
+		return ""
+	}
+	var ls launcherSettings
+	if err := json.Unmarshal(data, &ls); err != nil {
+		return ""
+	}
+	return ls.RawVersion
 }
 
 // ResolveExecutable reads installDir's launcher-settings.json for the real
