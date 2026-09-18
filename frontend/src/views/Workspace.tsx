@@ -21,18 +21,19 @@ import {
 } from '../../wailsjs/go/main/App';
 import {BrowserOpenURL, EventsOn} from '../../wailsjs/runtime/runtime';
 import type {launcherdb, library, playset, preferences, steamapi} from '../../wailsjs/go/models';
-import {autosort} from '../data/autosort';
+import {autosort, findMissingActiveDependencies, type MissingDependency} from '../data/autosort';
 import {dismiss, notify, updateNotification} from '../data/notifications';
 import {type ContextMenuItem, openContextMenu} from '../data/contextMenu';
 import {useDragMultiSelect} from '../data/dragMultiSelect';
 import {type DropTarget, useListDragMove} from '../data/listDragMove';
 import {domains} from '../data/mockData';
-import {buildPreflightItems} from '../data/preflight';
+import {buildPreflightItems, findDependencyIssues} from '../data/preflight';
 import {checkVersionCompatibility, displayVersion} from '../data/versionCompat';
 import {formatBytes, truncate} from '../data/format';
 import {SourceBadge} from '../components/SourceBadge';
 import {EmptyState} from '../components/EmptyState';
 import {FileTree} from '../components/FileTree';
+import {AutosortMissingDepsModal} from './AutosortMissingDepsModal';
 import {ConflictResolver} from './ConflictResolver';
 import {PlaysetsModal} from './PlaysetsModal';
 import {PreflightModal} from './PreflightModal';
@@ -77,9 +78,8 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
     const [order, setOrder] = useState<string[]>([]);
     const [selectedId, setSelectedId] = useState('');
     const [selectedAvailable, setSelectedAvailable] = useState<Set<string>>(new Set());
-    // Active has no bulk-action checkbox column of its own (unlike
-    // Available), but gets the exact same real multi-select gesture - see
-    // useDragMultiSelect below - so a row's own highlight can reflect a
+    // Active gets the exact same real multi-select gesture as Available -
+    // see useDragMultiSelect below - so a row's own highlight can reflect a
     // real multi-row selection there too, not just the single mod shown
     // in the detail panel.
     const [selectedActive, setSelectedActive] = useState<Set<string>>(new Set());
@@ -110,6 +110,10 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
     const [showPreflight, setShowPreflight] = useState(false);
     const [showConflictResolver, setShowConflictResolver] = useState(false);
     const [showPurgeModal, setShowPurgeModal] = useState(false);
+    // Set by handleAutosort when it finds a currently-active mod's own
+    // declared dependency isn't itself active yet - null means no pending
+    // question. See AutosortMissingDepsModal.
+    const [missingDeps, setMissingDeps] = useState<MissingDependency[] | null>(null);
     const [search, setSearch] = useState('');
     const [activeSearch, setActiveSearch] = useState('');
     const [status, setStatus] = useState<Status>({kind: 'idle'});
@@ -530,9 +534,10 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
     // in the real load order, not its index within the filtered results.
     const positionById = useMemo(() => new Map(active.map((m, i) => [m.ID, i + 1])), [active]);
     const selectedMod = selectedId ? modsById.get(selectedId) ?? null : null;
+    const dependencyIssues = useMemo(() => findDependencyIssues(active), [active]);
     const preflightItems = useMemo(
-        () => buildPreflightItems(active, summary?.Conflicts ?? [], summary?.Errors ?? []),
-        [active, summary],
+        () => buildPreflightItems(active, summary?.Conflicts ?? [], summary?.Errors ?? [], dependencyIssues),
+        [active, summary, dependencyIssues],
     );
 
     const workshopCount = allMods.filter((m) => m.Source === 'workshop').length;
@@ -540,9 +545,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
 
     // Real OS-file-list-style multi-select (click/shift+click) for both
     // the Available and Active lists - see data/dragMultiSelect.ts for the
-    // shared mechanics both of these instances drive identically. The
-    // checkbox itself stays an independent, precise single-item toggle
-    // (see its own stopPropagation below), unaffected by either.
+    // shared mechanics both of these instances drive identically.
     const availableDrag = useDragMultiSelect(
         availableOrder,
         (ids) => setSelectedAvailable(new Set(ids)),
@@ -645,8 +648,8 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
 
     // addToOrder adds one specific mod directly - distinct from
     // addSelectedToOrder above, which acts on the Available list's own
-    // checkbox selection; this is for the context menu's "Add to load
-    // order" on a row that may not be checkbox-selected at all.
+    // current row selection; this is for the context menu's "Add to load
+    // order" on a row that may not be selected at all.
     function addToOrder(id: string) {
         if (order.includes(id)) return;
         setOrder([...order, id]);
@@ -695,9 +698,9 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
         return items;
     }
 
-    function handleAutosort() {
-        if (!prefs || order.length === 0) return;
-        const result = autosort(order, modsById, {
+    function runAutosort(withOrder: string[]) {
+        if (!prefs) return;
+        const result = autosort(withOrder, modsById, {
             dependencies: prefs.autosortDependencies,
             fixesLast: prefs.autosortFixesLast,
         });
@@ -706,6 +709,37 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
             const names = result.cycleMods.map((id) => modsById.get(id)?.Name ?? id).join(', ');
             setStatus({kind: 'error', message: `Autosort: circular dependency involving ${names} - these couldn't be fully ordered.`});
         }
+    }
+
+    // Autosort's own dependency rule can only reorder mods already active,
+    // never add to it - so a mod that declares a dependency which isn't
+    // active at all would just silently sort around the gap. Ask first,
+    // rather than doing that quietly: load the missing ones and sort, or
+    // sort without them. Only asked when the dependency rule is actually
+    // on (see prefs.autosortDependencies) - nothing to warn about
+    // otherwise, since the rule wouldn't run at all.
+    function handleAutosort() {
+        if (!prefs || order.length === 0) return;
+        if (prefs.autosortDependencies) {
+            const missing = findMissingActiveDependencies(order, modsById, allMods);
+            if (missing.length > 0) {
+                setMissingDeps(missing);
+                return;
+            }
+        }
+        runAutosort(order);
+    }
+
+    function handleLoadMissingDepsAndSort() {
+        if (!missingDeps) return;
+        const withMissing = [...order, ...missingDeps.map((d) => d.id)];
+        setMissingDeps(null);
+        runAutosort(withMissing);
+    }
+
+    function handleSortWithoutMissingDeps() {
+        setMissingDeps(null);
+        runAutosort(order);
     }
 
     function handlePurged(result: library.PurgeResult) {
@@ -954,11 +988,10 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                                 <span className="btn-ghost" onClick={() => setOrder([])}>Clear</span>
                             </div>
                         </div>
-                        <div className="domain-header">
-                            <span className="label">OVERLAP BY DOMAIN <i className="fa-solid fa-arrow-right"/></span>
-                            <span className="domain-cols">
-                                {domains.map((d) => <span key={d}>{d}</span>)}
-                            </span>
+                        <div className="column-header">
+                            <span className="column-header-position"/>
+                            <span className="column-header-spacer"/>
+                            <span className="column-header-name">NAME</span>
                         </div>
                         <div className={`list-rows ${dragMove.dropTarget?.list === 'active' && dragMove.dropTarget.kind === 'end' ? 'drop-at-end' : ''}`} ref={dragMove.activeRowsRef}>
                             {active.length === 0 && (
@@ -977,6 +1010,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                                 const compat = checkVersionCompatibility(m.SupportedVersion, gameVersion);
                                 const incompatible = compat.known && !compat.compatible;
                                 const ignored = ignoredIncompatible.has(m.ID);
+                                const hasDependencyIssue = dependencyIssues.affectedIds.has(m.ID);
                                 return (
                                     <div
                                         key={m.ID}
@@ -986,22 +1020,30 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                                         onMouseDown={(e) => onActiveRowMouseDown(index, e)}
                                     >
                                         <span className="position mono">{positionById.get(m.ID)}</span>
-                                        <i className="fa-solid fa-grip-vertical drag-handle"/>
+                                        <SourceBadge source={m.Source} name={m.Name}/>
                                         <span className="name">{m.Name}</span>
                                         <span className="domain-segments">
                                             {domains.map((d) => <span key={d} className="segment clean"/>)}
                                         </span>
-                                        <span
-                                            className={`flag mono ${conflicted ? 'conflict' : incompatible && !ignored ? 'incompatible' : incompatible && ignored ? 'ignored' : ''}`}
-                                            title={!conflicted ? versionTitle(incompatible, ignored, m.SupportedVersion, gameVersion) : undefined}
-                                        >
-                                            {conflicted
-                                                ? 'CONF'
-                                                : incompatible && !ignored
-                                                    ? 'VER'
-                                                    : incompatible && ignored
-                                                        ? <i className="fa-solid fa-triangle-exclamation"/>
-                                                        : ''}
+                                        <span className="row-warnings">
+                                            {incompatible && !ignored && (
+                                                <i
+                                                    className="fa-solid fa-triangle-exclamation warning-icon version"
+                                                    title={versionTitle(incompatible, ignored, m.SupportedVersion, gameVersion)}
+                                                />
+                                            )}
+                                            {incompatible && ignored && (
+                                                <i
+                                                    className="fa-solid fa-triangle-exclamation warning-icon ignored"
+                                                    title={versionTitle(incompatible, ignored, m.SupportedVersion, gameVersion)}
+                                                />
+                                            )}
+                                            {conflicted && (
+                                                <i className="fa-solid fa-bolt warning-icon conflict" title="Hard conflict - see the Conflict Resolver"/>
+                                            )}
+                                            {hasDependencyIssue && (
+                                                <i className="fa-solid fa-shield-halved warning-icon dependency" title="Dependency issue - see Pre-flight, or try Autosort"/>
+                                            )}
                                         </span>
                                         <span className="row-actions">
                                             <i className="fa-solid fa-chevron-up" onClick={(e) => { e.stopPropagation(); moveInOrder(m.ID, -1); }}/>
@@ -1162,6 +1204,14 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                     gameId={selectedGame}
                     onClose={() => setShowPurgeModal(false)}
                     onPurged={handlePurged}
+                />
+            )}
+            {missingDeps && (
+                <AutosortMissingDepsModal
+                    missing={missingDeps}
+                    onClose={() => setMissingDeps(null)}
+                    onLoadAndSort={handleLoadMissingDepsAndSort}
+                    onSortAnyway={handleSortWithoutMissingDeps}
                 />
             )}
         </div>

@@ -1,0 +1,84 @@
+.autosort-modal {
+    width: 460px;
+    max-height: 80vh;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.autosort-modal-header {
+    display: flex;
+    align-items: center;
+    height: 42px;
+    padding: 0 16px;
+    background: var(--bg-header);
+    border-bottom: 1px solid var(--border);
+    gap: 11px;
+    flex: none;
+}
+
+.autosort-modal-header .title {
+    font: 600 13px Barlow, sans-serif;
+    color: var(--text-bright);
+}
+
+.autosort-modal-header .count {
+    font-size: 11px;
+    color: var(--text-dim);
+}
+
+.autosort-modal-header .spacer {
+    flex: 1;
+}
+
+.autosort-modal-intro {
+    padding: 14px 16px 4px;
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.5;
+}
+
+.autosort-modal-body {
+    padding: 10px 16px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    overflow-y: auto;
+}
+
+.autosort-dep-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    background: var(--bg-rail);
+}
+
+.autosort-dep-row i {
+    color: var(--amber);
+    font-size: 12px;
+    flex: none;
+}
+
+.autosort-dep-name {
+    font: 600 12.5px Barlow, sans-serif;
+    color: var(--text-bright);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.autosort-modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    flex: none;
+}

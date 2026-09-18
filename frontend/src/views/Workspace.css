@@ -723,11 +723,12 @@
     cursor: pointer;
 }
 
-/* Column labels for the Available list - the same "separated header
-   beneath the search and filters" role Active's own .domain-header
-   already plays (same height, so the two panels' actual rows start at
-   the same vertical offset). Column widths/gaps mirror .mod-row's own
-   exactly, so each label sits directly above its real column. */
+/* Column labels, shared by the Available and Active lists (each with its
+   own column-header-* spacer widths - see .column-header-spacer and
+   .column-header-position) - same height/background on both so the two
+   panels' actual rows start at the same vertical offset, and column
+   widths/gaps mirror .mod-row's own exactly so each label sits directly
+   above its real column. */
 .column-header {
     display: flex;
     align-items: center;
@@ -747,6 +748,15 @@
        column in every real .mod-row (no checkbox in the Available list
        any more). */
     width: 25px;
+    flex: none;
+}
+
+/* Active-only: matches .position's own width, so this header (reusing
+   .column-header - see its own comment) lines up above the Active list's
+   leading position-number column the same way .column-header-spacer
+   already lines up above the SourceBadge next to it. */
+.column-header-position {
+    width: 18px;
     flex: none;
 }
 
@@ -896,12 +906,6 @@
     text-align: right;
 }
 
-.drag-handle {
-    color: #3c4858;
-    font-size: 11px;
-    flex: none;
-}
-
 .domain-segments {
     display: flex;
     gap: 1.5px;
@@ -918,31 +922,43 @@
     background: #2f3b49;
 }
 
-.flag {
-    width: 36px;
-    text-align: right;
+/* Up to three independent warning icons per Active row - version
+   incompatibility, a hard conflict, and a dependency issue are each their
+   own concern and can all apply to the same mod at once, so (unlike the
+   single CONF/VER flag this replaced) none of them suppress each other. */
+.row-warnings {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 50px;
     flex: none;
-    font-size: 9.5px;
-    color: transparent;
+    justify-content: flex-end;
 }
 
-.flag.conflict {
-    color: var(--red);
+.warning-icon {
+    font-size: 10px;
 }
 
-/* This mod's own declared supported_version is confirmed incompatible
-   with the real, currently-installed game version - see
-   data/versionCompat.ts. Only shown when the row isn't already flagged
-   CONF - a hard conflict is the more urgent thing to surface here. */
-.flag.incompatible {
+.warning-icon.version {
     color: var(--red);
 }
 
 /* An incompatibility the user has explicitly chosen to ignore - see
-   .ver-ignored-icon's comment. Only shown when the row isn't already
-   flagged CONF. */
-.flag.ignored {
+   .ver-ignored-icon's comment. */
+.warning-icon.ignored {
     color: var(--text-dim);
+}
+
+.warning-icon.conflict {
+    color: var(--red);
+}
+
+/* One or more of this mod's own declared dependencies isn't active, or
+   loads after it instead of before - see data/preflight.ts's own
+   findDependencyIssues. Amber/yellow, not red: a real problem worth
+   fixing (Autosort resolves it), but not a hard, game-breaking conflict. */
+.warning-icon.dependency {
+    color: var(--amber);
 }
 
 .row-actions {
@@ -1037,41 +1053,6 @@
 .active-actions .btn-ghost {
     padding: 4px 10px;
     font-size: 10.5px;
-}
-
-.domain-header {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    height: 22px;
-    padding: 0 13px;
-    border-bottom: 1px solid var(--border);
-    background: var(--bg-header);
-    flex: none;
-}
-
-.domain-header .label {
-    flex: 1;
-    font: 500 9px "Azeret Mono", monospace;
-    color: var(--text-muted);
-    letter-spacing: .1em;
-}
-
-.domain-header .label i {
-    font-size: 8px;
-    margin-left: 3px;
-}
-
-.domain-cols {
-    display: flex;
-    gap: 1.5px;
-}
-
-.domain-cols span {
-    width: 4px;
-    font: 600 9px "Azeret Mono", monospace;
-    color: #9aa6b4;
-    text-align: center;
 }
 
 .active-legend {

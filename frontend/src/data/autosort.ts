@@ -131,6 +131,43 @@ function moveAfterDependencies(order: string[], modsById: Map<string, library.Mo
     return {order: result, cycleMods: []};
 }
 
+export interface MissingDependency {
+    id: string;
+    name: string;
+}
+
+// findMissingActiveDependencies finds every mod name that at least one
+// currently-active mod declares as a dependency but that isn't itself
+// active yet - moveAfterDependencies above can't do anything about these,
+// since it only ever reorders mods already in the active load order, it
+// never adds any. allMods (the full scanned list, Available included) is
+// used to resolve a declared name to a real, loadable mod; a name that
+// doesn't match anything scanned at all is left out - there's nothing to
+// load for it. Used by Workspace's own "Autosort" action to offer adding
+// these before sorting, rather than silently sorting around a gap.
+export function findMissingActiveDependencies(
+    order: string[],
+    modsById: Map<string, library.ModSummary>,
+    allMods: library.ModSummary[],
+): MissingDependency[] {
+    const activeNames = new Set(order.map((id) => modsById.get(id)?.Name).filter((n): n is string => !!n));
+    const byName = new Map(allMods.map((m) => [m.Name, m]));
+    const seen = new Set<string>();
+    const result: MissingDependency[] = [];
+    for (const id of order) {
+        const mod = modsById.get(id);
+        if (!mod) continue;
+        for (const depName of mod.Dependencies) {
+            if (activeNames.has(depName) || seen.has(depName)) continue;
+            const resolved = byName.get(depName);
+            if (!resolved) continue;
+            seen.add(depName);
+            result.push({id: resolved.ID, name: resolved.Name});
+        }
+    }
+    return result;
+}
+
 export function autosort(order: string[], modsById: Map<string, library.ModSummary>, opts: AutosortOptions): AutosortResult {
     const knownNames = new Set([...modsById.values()].map((m) => m.Name));
 

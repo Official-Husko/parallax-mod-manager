@@ -38,5 +38,3 @@ Add backgrounds taken from a folder game specific, random transitioning change e
 Add Mod Editing, allow basic editing, this includes publishing and updating workshop mods
 
 on game updates notify the user about it if the game version changes.
-
-remove the select box tick boxesd inb the available
