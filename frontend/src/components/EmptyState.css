@@ -1,0 +1,33 @@
+.empty-state {
+    /* A fixed min-height (rather than flex: 1 filling a flex-column
+       ancestor) since this is dropped into plain block containers like
+       .list-rows and .detail-panel, not always a flex context - still
+       reads as a roomy, centered placeholder without needing the parent
+       layout to cooperate. */
+    min-height: 220px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 32px 24px;
+    text-align: center;
+}
+
+.empty-state-icon {
+    font-size: 26px;
+    color: var(--text-dim);
+    opacity: .55;
+    margin-bottom: 4px;
+}
+
+.empty-state-title {
+    font: 600 13px Barlow, sans-serif;
+    color: var(--text-muted);
+}
+
+.empty-state-subtitle {
+    font: 400 11.5px/1.5 Barlow, sans-serif;
+    color: var(--text-dim);
+    max-width: 280px;
+}

@@ -29,6 +29,7 @@ import {buildPreflightItems} from '../data/preflight';
 import {checkVersionCompatibility} from '../data/versionCompat';
 import {formatBytes, truncate} from '../data/format';
 import {SourceBadge} from '../components/SourceBadge';
+import {EmptyState} from '../components/EmptyState';
 import {FileTree} from '../components/FileTree';
 import {ConflictResolver} from './ConflictResolver';
 import {PlaysetsModal} from './PlaysetsModal';
@@ -831,6 +832,19 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                             className={`list-rows ${dragMove.dropTarget?.list === 'available' && dragMove.dropTarget.kind === 'end' ? 'drop-at-end' : ''}`}
                             ref={dragMove.availableRowsRef}
                         >
+                            {available.length === 0 && allMods.length === 0 && (
+                                <EmptyState
+                                    icon="fa-box-open"
+                                    title="No mods found"
+                                    subtitle="Install some mods for this game, or add an extra folder to search under Settings → Paths & folders."
+                                />
+                            )}
+                            {available.length === 0 && allMods.length > 0 && search.trim() !== '' && (
+                                <EmptyState icon="fa-magnifying-glass" title="No matches" subtitle={`Nothing found for "${search}".`}/>
+                            )}
+                            {available.length === 0 && allMods.length > 0 && search.trim() === '' && (
+                                <EmptyState icon="fa-circle-check" title="Everything's active" subtitle="Every scanned mod is already in your load order."/>
+                            )}
                             {availableOrderedMods.map((m, index) => {
                                 const author = authorNameFor(m, workshopDetails, authorProfiles);
                                 const authorLoading = m.Source === 'workshop'
@@ -912,6 +926,13 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                             </span>
                         </div>
                         <div className={`list-rows ${dragMove.dropTarget?.list === 'active' && dragMove.dropTarget.kind === 'end' ? 'drop-at-end' : ''}`} ref={dragMove.activeRowsRef}>
+                            {active.length === 0 && (
+                                <EmptyState
+                                    icon="fa-layer-group"
+                                    title="Load order is empty"
+                                    subtitle="Drag mods here from Available, or select some and use Add to load order."
+                                />
+                            )}
                             {visibleActive.length === 0 && active.length > 0 && (
                                 <p className="detail-empty" style={{padding: 14}}>No matches.</p>
                             )}
@@ -1258,7 +1279,13 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, gameVersion, allM
                         </>
                         : <span className="mono">{mod ? 'NO THUMBNAIL' : 'MOD THUMBNAIL'}</span>}
             </div>
-            {!mod && <p className="detail-empty">Select a mod to see its details.</p>}
+            {!mod && (
+                <EmptyState
+                    icon="fa-cube"
+                    title="No mod selected"
+                    subtitle="Select a mod from Available or your load order to see its details."
+                />
+            )}
             {mod && (
                 <>
                     <div className="detail-header">

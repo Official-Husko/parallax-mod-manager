@@ -9,10 +9,10 @@
 
 export const APP_NAME = 'Parallax Mod Manager';
 
-// --- Settings: game profiles (3c) + sort rules (4c) ---
+// --- Settings: manage games (3c) + sort rules (4c) ---
 
 export const settingsNav = [
-    {label: 'Game profiles', key: 'profiles'},
+    {label: 'Manage games', key: 'manage'},
     {label: 'Paths & folders', key: 'paths'},
     {label: 'Sort rules', key: 'sort'},
     {label: 'Conflict scanning', key: 'conflict'},

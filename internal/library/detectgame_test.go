@@ -18,7 +18,7 @@ func TestDetectGameNotInstalledNoMods(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_DATA_HOME", "")
 
-	got, err := DetectGame(context.Background(), game.Stellaris, nil)
+	got, err := DetectGame(context.Background(), game.Stellaris, nil, nil)
 	if err != nil {
 		t.Fatalf("DetectGame: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestDetectGameInstalledWithMods(t *testing.T) {
 	modDir := filepath.Join(home, ".local", "share", "Paradox Interactive", "Stellaris", "mod")
 	writeMod(t, modDir, "test_mod", "Test Mod", `x = 1`)
 
-	got, err := DetectGame(context.Background(), game.Stellaris, nil)
+	got, err := DetectGame(context.Background(), game.Stellaris, nil, nil)
 	if err != nil {
 		t.Fatalf("DetectGame: %v", err)
 	}

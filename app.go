@@ -53,6 +53,13 @@ type App struct {
 	collections     collection.Store
 	gameMedia       gamemedia.Store
 	preferences     preferences.Preferences
+	// preferencesMu guards every read and write of preferences: Wails
+	// dispatches each frontend-triggered call on its own goroutine, and
+	// preferences.Preferences now carries a map field (GamePaths) - an
+	// unsynchronized concurrent map access in Go panics the whole process,
+	// not just corrupts data, so this can't be left unguarded the way a
+	// plain-value struct could have been.
+	preferencesMu   sync.Mutex
 	preferencesPath string
 	// patchOverrides persists manual per-conflict winner overrides for
 	// GeneratePatch - see internal/patchoverride and docs/patch-mods.md.
@@ -159,9 +166,38 @@ func (a *App) GameMedia(kind, gameID string) (string, error) {
 	return "data:" + mimeType + ";base64," + base64.StdEncoding.EncodeToString(data), nil
 }
 
+// clonePreferences returns p with its GamePaths map and ManagedGames slice
+// copied rather than shared - both GetPreferences (handing a value to a
+// caller who then does its own read-modify-write) and SetPreferences
+// (adopting a caller-supplied value as the new source of truth) need this
+// so two goroutines never end up holding, and concurrently mutating, the
+// same underlying map.
+func clonePreferences(p preferences.Preferences) preferences.Preferences {
+	if p.ManagedGames != nil {
+		p.ManagedGames = append([]string(nil), p.ManagedGames...)
+	}
+	if p.GamePaths != nil {
+		paths := make(map[string]string, len(p.GamePaths))
+		for k, v := range p.GamePaths {
+			paths[k] = v
+		}
+		p.GamePaths = paths
+	}
+	if p.ExtraModFolders != nil {
+		folders := make(map[string][]string, len(p.ExtraModFolders))
+		for k, v := range p.ExtraModFolders {
+			folders[k] = append([]string(nil), v...)
+		}
+		p.ExtraModFolders = folders
+	}
+	return p
+}
+
 // GetPreferences returns the app's current preferences.
 func (a *App) GetPreferences() preferences.Preferences {
-	return a.preferences
+	a.preferencesMu.Lock()
+	defer a.preferencesMu.Unlock()
+	return clonePreferences(a.preferences)
 }
 
 // SetPreferences persists p and applies it immediately: if scanning for
@@ -169,12 +205,15 @@ func (a *App) GetPreferences() preferences.Preferences {
 // is currently being watched (see WatchMods) is started or stopped right
 // away rather than waiting for the next game switch.
 func (a *App) SetPreferences(p preferences.Preferences) error {
+	a.preferencesMu.Lock()
 	if a.preferencesPath != "" {
 		if err := preferences.Save(a.preferencesPath, p); err != nil {
+			a.preferencesMu.Unlock()
 			return err
 		}
 	}
-	a.preferences = p
+	a.preferences = clonePreferences(p)
+	a.preferencesMu.Unlock()
 
 	if a.watchedGameID != "" {
 		return a.WatchMods(a.watchedGameID)
@@ -231,18 +270,74 @@ func (a *App) ListGames() []library.GameInfo {
 }
 
 // DetectGames reports every registered game's real install and mod-folder
-// state, for the first-run wizard's "games found" step.
+// state, for the first-run wizard's "games found" step and the Manage
+// Games / Paths & Folders settings screens.
 func (a *App) DetectGames() ([]library.DetectedGame, error) {
 	games := a.registry.List()
 	result := make([]library.DetectedGame, 0, len(games))
 	for _, cfg := range games {
-		d, err := library.DetectGame(a.ctx, cfg, a.steamRoots)
+		d, err := a.detectGameConsideringOverride(cfg)
 		if err != nil {
 			return nil, err
 		}
 		result = append(result, d)
 	}
 	return result, nil
+}
+
+// gamePathOverride returns cfg's manually-set install path override, if one
+// is persisted and still verifies against cfg's signature files. A stale
+// override (the folder was moved, removed, or the game was reinstalled
+// elsewhere) is treated as if it were never set, falling back to automatic
+// detection rather than trusting a path that no longer checks out.
+func (a *App) gamePathOverride(cfg game.GameConfig) (string, bool) {
+	a.preferencesMu.Lock()
+	dir, ok := a.preferences.GamePaths[cfg.ID]
+	a.preferencesMu.Unlock()
+	if !ok || dir == "" || !cfg.VerifyInstallDir(dir) {
+		return "", false
+	}
+	return dir, true
+}
+
+// extraModFolders returns gameID's configured extra mod folders (see
+// preferences.Preferences.ExtraModFolders), safe to pass straight into
+// scan.Options/library.Options.ExtraFolders.
+func (a *App) extraModFolders(gameID string) []string {
+	a.preferencesMu.Lock()
+	defer a.preferencesMu.Unlock()
+	return append([]string(nil), a.preferences.ExtraModFolders[gameID]...)
+}
+
+// setGamePathOverride persists dir as cfg's manually-chosen install path -
+// see preferences.Preferences.GamePaths.
+func (a *App) setGamePathOverride(gameID, dir string) error {
+	a.preferencesMu.Lock()
+	defer a.preferencesMu.Unlock()
+	if a.preferences.GamePaths == nil {
+		a.preferences.GamePaths = map[string]string{}
+	}
+	a.preferences.GamePaths[gameID] = dir
+	if a.preferencesPath == "" {
+		return nil
+	}
+	return preferences.Save(a.preferencesPath, a.preferences)
+}
+
+// detectGameConsideringOverride is DetectGames' per-game logic: a
+// still-valid manual path override always wins over automatic detection,
+// since it reflects an explicit user choice.
+func (a *App) detectGameConsideringOverride(cfg game.GameConfig) (library.DetectedGame, error) {
+	extra := a.extraModFolders(cfg.ID)
+	if override, ok := a.gamePathOverride(cfg); ok {
+		d, err := library.DetectGameAt(a.ctx, cfg, override, a.steamRoots, extra)
+		if err != nil {
+			return library.DetectedGame{}, err
+		}
+		d.PathOverridden = true
+		return d, nil
+	}
+	return library.DetectGame(a.ctx, cfg, a.steamRoots, extra)
 }
 
 // GameVersion returns gameID's real, currently-installed version (e.g.
@@ -254,6 +349,9 @@ func (a *App) GameVersion(gameID string) (string, error) {
 	cfg, ok := a.registry.Get(gameID)
 	if !ok {
 		return "", fmt.Errorf("app: unknown game %q", gameID)
+	}
+	if override, ok := a.gamePathOverride(cfg); ok {
+		return cfg.GameVersion(override), nil
 	}
 	installDir, installed := cfg.DetectInstall()
 	if !installed {
@@ -268,7 +366,9 @@ func (a *App) GameVersion(gameID string) (string, error) {
 // state unchanged if the user cancels the dialog (an empty path is not an
 // error); returns an error if a folder was chosen but doesn't actually
 // contain the game (verified against SignatureFiles) - never trusts an
-// unverified folder just because the user picked it.
+// unverified folder just because the user picked it. A verified pick is
+// persisted as a path override (preferences.Preferences.GamePaths) so it
+// survives past this session.
 func (a *App) BrowseForGameInstall(gameID string) (library.DetectedGame, error) {
 	cfg, ok := a.registry.Get(gameID)
 	if !ok {
@@ -282,12 +382,20 @@ func (a *App) BrowseForGameInstall(gameID string) (library.DetectedGame, error) 
 		return library.DetectedGame{}, err
 	}
 	if dir == "" {
-		return library.DetectGame(a.ctx, cfg, a.steamRoots)
+		return a.detectGameConsideringOverride(cfg)
 	}
 	if !cfg.VerifyInstallDir(dir) {
 		return library.DetectedGame{}, fmt.Errorf("app: %s does not look like a %s install", dir, cfg.DisplayName)
 	}
-	return library.DetectGameAt(a.ctx, cfg, dir, a.steamRoots)
+	if err := a.setGamePathOverride(gameID, dir); err != nil {
+		return library.DetectedGame{}, err
+	}
+	d, err := library.DetectGameAt(a.ctx, cfg, dir, a.steamRoots, a.extraModFolders(gameID))
+	if err != nil {
+		return library.DetectedGame{}, err
+	}
+	d.PathOverridden = true
+	return d, nil
 }
 
 // BrowseForAnyGameInstall opens the same folder-picker as
@@ -296,7 +404,8 @@ func (a *App) BrowseForGameInstall(gameID string) (library.DetectedGame, error) 
 // verifies against is returned. Useful when a game wasn't auto-detected and
 // the user isn't sure (or doesn't want to hunt for) which row to browse
 // from. Returns a zero-value DetectedGame (empty ID) if the user cancels;
-// errors only if a folder was chosen but matches no registered game.
+// errors only if a folder was chosen but matches no registered game. A
+// match is persisted as a path override, same as BrowseForGameInstall.
 func (a *App) BrowseForAnyGameInstall() (library.DetectedGame, error) {
 	dir, err := wailsruntime.OpenDirectoryDialog(a.ctx, wailsruntime.OpenDialogOptions{
 		Title: "Select a game install folder",
@@ -308,11 +417,157 @@ func (a *App) BrowseForAnyGameInstall() (library.DetectedGame, error) {
 		return library.DetectedGame{}, nil
 	}
 	for _, cfg := range a.registry.List() {
-		if cfg.VerifyInstallDir(dir) {
-			return library.DetectGameAt(a.ctx, cfg, dir, a.steamRoots)
+		if !cfg.VerifyInstallDir(dir) {
+			continue
 		}
+		if err := a.setGamePathOverride(cfg.ID, dir); err != nil {
+			return library.DetectedGame{}, err
+		}
+		d, err := library.DetectGameAt(a.ctx, cfg, dir, a.steamRoots, a.extraModFolders(cfg.ID))
+		if err != nil {
+			return library.DetectedGame{}, err
+		}
+		d.PathOverridden = true
+		return d, nil
 	}
 	return library.DetectedGame{}, fmt.Errorf("app: %s does not match any registered game", dir)
+}
+
+// ClearGamePath removes any manually-set install path override for gameID,
+// reverting to automatic Steam-library detection, and reports the game's
+// state after doing so.
+func (a *App) ClearGamePath(gameID string) (library.DetectedGame, error) {
+	cfg, ok := a.registry.Get(gameID)
+	if !ok {
+		return library.DetectedGame{}, fmt.Errorf("app: unknown game %q", gameID)
+	}
+
+	a.preferencesMu.Lock()
+	if a.preferences.GamePaths != nil {
+		delete(a.preferences.GamePaths, gameID)
+		if a.preferencesPath != "" {
+			if err := preferences.Save(a.preferencesPath, a.preferences); err != nil {
+				a.preferencesMu.Unlock()
+				return library.DetectedGame{}, err
+			}
+		}
+	}
+	a.preferencesMu.Unlock()
+
+	return library.DetectGame(a.ctx, cfg, a.steamRoots, a.extraModFolders(gameID))
+}
+
+// SetGameManaged adds or removes gameID from the set of games Parallax Mod
+// Manager actively manages - only managed games show up in the game
+// switcher, Library, DLC, and Workspace. See
+// preferences.Preferences.ManagedGames.
+func (a *App) SetGameManaged(gameID string, managed bool) error {
+	if _, ok := a.registry.Get(gameID); !ok {
+		return fmt.Errorf("app: unknown game %q", gameID)
+	}
+
+	a.preferencesMu.Lock()
+	set := make(map[string]bool, len(a.preferences.ManagedGames))
+	for _, id := range a.preferences.ManagedGames {
+		set[id] = true
+	}
+	if managed {
+		set[gameID] = true
+	} else {
+		delete(set, gameID)
+	}
+	// Rebuilt in registry order (rather than map iteration order) so the
+	// persisted list stays stable and diff-friendly across saves.
+	ids := make([]string, 0, len(set))
+	for _, cfg := range a.registry.List() {
+		if set[cfg.ID] {
+			ids = append(ids, cfg.ID)
+		}
+	}
+	next := a.preferences
+	next.ManagedGames = ids
+	a.preferencesMu.Unlock()
+
+	return a.SetPreferences(next)
+}
+
+// BrowseForExtraModFolder opens a native folder-picker so a user can add an
+// extra folder to search recursively for gameID's mods, beyond its own
+// managed mod folder - see preferences.Preferences.ExtraModFolders and
+// scan.ScanExtraFolder. Returns "" (no error) if the user cancels the
+// dialog, or if the chosen folder is already in gameID's list.
+func (a *App) BrowseForExtraModFolder(gameID string) (string, error) {
+	if _, ok := a.registry.Get(gameID); !ok {
+		return "", fmt.Errorf("app: unknown game %q", gameID)
+	}
+
+	dir, err := wailsruntime.OpenDirectoryDialog(a.ctx, wailsruntime.OpenDialogOptions{
+		Title: "Select an extra folder to search for mods",
+	})
+	if err != nil {
+		return "", err
+	}
+	if dir == "" {
+		return "", nil
+	}
+
+	a.preferencesMu.Lock()
+	existing := a.preferences.ExtraModFolders[gameID]
+	for _, e := range existing {
+		if e == dir {
+			a.preferencesMu.Unlock()
+			return "", nil
+		}
+	}
+	next := a.preferences
+	folders := make(map[string][]string, len(next.ExtraModFolders)+1)
+	for k, v := range next.ExtraModFolders {
+		folders[k] = v
+	}
+	folders[gameID] = append(append([]string(nil), existing...), dir)
+	next.ExtraModFolders = folders
+	a.preferencesMu.Unlock()
+
+	if err := a.SetPreferences(next); err != nil {
+		return "", err
+	}
+	return dir, nil
+}
+
+// RemoveExtraModFolder removes path from gameID's extra mod folders.
+func (a *App) RemoveExtraModFolder(gameID, path string) error {
+	a.preferencesMu.Lock()
+	existing := a.preferences.ExtraModFolders[gameID]
+	kept := make([]string, 0, len(existing))
+	for _, e := range existing {
+		if e != path {
+			kept = append(kept, e)
+		}
+	}
+	next := a.preferences
+	folders := make(map[string][]string, len(next.ExtraModFolders))
+	for k, v := range next.ExtraModFolders {
+		folders[k] = v
+	}
+	if len(kept) == 0 {
+		delete(folders, gameID)
+	} else {
+		folders[gameID] = kept
+	}
+	next.ExtraModFolders = folders
+	a.preferencesMu.Unlock()
+
+	return a.SetPreferences(next)
+}
+
+// OpenPath opens an arbitrary filesystem path in the OS file manager - used
+// by the Paths & Folders settings screen for a game's install directory or
+// mod folder. See OpenModFolder for the equivalent scoped to one mod.
+func (a *App) OpenPath(path string) error {
+	if path == "" {
+		return fmt.Errorf("app: no path to open")
+	}
+	return browser.OpenFile(path)
 }
 
 // ScanGame scans, parses, and resolves conflicts for one supported game.
@@ -325,9 +580,10 @@ func (a *App) ScanGame(gameID, playsetName string) (library.Summary, error) {
 	}
 
 	opts := library.Options{
-		CacheDir:   a.cacheDir,
-		SteamRoots: a.steamRoots,
-		Overrides:  a.patchOverrides.Load(gameID),
+		CacheDir:     a.cacheDir,
+		SteamRoots:   a.steamRoots,
+		ExtraFolders: a.extraModFolders(gameID),
+		Overrides:    a.patchOverrides.Load(gameID),
 		// The mod list itself (names/versions/sources) is known the moment
 		// scanning finishes, well before conflict detection's slower
 		// per-mod content parsing completes - emit it immediately so the
@@ -354,7 +610,7 @@ func (a *App) ListModFiles(gameID, modID string) (library.ModFiles, error) {
 	if !ok {
 		return library.ModFiles{}, fmt.Errorf("app: unknown game %q", gameID)
 	}
-	return library.ListModFiles(a.ctx, cfg, library.Options{SteamRoots: a.steamRoots}, modID)
+	return library.ListModFiles(a.ctx, cfg, library.Options{SteamRoots: a.steamRoots, ExtraFolders: a.extraModFolders(gameID)}, modID)
 }
 
 // ModThumbnail returns modID's real thumbnail image, if it has a usable
@@ -365,7 +621,7 @@ func (a *App) ModThumbnail(gameID, modID string) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("app: unknown game %q", gameID)
 	}
-	return library.ModThumbnail(a.ctx, cfg, library.Options{SteamRoots: a.steamRoots}, modID)
+	return library.ModThumbnail(a.ctx, cfg, library.Options{SteamRoots: a.steamRoots, ExtraFolders: a.extraModFolders(gameID)}, modID)
 }
 
 // ModSizes returns every one of gameID's scanned mods' real on-disk content
@@ -375,7 +631,7 @@ func (a *App) ModSizes(gameID string) (map[string]int64, error) {
 	if !ok {
 		return nil, fmt.Errorf("app: unknown game %q", gameID)
 	}
-	return library.ModSizes(a.ctx, cfg, library.Options{SteamRoots: a.steamRoots})
+	return library.ModSizes(a.ctx, cfg, library.Options{SteamRoots: a.steamRoots, ExtraFolders: a.extraModFolders(gameID)})
 }
 
 // ReadModFile returns one real file's text content from inside modID's
@@ -385,7 +641,7 @@ func (a *App) ReadModFile(gameID, modID, relPath string) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("app: unknown game %q", gameID)
 	}
-	return library.ReadModFile(a.ctx, cfg, library.Options{SteamRoots: a.steamRoots}, modID, relPath)
+	return library.ReadModFile(a.ctx, cfg, library.Options{SteamRoots: a.steamRoots, ExtraFolders: a.extraModFolders(gameID)}, modID, relPath)
 }
 
 // FindEmptyMods lists gameID's real local mods with no usable content, for
@@ -395,7 +651,7 @@ func (a *App) FindEmptyMods(gameID string) ([]library.EmptyModCandidate, error) 
 	if !ok {
 		return nil, fmt.Errorf("app: unknown game %q", gameID)
 	}
-	return library.FindEmptyMods(a.ctx, cfg, library.Options{SteamRoots: a.steamRoots})
+	return library.FindEmptyMods(a.ctx, cfg, library.Options{SteamRoots: a.steamRoots, ExtraFolders: a.extraModFolders(gameID)})
 }
 
 // PurgeMods deletes the descriptor file for each of modIDs, after the user
@@ -406,7 +662,7 @@ func (a *App) PurgeMods(gameID string, modIDs []string) (library.PurgeResult, er
 	if !ok {
 		return library.PurgeResult{}, fmt.Errorf("app: unknown game %q", gameID)
 	}
-	return library.PurgeMods(a.ctx, cfg, library.Options{SteamRoots: a.steamRoots}, modIDs)
+	return library.PurgeMods(a.ctx, cfg, library.Options{SteamRoots: a.steamRoots, ExtraFolders: a.extraModFolders(gameID)}, modIDs)
 }
 
 // GeneratePatch resolves every genuine conflict in gameID's current mod
@@ -422,9 +678,10 @@ func (a *App) GeneratePatch(gameID string, order []string) (library.PatchResult,
 		return library.PatchResult{}, fmt.Errorf("app: unknown game %q", gameID)
 	}
 	return library.GeneratePatch(a.ctx, cfg, library.Options{
-		SteamRoots: a.steamRoots,
-		Order:      conflict.LoadOrder(order),
-		Overrides:  a.patchOverrides.Load(gameID),
+		SteamRoots:   a.steamRoots,
+		ExtraFolders: a.extraModFolders(gameID),
+		Order:        conflict.LoadOrder(order),
+		Overrides:    a.patchOverrides.Load(gameID),
 	})
 }
 
@@ -453,7 +710,7 @@ func (a *App) OpenModFolder(gameID, modID string) error {
 	if !ok {
 		return fmt.Errorf("app: unknown game %q", gameID)
 	}
-	path, err := library.ModFolderPath(a.ctx, cfg, library.Options{SteamRoots: a.steamRoots}, modID)
+	path, err := library.ModFolderPath(a.ctx, cfg, library.Options{SteamRoots: a.steamRoots, ExtraFolders: a.extraModFolders(gameID)}, modID)
 	if err != nil {
 		return err
 	}
@@ -557,7 +814,7 @@ func (a *App) WorkshopDetails(gameID string) ([]steamapi.PublishedFileDetails, e
 	if !ok {
 		return nil, fmt.Errorf("app: unknown game %q", gameID)
 	}
-	byID, err := a.workshopDetails.Get(a.ctx, cfg, library.Options{SteamRoots: a.steamRoots})
+	byID, err := a.workshopDetails.Get(a.ctx, cfg, library.Options{SteamRoots: a.steamRoots, ExtraFolders: a.extraModFolders(gameID)})
 	if err != nil {
 		return nil, err
 	}
@@ -584,7 +841,7 @@ func (a *App) AuthorProfiles(gameID string) ([]library.AuthorProfile, error) {
 	if !ok {
 		return nil, fmt.Errorf("app: unknown game %q", gameID)
 	}
-	byID, err := a.workshopDetails.Get(a.ctx, cfg, library.Options{SteamRoots: a.steamRoots})
+	byID, err := a.workshopDetails.Get(a.ctx, cfg, library.Options{SteamRoots: a.steamRoots, ExtraFolders: a.extraModFolders(gameID)})
 	if err != nil {
 		return nil, err
 	}
@@ -716,7 +973,7 @@ func (a *App) LaunchGame(gameID, playsetName string) error {
 		return err
 	}
 
-	scanResult, err := scan.Scan(a.ctx, scan.Options{Game: cfg, SteamRoots: a.steamRoots})
+	scanResult, err := scan.Scan(a.ctx, scan.Options{Game: cfg, SteamRoots: a.steamRoots, ExtraFolders: a.extraModFolders(gameID)})
 	if err != nil {
 		return err
 	}

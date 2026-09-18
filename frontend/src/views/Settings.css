@@ -29,6 +29,16 @@
 .settings-content {
     flex: 1;
     min-width: 0;
+    /* Without this, a flex item's automatic minimum size defaults to its
+       content's natural size on the cross axis too, not just min-width -
+       so a tall panel (many game cards, each with its own extra-folders
+       list) silently grew .settings-content, then .settings, then #app
+       past the window's actual height instead of respecting the space
+       .settings' flex: 1 allocated it. overflow-y here is what turns that
+       into an internal scrollbar instead of the page overflowing the
+       window. */
+    min-height: 0;
+    overflow-y: auto;
     display: flex;
 }
 
@@ -37,6 +47,16 @@
     flex-direction: column;
     gap: 18px;
     max-width: 640px;
+}
+
+/* Used by panels that are fundamentally a list of rows (Manage Games,
+   Paths & Folders) rather than a block of settings text - .single's
+   640px reading-width cap makes sense for prose, but just wastes the
+   rest of the window for a list that could show more at once. */
+.settings-content.wide {
+    padding: 20px 24px;
+    flex-direction: column;
+    gap: 18px;
 }
 
 .settings-content.split {
@@ -126,6 +146,110 @@
 .profile-state {
     font-size: 10.5px;
     flex: none;
+}
+
+/* Paths & folders is deliberately styled to match Manage Games (reuses
+   .profile-swatch/.profile-main/.profile-name/.profile-path directly) -
+   each game's card wraps that same familiar row as its "main" line, plus
+   its mod folder and extra-folder sub-sections beneath. Every flex item in
+   this chain that can hold a long, unbreakable path needs an explicit
+   min-width: 0 (not just flex: 1) - without it, a long path forces its
+   whole ancestor chain wider than the window instead of ellipsizing,
+   since a flex item's automatic minimum size is its content size unless
+   this overrides it. */
+
+.paths-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 12px 14px;
+    min-width: 0;
+}
+
+.paths-card-main {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.paths-card-actions {
+    display: flex;
+    gap: 10px;
+    flex: none;
+}
+
+.paths-modfolder {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-left: 38px;
+    min-width: 0;
+}
+
+.paths-modfolder-label {
+    font-size: 10.5px;
+    color: var(--text-muted);
+    flex: none;
+}
+
+.paths-modfolder-value {
+    flex: 1;
+    min-width: 0;
+    font-size: 11px;
+    color: var(--text-mid);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.paths-extra {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 8px 0 0 38px;
+    border-top: 1px solid #1a212b;
+    min-width: 0;
+}
+
+.paths-extra-label {
+    font-size: 10.5px;
+    color: var(--text-muted);
+}
+
+.paths-extra-empty {
+    font-size: 11px;
+    color: var(--text-dim);
+}
+
+.paths-extra-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.paths-extra-path {
+    flex: 1;
+    min-width: 0;
+    font-size: 11px;
+    color: var(--text-mid);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.paths-extra-remove {
+    font-size: 11px;
+    color: var(--text-dim);
+    cursor: pointer;
+    flex: none;
+}
+
+.paths-extra-remove:hover {
+    color: var(--red);
 }
 
 .profile-toggles {

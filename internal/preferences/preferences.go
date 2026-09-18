@@ -36,6 +36,27 @@ type Preferences struct {
 	// uses (see internal/library.GeneratePatch) and real-world modding
 	// convention (compatibility patches load last).
 	AutosortFixesLast bool `json:"autosortFixesLast"`
+	// ManagedGames is the set of registered game IDs the user has chosen
+	// for Parallax Mod Manager to actively manage - only these show up in
+	// the game switcher, Library, DLC, and Workspace. nil (or empty) means
+	// "no explicit choice made yet" (before the first-run wizard, or a
+	// missing/corrupt preferences file), which every consumer of this
+	// field treats as "every registered game is visible" rather than
+	// "manage nothing".
+	ManagedGames []string `json:"managedGames"`
+	// GamePaths persists a manually browsed-to install path per game ID
+	// (see App.BrowseForGameInstall/BrowseForAnyGameInstall in app.go), so
+	// a non-Steam or otherwise auto-detection-missed install is remembered
+	// across restarts instead of needing to be re-picked every launch. An
+	// entry that no longer verifies (the folder moved or was removed) is
+	// treated as unset by its readers rather than trusted blindly.
+	GamePaths map[string]string `json:"gamePaths"`
+	// ExtraModFolders persists, per game ID, extra folders a user has
+	// pointed Parallax Mod Manager at for more mods beyond the game's own
+	// managed mod folder (a shared network drive, a manually curated
+	// collection, and the like) - see scan.Options.ExtraFolders. Each is
+	// searched recursively; only classic-descriptor games are covered.
+	ExtraModFolders map[string][]string `json:"extraModFolders"`
 }
 
 // Defaults returns the preferences a fresh install starts with.

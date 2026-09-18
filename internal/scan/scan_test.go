@@ -399,6 +399,108 @@ remote_file_id="1121692237"
 	}
 }
 
+func TestScanExtraFolderFindsSelfContainedMod(t *testing.T) {
+	root := t.TempDir()
+	modFolder := filepath.Join(root, "Some Mod")
+	if err := os.MkdirAll(modFolder, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	writeDescriptor(t, modFolder, "descriptor.mod", `
+name="Some Mod"
+version="1.0"
+`)
+
+	mods, errs := ScanExtraFolder(mod.DescriptorClassic, root)
+	if len(errs) != 0 {
+		t.Fatalf("unexpected errors: %+v", errs)
+	}
+	if len(mods) != 1 {
+		t.Fatalf("expected 1 mod, got %d: %+v", len(mods), mods)
+	}
+	m := mods[0]
+	if m.ContentPath != modFolder {
+		t.Errorf("ContentPath = %q, want %q", m.ContentPath, modFolder)
+	}
+	if m.Source != mod.SourceLocal {
+		t.Errorf("Source = %v, want SourceLocal", m.Source)
+	}
+	if m.Descriptor.Name != "Some Mod" {
+		t.Errorf("Name = %q", m.Descriptor.Name)
+	}
+	if m.ID == "" {
+		t.Error("ID is empty")
+	}
+}
+
+func TestScanExtraFolderRecursesIntoNestedContainers(t *testing.T) {
+	root := t.TempDir()
+	nested := filepath.Join(root, "Category A", "Nested Mod")
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	writeDescriptor(t, nested, "descriptor.mod", `name="Nested Mod"`)
+
+	mods, errs := ScanExtraFolder(mod.DescriptorClassic, root)
+	if len(errs) != 0 {
+		t.Fatalf("unexpected errors: %+v", errs)
+	}
+	if len(mods) != 1 || mods[0].ContentPath != nested {
+		t.Fatalf("expected 1 mod at %q, got %+v", nested, mods)
+	}
+}
+
+func TestScanExtraFolderDoesNotDescendIntoAFoundMod(t *testing.T) {
+	root := t.TempDir()
+	modFolder := filepath.Join(root, "Some Mod")
+	innerContentDir := filepath.Join(modFolder, "common")
+	if err := os.MkdirAll(innerContentDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	writeDescriptor(t, modFolder, "descriptor.mod", `name="Some Mod"`)
+	// A subfolder of the mod's own content that happens to also carry a
+	// descriptor.mod (e.g. bundled sub-mod source) must not be picked up
+	// as its own separate mod.
+	writeDescriptor(t, innerContentDir, "descriptor.mod", `name="Should not be found"`)
+
+	mods, _ := ScanExtraFolder(mod.DescriptorClassic, root)
+	if len(mods) != 1 {
+		t.Fatalf("expected 1 mod (no descent into a found mod's own folders), got %d: %+v", len(mods), mods)
+	}
+}
+
+func TestScanExtraFolderIsNoopForJSONDescriptorGames(t *testing.T) {
+	root := t.TempDir()
+	modFolder := filepath.Join(root, "Some Mod")
+	if err := os.MkdirAll(modFolder, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	writeDescriptor(t, modFolder, "descriptor.mod", `name="Some Mod"`)
+
+	mods, errs := ScanExtraFolder(mod.DescriptorJSONv1, root)
+	if len(mods) != 0 || len(errs) != 0 {
+		t.Fatalf("expected no-op for a non-classic descriptor type, got mods=%+v errs=%+v", mods, errs)
+	}
+}
+
+func TestScanIncludesExtraFolders(t *testing.T) {
+	modDir := t.TempDir()
+	extraRoot := t.TempDir()
+	extraModFolder := filepath.Join(extraRoot, "Extra Mod")
+	if err := os.MkdirAll(extraModFolder, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	writeDescriptor(t, extraModFolder, "descriptor.mod", `name="Extra Mod"`)
+
+	opts := Options{Game: game.Stellaris, ModDir: modDir, ExtraFolders: []string{extraRoot}}
+	result, err := Scan(context.Background(), opts)
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	if len(result.Mods) != 1 || result.Mods[0].ContentPath != extraModFolder {
+		t.Fatalf("expected 1 mod at %q, got %+v", extraModFolder, result.Mods)
+	}
+}
+
 func TestEnsureWorkshopStubWritesMissingStub(t *testing.T) {
 	modDir := t.TempDir()
 	itemDir := t.TempDir()

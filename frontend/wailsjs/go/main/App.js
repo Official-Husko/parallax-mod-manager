@@ -10,8 +10,16 @@ export function BrowseForAnyGameInstall() {
   return window['go']['main']['App']['BrowseForAnyGameInstall']();
 }
 
+export function BrowseForExtraModFolder(arg1) {
+  return window['go']['main']['App']['BrowseForExtraModFolder'](arg1);
+}
+
 export function BrowseForGameInstall(arg1) {
   return window['go']['main']['App']['BrowseForGameInstall'](arg1);
+}
+
+export function ClearGamePath(arg1) {
+  return window['go']['main']['App']['ClearGamePath'](arg1);
 }
 
 export function DLCStoreData(arg1) {
@@ -98,12 +106,20 @@ export function OpenModFolder(arg1, arg2) {
   return window['go']['main']['App']['OpenModFolder'](arg1, arg2);
 }
 
+export function OpenPath(arg1) {
+  return window['go']['main']['App']['OpenPath'](arg1);
+}
+
 export function PurgeMods(arg1, arg2) {
   return window['go']['main']['App']['PurgeMods'](arg1, arg2);
 }
 
 export function ReadModFile(arg1, arg2, arg3) {
   return window['go']['main']['App']['ReadModFile'](arg1, arg2, arg3);
+}
+
+export function RemoveExtraModFolder(arg1, arg2) {
+  return window['go']['main']['App']['RemoveExtraModFolder'](arg1, arg2);
 }
 
 export function SaveCollection(arg1) {
@@ -116,6 +132,10 @@ export function SavePlayset(arg1) {
 
 export function ScanGame(arg1, arg2) {
   return window['go']['main']['App']['ScanGame'](arg1, arg2);
+}
+
+export function SetGameManaged(arg1, arg2) {
+  return window['go']['main']['App']['SetGameManaged'](arg1, arg2);
 }
 
 export function SetPatchOverride(arg1, arg2, arg3, arg4) {

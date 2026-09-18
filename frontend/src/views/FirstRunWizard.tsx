@@ -12,7 +12,6 @@ import {
 } from '../../wailsjs/go/main/App';
 import type {library, preferences} from '../../wailsjs/go/models';
 import {APP_NAME, wizardSteps} from '../data/mockData';
-import {setManagedGames} from '../data/managedGames';
 import {accentTiers, extractAccent, type Accent} from '../data/accentColor';
 import {Toggle} from '../components/Toggle';
 
@@ -136,9 +135,16 @@ export function FirstRunWizard({onFinish}: { onFinish: () => void }) {
         }
     }
 
-    function finish() {
-        setManagedGames(Array.from(managed));
-        onFinish();
+    async function finish() {
+        try {
+            const current = await GetPreferences();
+            await SetPreferences({...current, managedGames: Array.from(managed)});
+        } catch {
+            // Best effort - app.tsx's own games loader falls back to
+            // showing every registered game if this never landed.
+        } finally {
+            onFinish();
+        }
     }
 
     function goToStep(next: number) {
@@ -364,7 +370,7 @@ function PreferencesStep() {
             <div className="wizard-heading">Preferences</div>
             <div className="wizard-subheading">
                 A few settings to start with - these can be changed again any time from Settings ›
-                Game profiles.
+                Manage games.
             </div>
             {prefs && (
                 <div className="wizard-toggles">

@@ -414,10 +414,24 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   data. The exceptions: the Workspace screen's actual mod list, load order, conflict detection,
   playset save/load, launch, mod detail panel, conflict resolver, and autosort are the real,
   working features described above (including the mod detail panel's own real thumbnail art -
-  see below); the DLC screen described above; Settings' "Game profiles" panel
-  shows the same real per-game detection as the first-run wizard (including a working "set
-  path" for anything not auto-detected, and the three real preference toggles described above),
-  and its "Sort rules" panel is the real autosort configuration described above; and the
+  see below); the DLC screen described above; Settings' "Manage games" panel shows the same
+  real per-game detection as the first-run wizard, with a working "set path" for anything not
+  auto-detected and a per-game "managed by Parallax" toggle - the same choice made in the
+  wizard, kept in sync with it (toggling a game here takes effect immediately, live, without a
+  restart) rather than the wizard being the only place that choice could ever be made. Its
+  "Paths & folders" panel is the fuller per-game path reference, styled to match "Manage games"
+  (the same swatch/name/path row): each game's install folder (with change/reset-to-auto-detect
+  and "open in file manager" actions) and its real mod folder path, both backed by the same
+  path-override persistence the wizard's own "Browse..." already used - a manually-picked
+  install path now survives a restart instead of needing to be re-picked every launch. It also
+  manages a per-game list of **extra mod folders** - any additional location (a shared network
+  drive, a manually curated collection) searched recursively for more self-contained mod
+  folders alongside the game's own managed mod folder, the same way Steam Workshop content is
+  discovered (`internal/scan.ScanExtraFolder`); once a folder is recognized as a mod, its own
+  subfolders aren't descended into, so pointing at either a single mod or a whole container of
+  many both work. The three real preference toggles described above live on the "Manage games"
+  panel, and its "Sort rules" panel is the real autosort configuration described
+  above; and the
   Library screen is real, including its own "collections" and bulk actions now, not just the
   games sidebar and mod table - it scans every managed game and lists its actual mods (name,
   source, version, real on-disk size - computed in parallel across every mod at once,
@@ -502,9 +516,9 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   name carrying a background) matching the design mockup's own topbar exactly, not just loose
   inline text; nothing shown at all when a version can't be determined, never a placeholder. The
   switcher dropdown shows every managed game's own real version the same way, not just the
-  currently-selected one's, and gained a real "+ Add game" entry, always reachable (even managing
-  only one game, not gated behind already having more than one to switch between) that jumps
-  straight to Settings' own "Game profiles" panel. The real version also drives a real
+  currently-selected one's, and gained a real "Manage games" entry, always reachable (even
+  managing only one game, not gated behind already having more than one to switch between) that
+  jumps straight to Settings' own "Manage games" panel. The real version also drives a real
   compatibility check against every mod's own declared `supported_version` (confirmed wildcard
   format - see [docs/paradox-mod-format.md](docs/paradox-mod-format.md)): a mod confirmed
   incompatible with the installed version is colored amber (this project's own color language

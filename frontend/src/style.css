@@ -1,4 +1,12 @@
 html, body {
     margin: 0;
     padding: 0;
+    height: 100%;
+    /* A safety net, not the fix for any specific overflow bug: without
+       this, a layout mistake that makes some element wider/taller than
+       the viewport grows the whole page instead of clipping at the
+       window's edge, which (combined with the native window background
+       - see main.go's BackgroundColour) can render as a "see-through"
+       gap rather than an obviously-wrong but still-opaque page. */
+    overflow: hidden;
 }

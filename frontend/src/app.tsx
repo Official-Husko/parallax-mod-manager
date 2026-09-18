@@ -14,7 +14,7 @@ import {Dlc} from './views/Dlc';
 import {Settings} from './views/Settings';
 import {UpdatesModal} from './views/UpdatesModal';
 import {FirstRunWizard} from './views/FirstRunWizard';
-import {getManagedGames} from './data/managedGames';
+import {getLegacyManagedGames} from './data/managedGames';
 import {useGameAccent} from './data/useGameAccent';
 
 const ONBOARDED_KEY = 'parallax-onboarded';
@@ -63,11 +63,11 @@ export function App() {
     const [gameVersions, setGameVersions] = useState<Record<string, string>>({});
     const gameVersion = gameVersions[selectedGame] ?? '';
     // Incremented to ask the (already-mounted, once visited) Settings
-    // view to jump to its "Game profiles" panel - see the TopBar's own
-    // "+ Add game" entry in its game switcher dropdown. 0 (falsy) means
+    // view to jump to its "Manage games" panel - see the TopBar's own
+    // "Manage games" entry in its game switcher dropdown. 0 (falsy) means
     // "no pending request," so Settings' own default section on first
     // mount is untouched by this.
-    const [settingsProfilesRequest, setSettingsProfilesRequest] = useState(0);
+    const [settingsManageGamesRequest, setSettingsManageGamesRequest] = useState(0);
     // Every view this session has actually navigated to at least once -
     // 'workspace' up front since it's the default. Once a view is in
     // here it's mounted for good (see the render below); this set only
@@ -99,28 +99,70 @@ export function App() {
         return () => document.removeEventListener('contextmenu', onContextMenu);
     }, []);
 
+    // Recomputes the visible/selectable game list from ListGames() plus
+    // whichever games are currently marked managed in preferences - the
+    // single source of truth for "which games show up in the game
+    // switcher, Library, DLC, and Workspace" (see
+    // preferences.Preferences.ManagedGames). Exposed to the Manage Games
+    // settings panel as a callback so toggling a game there takes effect
+    // immediately, without needing a restart - the earlier, localStorage-
+    // only version of this state had no such hook, which was exactly why a
+    // freshly-detected game could show as installed in Settings yet never
+    // actually become selectable anywhere.
+    function loadGames() {
+        return Promise.all([ListGames(), GetPreferences().catch(() => null)])
+            .then(async ([list, loadedPrefs]) => {
+                let effectivePrefs = loadedPrefs;
+                // One-time migration for an existing install: the managed-
+                // games choice used to live only in this browser's
+                // localStorage (see data/managedGames.ts). If the backend
+                // preference has never been set, but a legacy selection is
+                // still sitting in localStorage, fold it into preferences
+                // now so it survives from here on like every other setting.
+                if (effectivePrefs && (!effectivePrefs.managedGames || effectivePrefs.managedGames.length === 0)) {
+                    const legacy = getLegacyManagedGames();
+                    if (legacy && legacy.length > 0) {
+                        const migrated = {...effectivePrefs, managedGames: legacy};
+                        try {
+                            await SetPreferences(migrated);
+                            effectivePrefs = migrated;
+                        } catch {
+                            // Best effort - fall through with the
+                            // un-migrated preferences below.
+                        }
+                    }
+                }
+
+                setPrefs(effectivePrefs);
+                const managedKeys = effectivePrefs?.managedGames ?? null;
+                const visible = managedKeys && managedKeys.length > 0
+                    ? list.filter((g) => managedKeys.includes(g.ID))
+                    : list;
+                setGames(visible);
+                if (visible.length === 0) {
+                    setSelectedGame('');
+                    setError('No games are set up to manage yet - open Manage games to pick one.');
+                    return;
+                }
+                setError('');
+                setSelectedGame((prev) => {
+                    if (visible.some((g) => g.ID === prev)) {
+                        return prev;
+                    }
+                    const lastSelected = effectivePrefs?.lastSelectedGame ?? '';
+                    return visible.find((g) => g.ID === lastSelected)?.ID ?? visible[0].ID;
+                });
+            })
+            .catch((err) => setError(String(err)));
+    }
+
     useEffect(() => {
         if (!onboarded) {
             return;
         }
         StartupNotice().then((text) => { if (text) notify('info', text); }).catch(() => undefined);
-        Promise.all([ListGames(), GetPreferences().catch(() => null)])
-            .then(([list, loadedPrefs]) => {
-                setPrefs(loadedPrefs);
-                const managedKeys = getManagedGames();
-                const visible = managedKeys && managedKeys.length > 0
-                    ? list.filter((g) => managedKeys.includes(g.ID))
-                    : list;
-                setGames(visible);
-                if (visible.length > 0) {
-                    const lastSelected = loadedPrefs?.lastSelectedGame ?? '';
-                    const initial = visible.find((g) => g.ID === lastSelected)?.ID ?? visible[0].ID;
-                    setSelectedGame(initial);
-                } else {
-                    setError('No games are set up to manage yet - run setup again to select one.');
-                }
-            })
-            .catch((err) => setError(String(err)));
+        loadGames();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [onboarded]);
 
     useEffect(() => {
@@ -156,9 +198,9 @@ export function App() {
 
     const gameName = games.find((g) => g.ID === selectedGame)?.DisplayName ?? selectedGame;
 
-    function openGameProfiles() {
+    function openManageGames() {
         setView('settings');
-        setSettingsProfilesRequest((n) => n + 1);
+        setSettingsManageGamesRequest((n) => n + 1);
     }
 
     const gamePicker = view === 'workspace'
@@ -170,7 +212,7 @@ export function App() {
             onOpenPlaysetSwitcher: () => setShowPlaysets(true),
             games: games.map((g) => ({ID: g.ID, DisplayName: g.DisplayName})),
             onSelectGame: selectGame,
-            onAddGame: openGameProfiles,
+            onManageGames: openManageGames,
         }
         : view === 'dlc'
             ? {
@@ -179,7 +221,7 @@ export function App() {
                 gameVersions,
                 games: games.map((g) => ({ID: g.ID, DisplayName: g.DisplayName})),
                 onSelectGame: selectGame,
-                onAddGame: openGameProfiles,
+                onManageGames: openManageGames,
             }
             : undefined;
 
@@ -237,9 +279,15 @@ export function App() {
                     <Dlc games={games} selectedGame={selectedGame}/>
                 </div>
             )}
-            {!error && visitedViews.has('settings') && (
+            {/* Settings isn't gated on !error like the views above - unlike
+                them it doesn't depend on games/selectedGame, and it's the
+                only way to recover from the "no games managed" error (e.g.
+                after un-managing the last one from its own Manage Games
+                panel), so it must stay reachable even while that error is
+                showing. */}
+            {visitedViews.has('settings') && (
                 <div style={{display: view === 'settings' ? 'contents' : 'none'}}>
-                    <Settings jumpToProfiles={settingsProfilesRequest}/>
+                    <Settings jumpToManageGames={settingsManageGamesRequest} onGamesChanged={loadGames}/>
                 </div>
             )}
 

@@ -48,17 +48,23 @@ type DetectedGame struct {
 	GameInfo
 	Installed   bool
 	InstallPath string // empty when Installed is false
-	ModFolder   string // where mods for this game live, whether or not any exist yet
-	ModCount    int
+	// PathOverridden reports whether InstallPath came from a manually-set
+	// path override (see App.gamePathOverride in app.go) rather than
+	// automatic Steam-library detection.
+	PathOverridden bool
+	ModFolder      string // where mods for this game live, whether or not any exist yet
+	ModCount       int
 }
 
 // DetectGame reports cfg's real install and mod-folder state, using
 // cfg.DetectInstall's automatic Steam-library search. steamRoots is used to
 // resolve Workshop content for ModCount the same way ScanGame does (see
 // scan.Options.SteamRoots) - pass steam.DefaultRoots() in production.
-func DetectGame(ctx context.Context, cfg game.GameConfig, steamRoots []string) (DetectedGame, error) {
+// extraFolders is cfg's configured extra mod folders (see
+// scan.Options.ExtraFolders); pass nil if there are none.
+func DetectGame(ctx context.Context, cfg game.GameConfig, steamRoots, extraFolders []string) (DetectedGame, error) {
 	installDir, installed := cfg.DetectInstall()
-	return detectGame(ctx, cfg, installDir, installed, steamRoots)
+	return detectGame(ctx, cfg, installDir, installed, steamRoots, extraFolders)
 }
 
 // DetectGameAt reports cfg's state using a caller-supplied install
@@ -67,8 +73,8 @@ func DetectGame(ctx context.Context, cfg game.GameConfig, steamRoots []string) (
 // The caller is responsible for having already verified installDir with
 // cfg.VerifyInstallDir; this never re-checks it, since a manual pick is by
 // definition already outside what detection considers valid.
-func DetectGameAt(ctx context.Context, cfg game.GameConfig, installDir string, steamRoots []string) (DetectedGame, error) {
-	return detectGame(ctx, cfg, installDir, true, steamRoots)
+func DetectGameAt(ctx context.Context, cfg game.GameConfig, installDir string, steamRoots, extraFolders []string) (DetectedGame, error) {
+	return detectGame(ctx, cfg, installDir, true, steamRoots, extraFolders)
 }
 
 // detectGame reports cfg's mod-folder state (always real: scanned fresh)
@@ -76,7 +82,7 @@ func DetectGameAt(ctx context.Context, cfg game.GameConfig, installDir string, s
 // resolve differently). A scan failure (e.g. the mod folder doesn't exist
 // yet) is not fatal here - it just means ModCount stays 0, matching
 // scan.Scan's own "no mods installed yet is not an error" philosophy.
-func detectGame(ctx context.Context, cfg game.GameConfig, installDir string, installed bool, steamRoots []string) (DetectedGame, error) {
+func detectGame(ctx context.Context, cfg game.GameConfig, installDir string, installed bool, steamRoots, extraFolders []string) (DetectedGame, error) {
 	userDir, err := cfg.UserDataDir()
 	if err != nil {
 		return DetectedGame{}, fmt.Errorf("library: resolving user data dir for %s: %w", cfg.ID, err)
@@ -84,7 +90,7 @@ func detectGame(ctx context.Context, cfg game.GameConfig, installDir string, ins
 	modFolder := filepath.Join(userDir, "mod")
 
 	modCount := 0
-	if result, err := scan.Scan(ctx, scan.Options{Game: cfg, SteamRoots: steamRoots}); err == nil {
+	if result, err := scan.Scan(ctx, scan.Options{Game: cfg, SteamRoots: steamRoots, ExtraFolders: extraFolders}); err == nil {
 		modCount = len(result.Mods)
 	}
 
@@ -173,6 +179,10 @@ type Options struct {
 	// ModDir is an optional test/override hook mirroring
 	// scan.Options.ModDir; empty uses the game's real mod folder.
 	ModDir string
+	// ExtraFolders mirrors scan.Options.ExtraFolders - a user's configured
+	// extra mod locations for this game, searched recursively alongside
+	// the game's own managed mod folder.
+	ExtraFolders []string
 	// Order, if set, both determines load order and which mods are
 	// enabled - a mod absent from it is disabled: excluded from parsing
 	// and conflict detection entirely (see LoadGame), and marked
@@ -218,7 +228,7 @@ type resolvedGame struct {
 // opts.Order (or, absent one, nothing enabled) - the pipeline LoadGame and
 // GeneratePatch both need.
 func resolveConflicts(ctx context.Context, cfg game.GameConfig, opts Options) (resolvedGame, error) {
-	scanResult, err := scan.Scan(ctx, scan.Options{Game: cfg, SteamRoots: opts.SteamRoots, ModDir: opts.ModDir})
+	scanResult, err := scan.Scan(ctx, scan.Options{Game: cfg, SteamRoots: opts.SteamRoots, ModDir: opts.ModDir, ExtraFolders: opts.ExtraFolders})
 	if err != nil {
 		return resolvedGame{}, fmt.Errorf("library: scanning %s: %w", cfg.ID, err)
 	}

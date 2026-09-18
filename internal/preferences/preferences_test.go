@@ -3,13 +3,14 @@ package preferences
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 )
 
 func TestLoadMissingFileReturnsDefaults(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "preferences.jsonc")
 	got := Load(path)
-	if got != Defaults() {
+	if !reflect.DeepEqual(got, Defaults()) {
 		t.Errorf("Load(missing) = %+v, want Defaults() = %+v", got, Defaults())
 	}
 }
@@ -21,7 +22,7 @@ func TestLoadCorruptFileReturnsDefaults(t *testing.T) {
 		t.Fatalf("WriteFile: %v", err)
 	}
 	got := Load(path)
-	if got != Defaults() {
+	if !reflect.DeepEqual(got, Defaults()) {
 		t.Errorf("Load(corrupt) = %+v, want Defaults() = %+v", got, Defaults())
 	}
 }
@@ -41,7 +42,7 @@ func TestSaveThenLoadRoundTrips(t *testing.T) {
 	}
 
 	got := Load(path)
-	if got != want {
+	if !reflect.DeepEqual(got, want) {
 		t.Errorf("round-tripped = %+v, want %+v", got, want)
 	}
 }
@@ -62,7 +63,7 @@ func TestLoadToleratesJSONCComments(t *testing.T) {
 
 	got := Load(path)
 	want := Preferences{ScanForNewMods: false, CloseAfterLaunch: true, WarnOnPatchMismatch: true}
-	if got != want {
+	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Load(jsonc) = %+v, want %+v", got, want)
 	}
 }

@@ -31,7 +31,7 @@ type EmptyModCandidate struct {
 // Launcher's own file to manage, not this project's to delete out from
 // under it.
 func FindEmptyMods(ctx context.Context, cfg game.GameConfig, opts Options) ([]EmptyModCandidate, error) {
-	scanResult, err := scan.Scan(ctx, scan.Options{Game: cfg, SteamRoots: opts.SteamRoots, ModDir: opts.ModDir})
+	scanResult, err := scan.Scan(ctx, scan.Options{Game: cfg, SteamRoots: opts.SteamRoots, ModDir: opts.ModDir, ExtraFolders: opts.ExtraFolders})
 	if err != nil {
 		return nil, fmt.Errorf("library: scanning %s: %w", cfg.ID, err)
 	}
@@ -106,7 +106,7 @@ type PurgeResult struct {
 // a mod's content reappeared (a drive reconnected, Workshop finished
 // downloading) between when the candidate list was shown and confirmed.
 func PurgeMods(ctx context.Context, cfg game.GameConfig, opts Options, modIDs []string) (PurgeResult, error) {
-	scanResult, err := scan.Scan(ctx, scan.Options{Game: cfg, SteamRoots: opts.SteamRoots, ModDir: opts.ModDir})
+	scanResult, err := scan.Scan(ctx, scan.Options{Game: cfg, SteamRoots: opts.SteamRoots, ModDir: opts.ModDir, ExtraFolders: opts.ExtraFolders})
 	if err != nil {
 		return PurgeResult{}, fmt.Errorf("library: scanning %s: %w", cfg.ID, err)
 	}

@@ -255,6 +255,7 @@ export namespace library {
 	    DisplayName: string;
 	    Installed: boolean;
 	    InstallPath: string;
+	    PathOverridden: boolean;
 	    ModFolder: string;
 	    ModCount: number;
 	
@@ -268,6 +269,7 @@ export namespace library {
 	        this.DisplayName = source["DisplayName"];
 	        this.Installed = source["Installed"];
 	        this.InstallPath = source["InstallPath"];
+	        this.PathOverridden = source["PathOverridden"];
 	        this.ModFolder = source["ModFolder"];
 	        this.ModCount = source["ModCount"];
 	    }
@@ -487,6 +489,9 @@ export namespace preferences {
 	    lastSelectedGame: string;
 	    autosortDependencies: boolean;
 	    autosortFixesLast: boolean;
+	    managedGames: string[];
+	    gamePaths: Record<string, string>;
+	    extraModFolders: Record<string, Array<string>>;
 	
 	    static createFrom(source: any = {}) {
 	        return new Preferences(source);
@@ -500,6 +505,9 @@ export namespace preferences {
 	        this.lastSelectedGame = source["lastSelectedGame"];
 	        this.autosortDependencies = source["autosortDependencies"];
 	        this.autosortFixesLast = source["autosortFixesLast"];
+	        this.managedGames = source["managedGames"];
+	        this.gamePaths = source["gamePaths"];
+	        this.extraModFolders = source["extraModFolders"];
 	    }
 	}
 

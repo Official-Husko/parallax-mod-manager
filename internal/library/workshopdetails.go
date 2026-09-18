@@ -31,7 +31,7 @@ type WorkshopDetailsCache struct {
 // recognize, or that this cache hasn't been asked about yet, is simply
 // absent from the result.
 func (c *WorkshopDetailsCache) Get(ctx context.Context, cfg game.GameConfig, opts Options) (map[string]steamapi.PublishedFileDetails, error) {
-	scanResult, err := scan.Scan(ctx, scan.Options{Game: cfg, SteamRoots: opts.SteamRoots, ModDir: opts.ModDir})
+	scanResult, err := scan.Scan(ctx, scan.Options{Game: cfg, SteamRoots: opts.SteamRoots, ModDir: opts.ModDir, ExtraFolders: opts.ExtraFolders})
 	if err != nil {
 		return nil, err
 	}

@@ -48,22 +48,22 @@ export function TopBar({view, onNavigate, gamePicker}: {
         onOpenPlaysetSwitcher?: () => void;
         games?: { ID: string; DisplayName: string }[];
         onSelectGame?: (id: string) => void;
-        // Navigates to Settings' "Game profiles" panel - present exactly
+        // Navigates to Settings' "Manage games" panel - present exactly
         // when there's a real place for it to go. Shown as its own row in
         // the dropdown below, always available there (even with only one
         // or zero managed games) rather than only once there's already
         // more than one to switch between.
-        onAddGame?: () => void;
+        onManageGames?: () => void;
     };
 }) {
     const [open, setOpen] = useState(false);
     const boxRef = useRef<HTMLDivElement>(null);
     // The pill opens a dropdown as soon as there's anything real to do in
     // one - switch games (once there's a real list to switch within) or
-    // add one - not gated on already managing more than one game, so
-    // "+ Add game" stays reachable from a fresh install managing just one
-    // (or zero) games.
-    const hasGameMenu = (!!gamePicker?.games && !!gamePicker.onSelectGame) || !!gamePicker?.onAddGame;
+    // manage which ones show up here at all - not gated on already
+    // managing more than one game, so "Manage games" stays reachable from
+    // a fresh install managing just one (or zero) games.
+    const hasGameMenu = (!!gamePicker?.games && !!gamePicker.onSelectGame) || !!gamePicker?.onManageGames;
 
     useEffect(() => {
         if (!open) return;
@@ -115,15 +115,15 @@ export function TopBar({view, onNavigate, gamePicker}: {
                                         </div>
                                     );
                                 })}
-                                {gamePicker.onAddGame && (
+                                {gamePicker.onManageGames && (
                                     <div
                                         className="topbar-game-option add"
                                         onClick={() => {
-                                            gamePicker.onAddGame!();
+                                            gamePicker.onManageGames!();
                                             setOpen(false);
                                         }}
                                     >
-                                        <i className="fa-solid fa-plus"/> Add game
+                                        <i className="fa-solid fa-gear"/> Manage games
                                     </div>
                                 )}
                             </div>

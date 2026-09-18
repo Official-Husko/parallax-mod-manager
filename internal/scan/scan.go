@@ -5,14 +5,17 @@ package scan
 
 import (
 	"context"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/Official-Husko/parallax-mod-manager/internal/atomicfile"
 	"github.com/Official-Husko/parallax-mod-manager/internal/game"
 	"github.com/Official-Husko/parallax-mod-manager/internal/mod"
 	"github.com/Official-Husko/parallax-mod-manager/internal/steam"
+	"github.com/Official-Husko/parallax-mod-manager/internal/xhash"
 )
 
 // Options configures a scan.
@@ -31,6 +34,12 @@ type Options struct {
 	// callers normally leave it empty and let it default to
 	// opts.Game.UserDataDir() + "/mod".
 	ModDir string
+	// ExtraFolders lists additional folders a user has pointed Parallax Mod
+	// Manager at for more mods beyond the game's own managed mod folder (a
+	// shared network drive, a manually curated collection, and the like).
+	// Each is searched recursively for self-contained mod folders - see
+	// ScanExtraFolder. Only classic-descriptor games are covered.
+	ExtraFolders []string
 }
 
 // ScanError records a non-fatal problem with one descriptor - scanning
@@ -173,7 +182,80 @@ func Scan(ctx context.Context, opts Options) (Result, error) {
 		}
 	}
 
+	for _, folder := range opts.ExtraFolders {
+		if err := ctx.Err(); err != nil {
+			return result, err
+		}
+		if folder == "" {
+			continue
+		}
+		extra, errs := ScanExtraFolder(opts.Game.DescriptorType, folder)
+		result.Mods = append(result.Mods, extra...)
+		result.Errors = append(result.Errors, errs...)
+	}
+
 	return result, nil
+}
+
+// ScanExtraFolder recursively searches root for self-contained mod folders -
+// the same "descriptor.mod directly inside the folder that IS the mod's own
+// content root" layout Steam Workshop uses (see discoverUnlinkedWorkshopItems)
+// - for a user-configured extra mod location outside the game's own managed
+// mod folder. Once a folder is recognized as a mod, its own subfolders
+// (common/, gfx/, and the like) aren't descended into, so only the
+// outermost matching folder on any branch counts - this lets a user point
+// at a single mod's folder directly, or at a container of many.
+//
+// Only classic-descriptor games are covered: the self-contained-folder
+// convention isn't confirmed for JSON-descriptor games yet (see
+// docs/mod-sources.md) - a no-op (nil, nil) for any other descriptor type,
+// same as discoverUnlinkedWorkshopItems' own scoping.
+//
+// A mod found this way has no linking-stub filename to derive an ID from
+// (unlike a classic mod folder's own descriptor stubs, or a Workshop item's
+// numbered folder), so its ID is instead derived from its own descriptor
+// path via xhash - stable across runs (the same folder always yields the
+// same ID) without needing the user to name anything.
+func ScanExtraFolder(kind mod.DescriptorType, root string) ([]mod.Mod, []ScanError) {
+	if kind != mod.DescriptorClassic || root == "" {
+		return nil, nil
+	}
+
+	var mods []mod.Mod
+	var errs []ScanError
+	_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			// An unreadable branch (permissions, a broken symlink, the
+			// root itself missing) just stops descending there - the rest
+			// of the tree, if any, is still worth searching.
+			return nil
+		}
+		if !d.IsDir() {
+			return nil
+		}
+
+		descPath := filepath.Join(path, "descriptor.mod")
+		data, err := os.ReadFile(descPath)
+		if err != nil {
+			return nil // not a mod folder itself - keep descending into it
+		}
+
+		desc, err := mod.ParseDescriptor(data, mod.DescriptorClassic)
+		if err != nil {
+			errs = append(errs, ScanError{Path: descPath, Err: err})
+			return fs.SkipDir
+		}
+
+		mods = append(mods, mod.Mod{
+			ID:             "extra_" + strconv.FormatUint(xhash.Bytes([]byte(descPath)), 36),
+			Descriptor:     desc,
+			Source:         mod.SourceLocal,
+			DescriptorPath: descPath,
+			ContentPath:    path,
+		})
+		return fs.SkipDir
+	})
+	return mods, errs
 }
 
 // discoverUnlinkedWorkshopItems finds every Workshop item under workshopDir

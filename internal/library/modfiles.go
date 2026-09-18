@@ -119,7 +119,7 @@ func ModFolderPath(ctx context.Context, cfg game.GameConfig, opts Options, modID
 // path) is simply left out of the result rather than failing the batch,
 // matching this project's non-fatal-per-item philosophy elsewhere.
 func ModSizes(ctx context.Context, cfg game.GameConfig, opts Options) (map[string]int64, error) {
-	scanResult, err := scan.Scan(ctx, scan.Options{Game: cfg, SteamRoots: opts.SteamRoots, ModDir: opts.ModDir})
+	scanResult, err := scan.Scan(ctx, scan.Options{Game: cfg, SteamRoots: opts.SteamRoots, ModDir: opts.ModDir, ExtraFolders: opts.ExtraFolders})
 	if err != nil {
 		return nil, fmt.Errorf("library: scanning %s: %w", cfg.ID, err)
 	}
@@ -220,7 +220,7 @@ func ReadModFile(ctx context.Context, cfg game.GameConfig, opts Options, modID, 
 // findMod re-scans cfg (the same discovery LoadGame itself uses) and
 // returns the one mod matching modID.
 func findMod(ctx context.Context, cfg game.GameConfig, opts Options, modID string) (mod.Mod, error) {
-	scanResult, err := scan.Scan(ctx, scan.Options{Game: cfg, SteamRoots: opts.SteamRoots, ModDir: opts.ModDir})
+	scanResult, err := scan.Scan(ctx, scan.Options{Game: cfg, SteamRoots: opts.SteamRoots, ModDir: opts.ModDir, ExtraFolders: opts.ExtraFolders})
 	if err != nil {
 		return mod.Mod{}, fmt.Errorf("library: scanning %s: %w", cfg.ID, err)
 	}

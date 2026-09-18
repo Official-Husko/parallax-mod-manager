@@ -13,7 +13,11 @@ export function AuthorProfiles(arg1:string):Promise<Array<library.AuthorProfile>
 
 export function BrowseForAnyGameInstall():Promise<library.DetectedGame>;
 
+export function BrowseForExtraModFolder(arg1:string):Promise<string>;
+
 export function BrowseForGameInstall(arg1:string):Promise<library.DetectedGame>;
+
+export function ClearGamePath(arg1:string):Promise<library.DetectedGame>;
 
 export function DLCStoreData(arg1:string):Promise<Array<dlcstore.StoreData>>;
 
@@ -57,15 +61,21 @@ export function ModThumbnail(arg1:string,arg2:string):Promise<string>;
 
 export function OpenModFolder(arg1:string,arg2:string):Promise<void>;
 
+export function OpenPath(arg1:string):Promise<void>;
+
 export function PurgeMods(arg1:string,arg2:Array<string>):Promise<library.PurgeResult>;
 
 export function ReadModFile(arg1:string,arg2:string,arg3:string):Promise<string>;
+
+export function RemoveExtraModFolder(arg1:string,arg2:string):Promise<void>;
 
 export function SaveCollection(arg1:collection.Collection):Promise<void>;
 
 export function SavePlayset(arg1:playset.Playset):Promise<void>;
 
 export function ScanGame(arg1:string,arg2:string):Promise<library.Summary>;
+
+export function SetGameManaged(arg1:string,arg2:boolean):Promise<void>;
 
 export function SetPatchOverride(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
 
