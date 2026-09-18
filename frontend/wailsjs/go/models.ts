@@ -492,6 +492,9 @@ export namespace preferences {
 	    managedGames: string[];
 	    gamePaths: Record<string, string>;
 	    extraModFolders: Record<string, Array<string>>;
+	    backgroundDisabled: boolean;
+	    backgroundRotationPaused: boolean;
+	    backgroundIntervalSeconds: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new Preferences(source);
@@ -508,6 +511,9 @@ export namespace preferences {
 	        this.managedGames = source["managedGames"];
 	        this.gamePaths = source["gamePaths"];
 	        this.extraModFolders = source["extraModFolders"];
+	        this.backgroundDisabled = source["backgroundDisabled"];
+	        this.backgroundRotationPaused = source["backgroundRotationPaused"];
+	        this.backgroundIntervalSeconds = source["backgroundIntervalSeconds"];
 	    }
 	}
 

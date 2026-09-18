@@ -1,0 +1,30 @@
+/* Fixed to the viewport, not #app's own box, and z-index:-1 rather than
+   plain DOM order - #app is a flex container, so as a flex item this still
+   sits behind its siblings (TopBar, the current view) despite being first
+   in markup; without the negative z-index a positioned element paints
+   above ordinary static-flow content regardless of DOM order. */
+.app-background {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    overflow: hidden;
+}
+
+.app-background-layer {
+    position: absolute;
+    inset: 0;
+    background-position: center;
+    background-size: cover;
+    background-repeat: no-repeat;
+    /* The cross-fade itself - both layers transition opacity at once, one
+       up and one down, on every rotation (see AppBackground.tsx). */
+    transition: opacity 2.5s ease;
+}
+
+/* Slight, constant darkening over whichever image is showing, independent
+   of which layer/opacity is currently animating. */
+.app-background-scrim {
+    position: absolute;
+    inset: 0;
+    background: rgba(6, 8, 11, .35);
+}

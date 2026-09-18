@@ -50,7 +50,7 @@
 
 .badge {
     font: 500 11px "Azeret Mono", monospace;
-    color: var(--bg-panel);
+    color: var(--bg-panel-solid);
     border-radius: 3px;
     padding: 2px 7px;
     display: flex;
@@ -232,7 +232,7 @@
 
 .wins-badge {
     font: 600 9px "Azeret Mono", monospace;
-    color: var(--bg-panel);
+    color: var(--bg-panel-solid);
     background: var(--green);
     border-radius: 2px;
     padding: 2px 5px;

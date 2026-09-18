@@ -544,6 +544,16 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   render, and only mount lazily on first visit - except Library, which stays lazy even then,
   since its own first load kicks off a real scan across every managed game at once and
   shouldn't run on every app launch for a session that never opens it.
+- **A rotating, per-game background image behind the whole app** - drawn from whichever
+  game is currently selected (`frontend/src/assets/game_media/background/<gameID>/`; only
+  Stellaris ships any art so far, a game with none just shows the plain flat color it always
+  had), picking a random image and cross-fading to a new random one on a timer, slightly
+  darkened so foreground text stays legible. Every major panel/header/sidebar surface now
+  reads its background through a semi-transparent CSS variable instead of a flat opaque
+  color, so the art actually shows through the whole UI rather than just the gaps between
+  panels. Settings' own "Appearance" panel lets you turn it off entirely, freeze it on
+  whichever image is currently showing instead of rotating, or change how often it rotates
+  (default every 5 minutes).
 
 All of the above has unit test coverage (table-driven, fixture-based, `go test -race`
 clean), including tests that prove behavior rather than just assert on it - e.g.

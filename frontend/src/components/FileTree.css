@@ -30,11 +30,11 @@
 /* A dedicated class rather than the generic .badge ConflictResolver.css
    also defines - that shared name was the real cause of this text once
    being unreadable: ConflictResolver's own .badge sets a dark
-   (var(--bg-panel)) color meant to sit on a bright background, and with no
-   background set here at all, it rendered as near-black text on this
-   panel's own dark background. A same-named class in another view's CSS
-   file was always going to collide sooner or later since nothing here is
-   module-scoped - this one gets its own name instead of trying to win a
+   (var(--bg-panel-solid)) color meant to sit on a bright background, and
+   with no background set here at all, it rendered as near-black text on
+   this panel's own dark background. A same-named class in another view's
+   CSS file was always going to collide sooner or later since nothing here
+   is module-scoped - this one gets its own name instead of trying to win a
    specificity fight. */
 .file-row .file-size {
     font-size: 9.5px;

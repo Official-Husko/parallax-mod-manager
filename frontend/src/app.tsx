@@ -7,6 +7,7 @@ import {TopBar} from './components/TopBar';
 import type {ViewKey} from './components/TopBar';
 import {NotificationStack} from './components/NotificationStack';
 import {ContextMenu} from './components/ContextMenu';
+import {AppBackground} from './components/AppBackground';
 import {notify} from './data/notifications';
 import {Workspace} from './views/Workspace';
 import {Library} from './views/Library';
@@ -231,6 +232,12 @@ export function App() {
 
     return (
         <div id="app" style={accentStyle}>
+            <AppBackground
+                gameId={selectedGame}
+                disabled={prefs?.backgroundDisabled ?? false}
+                rotationPaused={prefs?.backgroundRotationPaused ?? false}
+                intervalSeconds={prefs?.backgroundIntervalSeconds ?? 0}
+            />
             <TopBar view={view} onNavigate={setView} gamePicker={gamePicker}/>
             <NotificationStack/>
 
@@ -287,7 +294,19 @@ export function App() {
                 showing. */}
             {visitedViews.has('settings') && (
                 <div style={{display: view === 'settings' ? 'contents' : 'none'}}>
-                    <Settings jumpToManageGames={settingsManageGamesRequest} onGamesChanged={loadGames}/>
+                    <Settings
+                        jumpToManageGames={settingsManageGamesRequest}
+                        onGamesChanged={loadGames}
+                        // loadGames also refetches preferences (see its own
+                        // comment) - the same function as onGamesChanged
+                        // above, just under the name each caller actually
+                        // means: AppearancePanel's own background toggles
+                        // change nothing about games, but do need this
+                        // component's own prefs state (the AppBackground
+                        // props below) refreshed, or a change made in
+                        // Settings would only take effect after a restart.
+                        onPreferencesChanged={loadGames}
+                    />
                 </div>
             )}
 

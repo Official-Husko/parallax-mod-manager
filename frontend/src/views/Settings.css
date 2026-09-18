@@ -283,6 +283,41 @@
     color: var(--text-mid);
 }
 
+/* A row whose setting is currently meaningless - "change automatically"
+   and "change every" both do nothing while the background itself is off,
+   and "change every" also does nothing while rotation is paused - see
+   AppearancePanel. Its Toggle/input still gets a real disabled
+   onClick/disabled prop; this just makes that state visible. */
+.profile-toggle-row.disabled {
+    opacity: .5;
+}
+
+.appearance-interval {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.appearance-interval input {
+    width: 64px;
+    font: 500 12px "Azeret Mono", monospace;
+    color: var(--text);
+    background: #161d27;
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    padding: 5px 8px;
+    text-align: right;
+}
+
+.appearance-interval input:disabled {
+    cursor: not-allowed;
+}
+
+.appearance-interval .unit {
+    font-size: 11px;
+    color: var(--text-dim);
+}
+
 .sort-rules-list {
     display: flex;
     flex-direction: column;

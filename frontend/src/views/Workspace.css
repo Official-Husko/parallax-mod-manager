@@ -454,7 +454,7 @@
 
 .wins-badge {
     font: 600 9px "Azeret Mono", monospace;
-    color: var(--bg-panel);
+    color: var(--bg-panel-solid);
     background: var(--green);
     border-radius: 2px;
     padding: 2px 5px;
@@ -1121,7 +1121,7 @@
 
 .btn-amber {
     font: 600 10.5px Barlow, sans-serif;
-    color: var(--bg-panel);
+    color: var(--bg-panel-solid);
     background: var(--amber);
     border-radius: 4px;
     padding: 4px 10px;

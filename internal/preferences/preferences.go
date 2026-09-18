@@ -57,6 +57,27 @@ type Preferences struct {
 	// collection, and the like) - see scan.Options.ExtraFolders. Each is
 	// searched recursively; only classic-descriptor games are covered.
 	ExtraModFolders map[string][]string `json:"extraModFolders"`
+	// BackgroundDisabled turns off the rotating per-game background image
+	// behind the whole app (see frontend/src/components/AppBackground.tsx)
+	// entirely. Named as a negative - "disabled" rather than "enabled" -
+	// so an existing preferences file saved before this setting existed
+	// unmarshals this field to Go's zero value, false, which then means
+	// "not disabled," i.e. still on. An "enabled" field would've silently
+	// turned the background off for every existing install the moment
+	// this shipped.
+	BackgroundDisabled bool `json:"backgroundDisabled"`
+	// BackgroundRotationPaused keeps whichever single background image is
+	// currently showing instead of picking a new random one every
+	// BackgroundIntervalSeconds. Inverted for the same zero-value reason
+	// as BackgroundDisabled above.
+	BackgroundRotationPaused bool `json:"backgroundRotationPaused"`
+	// BackgroundIntervalSeconds is how often a new random background
+	// image is picked, in seconds. 0 - including an existing preferences
+	// file from before this field existed - means "use the frontend's own
+	// default" (5 minutes), handled on read rather than here, since this
+	// package's Load only falls back to Defaults() for a missing/corrupt
+	// file, not a merely-older one missing just this field.
+	BackgroundIntervalSeconds int `json:"backgroundIntervalSeconds"`
 }
 
 // Defaults returns the preferences a fresh install starts with.

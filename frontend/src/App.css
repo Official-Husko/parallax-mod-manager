@@ -10,10 +10,23 @@
 
 :root {
     --bg-app: #0a0d12;
-    --bg-panel: #0e1218;
-    --bg-header: #11161e;
-    --bg-rail: #131923;
-    --bg-row-alt: #141b25;
+    /* Semi-transparent (not the flat #0e1218 these used to be) so the
+       per-game rotating background image (components/AppBackground.tsx)
+       tints through every panel/header/rail/row surface that uses one of
+       these - the "themed dashboard" look. --bg-app itself stays fully
+       opaque on purpose: it's #app's own base color, painted behind
+       AppBackground's image layer in stacking order, so it only ever
+       shows for a game with no background art yet (see
+       data/gameBackgrounds.ts) - the plain, art-free look this app has
+       always had. --bg-panel-solid keeps the original opaque value, for
+       the handful of places that need a genuinely solid dark color
+       (text sitting on a bright accent fill, a toggle knob) rather than a
+       surface meant to show the art behind it - see its own use sites. */
+    --bg-panel: rgba(14, 18, 24, .74);
+    --bg-panel-solid: #0e1218;
+    --bg-header: rgba(17, 22, 30, .8);
+    --bg-rail: rgba(19, 25, 35, .8);
+    --bg-row-alt: rgba(20, 27, 37, .62);
     --border: #27313f;
     --border-light: #2d3846;
     --text-bright: #e4e8ee;
@@ -85,6 +98,15 @@
     color: var(--text);
     font-family: Barlow, system-ui, sans-serif;
     font-size: 13px;
+    /* Establishes #app's own stacking context, with no side effects on
+       its own layout/positioning (unlike position+z-index) - without
+       this, AppBackground's own negative z-index (see
+       components/AppBackground.css) has no local #app context to be
+       negative *within*, so it escapes to the document root's stacking
+       context instead and paints behind literally everything, including
+       #app's own background and every one of its other children, rather
+       than just behind #app's other children as intended. */
+    isolation: isolate;
 }
 
 .mono {
@@ -345,7 +367,7 @@
 }
 
 .chip-active {
-    color: var(--bg-panel);
+    color: var(--bg-panel-solid);
     background: var(--rust);
     border-color: var(--rust);
 }
@@ -357,7 +379,7 @@
 
 .src-badge {
     font: 600 8.5px "Azeret Mono", monospace;
-    color: var(--bg-panel);
+    color: var(--bg-panel-solid);
     padding: 2px 4px;
     border-radius: 2px;
     flex: none;
@@ -433,7 +455,7 @@
 
 .toggle-pill.on .toggle-knob {
     transform: translateX(14px);
-    background: var(--bg-panel);
+    background: var(--bg-panel-solid);
 }
 
 .toggle-pill.off .toggle-knob {

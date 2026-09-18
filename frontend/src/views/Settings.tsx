@@ -16,10 +16,11 @@ import type {library, preferences} from '../../wailsjs/go/models';
 import {GameLogo} from '../components/GameLogo';
 import {Toggle} from '../components/Toggle';
 import {settingsNav} from '../data/mockData';
+import {DEFAULT_BACKGROUND_INTERVAL_SECONDS} from '../components/AppBackground';
 
-type Section = 'manage' | 'paths' | 'sort';
+type Section = 'manage' | 'paths' | 'sort' | 'appearance';
 
-export function Settings({jumpToManageGames, onGamesChanged}: {
+export function Settings({jumpToManageGames, onGamesChanged, onPreferencesChanged}: {
     // Incremented by app.tsx (the TopBar's own "Manage games" entry) to
     // ask this view to switch to the "Manage games" panel - 0 (the
     // default, falsy) means no pending request, so this never fights the
@@ -30,6 +31,12 @@ export function Settings({jumpToManageGames, onGamesChanged}: {
     // show - lets the game switcher, Library, DLC, and Workspace pick up
     // the change immediately instead of only on next launch.
     onGamesChanged?: () => void;
+    // Called after a preference changes here in a way app.tsx's own
+    // top-level state also depends on (currently just AppearancePanel's
+    // background toggles, which drive the AppBackground component
+    // app.tsx renders) - each panel here otherwise keeps its own local
+    // prefs copy for editing, which never reaches app.tsx's on its own.
+    onPreferencesChanged?: () => void;
 }) {
     const [section, setSection] = useState<Section>('sort');
 
@@ -42,7 +49,7 @@ export function Settings({jumpToManageGames, onGamesChanged}: {
             <div className="settings-nav">
                 <div className="sidebar-label">SETTINGS</div>
                 {settingsNav.map((s) => {
-                    const clickable = s.key === 'manage' || s.key === 'paths' || s.key === 'sort';
+                    const clickable = s.key === 'manage' || s.key === 'paths' || s.key === 'sort' || s.key === 'appearance';
                     const active = clickable && s.key === section;
                     return (
                         <div
@@ -60,6 +67,7 @@ export function Settings({jumpToManageGames, onGamesChanged}: {
             {section === 'manage' && <ManageGamesPanel onGamesChanged={onGamesChanged}/>}
             {section === 'paths' && <PathsPanel/>}
             {section === 'sort' && <SortRulesPanel/>}
+            {section === 'appearance' && <AppearancePanel onPreferencesChanged={onPreferencesChanged}/>}
         </div>
     );
 }
@@ -427,6 +435,92 @@ function SortRulesPanel() {
                 <span className="btn-ghost inert">+ Custom rule</span>
                 <span className="btn-ghost inert">Import community ruleset</span>
                 <span className="btn-ghost inert" style={{border: 'none', background: 'none'}}>Reset to defaults</span>
+            </div>
+        </div>
+    );
+}
+
+const MIN_BACKGROUND_INTERVAL_SECONDS = 5;
+const MAX_BACKGROUND_INTERVAL_SECONDS = 86400;
+
+function AppearancePanel({onPreferencesChanged}: { onPreferencesChanged?: () => void }) {
+    const [prefs, setPrefs] = useState<preferences.Preferences | null>(null);
+    // Its own local, text-editable copy of backgroundIntervalSeconds - if
+    // this field wrote straight to prefs (and the backend) on every
+    // keystroke the way the toggles below do, typing "300" would fire
+    // three separate SetPreferences calls for "3", "30", and "300" in a
+    // row. Only committed (parsed, clamped, and actually saved) on blur -
+    // see commitInterval.
+    const [intervalInput, setIntervalInput] = useState('');
+
+    useEffect(() => {
+        GetPreferences().then((p) => {
+            setPrefs(p);
+            setIntervalInput(String(p.backgroundIntervalSeconds || DEFAULT_BACKGROUND_INTERVAL_SECONDS));
+        }).catch(() => undefined);
+    }, []);
+
+    function togglePref(key: 'backgroundDisabled' | 'backgroundRotationPaused') {
+        if (!prefs) return;
+        const next = {...prefs, [key]: !prefs[key]};
+        setPrefs(next);
+        SetPreferences(next).then(onPreferencesChanged).catch(() => setPrefs(prefs));
+    }
+
+    function commitInterval() {
+        if (!prefs) return;
+        const parsed = Math.round(Number(intervalInput));
+        const clamped = Number.isFinite(parsed)
+            ? Math.min(MAX_BACKGROUND_INTERVAL_SECONDS, Math.max(MIN_BACKGROUND_INTERVAL_SECONDS, parsed))
+            : DEFAULT_BACKGROUND_INTERVAL_SECONDS;
+        setIntervalInput(String(clamped));
+        if (clamped === prefs.backgroundIntervalSeconds) return;
+        const next = {...prefs, backgroundIntervalSeconds: clamped};
+        setPrefs(next);
+        SetPreferences(next).then(onPreferencesChanged).catch(() => setPrefs(prefs));
+    }
+
+    if (!prefs) {
+        return <div className="settings-content single"/>;
+    }
+
+    const backgroundOn = !prefs.backgroundDisabled;
+    const rotationOn = !prefs.backgroundRotationPaused;
+
+    return (
+        <div className="settings-content single">
+            <div>
+                <div className="settings-title">Appearance</div>
+                <div className="settings-subtitle">
+                    A rotating background image behind the whole app, drawn from the currently
+                    selected game's own art - see Manage Games for which games have any.
+                </div>
+            </div>
+            <div className="profile-toggles">
+                <div className="profile-toggle-row">
+                    <span>Rotating background</span>
+                    <Toggle on={backgroundOn} onClick={() => togglePref('backgroundDisabled')}/>
+                </div>
+                <div className={`profile-toggle-row ${backgroundOn ? '' : 'disabled'}`}>
+                    <span>Change automatically</span>
+                    <Toggle on={rotationOn} onClick={backgroundOn ? () => togglePref('backgroundRotationPaused') : undefined}/>
+                </div>
+                <div className={`profile-toggle-row ${backgroundOn && rotationOn ? '' : 'disabled'}`}>
+                    <span>Change every</span>
+                    <span className="appearance-interval">
+                        <input
+                            type="number"
+                            min={MIN_BACKGROUND_INTERVAL_SECONDS}
+                            max={MAX_BACKGROUND_INTERVAL_SECONDS}
+                            value={intervalInput}
+                            disabled={!backgroundOn || !rotationOn}
+                            onInput={(e) => setIntervalInput((e.target as HTMLInputElement).value)}
+                            onBlur={commitInterval}
+                            onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                        />
+                        <span className="mono unit">seconds</span>
+                    </span>
+                </div>
             </div>
         </div>
     );
