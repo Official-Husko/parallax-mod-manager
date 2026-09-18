@@ -163,6 +163,87 @@ path = "/this/path/does/not/exist/stale_mod"`)
 	}
 }
 
+func TestScanReconnectsStaleContentPathViaExtraFolder(t *testing.T) {
+	modDir := t.TempDir()
+	writeDescriptor(t, modDir, "stale.mod", `name = "Stale Mod"
+path = "/this/path/does/not/exist/stale_mod"`)
+
+	extraRoot := t.TempDir()
+	// Same basename the descriptor's stale path pointed at
+	// ("stale_mod") - simulates a user relocating their mod library
+	// without updating the stub that references it.
+	relocated := filepath.Join(extraRoot, "somewhere", "stale_mod")
+	if err := os.MkdirAll(relocated, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	opts := Options{Game: game.Stellaris, ModDir: modDir, ExtraFolders: []string{extraRoot}}
+	result, err := Scan(context.Background(), opts)
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	if len(result.Mods) != 1 {
+		t.Fatalf("expected 1 mod, got %d: %+v", len(result.Mods), result.Mods)
+	}
+	m := result.Mods[0]
+	if m.ContentMissing {
+		t.Error("ContentMissing = true, want false - the extra folder has a matching folder")
+	}
+	if m.ContentPath != relocated {
+		t.Errorf("ContentPath = %q, want %q", m.ContentPath, relocated)
+	}
+	if len(result.Errors) != 0 {
+		t.Errorf("expected no scan errors, got %+v", result.Errors)
+	}
+}
+
+func TestScanDoesNotReconnectWorkshopModsViaExtraFolder(t *testing.T) {
+	modDir := t.TempDir()
+	writeDescriptor(t, modDir, "ugc_123.mod", `name = "Some Workshop Mod"
+path = "/this/path/does/not/exist/123"
+remote_file_id = "123"`)
+
+	extraRoot := t.TempDir()
+	// A folder that happens to share its basename with the Workshop
+	// item's numeric id - must not be treated as that mod's content;
+	// Workshop content resolution has its own dedicated mechanism (see
+	// findWorkshopModContentPath) and shouldn't fall back to a
+	// coincidental name match the way local mods do.
+	if err := os.MkdirAll(filepath.Join(extraRoot, "123"), 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	opts := Options{Game: game.Stellaris, ModDir: modDir, ExtraFolders: []string{extraRoot}}
+	result, err := Scan(context.Background(), opts)
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	if len(result.Mods) != 1 || !result.Mods[0].ContentMissing {
+		t.Fatalf("expected the Workshop mod to still be reported ContentMissing, got %+v", result.Mods)
+	}
+}
+
+func TestFindContentByNameSearchesRecursively(t *testing.T) {
+	root := t.TempDir()
+	target := filepath.Join(root, "a", "b", "c", "MyMod")
+	if err := os.MkdirAll(target, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	got, ok := findContentByName([]string{root}, "MyMod")
+	if !ok || got != target {
+		t.Errorf("findContentByName = (%q, %v), want (%q, true)", got, ok, target)
+	}
+}
+
+func TestFindContentByNameNoMatch(t *testing.T) {
+	root := t.TempDir()
+	got, ok := findContentByName([]string{root}, "DoesNotExist")
+	if ok {
+		t.Errorf("findContentByName = (%q, true), want ok=false", got)
+	}
+}
+
 func TestScanMalformedDescriptorIsNonFatal(t *testing.T) {
 	modDir := t.TempDir()
 	writeDescriptor(t, modDir, "good.mod", `name = "Good Mod"

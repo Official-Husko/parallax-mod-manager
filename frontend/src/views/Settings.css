@@ -175,6 +175,23 @@
     min-width: 0;
 }
 
+.paths-card-main.clickable {
+    cursor: pointer;
+}
+
+.paths-card-chevron {
+    font-size: 10px;
+    color: var(--text-dim);
+    flex: none;
+    width: 10px;
+}
+
+.paths-card-hint {
+    font-size: 10px;
+    color: var(--text-dim);
+    flex: none;
+}
+
 .paths-card-actions {
     display: flex;
     gap: 10px;

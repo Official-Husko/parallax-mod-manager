@@ -148,6 +148,18 @@ func Scan(ctx context.Context, opts Options) (Result, error) {
 					contentPath = resolved
 				}
 			}
+		} else if _, err := os.Stat(contentPath); err != nil {
+			// A local mod's declared content path can go stale - the
+			// user's mod library moved to a new drive or folder without
+			// the stub in modDir being updated to match. Before reporting
+			// it missing, check whether any configured extra mod folder
+			// now has a same-named subfolder that's plausibly the mod's
+			// real content, so pointing Parallax Mod Manager at wherever
+			// the library actually lives reconnects it instead of leaving
+			// it permanently broken - see findContentByName.
+			if found, ok := findContentByName(opts.ExtraFolders, filepath.Base(contentPath)); ok {
+				contentPath = found
+			}
 		}
 
 		newMod := mod.Mod{
@@ -361,4 +373,40 @@ func findWorkshopModContentPath(workshopDir string, desc mod.Descriptor) string 
 		return candidate
 	}
 	return ""
+}
+
+// findContentByName searches each of roots recursively for a directory
+// literally named target, returning the first match found (roots are tried
+// in order; within one root, whichever match filepath.WalkDir reaches
+// first - typically shallowest/alphabetically first). Used by Scan to
+// reconnect a local mod's stale declared content path to its real folder
+// after a user points Parallax Mod Manager at wherever their mod library
+// actually lives now (see scan.Options.ExtraFolders) - name matching is a
+// heuristic (two unrelated mods could coincidentally share a folder name),
+// but it's the only signal available: a moved folder carries no other
+// stable identity a stale descriptor could still reference.
+func findContentByName(roots []string, target string) (string, bool) {
+	if target == "" || target == "." || target == string(filepath.Separator) {
+		return "", false
+	}
+	for _, root := range roots {
+		if root == "" {
+			continue
+		}
+		var found string
+		_ = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+			if err != nil || found != "" {
+				return nil
+			}
+			if d.IsDir() && d.Name() == target {
+				found = path
+				return fs.SkipAll
+			}
+			return nil
+		})
+		if found != "" {
+			return found, true
+		}
+	}
+	return "", false
 }

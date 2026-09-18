@@ -208,6 +208,20 @@ function PathsPanel() {
     const [state, setState] = useState<PathsState>({kind: 'loading'});
     const [busy, setBusy] = useState<Set<string>>(new Set());
     const [prefs, setPrefs] = useState<preferences.Preferences | null>(null);
+    // Every card starts collapsed (showing just its install-path row) -
+    // with all 6+ registered games always rendered here regardless of
+    // detection state, showing every one's mod folder and extra-folders
+    // section by default wastes most of the panel on games most people
+    // aren't even using. Expanding is per-game and explicit.
+    const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+    function toggleExpanded(gameId: string) {
+        setExpanded((prev) => {
+            const next = new Set(prev);
+            if (next.has(gameId)) next.delete(gameId); else next.add(gameId);
+            return next;
+        });
+    }
 
     useEffect(() => {
         DetectGames()
@@ -284,13 +298,15 @@ function PathsPanel() {
                 <div className="profile-list">
                     {state.games.map((g) => {
                         const extra = prefs?.extraModFolders?.[g.ID] ?? [];
+                        const isExpanded = expanded.has(g.ID);
                         return (
                             <div
                                 key={g.ID}
                                 className="paths-card"
                                 style={{borderColor: g.Installed ? '#4a3826' : 'var(--border)', background: g.Installed ? '#191510' : 'var(--bg-rail)'}}
                             >
-                                <div className="paths-card-main">
+                                <div className="paths-card-main clickable" onClick={() => toggleExpanded(g.ID)}>
+                                    <i className={`fa-solid fa-chevron-${isExpanded ? 'down' : 'right'} paths-card-chevron`}/>
                                     <GameLogo gameId={g.ID} className="profile-swatch"/>
                                     <div className="profile-main">
                                         <div className="profile-name">{g.DisplayName}</div>
@@ -298,7 +314,12 @@ function PathsPanel() {
                                             {g.Installed ? g.InstallPath : 'not detected'}
                                         </div>
                                     </div>
-                                    <div className="paths-card-actions">
+                                    {!isExpanded && extra.length > 0 && (
+                                        <span className="mono paths-card-hint">
+                                            {extra.length} extra folder{extra.length === 1 ? '' : 's'}
+                                        </span>
+                                    )}
+                                    <div className="paths-card-actions" onClick={(e) => e.stopPropagation()}>
                                         {g.Installed && (
                                             <span className="link-btn" onClick={() => openFolder(g.InstallPath)}>Open</span>
                                         )}
@@ -313,12 +334,15 @@ function PathsPanel() {
                                     </div>
                                 </div>
 
+                                {isExpanded && (
                                 <div className="paths-modfolder">
                                     <span className="paths-modfolder-label">Mod folder</span>
                                     <span className="mono paths-modfolder-value" title={g.ModFolder}>{g.ModFolder}</span>
                                     <span className="link-btn" onClick={() => openFolder(g.ModFolder)}>Open</span>
                                 </div>
+                                )}
 
+                                {isExpanded && (
                                 <div className="paths-extra">
                                     <span className="paths-extra-label">Extra mod folders (searched recursively)</span>
                                     {extra.length === 0 && (
@@ -339,6 +363,7 @@ function PathsPanel() {
                                         {busy.has(`extra:${g.ID}`) ? 'Looking...' : '+ Add folder'}
                                     </span>
                                 </div>
+                                )}
                             </div>
                         );
                     })}
