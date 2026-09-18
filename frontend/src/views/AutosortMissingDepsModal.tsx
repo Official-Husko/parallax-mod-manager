@@ -1,4 +1,4 @@
-import './AutosortMissingDepsModal.css';
+import './AutosortModals.css';
 import {h} from 'preact';
 import type {MissingDependency} from '../data/autosort';
 

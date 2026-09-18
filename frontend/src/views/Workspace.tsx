@@ -21,7 +21,7 @@ import {
 } from '../../wailsjs/go/main/App';
 import {BrowserOpenURL, EventsOn} from '../../wailsjs/runtime/runtime';
 import type {launcherdb, library, playset, preferences, steamapi} from '../../wailsjs/go/models';
-import {autosort, findMissingActiveDependencies, type MissingDependency} from '../data/autosort';
+import {autosort, findMissingActiveDependencies, type MissingActiveDependencies} from '../data/autosort';
 import {dismiss, notify, updateNotification} from '../data/notifications';
 import {type ContextMenuItem, openContextMenu} from '../data/contextMenu';
 import {useDragMultiSelect} from '../data/dragMultiSelect';
@@ -34,6 +34,7 @@ import {SourceBadge} from '../components/SourceBadge';
 import {EmptyState} from '../components/EmptyState';
 import {FileTree} from '../components/FileTree';
 import {AutosortMissingDepsModal} from './AutosortMissingDepsModal';
+import {AutosortUnresolvedDepsModal} from './AutosortUnresolvedDepsModal';
 import {ConflictResolver} from './ConflictResolver';
 import {PlaysetsModal} from './PlaysetsModal';
 import {PreflightModal} from './PreflightModal';
@@ -112,8 +113,14 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
     const [showPurgeModal, setShowPurgeModal] = useState(false);
     // Set by handleAutosort when it finds a currently-active mod's own
     // declared dependency isn't itself active yet - null means no pending
-    // question. See AutosortMissingDepsModal.
-    const [missingDeps, setMissingDeps] = useState<MissingDependency[] | null>(null);
+    // question. See AutosortMissingDepsModal. Only holds the resolvable
+    // half (see MissingActiveDependencies) - the unresolved half is shown
+    // afterward instead, via unresolvedDeps below, since there's nothing
+    // to ask about those (see finishAutosort).
+    const [missingDeps, setMissingDeps] = useState<MissingActiveDependencies | null>(null);
+    // Set once Autosort has actually run, if it found any dependency that
+    // doesn't match anything scanned at all - see AutosortUnresolvedDepsModal.
+    const [unresolvedDeps, setUnresolvedDeps] = useState<string[] | null>(null);
     const [search, setSearch] = useState('');
     const [activeSearch, setActiveSearch] = useState('');
     const [status, setStatus] = useState<Status>({kind: 'idle'});
@@ -714,32 +721,43 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
     // Autosort's own dependency rule can only reorder mods already active,
     // never add to it - so a mod that declares a dependency which isn't
     // active at all would just silently sort around the gap. Ask first,
-    // rather than doing that quietly: load the missing ones and sort, or
-    // sort without them. Only asked when the dependency rule is actually
-    // on (see prefs.autosortDependencies) - nothing to warn about
-    // otherwise, since the rule wouldn't run at all.
+    // rather than doing that quietly: load the resolvable ones and sort,
+    // or sort without them - see AutosortMissingDepsModal. A dependency
+    // that isn't even in this project's scanned mods at all can't be
+    // offered to load, so it's reported afterward instead, once Autosort
+    // has actually run (see finishAutosort) - see
+    // AutosortUnresolvedDepsModal. Only asked when the dependency rule is
+    // actually on (see prefs.autosortDependencies) - nothing to warn
+    // about otherwise, since the rule wouldn't run at all.
     function handleAutosort() {
         if (!prefs || order.length === 0) return;
         if (prefs.autosortDependencies) {
             const missing = findMissingActiveDependencies(order, modsById, allMods);
-            if (missing.length > 0) {
+            if (missing.resolvable.length > 0) {
                 setMissingDeps(missing);
+                return;
+            }
+            if (missing.unresolved.length > 0) {
+                runAutosort(order);
+                setUnresolvedDeps(missing.unresolved);
                 return;
             }
         }
         runAutosort(order);
     }
 
-    function handleLoadMissingDepsAndSort() {
+    // Runs after the user answers AutosortMissingDepsModal's own question
+    // (loadResolvable: whether to add its resolvable mods before
+    // sorting), then surfaces AutosortUnresolvedDepsModal if handleAutosort
+    // found any dependency that couldn't be resolved at all.
+    function finishAutosort(loadResolvable: boolean) {
         if (!missingDeps) return;
-        const withMissing = [...order, ...missingDeps.map((d) => d.id)];
+        const {resolvable, unresolved} = missingDeps;
         setMissingDeps(null);
-        runAutosort(withMissing);
-    }
-
-    function handleSortWithoutMissingDeps() {
-        setMissingDeps(null);
-        runAutosort(order);
+        runAutosort(loadResolvable ? [...order, ...resolvable.map((d) => d.id)] : order);
+        if (unresolved.length > 0) {
+            setUnresolvedDeps(unresolved);
+        }
     }
 
     function handlePurged(result: library.PurgeResult) {
@@ -989,9 +1007,13 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                             </div>
                         </div>
                         <div className="column-header">
-                            <span className="column-header-position"/>
+                            <span className="column-header-position">NR</span>
                             <span className="column-header-spacer"/>
                             <span className="column-header-name">NAME</span>
+                            <span className="column-header-domains">
+                                {domains.map((d) => <span key={d}>{d}</span>)}
+                            </span>
+                            <span className="column-header-warnings" title="Version mismatch, hard conflicts, dependency issues">FLAGS</span>
                         </div>
                         <div className={`list-rows ${dragMove.dropTarget?.list === 'active' && dragMove.dropTarget.kind === 'end' ? 'drop-at-end' : ''}`} ref={dragMove.activeRowsRef}>
                             {active.length === 0 && (
@@ -1208,11 +1230,14 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
             )}
             {missingDeps && (
                 <AutosortMissingDepsModal
-                    missing={missingDeps}
+                    missing={missingDeps.resolvable}
                     onClose={() => setMissingDeps(null)}
-                    onLoadAndSort={handleLoadMissingDepsAndSort}
-                    onSortAnyway={handleSortWithoutMissingDeps}
+                    onLoadAndSort={() => finishAutosort(true)}
+                    onSortAnyway={() => finishAutosort(false)}
                 />
+            )}
+            {unresolvedDeps && (
+                <AutosortUnresolvedDepsModal names={unresolvedDeps} onClose={() => setUnresolvedDeps(null)}/>
             )}
         </div>
     );

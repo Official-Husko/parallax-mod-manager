@@ -758,11 +758,33 @@
 .column-header-position {
     width: 18px;
     flex: none;
+    text-align: right;
 }
 
 .column-header-name {
     flex: 1;
     min-width: 0;
+}
+
+/* Active-only: mirrors .domain-segments' own layout (same gap, same
+   4px-per-letter width) so each domain letter sits directly above its
+   real colored segment, not just a generic label over the whole area. */
+.column-header-domains {
+    display: flex;
+    gap: 1.5px;
+    flex: none;
+}
+
+.column-header-domains span {
+    width: 4px;
+    text-align: center;
+}
+
+/* Active-only: matches .row-warnings' own width/alignment. */
+.column-header-warnings {
+    width: 50px;
+    flex: none;
+    text-align: right;
 }
 
 .column-header-ver {

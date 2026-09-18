@@ -65,6 +65,14 @@
     flex: none;
 }
 
+/* A dependency that isn't just inactive but genuinely wasn't found among
+   any scanned mod - a real gap the user has to close themselves (see
+   AutosortUnresolvedDepsModal), not something Autosort can offer to load
+   like a resolvable one. */
+.autosort-dep-row.unresolved i {
+    color: var(--red);
+}
+
 .autosort-dep-name {
     font: 600 12.5px Barlow, sans-serif;
     color: var(--text-bright);
