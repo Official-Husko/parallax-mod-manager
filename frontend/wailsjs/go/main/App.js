@@ -58,6 +58,10 @@ export function GetPreferences() {
   return window['go']['main']['App']['GetPreferences']();
 }
 
+export function IgnoredIncompatibleMods(arg1) {
+  return window['go']['main']['App']['IgnoredIncompatibleMods'](arg1);
+}
+
 export function ImportLauncherPlaysets(arg1) {
   return window['go']['main']['App']['ImportLauncherPlaysets'](arg1);
 }
@@ -136,6 +140,10 @@ export function ScanGame(arg1, arg2) {
 
 export function SetGameManaged(arg1, arg2) {
   return window['go']['main']['App']['SetGameManaged'](arg1, arg2);
+}
+
+export function SetModIncompatibilityIgnored(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SetModIncompatibilityIgnored'](arg1, arg2, arg3);
 }
 
 export function SetPatchOverride(arg1, arg2, arg3, arg4) {

@@ -37,6 +37,8 @@ export function GeneratePatch(arg1:string,arg2:Array<string>):Promise<library.Pa
 
 export function GetPreferences():Promise<preferences.Preferences>;
 
+export function IgnoredIncompatibleMods(arg1:string):Promise<Array<string>>;
+
 export function ImportLauncherPlaysets(arg1:string):Promise<Array<launcherdb.Playset>>;
 
 export function LaunchGame(arg1:string,arg2:string):Promise<void>;
@@ -76,6 +78,8 @@ export function SavePlayset(arg1:playset.Playset):Promise<void>;
 export function ScanGame(arg1:string,arg2:string):Promise<library.Summary>;
 
 export function SetGameManaged(arg1:string,arg2:boolean):Promise<void>;
+
+export function SetModIncompatibilityIgnored(arg1:string,arg2:string,arg3:boolean):Promise<void>;
 
 export function SetPatchOverride(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
 

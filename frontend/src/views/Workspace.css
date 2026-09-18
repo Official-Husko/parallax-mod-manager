@@ -168,9 +168,16 @@
 
 /* This mod's own declared supported_version is confirmed incompatible
    with the real, currently-installed game version - see
-   data/versionCompat.ts. */
+   data/versionCompat.ts. Red - see .mod-row .ver.incompatible's comment
+   in this file for why this moved off amber. */
 .overview-grid .value.warn {
-    color: var(--amber);
+    color: var(--red);
+}
+
+/* An incompatibility the user has explicitly chosen to ignore - see
+   .ver-ignored-icon's comment. */
+.overview-grid .value.ignored {
+    color: var(--text-mid);
 }
 
 .section-label {
@@ -743,15 +750,34 @@
     font-size: 11px;
     color: var(--text-dim);
     flex: none;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* This mod's own declared supported_version is confirmed compatible with
+   the real, currently-installed game version - see data/versionCompat.ts. */
+.mod-row .ver.compatible {
+    color: var(--green);
 }
 
 /* This mod's own declared supported_version is confirmed incompatible
    with the real, currently-installed game version - see
-   data/versionCompat.ts. Amber, not red: a real warning worth surfacing,
-   but this project's own color language reserves red exclusively for
-   hard conflicts. */
+   data/versionCompat.ts. Red: this project's color language used to
+   reserve red for hard conflicts only, but an unacknowledged version
+   mismatch is a real, user-facing warning too - amber reads as too easy
+   to overlook next to conflict rows sharing the same list. */
 .mod-row .ver.incompatible {
-    color: var(--amber);
+    color: var(--red);
+}
+
+/* An incompatibility the user has explicitly chosen to ignore (see the
+   mod's own context menu) - the color warning is deliberately withdrawn
+   (it's an acknowledged, dismissed warning now, not a live one), leaving
+   only this small icon as a quiet reminder that one was suppressed here. */
+.ver-ignored-icon {
+    color: var(--text-dim);
+    font-size: 9px;
 }
 
 .mod-row .author {
@@ -815,9 +841,18 @@
 /* This mod's own declared supported_version is confirmed incompatible
    with the real, currently-installed game version - see
    data/versionCompat.ts. Only shown when the row isn't already flagged
-   CONF - a hard conflict is the more urgent thing to surface here. */
+   CONF - a hard conflict is the more urgent thing to surface here. Red,
+   matching the Available list's own .ver.incompatible - see its comment
+   for why this moved off amber. */
 .flag.incompatible {
-    color: var(--amber);
+    color: var(--red);
+}
+
+/* An incompatibility the user has explicitly chosen to ignore - see
+   .ver-ignored-icon's comment. Only shown when the row isn't already
+   flagged CONF. */
+.flag.ignored {
+    color: var(--text-dim);
 }
 
 .row-actions {

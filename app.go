@@ -30,6 +30,7 @@ import (
 	"github.com/Official-Husko/parallax-mod-manager/internal/scan"
 	"github.com/Official-Husko/parallax-mod-manager/internal/steam"
 	"github.com/Official-Husko/parallax-mod-manager/internal/steamapi"
+	"github.com/Official-Husko/parallax-mod-manager/internal/versionignore"
 	"github.com/Official-Husko/parallax-mod-manager/internal/watch"
 )
 
@@ -66,7 +67,12 @@ type App struct {
 	// Dir is empty (methods degrade gracefully) when configDir couldn't
 	// be resolved.
 	patchOverrides patchoverride.Store
-	steamRoots     []string
+	// versionIgnore persists which mods a user has chosen to suppress the
+	// version-incompatibility warning for - see internal/versionignore.
+	// Dir is empty (methods degrade gracefully) when configDir couldn't
+	// be resolved.
+	versionIgnore versionignore.Store
+	steamRoots    []string
 	modWatcher     *watch.FolderWatcher
 	watchedGameID  string
 	// workshopDetails holds real Steam Workshop metadata in memory for the
@@ -123,6 +129,7 @@ func (a *App) startup(ctx context.Context) {
 		a.playsets = playset.FileStore{Dir: filepath.Join(configDir, "parallax-mod-manager", "playsets")}
 		a.collections = collection.FileStore{Dir: filepath.Join(configDir, "parallax-mod-manager", "collections")}
 		a.patchOverrides = patchoverride.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "patch_overrides")}
+		a.versionIgnore = versionignore.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "version_ignore")}
 	}
 
 	mediaFS, err := fs.Sub(embeddedGameMedia, "data/game_media")
@@ -702,6 +709,34 @@ func (a *App) SetPatchOverride(gameID, conflictType, conflictID, modID string) e
 		overrides[key] = modID
 	}
 	return a.patchOverrides.Save(gameID, overrides)
+}
+
+// IgnoredIncompatibleMods returns gameID's set of mod IDs whose
+// version-incompatibility warning the user has chosen to suppress - see
+// internal/versionignore.
+func (a *App) IgnoredIncompatibleMods(gameID string) []string {
+	return a.versionIgnore.Load(gameID)
+}
+
+// SetModIncompatibilityIgnored adds or removes modID from gameID's
+// ignored-incompatibility set - the Workspace mod context menu's own
+// "Ignore incompatibility"/"Stop ignoring incompatibility" pair.
+func (a *App) SetModIncompatibilityIgnored(gameID, modID string, ignored bool) error {
+	existing := a.versionIgnore.Load(gameID)
+	set := make(map[string]bool, len(existing))
+	for _, id := range existing {
+		set[id] = true
+	}
+	if ignored {
+		set[modID] = true
+	} else {
+		delete(set, modID)
+	}
+	ids := make([]string, 0, len(set))
+	for id := range set {
+		ids = append(ids, id)
+	}
+	return a.versionIgnore.Save(gameID, ids)
 }
 
 // OpenModFolder opens modID's real content folder in the OS file manager.

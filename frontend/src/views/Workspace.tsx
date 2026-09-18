@@ -4,6 +4,7 @@ import {useEffect, useMemo, useRef, useState} from 'preact/hooks';
 import {
     AuthorProfiles,
     GetPreferences,
+    IgnoredIncompatibleMods,
     ImportLauncherPlaysets,
     LaunchGame,
     ListModFiles,
@@ -14,6 +15,7 @@ import {
     OpenModFolder,
     SavePlayset,
     ScanGame,
+    SetModIncompatibilityIgnored,
     WatchMods,
     WorkshopDetails,
 } from '../../wailsjs/go/main/App';
@@ -112,6 +114,12 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
     const [activeSearch, setActiveSearch] = useState('');
     const [status, setStatus] = useState<Status>({kind: 'idle'});
     const [prefs, setPrefs] = useState<preferences.Preferences | null>(null);
+    // Mod IDs whose version-incompatibility warning the user has
+    // explicitly chosen to suppress for this game (see the mod context
+    // menu's own "Ignore incompatibility" - data/versionCompat.ts still
+    // computes the real compatibility; this only controls whether a
+    // confirmed mismatch is shown as a live warning or a quiet ignored one.
+    const [ignoredIncompatible, setIgnoredIncompatible] = useState<Set<string>>(new Set());
     // Guards the 'scan-quick' listener below so it only ever applies to the
     // fresh load it belongs to - a watcher-triggered background refresh
     // (refreshMods(true)) runs the exact same backend scan and fires the
@@ -194,8 +202,32 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
         ImportLauncherPlaysets(selectedGame)
             .then(setLauncherPlaysets)
             .catch(() => setLauncherPlaysets([]));
+        IgnoredIncompatibleMods(selectedGame)
+            .then((ids) => setIgnoredIncompatible(new Set(ids)))
+            .catch(() => setIgnoredIncompatible(new Set()));
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedGame]);
+
+    // Toggles modId's membership in the current game's ignored-
+    // incompatibility set, optimistically - reverted if the backend save
+    // actually fails, same pattern as Settings.tsx's own togglePref.
+    async function setIncompatibilityIgnored(modId: string, ignored: boolean) {
+        setIgnoredIncompatible((prev) => {
+            const next = new Set(prev);
+            if (ignored) next.add(modId); else next.delete(modId);
+            return next;
+        });
+        try {
+            await SetModIncompatibilityIgnored(selectedGame, modId, ignored);
+        } catch (err) {
+            setIgnoredIncompatible((prev) => {
+                const next = new Set(prev);
+                if (ignored) next.delete(modId); else next.add(modId);
+                return next;
+            });
+            setStatus({kind: 'error', message: String(err)});
+        }
+    }
 
     useEffect(() => {
         GetPreferences().then(setPrefs).catch(() => undefined);
@@ -654,6 +686,18 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
             items.push({label: 'Open Workshop page', onClick: () => BrowserOpenURL(`https://steamcommunity.com/sharedfiles/filedetails/?id=${m.RemoteFileID}`)});
         }
         items.push({label: 'Copy mod ID', onClick: () => copyModId(m.ID)});
+        const isIgnored = ignoredIncompatible.has(m.ID);
+        const compat = checkVersionCompatibility(m.SupportedVersion, gameVersion);
+        const isIncompatible = compat.known && !compat.compatible;
+        // A previously-ignored mod always offers a way back, even if it
+        // happens to no longer be incompatible right now (the game got
+        // updated, say) - otherwise a stale ignore could never be cleared
+        // except by editing the settings file directly.
+        if (isIgnored) {
+            items.push({label: 'Stop ignoring incompatibility', onClick: () => setIncompatibilityIgnored(m.ID, false), separatorBefore: true});
+        } else if (isIncompatible) {
+            items.push({label: 'Ignore incompatibility', onClick: () => setIncompatibilityIgnored(m.ID, true), separatorBefore: true});
+        }
         return items;
     }
 
@@ -793,6 +837,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                         workshopDetails={workshopDetails}
                         workshopDetailsState={workshopDetailsState}
                         authorProfiles={authorProfiles}
+                        ignoredIncompatible={ignoredIncompatible}
                     />
 
                     <div className="list-pane">
@@ -825,7 +870,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                         <div className="column-header">
                             <span className="column-header-spacer"/>
                             <span className="column-header-name">NAME</span>
-                            <span className="column-header-ver">VERSION</span>
+                            <span className="column-header-ver">SUPPORTS</span>
                             <span className="column-header-author">AUTHOR</span>
                         </div>
                         <div
@@ -852,6 +897,8 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                                 const isDropBefore = dragMove.dropTarget?.list === 'available' && dragMove.dropTarget.kind === 'before' && dragMove.dropTarget.id === m.ID;
                                 const compat = checkVersionCompatibility(m.SupportedVersion, gameVersion);
                                 const incompatible = compat.known && !compat.compatible;
+                                const compatible = compat.known && compat.compatible;
+                                const ignored = ignoredIncompatible.has(m.ID);
                                 return (
                                 <div
                                     key={m.ID}
@@ -870,10 +917,11 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                                     <SourceBadge source={m.Source} name={m.Name}/>
                                     <span className="name">{m.Name}</span>
                                     <span
-                                        className={`ver mono ${incompatible ? 'incompatible' : ''}`}
-                                        title={incompatible ? `Built for ${m.SupportedVersion} - you have ${gameVersion}` : undefined}
+                                        className={`ver mono ${compatible ? 'compatible' : incompatible && !ignored ? 'incompatible' : ''}`}
+                                        title={versionTitle(incompatible, ignored, m.SupportedVersion, gameVersion)}
                                     >
-                                        {m.Version || '-'}
+                                        {m.SupportedVersion || '-'}
+                                        {incompatible && ignored && <i className="fa-solid fa-triangle-exclamation ver-ignored-icon"/>}
                                     </span>
                                     <span className="author mono" title={author}>
                                         {authorLoading
@@ -941,6 +989,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                                 const isDropBefore = dragMove.dropTarget?.list === 'active' && dragMove.dropTarget.kind === 'before' && dragMove.dropTarget.id === m.ID;
                                 const compat = checkVersionCompatibility(m.SupportedVersion, gameVersion);
                                 const incompatible = compat.known && !compat.compatible;
+                                const ignored = ignoredIncompatible.has(m.ID);
                                 return (
                                     <div
                                         key={m.ID}
@@ -956,10 +1005,16 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                                             {domains.map((d) => <span key={d} className="segment clean"/>)}
                                         </span>
                                         <span
-                                            className={`flag mono ${conflicted ? 'conflict' : incompatible ? 'incompatible' : ''}`}
-                                            title={!conflicted && incompatible ? `Built for ${m.SupportedVersion} - you have ${gameVersion}` : undefined}
+                                            className={`flag mono ${conflicted ? 'conflict' : incompatible && !ignored ? 'incompatible' : incompatible && ignored ? 'ignored' : ''}`}
+                                            title={!conflicted ? versionTitle(incompatible, ignored, m.SupportedVersion, gameVersion) : undefined}
                                         >
-                                            {conflicted ? 'CONF' : incompatible ? 'VER' : ''}
+                                            {conflicted
+                                                ? 'CONF'
+                                                : incompatible && !ignored
+                                                    ? 'VER'
+                                                    : incompatible && ignored
+                                                        ? <i className="fa-solid fa-triangle-exclamation"/>
+                                                        : ''}
                                         </span>
                                         <span className="row-actions">
                                             <i className="fa-solid fa-chevron-up" onClick={(e) => { e.stopPropagation(); moveInOrder(m.ID, -1); }}/>
@@ -1145,6 +1200,18 @@ function matchesSearch(m: library.ModSummary, search: string): boolean {
     return m.Name.toLowerCase().includes(q) || m.ID.toLowerCase().includes(q);
 }
 
+// versionTitle builds the Available/Active rows' own hover tooltip for a
+// version mismatch - undefined when there's nothing worth explaining
+// (compatible, or unknown). The browser renders an embedded newline as a
+// real line break in a native title tooltip, so an ignored mismatch gets
+// both the original "why" and the ignored note in one hover, rather than
+// needing a dedicated rich tooltip component just for this.
+function versionTitle(incompatible: boolean, ignored: boolean, supportedVersion: string, gameVersion: string): string | undefined {
+    if (!incompatible) return undefined;
+    const why = `Built for ${supportedVersion} - you have ${gameVersion}`;
+    return ignored ? `${why}\nIncompatibility warning ignored - right-click to restore it` : why;
+}
+
 // authorNameFor resolves a mod's real Steam Workshop author name, if it's
 // a Workshop mod and both its own Workshop metadata and that creator's
 // profile have been fetched - "" otherwise (a local mod, or data not
@@ -1160,7 +1227,7 @@ function authorNameFor(
     return authorProfiles.get(d.Creator)?.Name ?? '';
 }
 
-function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, gameVersion, allMods, conflicts, onError, onSelectMod, workshopDetails, workshopDetailsState, authorProfiles}: {
+function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, gameVersion, allMods, conflicts, onError, onSelectMod, workshopDetails, workshopDetailsState, authorProfiles, ignoredIncompatible}: {
     mod: library.ModSummary | null;
     tab: DetailTab;
     onTab: (t: DetailTab) => void;
@@ -1178,6 +1245,10 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, gameVersion, allM
     workshopDetails: Map<string, steamapi.PublishedFileDetails>;
     workshopDetailsState: 'idle' | 'loading' | 'loaded' | 'error';
     authorProfiles: Map<string, steamapi.Profile>;
+    // Same set as the Available/Active lists use - so the "Supports" row
+    // below shows the same acknowledged-not-live warning treatment as the
+    // row this mod was selected from, instead of contradicting it.
+    ignoredIncompatible: Set<string>;
 }) {
     const [files, setFiles] = useState<library.ModFiles | null>(null);
     const [filesError, setFilesError] = useState('');
@@ -1332,6 +1403,7 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, gameVersion, allM
                                 steamDetails={validSteamDetails}
                                 author={author}
                                 gameVersion={gameVersion}
+                                ignoredIncompatible={ignoredIncompatible}
                             />
                         )}
                         {tab === 'files' && (
@@ -1469,7 +1541,7 @@ function stripBBCode(s: string): string {
     return s.replace(/\[[^\]]*\]/g, '').trim();
 }
 
-function OverviewTab({mod, files, filesLoading, allMods, conflicts, onOpenFolder, onSelectMod, steamDetails, author, gameVersion}: {
+function OverviewTab({mod, files, filesLoading, allMods, conflicts, onOpenFolder, onSelectMod, steamDetails, author, gameVersion, ignoredIncompatible}: {
     mod: library.ModSummary;
     files: library.ModFiles | null;
     filesLoading: boolean;
@@ -1494,6 +1566,7 @@ function OverviewTab({mod, files, filesLoading, allMods, conflicts, onOpenFolder
     // flat hardcoded "ok" green it used to always show regardless of
     // whether that was actually true.
     gameVersion: string;
+    ignoredIncompatible: Set<string>;
 }) {
     // Maps a dependency's declared name to the real mod ID it resolves
     // to, when one of the currently-scanned mods actually has that name -
@@ -1510,6 +1583,8 @@ function OverviewTab({mod, files, filesLoading, allMods, conflicts, onOpenFolder
         : '';
     const steamDescription = steamDetails?.Description ? stripBBCode(steamDetails.Description) : '';
     const supportsCompat = checkVersionCompatibility(mod.SupportedVersion, gameVersion);
+    const supportsIncompatible = supportsCompat.known && !supportsCompat.compatible;
+    const supportsIgnored = ignoredIncompatible.has(mod.ID);
 
     return (
         <>
@@ -1531,10 +1606,11 @@ function OverviewTab({mod, files, filesLoading, allMods, conflicts, onOpenFolder
                 <span className="label">Version</span><span className="value mono">{mod.Version || '-'}</span>
                 <span className="label">Supports</span>
                 <span
-                    className={`value mono ${supportsCompat.known ? (supportsCompat.compatible ? 'ok' : 'warn') : ''}`}
-                    title={supportsCompat.known && !supportsCompat.compatible ? `You have ${gameVersion}` : undefined}
+                    className={`value mono ${supportsIncompatible && supportsIgnored ? 'ignored' : supportsCompat.known ? (supportsCompat.compatible ? 'ok' : 'warn') : ''}`}
+                    title={versionTitle(supportsIncompatible, supportsIgnored, mod.SupportedVersion, gameVersion)}
                 >
                     {mod.SupportedVersion || '-'}
+                    {supportsIncompatible && supportsIgnored && <i className="fa-solid fa-triangle-exclamation ver-ignored-icon"/>}
                 </span>
                 <span className="label">Size</span>
                 <span className="value mono">
