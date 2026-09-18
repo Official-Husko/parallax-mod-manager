@@ -704,10 +704,17 @@
     padding: 2px 5px;
 }
 
+/* min-height matches .active-actions' own - .chip's border/padding and
+   .btn-amber/.btn-ghost's icon+padding render at very slightly different
+   natural heights, which without this pins each list-pane-header to a
+   different total height and throws the two panels' column-header rows
+   (and everything below) out of vertical alignment with each other. */
 .filter-chips {
     display: flex;
+    align-items: center;
     gap: 6px;
     flex-wrap: wrap;
+    min-height: 24px;
 }
 
 .filter-chips .spacer {
@@ -734,7 +741,13 @@
     align-items: center;
     gap: 9px;
     height: 22px;
-    padding: 0 13px;
+    /* Right padding is .mod-row's own 13px plus the 11px scrollbar
+       gutter .list-rows now always reserves right below this (see its
+       own comment) - .column-header isn't itself inside a scrollable
+       container, so without this its own content box would be 11px
+       wider than the real row area's, throwing every right-anchored
+       column out of alignment. */
+    padding: 0 24px 0 13px;
     border-bottom: 1px solid var(--border);
     background: var(--bg-header);
     flex: none;
@@ -744,10 +757,14 @@
 }
 
 .column-header-spacer {
-    /* Matches the SourceBadge (16px) + gap (9px) that precede the name
-       column in every real .mod-row (no checkbox in the Available list
-       any more). */
-    width: 25px;
+    /* Matches the SourceBadge's own width (16px) - just that, not +gap:
+       .column-header already applies the same gap: 9px .mod-row does,
+       automatically, between every pair of header children, exactly the
+       way it does between every pair of real row children. Baking an
+       extra gap into this width double-counted it, pushing NAME (and
+       everything after it - CEGILM, FLAGS) 9px further right than the
+       real columns beneath them. */
+    width: 16px;
     flex: none;
 }
 
@@ -789,9 +806,11 @@
 
 .column-header-ver {
     flex: none;
-    /* Roughly as wide as a real version string ("v1.2.3") - .mod-row's own
-       .ver has no fixed width (it's flex:none, sized to its own content),
-       so this is an approximation, not a guaranteed pixel-exact match. */
+    /* Matches .mod-row .ver's own fixed width exactly (see below) - both
+       sides need to agree, or .column-header-name/.mod-row .name (the
+       flex:1 siblings absorbing whatever space is left) end up different
+       widths and the header drifts out of alignment with real row
+       content. */
     width: 50px;
 }
 
@@ -803,7 +822,21 @@
 
 .list-rows {
     flex: 1;
-    overflow-y: auto;
+    /* scroll, not auto: a real, reproducible misalignment otherwise -
+       .column-header lives outside this scrollable container, so it
+       never loses width to a scrollbar the way .mod-row's own content
+       area does the moment there's enough mods to actually need one
+       (confirmed on a real 78-mod Available list: every right-anchored
+       header - SUPPORTS/AUTHOR, or CEGILM/FLAGS on Active - drifted out
+       of alignment with the real column beneath it, exactly by the
+       scrollbar's own width). Forcing the gutter to always be reserved,
+       whether or not this particular list currently has enough rows to
+       scroll, keeps this row area's real content width constant, which
+       is what .column-header's own matching padding-right below assumes.
+       The track itself stays invisible when there's nothing to scroll -
+       ::-webkit-scrollbar-track is transparent - so a short list doesn't
+       visibly look any different, it's a layout-only reservation. */
+    overflow-y: scroll;
 }
 
 /* A cross-list drag currently sitting below every real row (or over an
@@ -872,9 +905,25 @@
     font-size: 11px;
     color: var(--text-dim);
     flex: none;
+    /* Fixed, matching .column-header-ver's own width - without this the
+       box sized to its own content (a short "-" vs. a longer "4.0.*"),
+       which threw off .column-header-name/.mod-row .name's shared flex:1
+       sizing and misaligned the header from real row content. */
+    width: 50px;
     display: flex;
     align-items: center;
     gap: 4px;
+}
+
+/* The version text itself, separate from the fixed-width .ver box around
+   it (and its optional trailing ignored-icon), so an unusually long
+   version string truncates with an ellipsis instead of stretching .ver
+   past its own fixed width. */
+.ver-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* This mod's own declared supported_version is confirmed compatible with
@@ -944,6 +993,15 @@
     background: #2f3b49;
 }
 
+/* Real per-mod, per-domain conflict data - see data/domainOverlap.ts. */
+.segment.overwritten {
+    background: var(--red);
+}
+
+.segment.partial {
+    background: var(--amber);
+}
+
 /* Up to three independent warning icons per Active row - version
    incompatibility, a hard conflict, and a dependency issue are each their
    own concern and can all apply to the same mod at once, so (unlike the
@@ -1006,10 +1064,8 @@
 }
 
 .list-pane-footer {
-    /* Matches .active-legend's own real (2-line) height, so Available and
-       Active bottom out at the same edge - a single line of content here
-       just sits a little more centered/padded rather than looking cramped
-       at a shorter height that no longer matches Active's own footer. */
+    /* Matches .active-legend's own height exactly, so Available and Active
+       bottom out at the same edge. */
     height: 42px;
     box-sizing: border-box;
     flex: none;
@@ -1055,9 +1111,12 @@
     color: #e8b9b2;
 }
 
+/* min-height matches .filter-chips' own - see its comment. */
 .active-actions {
     display: flex;
+    align-items: center;
     gap: 6px;
+    min-height: 24px;
 }
 
 .btn-amber {
@@ -1077,20 +1136,28 @@
     font-size: 10.5px;
 }
 
+.swatch {
+    width: 4px;
+    height: 9px;
+    border-radius: 1px;
+    display: inline-block;
+}
+
+/* Matches .list-pane-footer's own height exactly, so Available and Active
+   bottom out at the same edge. Only the color key now (see
+   data/domainOverlap.ts's own states) - the letter-meaning caption that
+   used to sit under it was dropped as redundant with the CEGILM header's
+   own hover tooltip and each segment's own per-domain tooltip, but the
+   color key itself stays: those aren't spelled out anywhere else. */
 .active-legend {
-    /* Explicit, matching .list-pane-footer's own height exactly (rather
-       than each relying on their different real content to happen to add
-       up the same) - see .list-pane-footer's own comment. */
     height: 42px;
+    box-sizing: border-box;
     flex: none;
     border-top: 1px solid var(--border);
     display: flex;
-    flex-direction: column;
-    justify-content: center;
-    padding: 6px 13px;
-    gap: 3px;
+    align-items: center;
+    padding: 0 13px;
     background: var(--bg-header);
-    box-sizing: border-box;
 }
 
 .legend-keys {
@@ -1107,13 +1174,6 @@
     color: var(--text-muted);
 }
 
-.swatch {
-    width: 4px;
-    height: 9px;
-    border-radius: 1px;
-    display: inline-block;
-}
-
 .swatch.overwritten {
     background: var(--red);
 }
@@ -1124,11 +1184,6 @@
 
 .swatch.clean {
     background: #2f3b49;
-}
-
-.legend-caption {
-    font-size: 10px;
-    color: var(--text-muted);
 }
 
 /* --- Actions rail --- */

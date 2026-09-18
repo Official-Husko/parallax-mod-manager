@@ -27,6 +27,7 @@ import {type ContextMenuItem, openContextMenu} from '../data/contextMenu';
 import {useDragMultiSelect} from '../data/dragMultiSelect';
 import {type DropTarget, useListDragMove} from '../data/listDragMove';
 import {domains} from '../data/mockData';
+import {computeDomainOverlap, DOMAIN_NAMES} from '../data/domainOverlap';
 import {buildPreflightItems, findDependencyIssues} from '../data/preflight';
 import {checkVersionCompatibility, displayVersion} from '../data/versionCompat';
 import {formatBytes, truncate} from '../data/format';
@@ -45,6 +46,14 @@ type Status =
     | { kind: 'busy'; message: string }
     | { kind: 'error'; message: string }
     | { kind: 'success'; message: string };
+
+// What each CEGILM letter stands for, derived from the one shared
+// DOMAIN_NAMES map - used as the CEGILM column header's own hover
+// tooltip (the standalone legend that used to sit at the bottom of the
+// Active list was removed as redundant with this, plus each segment's
+// own per-domain tooltip already naming its state - see the segment
+// rendering below).
+const DOMAIN_LEGEND = domains.map((d) => `${d} ${DOMAIN_NAMES[d]}`).join(' · ');
 
 type DetailTab = 'overview' | 'files' | 'conflicts' | 'changelog';
 
@@ -499,6 +508,8 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
         }
         return s;
     }, [summary]);
+    // The Active list's own per-row domain segments - see data/domainOverlap.ts.
+    const domainOverlap = useMemo(() => computeDomainOverlap(summary?.Conflicts ?? []), [summary]);
 
     const orderSet = useMemo(() => new Set(order), [order]);
     const available = useMemo(
@@ -959,7 +970,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                                         className={`ver mono ${compatible ? 'compatible' : incompatible && !ignored ? 'incompatible' : ''}`}
                                         title={versionTitle(incompatible, ignored, m.SupportedVersion, gameVersion)}
                                     >
-                                        {m.SupportedVersion ? displayVersion(m.SupportedVersion) : '-'}
+                                        <span className="ver-text">{m.SupportedVersion ? displayVersion(m.SupportedVersion) : '-'}</span>
                                         {incompatible && ignored && <i className="fa-solid fa-triangle-exclamation ver-ignored-icon"/>}
                                     </span>
                                     <span className="author mono" title={author}>
@@ -1010,7 +1021,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                             <span className="column-header-position">NR</span>
                             <span className="column-header-spacer"/>
                             <span className="column-header-name">NAME</span>
-                            <span className="column-header-domains">
+                            <span className="column-header-domains" title={DOMAIN_LEGEND}>
                                 {domains.map((d) => <span key={d}>{d}</span>)}
                             </span>
                             <span className="column-header-warnings" title="Version mismatch, hard conflicts, dependency issues">FLAGS</span>
@@ -1045,7 +1056,10 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                                         <SourceBadge source={m.Source} name={m.Name}/>
                                         <span className="name">{m.Name}</span>
                                         <span className="domain-segments">
-                                            {domains.map((d) => <span key={d} className="segment clean"/>)}
+                                            {domains.map((d) => {
+                                                const state = domainOverlap.get(m.ID)?.[d] ?? 'clean';
+                                                return <span key={d} className={`segment ${state}`} title={`${DOMAIN_NAMES[d]}: ${state}`}/>;
+                                            })}
                                         </span>
                                         <span className="row-warnings">
                                             {incompatible && !ignored && (
@@ -1082,7 +1096,6 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                                 <span><span className="swatch partial"/>partial</span>
                                 <span><span className="swatch clean"/>clean</span>
                             </div>
-                            <div className="legend-caption mono">C common · E events · G gfx · I interface · L localisation · M map</div>
                         </div>
                     </div>
 
