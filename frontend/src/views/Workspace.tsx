@@ -538,12 +538,6 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
     const workshopCount = allMods.filter((m) => m.Source === 'workshop').length;
     const localCount = allMods.filter((m) => m.Source !== 'workshop').length;
 
-    function toggleAvailable(id: string) {
-        const next = new Set(selectedAvailable);
-        if (next.has(id)) next.delete(id); else next.add(id);
-        setSelectedAvailable(next);
-    }
-
     // Real OS-file-list-style multi-select (click/shift+click) for both
     // the Available and Active lists - see data/dragMultiSelect.ts for the
     // shared mechanics both of these instances drive identically. The
@@ -907,13 +901,6 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                                     onContextMenu={(e) => { setSelectedId(m.ID); openContextMenu(e, modContextMenuItems(m)); }}
                                     onMouseDown={(e) => onAvailableRowMouseDown(index, e)}
                                 >
-                                    <input
-                                        type="checkbox"
-                                        checked={selectedAvailable.has(m.ID)}
-                                        onClick={(e) => e.stopPropagation()}
-                                        onMouseDown={(e) => e.stopPropagation()}
-                                        onChange={() => toggleAvailable(m.ID)}
-                                    />
                                     <SourceBadge source={m.Source} name={m.Name}/>
                                     <span className="name">{m.Name}</span>
                                     <span

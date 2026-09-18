@@ -743,9 +743,10 @@
 }
 
 .column-header-spacer {
-    /* Matches the checkbox (13px) + gap (9px) + SourceBadge (16px) that
-       precede the name column in every real .mod-row. */
-    width: 38px;
+    /* Matches the SourceBadge (16px) + gap (9px) that precede the name
+       column in every real .mod-row (no checkbox in the Available list
+       any more). */
+    width: 25px;
     flex: none;
 }
 
