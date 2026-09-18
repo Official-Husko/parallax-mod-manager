@@ -77,9 +77,19 @@ func ParseLibraryFolders(vdfPath string) ([]LibraryFolder, error) {
 }
 
 // FindWorkshopContentDir searches every library under steamRoot's
-// libraryfolders.vdf for one that has appID installed, and returns that
-// library's Workshop content directory for the game
-// (<library>/steamapps/workshop/content/<appID>).
+// libraryfolders.vdf for one with an existing Workshop content directory
+// for the game (<library>/steamapps/workshop/content/<appID>), and returns
+// the first one found.
+//
+// Deliberately does not pre-filter by whether a library's own "apps" entry
+// (LibraryFolder.Apps) lists appID first: that map is Steam's own
+// disk-usage bookkeeping, confirmed unreliable in practice - a real
+// install had a game (Hearts of Iron IV) whose Workshop content existed
+// and was fully downloaded under a library, but that library's apps map
+// didn't list its app id, which made a gated version of this function
+// report no Workshop content at all despite it being right there on disk.
+// The existence check below is the only thing that actually needs to be
+// true, matching docs/mod-sources.md's own documented algorithm.
 func FindWorkshopContentDir(steamRoot, appID string) (string, error) {
 	vdfPath := filepath.Join(steamRoot, "steamapps", "libraryfolders.vdf")
 	libraries, err := ParseLibraryFolders(vdfPath)
@@ -87,15 +97,12 @@ func FindWorkshopContentDir(steamRoot, appID string) (string, error) {
 		return "", err
 	}
 	for _, lib := range libraries {
-		if _, ok := lib.Apps[appID]; !ok {
-			continue
-		}
 		dir := filepath.Join(lib.Path, "steamapps", "workshop", "content", appID)
 		if info, err := os.Stat(dir); err == nil && info.IsDir() {
 			return dir, nil
 		}
 	}
-	return "", fmt.Errorf("steam: no Steam library with app %s and an existing workshop content folder found under %s", appID, steamRoot)
+	return "", fmt.Errorf("steam: no Steam library with an existing workshop content folder for app %s found under %s", appID, steamRoot)
 }
 
 // DefaultRoots returns every well-known Steam installation root for the

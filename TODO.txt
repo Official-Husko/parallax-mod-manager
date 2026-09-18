@@ -29,3 +29,14 @@ https://store.steampowered.com/api/appdetails?appids=440
 then get the dlc ids and get each dlc and its details
 
 https://store.steampowered.com/api/appdetails?appids=629330
+
+For Active load order, compatibility or Conflict bars, integrate the letter e.g. C or E into it, 
+like stance it out so the background is still visible behind it
+
+Add backgrounds taken from a folder game specific, random transitioning change every 300s to another one.
+
+Add Mod Editing, allow basic editing, this includes publishing and updating workshop mods
+
+on game updates notify the user about it if the game version changes.
+
+remove the select box tick boxesd inb the available

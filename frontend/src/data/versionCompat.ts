@@ -33,6 +33,17 @@ function versionSegments(v: string): string[] {
     return v.trim().toLowerCase().replace(/^v/, '').match(VERSION_SEGMENT_PATTERN) ?? [];
 }
 
+// displayVersion strips a leading "v"/"V" for display - confirmed some
+// real mods declare supported_version as "v4.4.*" and others as "4.4.*"
+// for the exact same pattern (see this file's own top comment), which
+// looks inconsistent shown side by side in the same list unless
+// normalized to one form. The real installed game version (from
+// GameVersion()) always carries the "v" prefix, so this applies there
+// too wherever it's shown alongside a mod's own version.
+export function displayVersion(v: string): string {
+    return v.replace(/^v/i, '');
+}
+
 export function checkVersionCompatibility(supportedVersion: string, currentVersion: string): VersionCompatibility {
     const required = versionSegments(supportedVersion);
     const current = versionSegments(currentVersion);

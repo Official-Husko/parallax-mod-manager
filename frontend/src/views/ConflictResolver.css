@@ -53,6 +53,9 @@
     color: var(--bg-panel);
     border-radius: 3px;
     padding: 2px 7px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
 }
 
 .badge.hard {
@@ -61,6 +64,10 @@
 
 .badge.soft {
     background: var(--amber);
+}
+
+.badge.clean {
+    background: var(--green);
 }
 
 .resolver-header .spacer {

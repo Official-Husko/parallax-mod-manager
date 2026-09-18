@@ -1,9 +1,16 @@
 .empty-state {
-    /* A fixed min-height (rather than flex: 1 filling a flex-column
-       ancestor) since this is dropped into plain block containers like
-       .list-rows and .detail-panel, not always a flex context - still
-       reads as a roomy, centered placeholder without needing the parent
-       layout to cooperate. */
+    /* flex: 1 only takes effect when the parent is itself a flex
+       container (.detail-panel, .resolver-body) - there it fills the
+       available space instead of hugging its own content width/height,
+       which matters most in a flex ROW parent (like .resolver-body),
+       where without it this would shrink to a narrow, left-aligned
+       column instead of centering across the row. In a plain block
+       parent (.list-rows) flex has no effect at all, so min-height below
+       is what keeps this a roomy, centered placeholder there instead.
+       min-width: 0 avoids the same flex-item-content-forces-overflow
+       trap documented in Settings.css. */
+    flex: 1;
+    min-width: 0;
     min-height: 220px;
     display: flex;
     flex-direction: column;

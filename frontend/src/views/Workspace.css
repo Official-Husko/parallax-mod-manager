@@ -137,6 +137,23 @@
     border-bottom: 2px solid var(--rust);
 }
 
+.detail-tab-icon {
+    margin-left: 4px;
+    font-size: 9px;
+}
+
+.detail-tab-icon.warn {
+    color: var(--red);
+}
+
+.detail-tab-icon.ok {
+    color: var(--green);
+}
+
+.detail-tab-icon.ignored {
+    color: var(--text-dim);
+}
+
 .detail-content {
     flex: 1;
     overflow-y: auto;
@@ -168,16 +185,14 @@
 
 /* This mod's own declared supported_version is confirmed incompatible
    with the real, currently-installed game version - see
-   data/versionCompat.ts. Red - see .mod-row .ver.incompatible's comment
-   in this file for why this moved off amber. */
+   data/versionCompat.ts. Stays red here even once the user has ignored
+   the warning (unlike the Available list's own .ver.incompatible, which
+   withdraws its color for an ignored mod) - this is the detail panel for
+   one specific mod someone is actively looking into, so the fact stays
+   plainly visible; only the hover tooltip below it (.supports-notice)
+   and its own small ignored-icon change to reflect the ignored state. */
 .overview-grid .value.warn {
     color: var(--red);
-}
-
-/* An incompatibility the user has explicitly chosen to ignore - see
-   .ver-ignored-icon's comment. */
-.overview-grid .value.ignored {
-    color: var(--text-mid);
 }
 
 .section-label {
@@ -480,11 +495,85 @@
     cursor: pointer;
 }
 
-.changes-tab {
+.changelog-tab {
     display: flex;
     flex-direction: column;
     gap: 13px;
     overflow-y: auto;
+}
+
+/* Wraps the Overview tab's Supports value and its hover-only explanation
+   (.supports-notice) - the positioning context that notice is anchored
+   to. inline-block, not the grid's plain text flow, since .supports-notice
+   is absolutely positioned relative to this specific element rather than
+   the whole .overview-grid. */
+.supports-cell {
+    position: relative;
+    display: inline-block;
+}
+
+/* This mod's own declared supported_version doesn't match the real,
+   currently-installed game version - see data/versionCompat.ts. Hidden
+   until .supports-cell is hovered - a permanent box here competed for
+   attention with the rest of the Overview tab every time it was open,
+   even for a mismatch the user already knows about; a hover reveal (with
+   a quick fade rather than popping in/out instantly) keeps the
+   explanation one hover away without it being visible by default. Mirrors
+   .conflict-banner's own layout/tone (icon + text in a tinted, bordered
+   row) for a consistent "here's a warning" language across the detail
+   panel. */
+.supports-notice {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    margin-top: 6px;
+    z-index: 5;
+    width: max-content;
+    max-width: 240px;
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    background: #1e1714;
+    border: 1px solid #4a2f22;
+    border-radius: 5px;
+    padding: 8px 10px;
+    font: 500 11.5px Barlow, sans-serif;
+    color: #e8b9b2;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 160ms ease, visibility 160ms ease;
+}
+
+.supports-cell:hover .supports-notice {
+    opacity: 1;
+    visibility: visible;
+}
+
+.supports-notice i {
+    color: var(--red);
+    margin-top: 1px;
+}
+
+.supports-notice-subnote {
+    font: 400 10.5px Barlow, sans-serif;
+    color: var(--text-dim);
+    margin-top: 2px;
+}
+
+/* An incompatibility the user has explicitly chosen to ignore - the
+   alarming red/amber tone is withdrawn here (it's an acknowledged,
+   dismissed warning now), leaving a quiet, neutral reminder instead -
+   the Supports value itself above stays red regardless (see
+   .overview-grid .value.warn's own comment for why). */
+.supports-notice.ignored {
+    background: var(--bg-panel);
+    border-color: var(--border);
+    color: var(--text-mid);
+}
+
+.supports-notice.ignored i {
+    color: var(--text-dim);
 }
 
 .change-entry {
@@ -763,18 +852,20 @@
 
 /* This mod's own declared supported_version is confirmed incompatible
    with the real, currently-installed game version - see
-   data/versionCompat.ts. Red: this project's color language used to
-   reserve red for hard conflicts only, but an unacknowledged version
-   mismatch is a real, user-facing warning too - amber reads as too easy
-   to overlook next to conflict rows sharing the same list. */
+   data/versionCompat.ts. Not shown once the user has ignored it (see
+   .ver-ignored-icon below) - only a live, unacknowledged mismatch gets
+   this color here. */
 .mod-row .ver.incompatible {
     color: var(--red);
 }
 
 /* An incompatibility the user has explicitly chosen to ignore (see the
    mod's own context menu) - the color warning is deliberately withdrawn
-   (it's an acknowledged, dismissed warning now, not a live one), leaving
-   only this small icon as a quiet reminder that one was suppressed here. */
+   here in the list (it's an acknowledged, dismissed warning now, not a
+   live one), leaving only this small icon as a quiet reminder that one
+   was suppressed. The detail panel's own Overview tab still shows this
+   mod's Supports value in red regardless of ignored state - see
+   .overview-grid .value.warn. */
 .ver-ignored-icon {
     color: var(--text-dim);
     font-size: 9px;
@@ -841,9 +932,7 @@
 /* This mod's own declared supported_version is confirmed incompatible
    with the real, currently-installed game version - see
    data/versionCompat.ts. Only shown when the row isn't already flagged
-   CONF - a hard conflict is the more urgent thing to surface here. Red,
-   matching the Available list's own .ver.incompatible - see its comment
-   for why this moved off amber. */
+   CONF - a hard conflict is the more urgent thing to surface here. */
 .flag.incompatible {
     color: var(--red);
 }

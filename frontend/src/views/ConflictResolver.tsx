@@ -4,6 +4,7 @@ import {useEffect, useMemo, useState} from 'preact/hooks';
 import {GeneratePatch, ReadModFile, SetPatchOverride} from '../../wailsjs/go/main/App';
 import type {library} from '../../wailsjs/go/models';
 import {highlightLine, syntaxForPath, type FileSyntax} from '../data/highlight';
+import {EmptyState} from '../components/EmptyState';
 
 // maxMatrixMods caps how many mods the overlap matrix renders - a real
 // modlist can have 50+ mods touching at least one contested key, and an
@@ -67,7 +68,10 @@ export function ConflictResolver({gameId, conflicts, order, onClose, onPatchGene
             <div className="resolver" onClick={(e) => e.stopPropagation()}>
                 <div className="resolver-header">
                     <span className="title">Conflicts</span>
-                    <span className="badge hard">{conflicts.length} contested {conflicts.length === 1 ? 'key' : 'keys'}</span>
+                    <span className={`badge ${conflicts.length > 0 ? 'hard' : 'clean'}`}>
+                        {conflicts.length === 0 && <i className="fa-solid fa-circle-check"/>}
+                        {conflicts.length} contested {conflicts.length === 1 ? 'key' : 'keys'}
+                    </span>
                     <div className="spacer"/>
                     <span className="mode-toggle">
                         <span className={mode === 'list' ? 'active' : ''} onClick={() => setMode('list')}>List</span>
@@ -90,9 +94,11 @@ export function ConflictResolver({gameId, conflicts, order, onClose, onPatchGene
 
                 {conflicts.length === 0 && (
                     <div className="resolver-body">
-                        <p className="detail-empty" style={{padding: 20}}>
-                            No genuine conflicts detected in the current load order.
-                        </p>
+                        <EmptyState
+                            icon="fa-circle-check"
+                            title="No conflicts"
+                            subtitle="No genuine conflicts detected in the current load order."
+                        />
                     </div>
                 )}
                 {conflicts.length > 0 && mode === 'list' && (

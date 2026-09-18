@@ -2,17 +2,9 @@ import {h} from 'preact';
 import {useEffect, useRef, useState} from 'preact/hooks';
 import {APP_NAME} from '../data/mockData';
 import {colorFromName} from '../data/nameColor';
+import {displayVersion} from '../data/versionCompat';
 
 export type ViewKey = 'library' | 'workspace' | 'dlc' | 'settings';
-
-// The real, underlying version string ("rawVersion" - see
-// internal/game.GameConfig.GameVersion) keeps its leading "v" for
-// wildcard-matching purposes (frontend/src/data/versionCompat.ts strips it
-// again there anyway), but the header's own display, matching the design
-// mockup exactly, drops it - "4.4.6", not "v4.4.6".
-function displayVersion(v: string): string {
-    return v.replace(/^v/i, '');
-}
 
 const NAV_ITEMS: { key: ViewKey; label: string }[] = [
     {key: 'library', label: 'Library'},

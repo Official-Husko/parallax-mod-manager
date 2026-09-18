@@ -28,7 +28,7 @@ import {useDragMultiSelect} from '../data/dragMultiSelect';
 import {type DropTarget, useListDragMove} from '../data/listDragMove';
 import {domains} from '../data/mockData';
 import {buildPreflightItems} from '../data/preflight';
-import {checkVersionCompatibility} from '../data/versionCompat';
+import {checkVersionCompatibility, displayVersion} from '../data/versionCompat';
 import {formatBytes, truncate} from '../data/format';
 import {SourceBadge} from '../components/SourceBadge';
 import {EmptyState} from '../components/EmptyState';
@@ -44,7 +44,7 @@ type Status =
     | { kind: 'error'; message: string }
     | { kind: 'success'; message: string };
 
-type DetailTab = 'overview' | 'files' | 'conflicts' | 'changes';
+type DetailTab = 'overview' | 'files' | 'conflicts' | 'changelog';
 
 // Hard caps for the couple of places a mod's real title or a Steam
 // author's real display name gets shown at a fixed, prominent size with
@@ -920,7 +920,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                                         className={`ver mono ${compatible ? 'compatible' : incompatible && !ignored ? 'incompatible' : ''}`}
                                         title={versionTitle(incompatible, ignored, m.SupportedVersion, gameVersion)}
                                     >
-                                        {m.SupportedVersion || '-'}
+                                        {m.SupportedVersion ? displayVersion(m.SupportedVersion) : '-'}
                                         {incompatible && ignored && <i className="fa-solid fa-triangle-exclamation ver-ignored-icon"/>}
                                     </span>
                                     <span className="author mono" title={author}>
@@ -1208,7 +1208,7 @@ function matchesSearch(m: library.ModSummary, search: string): boolean {
 // needing a dedicated rich tooltip component just for this.
 function versionTitle(incompatible: boolean, ignored: boolean, supportedVersion: string, gameVersion: string): string | undefined {
     if (!incompatible) return undefined;
-    const why = `Built for ${supportedVersion} - you have ${gameVersion}`;
+    const why = `Built for ${displayVersion(supportedVersion)} - you have ${displayVersion(gameVersion)}`;
     return ignored ? `${why}\nIncompatibility warning ignored - right-click to restore it` : why;
 }
 
@@ -1311,7 +1311,7 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, gameVersion, allM
 
     useEffect(() => {
         const remoteFileID = mod?.RemoteFileID;
-        if (tab !== 'changes' || !mod || mod.Source !== 'workshop' || !remoteFileID || changelogs.has(remoteFileID)) {
+        if (tab !== 'changelog' || !mod || mod.Source !== 'workshop' || !remoteFileID || changelogs.has(remoteFileID)) {
             return;
         }
         setChangelogState('loading');
@@ -1384,9 +1384,14 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, gameVersion, allM
                         </div>
                     </div>
                     <div className="detail-tabs">
-                        {(['overview', 'files', 'conflicts', 'changes'] as DetailTab[]).map((t) => (
+                        {(['overview', 'files', 'conflicts', 'changelog'] as DetailTab[]).map((t) => (
                             <span key={t} className={`detail-tab ${tab === t ? 'active' : ''}`} onClick={() => onTab(t)}>
                                 {t[0].toUpperCase() + t.slice(1)}
+                                {t === 'conflicts' && (
+                                    myConflicts.length > 0
+                                        ? <i className="fa-solid fa-triangle-exclamation detail-tab-icon warn" title={`${myConflicts.length} contested ${myConflicts.length === 1 ? 'key' : 'keys'}`}/>
+                                        : <i className="fa-solid fa-circle-check detail-tab-icon ok" title="No genuine conflicts"/>
+                                )}
                             </span>
                         ))}
                     </div>
@@ -1444,7 +1449,7 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, gameVersion, allM
                                     </div>
                                 </div>
                                 {myConflicts.length === 0 && (
-                                    <p className="detail-empty">No genuine conflicts detected for this mod.</p>
+                                    <EmptyState icon="fa-circle-check" title="No conflicts" subtitle="No genuine conflicts detected for this mod."/>
                                 )}
                                 {myConflicts.length > 0 && (
                                     <div className="section">
@@ -1467,16 +1472,21 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, gameVersion, allM
                                 <span className="resolver-btn" onClick={onOpenResolver}>Open in resolver</span>
                             </div>
                         )}
-                        {tab === 'changes' && (
-                            <div className="changes-tab">
+                        {tab === 'changelog' && (
+                            <div className="changelog-tab">
                                 {mod.Source !== 'workshop' && (
-                                    <p className="detail-empty">
-                                        Update history isn't available - only Steam Workshop mods have a real page to
-                                        fetch it from.
-                                    </p>
+                                    <EmptyState
+                                        icon="fa-clock-rotate-left"
+                                        title="No update history"
+                                        subtitle="Only Steam Workshop mods have a real page to fetch update history from."
+                                    />
                                 )}
                                 {mod.Source === 'workshop' && !mod.RemoteFileID && (
-                                    <p className="detail-empty">No Steam Workshop data found for this mod.</p>
+                                    <EmptyState
+                                        icon="fa-clock-rotate-left"
+                                        title="No Workshop data found"
+                                        subtitle="This mod couldn't be matched to a Steam Workshop item."
+                                    />
                                 )}
                                 {mod.Source === 'workshop' && mod.RemoteFileID && (
                                     <>
@@ -1492,7 +1502,13 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, gameVersion, allM
                                         {changelogs.has(mod.RemoteFileID) && (() => {
                                             const entries = changelogs.get(mod.RemoteFileID!)!;
                                             if (entries.length === 0) {
-                                                return <p className="detail-empty">No update notes found for this mod yet.</p>;
+                                                return (
+                                                    <EmptyState
+                                                        icon="fa-clock-rotate-left"
+                                                        title="No update notes"
+                                                        subtitle="No update notes found for this mod yet."
+                                                    />
+                                                );
                                             }
                                             return (
                                                 <div className="changelog-list">
@@ -1605,12 +1621,20 @@ function OverviewTab({mod, files, filesLoading, allMods, conflicts, onOpenFolder
             <div className="overview-grid">
                 <span className="label">Version</span><span className="value mono">{mod.Version || '-'}</span>
                 <span className="label">Supports</span>
-                <span
-                    className={`value mono ${supportsIncompatible && supportsIgnored ? 'ignored' : supportsCompat.known ? (supportsCompat.compatible ? 'ok' : 'warn') : ''}`}
-                    title={versionTitle(supportsIncompatible, supportsIgnored, mod.SupportedVersion, gameVersion)}
-                >
-                    {mod.SupportedVersion || '-'}
-                    {supportsIncompatible && supportsIgnored && <i className="fa-solid fa-triangle-exclamation ver-ignored-icon"/>}
+                <span className="supports-cell">
+                    <span className={`value mono ${supportsCompat.known ? (supportsCompat.compatible ? 'ok' : 'warn') : ''}`}>
+                        {mod.SupportedVersion ? displayVersion(mod.SupportedVersion) : '-'}
+                        {supportsIncompatible && supportsIgnored && <i className="fa-solid fa-triangle-exclamation ver-ignored-icon"/>}
+                    </span>
+                    {supportsIncompatible && (
+                        <div className={`supports-notice ${supportsIgnored ? 'ignored' : ''}`}>
+                            <i className="fa-solid fa-triangle-exclamation"/>
+                            <div>
+                                <div>Built for {displayVersion(mod.SupportedVersion)} - you have {displayVersion(gameVersion)}</div>
+                                {supportsIgnored && <div className="supports-notice-subnote">Incompatibility warning ignored</div>}
+                            </div>
+                        </div>
+                    )}
                 </span>
                 <span className="label">Size</span>
                 <span className="value mono">

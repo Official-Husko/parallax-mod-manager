@@ -133,7 +133,48 @@ func TestFindWorkshopContentDir(t *testing.T) {
 	}
 }
 
-func TestFindWorkshopContentDirNoMatchingApp(t *testing.T) {
+// TestFindWorkshopContentDirIgnoresStaleAppsBookkeeping locks in a real
+// bug fix: a library's own libraryfolders.vdf "apps" entry not listing
+// appID must not stop this function from finding a Workshop content
+// folder that genuinely exists on disk - see FindWorkshopContentDir's own
+// doc comment for the real install this was confirmed on (Hearts of Iron
+// IV, whose Workshop content resolved fine once the gate was removed).
+func TestFindWorkshopContentDirIgnoresStaleAppsBookkeeping(t *testing.T) {
+	steamRoot := t.TempDir()
+	steamapps := filepath.Join(steamRoot, "steamapps")
+	if err := os.MkdirAll(steamapps, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	// The workshop content is really there on disk...
+	workshopDir := filepath.Join(steamRoot, "steamapps", "workshop", "content", "394360")
+	if err := os.MkdirAll(workshopDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	// ...but the library's own "apps" bookkeeping doesn't mention app
+	// 394360 at all - confirmed to happen on a real install.
+	vdf := `"libraryfolders" { "0" { "path" "` + steamRoot + `" "apps" { "281990" "1" } } }`
+	if err := os.WriteFile(filepath.Join(steamapps, "libraryfolders.vdf"), []byte(vdf), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	got, err := FindWorkshopContentDir(steamRoot, "394360")
+	if err != nil {
+		t.Fatalf("FindWorkshopContentDir: %v", err)
+	}
+	if got != workshopDir {
+		t.Errorf("FindWorkshopContentDir = %q, want %q", got, workshopDir)
+	}
+}
+
+// TestFindWorkshopContentDirNoWorkshopFolder confirms this still errors
+// when no library actually has a Workshop content folder for the app on
+// disk - note the "apps" map here doesn't list the requested app either,
+// but that's incidental: see
+// TestFindWorkshopContentDirIgnoresStaleAppsBookkeeping for proof that the
+// "apps" map alone is never what determines the outcome.
+func TestFindWorkshopContentDirNoWorkshopFolder(t *testing.T) {
 	steamRoot := t.TempDir()
 	steamapps := filepath.Join(steamRoot, "steamapps")
 	if err := os.MkdirAll(steamapps, 0o755); err != nil {
@@ -146,7 +187,7 @@ func TestFindWorkshopContentDirNoMatchingApp(t *testing.T) {
 
 	_, err := FindWorkshopContentDir(steamRoot, "281990")
 	if err == nil {
-		t.Fatal("expected an error when no library has the requested app")
+		t.Fatal("expected an error when no library has an existing workshop content folder for the app")
 	}
 }
 
