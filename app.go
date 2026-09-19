@@ -681,10 +681,10 @@ func (a *App) ModSizes(gameID string) (map[string]int64, error) {
 
 // ReadModFile returns one real file's text content from inside modID's
 // content directory, for the conflict resolver's side-by-side view.
-func (a *App) ReadModFile(gameID, modID, relPath string) (string, error) {
+func (a *App) ReadModFile(gameID, modID, relPath string) (library.ModFileContent, error) {
 	cfg, ok := a.registry.Get(gameID)
 	if !ok {
-		return "", fmt.Errorf("app: unknown game %q", gameID)
+		return library.ModFileContent{}, fmt.Errorf("app: unknown game %q", gameID)
 	}
 	return library.ReadModFile(a.ctx, cfg, library.Options{SteamRoots: a.steamRoots, ExtraFolders: a.extraModFolders(gameID)}, modID, relPath)
 }
@@ -747,6 +747,15 @@ func (a *App) SetPatchOverride(gameID, conflictType, conflictID, modID string) e
 		overrides[key] = modID
 	}
 	return a.patchOverrides.Save(gameID, overrides)
+}
+
+// ClearPatchOverrides removes every manual patch-override winner choice
+// for gameID in one write, reverting every conflict back to its automatic
+// load-order winner - the Conflict Resolver's "Auto-resolve all" action.
+// A bulk version of SetPatchOverride(gameID, type, id, "") that writes the
+// overrides file once instead of once per override.
+func (a *App) ClearPatchOverrides(gameID string) error {
+	return a.patchOverrides.Save(gameID, map[string]string{})
 }
 
 // IgnoredIncompatibleMods returns gameID's set of mod IDs whose

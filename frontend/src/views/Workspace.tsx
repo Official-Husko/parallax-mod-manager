@@ -32,7 +32,7 @@ import {playsetAutoloadTarget} from '../data/playsetAutoload';
 import {computeDomainOverlap, DOMAIN_NAMES} from '../data/domainOverlap';
 import {buildPreflightItems, findDependencyIssues} from '../data/preflight';
 import {checkVersionCompatibility, displayVersion} from '../data/versionCompat';
-import {formatBytes, truncate} from '../data/format';
+import {formatBytes, timeAgo, truncate} from '../data/format';
 import {SourceBadge} from '../components/SourceBadge';
 import {EmptyState} from '../components/EmptyState';
 import {FileTree} from '../components/FileTree';
@@ -1729,19 +1729,6 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, gameVersion, allM
     );
 }
 
-
-function timeAgo(unixSeconds: number): string {
-    const seconds = Math.max(0, Date.now() / 1000 - unixSeconds);
-    const units: [number, string][] = [
-        [31536000, 'year'], [2592000, 'month'], [86400, 'day'],
-        [3600, 'hour'], [60, 'minute'],
-    ];
-    for (const [secs, label] of units) {
-        const n = Math.floor(seconds / secs);
-        if (n >= 1) return `${n} ${label}${n === 1 ? '' : 's'} ago`;
-    }
-    return 'just now';
-}
 
 // stripBBCode gives a readable plain-text preview of a real Steam Workshop
 // description - those are BBCode ([b], [url=...], [img]...), not something

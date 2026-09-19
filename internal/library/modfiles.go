@@ -175,46 +175,58 @@ func dirSize(root string) (int64, error) {
 // not to serve arbitrary large or binary assets through the UI.
 const maxReadModFileSize = 512 * 1024
 
-// ReadModFile returns one real file's text content from inside modID's
-// content directory, for the conflict resolver's side-by-side view.
-// relPath must be a mod-relative path (as ConflictCandidate.FilePath
-// already is) - resolved and verified to stay inside the mod's own content
-// directory, so a malformed or unexpected relPath can never read anything
-// outside it.
-func ReadModFile(ctx context.Context, cfg game.GameConfig, opts Options, modID, relPath string) (string, error) {
+// ModFileContent is one real file's text content plus enough metadata to
+// show alongside it - ModifiedAt in particular, so a caller (the conflict
+// resolver's own contender cards) doesn't need a second stat call against
+// the exact same file this function already os.Stat's internally.
+type ModFileContent struct {
+	Content string
+	// ModifiedAt is the file's real mtime, Unix seconds - safe to cross
+	// the Wails/JS boundary as a plain number, same reasoning as
+	// ModFiles.LastModified's own comment.
+	ModifiedAt int64
+}
+
+// ReadModFile returns one real file's text content (plus its real mtime)
+// from inside modID's content directory, for the conflict resolver's
+// side-by-side view. relPath must be a mod-relative path (as
+// ConflictCandidate.FilePath already is) - resolved and verified to stay
+// inside the mod's own content directory, so a malformed or unexpected
+// relPath can never read anything outside it.
+func ReadModFile(ctx context.Context, cfg game.GameConfig, opts Options, modID, relPath string) (ModFileContent, error) {
 	m, err := findMod(ctx, cfg, opts, modID)
 	if err != nil {
-		return "", err
+		return ModFileContent{}, err
 	}
 
 	root, err := filepath.Abs(m.ContentPath)
 	if err != nil {
-		return "", err
+		return ModFileContent{}, err
 	}
 	absPath, err := filepath.Abs(filepath.Join(m.ContentPath, relPath))
 	if err != nil {
-		return "", err
+		return ModFileContent{}, err
 	}
 	if absPath != root && !strings.HasPrefix(absPath, root+string(filepath.Separator)) {
-		return "", fmt.Errorf("library: %q is outside %s's content directory", relPath, modID)
+		return ModFileContent{}, fmt.Errorf("library: %q is outside %s's content directory", relPath, modID)
 	}
 
 	info, err := os.Stat(absPath)
 	if err != nil {
-		return "", err
+		return ModFileContent{}, err
 	}
 	if info.IsDir() {
-		return "", fmt.Errorf("library: %q is a directory, not a file", relPath)
+		return ModFileContent{}, fmt.Errorf("library: %q is a directory, not a file", relPath)
 	}
 	if info.Size() > maxReadModFileSize {
-		return "", fmt.Errorf("library: %s is too large to preview (%d bytes)", relPath, info.Size())
+		return ModFileContent{}, fmt.Errorf("library: %s is too large to preview (%d bytes)", relPath, info.Size())
 	}
 
 	data, err := os.ReadFile(absPath)
 	if err != nil {
-		return "", err
+		return ModFileContent{}, err
 	}
-	return string(data), nil
+	return ModFileContent{Content: string(data), ModifiedAt: info.ModTime().Unix()}, nil
 }
 
 // findMod re-scans cfg (the same discovery LoadGame itself uses) and

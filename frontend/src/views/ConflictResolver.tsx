@@ -1,9 +1,11 @@
 import './ConflictResolver.css';
 import {h} from 'preact';
 import {useEffect, useMemo, useState} from 'preact/hooks';
-import {GeneratePatch, ReadModFile, SetPatchOverride} from '../../wailsjs/go/main/App';
+import {ClearPatchOverrides, GeneratePatch, ReadModFile, SetPatchOverride} from '../../wailsjs/go/main/App';
 import type {library} from '../../wailsjs/go/models';
 import {highlightLine, syntaxForPath, type FileSyntax} from '../data/highlight';
+import {diffLines} from '../data/lineDiff';
+import {timeAgo} from '../data/format';
 import {EmptyState} from '../components/EmptyState';
 
 // maxMatrixMods caps how many mods the overlap matrix renders - a real
@@ -15,6 +17,24 @@ const maxMatrixMods = 30;
 
 function conflictKey(c: library.ConflictSummary): string {
     return `${c.Type}:${c.ID}`;
+}
+
+// A one-line, honest framing of why a contender card wins or loses, from
+// nothing but its real position among conflict.Candidates (ascending load-
+// order position, per ConflictSummary's own doc comment) - never a claim
+// about *why* the automatic rule picked this winner (LIOS vs. FIOS isn't
+// exposed to the frontend at all), just what's directly observable: is
+// this the first/last candidate, and is it earlier or later than whoever
+// currently wins.
+function framingFor(idx: number, winnerIdx: number, candidateCount: number, overridden: boolean): string {
+    if (idx === winnerIdx) {
+        if (overridden) return 'Wins - manually forced';
+        if (candidateCount <= 1) return 'Only candidate for this key';
+        if (idx === candidateCount - 1) return 'Wins - last in load order';
+        if (idx === 0) return 'Wins - first in load order';
+        return 'Wins - automatic load-order winner';
+    }
+    return idx < winnerIdx ? 'Loses - earlier in load order' : 'Loses - later in load order';
 }
 
 export function ConflictResolver({gameId, conflicts, order, onClose, onPatchGenerated, onOverrideChanged}: {
@@ -30,6 +50,7 @@ export function ConflictResolver({gameId, conflicts, order, onClose, onPatchGene
     const [selectedKey, setSelectedKey] = useState('');
     const [patching, setPatching] = useState(false);
     const [patchMessage, setPatchMessage] = useState('');
+    const [resolvingAll, setResolvingAll] = useState(false);
 
     const filtered = conflicts.filter((c) => {
         const q = search.trim().toLowerCase();
@@ -38,6 +59,19 @@ export function ConflictResolver({gameId, conflicts, order, onClose, onPatchGene
             || c.Candidates.some((cand) => cand.ModName.toLowerCase().includes(q));
     });
     const selected = conflicts.find((c) => conflictKey(c) === selectedKey) ?? filtered[0] ?? null;
+    const manualCount = conflicts.filter((c) => c.Overridden).length;
+
+    async function handleAutoResolveAll() {
+        setResolvingAll(true);
+        try {
+            await ClearPatchOverrides(gameId);
+            onOverrideChanged();
+        } catch (err) {
+            setPatchMessage(`Failed to auto-resolve: ${String(err)}`);
+        } finally {
+            setResolvingAll(false);
+        }
+    }
 
     async function handleGeneratePatch() {
         setPatching(true);
@@ -72,11 +106,19 @@ export function ConflictResolver({gameId, conflicts, order, onClose, onPatchGene
                         {conflicts.length === 0 && <i className="fa-solid fa-circle-check"/>}
                         {conflicts.length} contested {conflicts.length === 1 ? 'key' : 'keys'}
                     </span>
+                    {manualCount > 0 && (
+                        <span className="badge soft">{manualCount} manual override{manualCount === 1 ? '' : 's'}</span>
+                    )}
                     <div className="spacer"/>
                     <span className="mode-toggle">
                         <span className={mode === 'list' ? 'active' : ''} onClick={() => setMode('list')}>List</span>
                         <span className={mode === 'matrix' ? 'active' : ''} onClick={() => setMode('matrix')}>Matrix</span>
                     </span>
+                    {manualCount > 0 && (
+                        <span className={`btn-ghost ${resolvingAll ? 'inert' : ''}`} onClick={resolvingAll ? undefined : handleAutoResolveAll}>
+                            {resolvingAll ? 'Resolving...' : 'Auto-resolve all'}
+                        </span>
+                    )}
                     {conflicts.length > 0 && (
                         <span className={`btn-primary ${patching ? 'inert' : ''}`} onClick={patching ? undefined : handleGeneratePatch}>
                             {patching ? 'Generating...' : 'Generate patch'}
@@ -181,6 +223,8 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged}: {
 }) {
     const [leftContent, setLeftContent] = useState<string | null>(null);
     const [rightContent, setRightContent] = useState<string | null>(null);
+    const [leftModified, setLeftModified] = useState<number | null>(null);
+    const [rightModified, setRightModified] = useState<number | null>(null);
     const [error, setError] = useState('');
     const [overrideBusy, setOverrideBusy] = useState(false);
     const [overrideError, setOverrideError] = useState('');
@@ -210,50 +254,93 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged}: {
         let cancelled = false;
         setLeftContent(null);
         setRightContent(null);
+        setLeftModified(null);
+        setRightModified(null);
         setError('');
         if (loser) {
             ReadModFile(gameId, loser.ModID, loser.FilePath)
-                .then((c) => { if (!cancelled) setLeftContent(c); })
+                .then((f) => { if (!cancelled) { setLeftContent(f.Content); setLeftModified(f.ModifiedAt); } })
                 .catch((err) => { if (!cancelled) setError(String(err)); });
         }
         if (winner) {
             ReadModFile(gameId, winner.ModID, winner.FilePath)
-                .then((c) => { if (!cancelled) setRightContent(c); })
+                .then((f) => { if (!cancelled) { setRightContent(f.Content); setRightModified(f.ModifiedAt); } })
                 .catch((err) => { if (!cancelled) setError(String(err)); });
         }
         return () => { cancelled = true; };
     }, [gameId, winner?.ModID, winner?.FilePath, loser?.ModID, loser?.FilePath]);
 
+    // Real line-level diffing (see data/lineDiff.ts) once both sides have
+    // actually loaded - an empty file is zero lines, not one ('' split on
+    // '\n' would otherwise report a single blank line, misclassifying it
+    // against the other side).
+    const diff = useMemo(() => {
+        if (leftContent == null || rightContent == null) return null;
+        const leftLines = leftContent === '' ? [] : leftContent.split('\n');
+        const rightLines = rightContent === '' ? [] : rightContent.split('\n');
+        return diffLines(leftLines, rightLines);
+    }, [leftContent, rightContent]);
+
     return (
         <>
             <div className="contenders-col">
-                <div className="col-header">
-                    CONTENDERS · LOAD ORDER
-                    {conflict.Overridden && (
-                        <span className={`reset-override-link ${overrideBusy ? 'inert' : ''}`} onClick={() => !overrideBusy && chooseWinner('')}>
-                            Reset to automatic
-                        </span>
-                    )}
-                </div>
+                <div className="col-header">CONTENDERS · LOAD ORDER</div>
                 <div className="contenders-list">
                     {conflict.Candidates.map((c, i) => {
                         const wins = c.ModID === conflict.Winner;
+                        const isLoser = loser?.ModID === c.ModID;
+                        const isWinnerCard = winner?.ModID === c.ModID;
+                        const loadedContent = isLoser ? leftContent : isWinnerCard ? rightContent : null;
+                        const loadedModified = isLoser ? leftModified : isWinnerCard ? rightModified : null;
                         return (
                             <div key={c.ModID} className={`contender-card ${wins ? 'wins' : ''}`}>
                                 <div className="contender-head">
-                                    <i
-                                        className={`fa-solid ${wins ? 'fa-circle-dot radio-on' : 'fa-circle radio-off'} winner-radio ${overrideBusy ? 'inert' : ''}`}
-                                        title={wins ? 'Currently wins this conflict' : 'Make this mod win this conflict'}
-                                        onClick={() => !overrideBusy && !wins && chooseWinner(c.ModID)}
-                                    />
                                     <span className="mono pos">{i + 1}</span>
                                     <span className="name">{c.ModName}</span>
                                     {wins && <span className="wins-badge">{conflict.Overridden ? 'WINS · MANUAL' : 'WINS'}</span>}
                                 </div>
-                                <div className="mono meta">{c.FilePath}</div>
+                                <div className="mono meta">
+                                    {loadedContent != null && loadedModified != null
+                                        ? (() => {
+                                            const lines = loadedContent === '' ? 0 : loadedContent.split('\n').length;
+                                            return `${lines} line${lines === 1 ? '' : 's'} · modified ${timeAgo(loadedModified)}`;
+                                        })()
+                                        : c.FilePath}
+                                </div>
+                                <div className={`note ${wins ? 'wins-note' : ''}`}>
+                                    {framingFor(i, winnerIdx, conflict.Candidates.length, conflict.Overridden)}
+                                </div>
                             </div>
                         );
                     })}
+                </div>
+
+                <div className="resolution-card">
+                    <div className="resolution-title">Resolution</div>
+                    <span
+                        className={`resolution-option ${overrideBusy ? 'inert' : ''}`}
+                        onClick={() => !overrideBusy && conflict.Overridden && chooseWinner('')}
+                    >
+                        <span className={!conflict.Overridden ? 'radio-on' : 'radio-off'}>{!conflict.Overridden ? '●' : '○'}</span> Keep load-order winner
+                    </span>
+                    {conflict.Candidates.map((c) => {
+                        const forced = conflict.Overridden && conflict.Winner === c.ModID;
+                        return (
+                            <span
+                                key={c.ModID}
+                                className={`resolution-option ${overrideBusy ? 'inert' : ''}`}
+                                onClick={() => !overrideBusy && !forced && chooseWinner(c.ModID)}
+                            >
+                                <span className={forced ? 'radio-on' : 'radio-off'}>{forced ? '●' : '○'}</span> Force {c.ModName}
+                            </span>
+                        );
+                    })}
+                    <span className="resolution-option-disabled" title="Not built yet">
+                        <span className="radio-off">○</span> Generate merge patch
+                    </span>
+                    <span className="resolution-option-disabled" title="Not built yet">
+                        <span className="radio-off">○</span> Exclude file from both
+                    </span>
                 </div>
                 {overrideError && <p className="status-page error" style={{padding: '0 13px 10px'}}>{overrideError}</p>}
             </div>
@@ -262,51 +349,103 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged}: {
                 <div className="diff-toolbar">
                     <span className="mono">{winner?.FilePath ?? conflict.ID}</span>
                     <div className="spacer"/>
-                    <span className="sort-label">Real file content, not diffed</span>
+                    <span className="sort-label">Side by side</span>
                 </div>
                 {error && <p className="status-page error" style={{padding: 12}}>{error}</p>}
                 {!error && (loser || winner) && (
                     <div className="diff-body mono">
                         <div className="diff-pane">
                             {loser
-                                ? <ContentPane label={`${loser.ModName} (loses)`} content={leftContent} syntax={syntaxForPath(loser.FilePath)}/>
+                                ? (
+                                    <ContentPane
+                                        label={`${loser.ModName} (loses)`}
+                                        content={leftContent}
+                                        syntax={syntaxForPath(loser.FilePath)}
+                                        lineStates={diff?.leftMatched}
+                                        changedClassName="removed"
+                                    />
+                                )
                                 : <ContentPane label="Only one mod touches this key" content="" syntax="plain"/>}
                         </div>
                         <div className="diff-pane">
-                            {winner && <ContentPane label={`${winner.ModName} (wins)`} content={rightContent} syntax={syntaxForPath(winner.FilePath)}/>}
+                            {winner && (
+                                <ContentPane
+                                    label={`${winner.ModName} (wins)`}
+                                    content={rightContent}
+                                    syntax={syntaxForPath(winner.FilePath)}
+                                    lineStates={diff?.rightMatched}
+                                    changedClassName="added"
+                                />
+                            )}
                         </div>
                     </div>
                 )}
                 <div className="diff-footer">
-                    <span className="mono">Line-level diff highlighting isn't built yet - this shows each file's real, syntax-highlighted content as-is.</span>
+                    {diff && !diff.skipped && (
+                        <span className="mono diff-stat">
+                            <span className="diff-stat-added">+{diff.added}</span>{' '}
+                            <span className="diff-stat-removed">&minus;{diff.removed}</span>
+                        </span>
+                    )}
+                    {(!diff || diff.skipped) && (
+                        <span className="mono">
+                            {!loser
+                                ? "Only one mod touches this key - there's nothing to diff against."
+                                : diff?.skipped
+                                    ? "This file is too large to diff line-by-line - showing its real, syntax-highlighted content as-is."
+                                    : 'Comparing...'}
+                        </span>
+                    )}
                 </div>
             </div>
         </>
     );
 }
 
-function ContentPane({label, content, syntax}: { label: string; content: string | null; syntax: FileSyntax }) {
+function ContentPane({label, content, syntax, lineStates, changedClassName}: {
+    label: string;
+    content: string | null;
+    syntax: FileSyntax;
+    // Per real line in `content`: true if that line is also present (in
+    // the same relative order) in the other side's file, false if it's
+    // only here - see data/lineDiff.ts. Omitted (undefined) means "don't
+    // tint anything," either because there's nothing to diff against yet
+    // (still loading, or only one mod touches this key) or because the
+    // diff was skipped for being too large - either way this pane still
+    // shows its own real, syntax-highlighted content, just without the
+    // added/removed tint.
+    lineStates?: boolean[];
+    // Applied to a line whose lineStates entry is false - 'removed' for
+    // the losing side, 'added' for the winning side.
+    changedClassName?: 'removed' | 'added';
+}) {
     return (
         <>
             <div className="file-item" style={{borderLeft: 'none', padding: '5px 11px'}}>
                 <span className="note">{label}</span>
             </div>
             {content === null && (
-                <div className="diff-line"><span className="ln"/><span>Loading...</span></div>
+                <div className="diff-loading">
+                    <i className="fa-solid fa-spinner fa-spin"/>
+                    <span>Loading file...</span>
+                </div>
             )}
             {content === '' && (
                 <div className="diff-line"><span className="ln"/><span/></div>
             )}
-            {content != null && content.split('\n').map((line, i) => (
-                <div key={i} className="diff-line">
-                    <span className="ln">{i + 1}</span>
-                    <span>
-                        {highlightLine(line, syntax).map((tok, j) => (
-                            <span key={j} className={`tok-${tok.kind}`}>{tok.text}</span>
-                        ))}
-                    </span>
-                </div>
-            ))}
+            {content != null && content !== '' && content.split('\n').map((line, i) => {
+                const changed = lineStates?.[i] === false;
+                return (
+                    <div key={i} className={`diff-line ${changed ? changedClassName : ''}`}>
+                        <span className="ln">{i + 1}</span>
+                        <span>
+                            {highlightLine(line, syntax).map((tok, j) => (
+                                <span key={j} className={`tok-${tok.kind}`}>{tok.text}</span>
+                            ))}
+                        </span>
+                    </div>
+                );
+            })}
         </>
     );
 }

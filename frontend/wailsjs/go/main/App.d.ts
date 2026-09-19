@@ -19,6 +19,8 @@ export function BrowseForGameInstall(arg1:string):Promise<library.DetectedGame>;
 
 export function ClearGamePath(arg1:string):Promise<library.DetectedGame>;
 
+export function ClearPatchOverrides(arg1:string):Promise<void>;
+
 export function DLCStoreData(arg1:string):Promise<Array<dlcstore.StoreData>>;
 
 export function DeleteCollection(arg1:string):Promise<void>;
@@ -67,7 +69,7 @@ export function OpenPath(arg1:string):Promise<void>;
 
 export function PurgeMods(arg1:string,arg2:Array<string>):Promise<library.PurgeResult>;
 
-export function ReadModFile(arg1:string,arg2:string,arg3:string):Promise<string>;
+export function ReadModFile(arg1:string,arg2:string,arg3:string):Promise<library.ModFileContent>;
 
 export function RemoveExtraModFolder(arg1:string,arg2:string):Promise<void>;
 

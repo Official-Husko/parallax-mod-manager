@@ -22,6 +22,10 @@ export function ClearGamePath(arg1) {
   return window['go']['main']['App']['ClearGamePath'](arg1);
 }
 
+export function ClearPatchOverrides(arg1) {
+  return window['go']['main']['App']['ClearPatchOverrides'](arg1);
+}
+
 export function DLCStoreData(arg1) {
   return window['go']['main']['App']['DLCStoreData'](arg1);
 }

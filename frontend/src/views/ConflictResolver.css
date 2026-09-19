@@ -117,23 +117,6 @@
     gap: 10px;
 }
 
-.reset-override-link {
-    margin-left: auto;
-    color: var(--rust);
-    text-transform: none;
-    letter-spacing: normal;
-    cursor: pointer;
-}
-
-.reset-override-link:hover {
-    text-decoration: underline;
-}
-
-.reset-override-link.inert {
-    opacity: .5;
-    pointer-events: none;
-}
-
 .files-col {
     width: 300px;
     flex: none;
@@ -175,6 +158,8 @@
 }
 
 .contenders-list {
+    flex: 1;
+    min-height: 0;
     padding: 12px 13px;
     display: flex;
     flex-direction: column;
@@ -199,25 +184,6 @@
     align-items: center;
     gap: 8px;
     margin-bottom: 5px;
-}
-
-.winner-radio {
-    font-size: 12px;
-    cursor: pointer;
-    flex: none;
-}
-
-.winner-radio.radio-on {
-    cursor: default;
-}
-
-.winner-radio.radio-off:hover {
-    color: var(--text-muted);
-}
-
-.winner-radio.inert {
-    cursor: default;
-    pointer-events: none;
 }
 
 .contender-head .pos {
@@ -255,6 +221,8 @@
 }
 
 .resolution-card {
+    flex: none;
+    margin: 0 13px 13px;
     border: 1px dashed var(--border-light);
     border-radius: 5px;
     padding: 10px 11px;
@@ -271,6 +239,20 @@
     font: 400 11.5px Barlow, sans-serif;
     color: var(--text-muted);
     margin-top: 6px;
+}
+
+.resolution-option {
+    cursor: pointer;
+}
+
+.resolution-option.inert {
+    cursor: default;
+    pointer-events: none;
+}
+
+.resolution-option-disabled {
+    opacity: .55;
+    cursor: not-allowed;
 }
 
 .radio-on {
@@ -334,6 +316,31 @@
     flex: none;
 }
 
+/* A line only this side's file has, per the real LCS diff in
+   data/lineDiff.ts - not a fabricated highlight, an actual line-by-line
+   comparison against the other candidate's file. */
+.diff-line.removed {
+    background: rgba(212, 87, 78, .14);
+}
+
+.diff-line.added {
+    background: rgba(95, 174, 126, .14);
+}
+
+.diff-loading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 22px 11px;
+    color: var(--text-dim);
+    font: 400 12px Barlow, sans-serif;
+}
+
+.diff-loading i {
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
 /* --- Syntax highlighting, for the two real editable text formats this
    project's mods contain: Clausewitz script (.txt/.gui/.gfx/.asset/
    .shader/.fxh - see internal/script/lexer.go) and Paradox locale .yml
@@ -394,6 +401,14 @@
     gap: 16px;
     font: 500 11px Barlow, sans-serif;
     color: var(--text-muted);
+}
+
+.diff-stat-added {
+    color: var(--green);
+}
+
+.diff-stat-removed {
+    color: var(--red);
 }
 
 /* --- Matrix view --- */

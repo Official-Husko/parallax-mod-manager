@@ -184,14 +184,18 @@ func TestModSizesEmptyModDirReturnsEmptyMap(t *testing.T) {
 
 func TestReadModFileReturnsRealContent(t *testing.T) {
 	modDir := t.TempDir()
+	before := time.Now().Add(-time.Second)
 	writeMod(t, modDir, "mod_a", "Mod A", `thing = { cost = 1 }`)
 
-	content, err := ReadModFile(context.Background(), testGameConfig(), Options{ModDir: modDir}, "mod_a", "common/x.txt")
+	got, err := ReadModFile(context.Background(), testGameConfig(), Options{ModDir: modDir}, "mod_a", "common/x.txt")
 	if err != nil {
 		t.Fatalf("ReadModFile: %v", err)
 	}
-	if content != `thing = { cost = 1 }` {
-		t.Errorf("content = %q, want %q", content, `thing = { cost = 1 }`)
+	if got.Content != `thing = { cost = 1 }` {
+		t.Errorf("Content = %q, want %q", got.Content, `thing = { cost = 1 }`)
+	}
+	if got.ModifiedAt < before.Unix() {
+		t.Errorf("ModifiedAt = %d, want a real mtime no earlier than %d", got.ModifiedAt, before.Unix())
 	}
 }
 

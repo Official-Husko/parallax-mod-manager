@@ -320,6 +320,20 @@ export namespace library {
 	        this.DisplayName = source["DisplayName"];
 	    }
 	}
+	export class ModFileContent {
+	    Content: string;
+	    ModifiedAt: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ModFileContent(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Content = source["Content"];
+	        this.ModifiedAt = source["ModifiedAt"];
+	    }
+	}
 	export class ModFiles {
 	    Entries: FileEntry[];
 	    TotalSize: number;
