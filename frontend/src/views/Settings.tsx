@@ -18,7 +18,7 @@ import {Toggle} from '../components/Toggle';
 import {settingsNav} from '../data/mockData';
 import {DEFAULT_BACKGROUND_INTERVAL_SECONDS} from '../components/AppBackground';
 
-type Section = 'manage' | 'paths' | 'sort' | 'appearance';
+type Section = 'manage' | 'paths' | 'launch' | 'sort' | 'appearance';
 
 export function Settings({jumpToManageGames, onGamesChanged, onPreferencesChanged}: {
     // Incremented by app.tsx (the TopBar's own "Manage games" entry) to
@@ -49,7 +49,7 @@ export function Settings({jumpToManageGames, onGamesChanged, onPreferencesChange
             <div className="settings-nav">
                 <div className="sidebar-label">SETTINGS</div>
                 {settingsNav.map((s) => {
-                    const clickable = s.key === 'manage' || s.key === 'paths' || s.key === 'sort' || s.key === 'appearance';
+                    const clickable = s.key === 'manage' || s.key === 'paths' || s.key === 'launch' || s.key === 'sort' || s.key === 'appearance';
                     const active = clickable && s.key === section;
                     return (
                         <div
@@ -66,6 +66,7 @@ export function Settings({jumpToManageGames, onGamesChanged, onPreferencesChange
 
             {section === 'manage' && <ManageGamesPanel onGamesChanged={onGamesChanged}/>}
             {section === 'paths' && <PathsPanel/>}
+            {section === 'launch' && <LaunchOptionsPanel/>}
             {section === 'sort' && <SortRulesPanel/>}
             {section === 'appearance' && <AppearancePanel onPreferencesChanged={onPreferencesChanged}/>}
         </div>
@@ -377,6 +378,137 @@ function PathsPanel() {
                     })}
                 </div>
             )}
+        </div>
+    );
+}
+
+// Mirrors internal/launch.LaunchMode's two values - preferences.launchModes
+// is stored as a plain map[string]string on the Go side (see that type's
+// own comment for why), so there's no generated binding to import here.
+type LaunchMode = 'steam' | 'direct';
+
+function launchModeFor(prefs: preferences.Preferences | null, gameId: string): LaunchMode {
+    return prefs?.launchModes?.[gameId] === 'direct' ? 'direct' : 'steam';
+}
+
+function LaunchOptionsPanel() {
+    const [state, setState] = useState<ManageGamesState>({kind: 'loading'});
+    const [prefs, setPrefs] = useState<preferences.Preferences | null>(null);
+    const [selectedGameId, setSelectedGameId] = useState('');
+
+    useEffect(() => {
+        DetectGames()
+            .then((games) => setState({kind: 'ready', games}))
+            .catch((err) => setState({kind: 'error', message: String(err)}));
+        GetPreferences().then(setPrefs).catch(() => undefined);
+    }, []);
+
+    const managedGames = state.kind === 'ready'
+        ? (prefs?.managedGames && prefs.managedGames.length > 0
+            ? state.games.filter((g) => prefs.managedGames!.includes(g.ID))
+            : state.games)
+        : [];
+
+    useEffect(() => {
+        if (selectedGameId || managedGames.length === 0) return;
+        setSelectedGameId(prefs?.lastSelectedGame && managedGames.some((g) => g.ID === prefs.lastSelectedGame)
+            ? prefs.lastSelectedGame
+            : managedGames[0].ID);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [managedGames.length, prefs]);
+
+    const selectedGame = managedGames.find((g) => g.ID === selectedGameId);
+
+    function setMode(mode: LaunchMode) {
+        if (!prefs || !selectedGame) return;
+        const next = {...prefs, launchModes: {...prefs.launchModes, [selectedGame.ID]: mode}};
+        setPrefs(next);
+        SetPreferences(next).catch(() => setPrefs(prefs));
+    }
+
+    return (
+        <div className="settings-content single">
+            <div>
+                <div className="settings-title">Launch options</div>
+                <div className="settings-subtitle">
+                    How Play starts this game - configured one game at a time, since install
+                    layout and launcher quirks differ per game. Pick which one to configure below.
+                </div>
+            </div>
+
+            {state.kind === 'loading' && <p className="status-page">Checking installed games...</p>}
+            {state.kind === 'error' && <p className="status-page error">{state.message}</p>}
+            {state.kind === 'ready' && managedGames.length === 0 && (
+                <p className="status-page">No games are set up to manage yet - open Manage games to pick one.</p>
+            )}
+
+            {managedGames.length > 0 && (
+                <div className="launch-game-picker">
+                    {managedGames.map((g) => (
+                        <span
+                            key={g.ID}
+                            className={`chip ${g.ID === selectedGameId ? 'chip-active' : ''}`}
+                            onClick={() => setSelectedGameId(g.ID)}
+                        >
+                            {g.DisplayName}
+                        </span>
+                    ))}
+                </div>
+            )}
+
+            {selectedGame && prefs && (() => {
+                const mode = launchModeFor(prefs, selectedGame.ID);
+                return (
+                    <div className="launch-mode-list">
+                        {!selectedGame.Installed && (
+                            <p className="status-page">
+                                {selectedGame.DisplayName} isn't installed yet - set its path under
+                                Paths & folders before switching it to Parallax Direct.
+                            </p>
+                        )}
+                        <div className={`launch-mode-option ${mode === 'steam' ? 'active' : ''}`} onClick={() => setMode('steam')}>
+                            <i className={`fa-solid ${mode === 'steam' ? 'fa-circle-dot' : 'fa-circle'} launch-mode-radio ${mode === 'steam' ? 'on' : 'off'}`}/>
+                            <div className="launch-mode-main">
+                                <div className="launch-mode-name">Steam / Paradox Launcher</div>
+                                <div className="launch-mode-desc">
+                                    The normal path - Steam opens the Paradox Launcher, which starts
+                                    the game. Keeps full Steam integration: overlay, achievements, DLC
+                                    ownership checks.
+                                </div>
+                            </div>
+                        </div>
+                        <div
+                            className={`launch-mode-option ${mode === 'direct' ? 'active' : ''} ${!selectedGame.Installed ? 'disabled' : ''}`}
+                            onClick={() => selectedGame.Installed && setMode('direct')}
+                        >
+                            <i className={`fa-solid ${mode === 'direct' ? 'fa-circle-dot' : 'fa-circle'} launch-mode-radio ${mode === 'direct' ? 'on' : 'off'}`}/>
+                            <div className="launch-mode-main">
+                                <div className="launch-mode-name">Parallax Direct</div>
+                                <div className="launch-mode-desc">
+                                    Skips the Paradox Launcher entirely and starts {selectedGame.DisplayName}'s
+                                    own executable straight away. Steam overlay, achievements, and DLC
+                                    checks may not work on every game - switch back to Steam / Paradox
+                                    Launcher if something goes missing.
+                                </div>
+                            </div>
+                        </div>
+                        <div className="launch-mode-option disabled">
+                            <i className="fa-solid fa-circle launch-mode-radio off"/>
+                            <div className="launch-mode-main">
+                                <div className="launch-mode-name">
+                                    Steam Direct
+                                    <span className="chip">Planned</span>
+                                </div>
+                                <div className="launch-mode-desc">
+                                    Replaces the launcher's own entry point so Steam launches the game
+                                    directly while keeping Steam's process context - best of both,
+                                    once it's built.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
         </div>
     );
 }

@@ -26,6 +26,14 @@ type DLCEntry struct {
 type ExecutableInfo struct {
 	Path string
 	Args []string
+	// WorkingDir is the directory the process should start in - always the
+	// executable's own directory, resolved by ResolveExecutable itself,
+	// never left for the OS default (the current process's own directory)
+	// to decide. Without this, a game whose own code resolves paths
+	// relative to its working directory (loading a library, finding its
+	// own data files) would instead resolve them against wherever
+	// Parallax Mod Manager's own process happens to be running from.
+	WorkingDir string
 }
 
 // GameConfig is everything the rest of the app needs to know about one
@@ -139,13 +147,22 @@ func (g GameConfig) GameVersion(installDir string) string {
 // ResolveExecutable reads installDir's launcher-settings.json for the real
 // executable path/args; if that file is missing or unreadable, it falls back
 // to g.ExecutableFallback.
+//
+// exePath is resolved relative to launcher-settings.json's own directory,
+// not installDir itself - for most games (Stellaris, EU4, HOI4) the two are
+// the same, since launcher-settings.json sits at the install root, but CK3,
+// Imperator: Rome, and Victoria 3 nest it under a "launcher/" subfolder and
+// give exePath as a "../binaries/<game>.exe" style path relative to that
+// subfolder - joining it against installDir directly (the previous
+// behavior) pointed outside the install entirely for those three.
 func (g GameConfig) ResolveExecutable(installDir string) (ExecutableInfo, error) {
-	data, err := os.ReadFile(filepath.Join(installDir, g.LauncherSettingsPath))
+	settingsPath := filepath.Join(installDir, g.LauncherSettingsPath)
+	data, err := os.ReadFile(settingsPath)
 	if err != nil {
 		if g.ExecutableFallback.Path == "" {
 			return ExecutableInfo{}, fmt.Errorf("game: no %s in %s and no fallback executable configured for %s", g.LauncherSettingsPath, installDir, g.ID)
 		}
-		return g.ExecutableFallback, nil
+		return withWorkingDir(g.ExecutableFallback), nil
 	}
 
 	var ls launcherSettings
@@ -153,16 +170,26 @@ func (g GameConfig) ResolveExecutable(installDir string) (ExecutableInfo, error)
 		if g.ExecutableFallback.Path == "" {
 			return ExecutableInfo{}, fmt.Errorf("game: malformed launcher-settings.json in %s: %w", installDir, err)
 		}
-		return g.ExecutableFallback, nil
+		return withWorkingDir(g.ExecutableFallback), nil
 	}
 	if ls.ExePath == "" {
 		if g.ExecutableFallback.Path == "" {
 			return ExecutableInfo{}, fmt.Errorf("game: launcher-settings.json in %s has no exePath and no fallback executable configured", installDir)
 		}
-		return g.ExecutableFallback, nil
+		return withWorkingDir(g.ExecutableFallback), nil
 	}
 
-	return ExecutableInfo{Path: filepath.Join(installDir, ls.ExePath), Args: ls.ExeArgs}, nil
+	exePath := filepath.Clean(filepath.Join(filepath.Dir(settingsPath), ls.ExePath))
+	return ExecutableInfo{Path: exePath, Args: ls.ExeArgs, WorkingDir: filepath.Dir(exePath)}, nil
+}
+
+// withWorkingDir fills in info.WorkingDir from info.Path when the caller (a
+// games.jsonc ExecutableFallback entry) didn't already set one of its own.
+func withWorkingDir(info ExecutableInfo) ExecutableInfo {
+	if info.WorkingDir == "" {
+		info.WorkingDir = filepath.Dir(info.Path)
+	}
+	return info
 }
 
 // DetectInstall searches this machine's default Steam libraries for g's

@@ -71,7 +71,43 @@ func TestResolveExecutableReadsLauncherSettings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveExecutable: %v", err)
 	}
-	want := ExecutableInfo{Path: filepath.Join(installDir, "stellaris"), Args: []string{"-skiplauncher"}}
+	want := ExecutableInfo{Path: filepath.Join(installDir, "stellaris"), Args: []string{"-skiplauncher"}, WorkingDir: installDir}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("ResolveExecutable = %+v, want %+v", got, want)
+	}
+}
+
+// TestResolveExecutableResolvesRelativeToLauncherSettingsDir covers CK3,
+// Imperator: Rome, and Victoria 3's real layout: launcher-settings.json
+// nested under a "launcher/" subfolder, with exePath given relative to
+// that subfolder (e.g. "../binaries/ck3.exe"), not to the install root.
+// Resolving that against installDir directly (the previous behavior)
+// pointed outside the install entirely.
+func TestResolveExecutableResolvesRelativeToLauncherSettingsDir(t *testing.T) {
+	installDir := t.TempDir()
+	launcherDir := filepath.Join(installDir, "launcher")
+	if err := os.MkdirAll(launcherDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	settings := map[string]any{
+		"exePath": "../binaries/ck3.exe",
+		"exeArgs": []string{"-nakama"},
+	}
+	data, err := json.Marshal(settings)
+	if err != nil {
+		t.Fatalf("json.Marshal: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(launcherDir, "launcher-settings.json"), data, 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	g := GameConfig{ID: "ck3", LauncherSettingsPath: "launcher/launcher-settings.json"}
+	got, err := g.ResolveExecutable(installDir)
+	if err != nil {
+		t.Fatalf("ResolveExecutable: %v", err)
+	}
+	wantPath := filepath.Join(installDir, "binaries", "ck3.exe")
+	want := ExecutableInfo{Path: wantPath, Args: []string{"-nakama"}, WorkingDir: filepath.Join(installDir, "binaries")}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("ResolveExecutable = %+v, want %+v", got, want)
 	}
@@ -89,8 +125,10 @@ func TestResolveExecutableFallsBackWhenLauncherSettingsMissing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveExecutable: %v", err)
 	}
-	if !reflect.DeepEqual(got, g.ExecutableFallback) {
-		t.Errorf("ResolveExecutable = %+v, want fallback %+v", got, g.ExecutableFallback)
+	want := g.ExecutableFallback
+	want.WorkingDir = filepath.Dir(want.Path)
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("ResolveExecutable = %+v, want fallback %+v", got, want)
 	}
 }
 
@@ -116,8 +154,10 @@ func TestResolveExecutableFallsBackOnMalformedSettings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResolveExecutable: %v", err)
 	}
-	if !reflect.DeepEqual(got, g.ExecutableFallback) {
-		t.Errorf("ResolveExecutable = %+v, want fallback", got)
+	want := g.ExecutableFallback
+	want.WorkingDir = filepath.Dir(want.Path)
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("ResolveExecutable = %+v, want fallback %+v", got, want)
 	}
 }
 

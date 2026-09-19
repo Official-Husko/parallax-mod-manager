@@ -2,6 +2,32 @@ package launch
 
 import "github.com/Official-Husko/parallax-mod-manager/internal/game"
 
+// LaunchMode is a user's chosen launch strategy for one game, persisted per
+// game in preferences.Preferences.LaunchModes (kept as a plain string there,
+// like this project's other per-game preference maps - these constants are
+// its only valid values) and read by App.LaunchGame to build LaunchOptions.
+// See docs/game-launching.md's "Skipping the Paradox Launcher" section.
+type LaunchMode string
+
+const (
+	// LaunchModeSteam is the default - steam://run/<appid>, going through
+	// Steam and the Paradox Launcher exactly as it would without this app
+	// involved at all. An empty/unset preference means this, not just an
+	// explicit "steam" value, so an existing preferences file from before
+	// this setting existed keeps behaving exactly as it already did.
+	LaunchModeSteam LaunchMode = "steam"
+	// LaunchModeDirect skips the Paradox Launcher (and Steam) entirely,
+	// resolving and starting the game's own executable directly via
+	// game.GameConfig.ResolveExecutable - the first of the two bypass
+	// strategies this project intends to offer. The second - replacing a
+	// game's own launcher entry point with a small shim so Steam still
+	// launches the game itself while never invoking the Paradox Launcher -
+	// is a planned addition, not implemented yet; LaunchMode exists as a
+	// string enum rather than LaunchOptions.Direct's plain bool specifically
+	// so that mode can be added later without another breaking change here.
+	LaunchModeDirect LaunchMode = "direct"
+)
+
 // LaunchOptions configures a Launch call.
 type LaunchOptions struct {
 	// ExtraArgs is appended to the Steam URL, or passed to the direct-exe

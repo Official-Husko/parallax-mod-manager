@@ -347,6 +347,44 @@ func (a *App) detectGameConsideringOverride(cfg game.GameConfig) (library.Detect
 	return library.DetectGame(a.ctx, cfg, a.steamRoots, extra)
 }
 
+// resolveInstallDir returns cfg's real install directory - a still-valid
+// manual override if one is set, else automatic Steam-library detection -
+// the same precedence detectGameConsideringOverride uses, without paying
+// for that method's full mod scan when only the directory itself is
+// needed (LaunchGame's direct-launch path, below). ok is false when
+// neither resolves to a real install.
+func (a *App) resolveInstallDir(cfg game.GameConfig) (string, bool) {
+	if override, ok := a.gamePathOverride(cfg); ok {
+		return override, true
+	}
+	return cfg.DetectInstall()
+}
+
+// launchOptionsFor builds LaunchGame's launch.LaunchOptions from cfg's
+// per-game launch mode preference (preferences.Preferences.LaunchModes).
+// launch.LaunchModeSteam - including an unset preference - leaves opts
+// zero-valued, matching Launch's own Steam-first default. LaunchModeDirect
+// resolves cfg's real install directory so Launch can skip the Paradox
+// Launcher entirely, per docs/game-launching.md; that resolution can fail
+// (a game set to direct mode that was never installed, or whose install
+// moved), which is reported back as an error rather than silently falling
+// through to the Steam path the user explicitly opted out of.
+func (a *App) launchOptionsFor(cfg game.GameConfig) (launch.LaunchOptions, error) {
+	a.preferencesMu.Lock()
+	mode := a.preferences.LaunchModes[cfg.ID]
+	a.preferencesMu.Unlock()
+
+	if mode != string(launch.LaunchModeDirect) {
+		return launch.LaunchOptions{}, nil
+	}
+
+	installDir, ok := a.resolveInstallDir(cfg)
+	if !ok {
+		return launch.LaunchOptions{}, fmt.Errorf("app: %s is set to launch directly, but its install directory couldn't be found - set its path under Paths & folders", cfg.DisplayName)
+	}
+	return launch.LaunchOptions{Direct: true, InstallDir: installDir}, nil
+}
+
 // GameVersion returns gameID's real, currently-installed version (e.g.
 // "v4.4.6"), for the TopBar's game pill and the Workspace's own mod
 // version-compatibility flagging. "" (never an error) when the game isn't
@@ -1046,7 +1084,11 @@ func (a *App) LaunchGame(gameID, playsetName string) error {
 		return err
 	}
 
-	if err := launch.Launch(launch.OSLauncher{}, cfg, launch.LaunchOptions{}); err != nil {
+	opts, err := a.launchOptionsFor(cfg)
+	if err != nil {
+		return err
+	}
+	if err := launch.Launch(launch.OSLauncher{}, cfg, opts); err != nil {
 		return err
 	}
 

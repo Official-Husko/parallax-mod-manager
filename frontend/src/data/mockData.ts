@@ -14,6 +14,7 @@ export const APP_NAME = 'Parallax Mod Manager';
 export const settingsNav = [
     {label: 'Manage games', key: 'manage'},
     {label: 'Paths & folders', key: 'paths'},
+    {label: 'Launch options', key: 'launch'},
     {label: 'Sort rules', key: 'sort'},
     {label: 'Conflict scanning', key: 'conflict'},
     {label: 'Updates', key: 'updates'},

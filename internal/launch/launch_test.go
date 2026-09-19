@@ -60,7 +60,7 @@ func TestLaunchFallsBackToDirectExeWhenNoSteamAppID(t *testing.T) {
 	if len(fake.OpenedURLs) != 0 {
 		t.Errorf("OpenedURLs = %v, want none", fake.OpenedURLs)
 	}
-	want := game.ExecutableInfo{Path: filepath.Join(installDir, "stellaris"), Args: []string{"-base-arg"}}
+	want := game.ExecutableInfo{Path: filepath.Join(installDir, "stellaris"), Args: []string{"-base-arg"}, WorkingDir: installDir}
 	if len(fake.RanExecutables) != 1 || !reflect.DeepEqual(fake.RanExecutables[0], want) {
 		t.Errorf("RanExecutables = %+v, want [%+v]", fake.RanExecutables, want)
 	}

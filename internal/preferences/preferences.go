@@ -78,6 +78,15 @@ type Preferences struct {
 	// package's Load only falls back to Defaults() for a missing/corrupt
 	// file, not a merely-older one missing just this field.
 	BackgroundIntervalSeconds int `json:"backgroundIntervalSeconds"`
+	// LaunchModes persists, per game ID, which of launch.LaunchMode's
+	// values LaunchGame should use for that game - kept as a plain string
+	// here rather than importing internal/launch's named type, the same
+	// way ManagedGames stores raw game IDs rather than a game.GameConfig -
+	// this package doesn't need to know what the values mean, only persist
+	// them. A missing entry (every existing install, before this setting
+	// existed, and any game the user has never configured) reads as
+	// launch.LaunchModeSteam - the unchanged, pre-existing behavior.
+	LaunchModes map[string]string `json:"launchModes"`
 }
 
 // Defaults returns the preferences a fresh install starts with.

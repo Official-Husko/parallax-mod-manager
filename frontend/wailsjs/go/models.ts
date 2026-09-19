@@ -495,6 +495,7 @@ export namespace preferences {
 	    backgroundDisabled: boolean;
 	    backgroundRotationPaused: boolean;
 	    backgroundIntervalSeconds: number;
+	    launchModes: Record<string, string>;
 	
 	    static createFrom(source: any = {}) {
 	        return new Preferences(source);
@@ -514,6 +515,7 @@ export namespace preferences {
 	        this.backgroundDisabled = source["backgroundDisabled"];
 	        this.backgroundRotationPaused = source["backgroundRotationPaused"];
 	        this.backgroundIntervalSeconds = source["backgroundIntervalSeconds"];
+	        this.launchModes = source["launchModes"];
 	    }
 	}
 

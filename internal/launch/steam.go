@@ -57,6 +57,12 @@ func (OSLauncher) RunExecutable(info game.ExecutableInfo) error {
 		return fmt.Errorf("launch: no executable path to run")
 	}
 	cmd := exec.Command(info.Path, info.Args...)
+	// Without this, the game starts with Parallax Mod Manager's own
+	// process directory as its cwd instead of its own install directory -
+	// harmless for a game whose own paths are all absolute, but wrong for
+	// one that resolves a relative path (a bundled library, its own data
+	// files) against its working directory.
+	cmd.Dir = info.WorkingDir
 	return cmd.Start()
 }
 

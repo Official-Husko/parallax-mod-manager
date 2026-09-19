@@ -384,6 +384,75 @@
     color: var(--text-dim);
 }
 
+.launch-game-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+}
+
+.launch-game-picker .chip {
+    cursor: pointer;
+}
+
+.launch-mode-list {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+}
+
+.launch-mode-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 11px 13px;
+    cursor: pointer;
+}
+
+.launch-mode-option.active {
+    border-color: var(--rust);
+    background: rgba(196, 98, 58, .08);
+}
+
+.launch-mode-option.disabled {
+    cursor: not-allowed;
+    opacity: .6;
+}
+
+.launch-mode-radio {
+    font-size: 13px;
+    margin-top: 1px;
+    flex: none;
+}
+
+.launch-mode-radio.on {
+    color: var(--rust);
+}
+
+.launch-mode-radio.off {
+    color: #3c4858;
+}
+
+.launch-mode-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.launch-mode-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font: 600 12.5px Barlow, sans-serif;
+    color: var(--text-bright);
+    margin-bottom: 3px;
+}
+
+.launch-mode-desc {
+    font: 400 11.5px/1.5 Barlow, sans-serif;
+    color: var(--text-muted);
+}
+
 .sort-rules-list {
     display: flex;
     flex-direction: column;

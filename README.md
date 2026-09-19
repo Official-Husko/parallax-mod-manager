@@ -127,6 +127,21 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   Writing state requires an explicit target directory with **no fallback to a real path** -
   stricter than `internal/scan`'s override, because this package writes rather than reads. See
   [docs/game-launching.md](docs/game-launching.md).
+- **Launcher bypass, opt-in per game** (Settings' Launch Options panel, `launch.LaunchMode`) -
+  since mod/playset activation already happens entirely through this project's own state writes
+  above, the Paradox Launcher has nothing left to do; "Parallax Direct" mode resolves and starts
+  a game's real executable straight from its own `launcher-settings.json`, skipping the launcher
+  (and Steam) entirely. Configured one game at a time - each game gets its own choice between the
+  normal Steam / Paradox Launcher path (the default) and Parallax Direct, since Steam
+  integration (overlay, achievements, DLC ownership checks) isn't guaranteed to carry over to a
+  directly-spawned process on every game. Fixed a real path-resolution bug along the way:
+  `launcher-settings.json`'s own `exePath` is relative to *its own* directory, not the install
+  root - true for Stellaris/EU4/HOI4, where the two are the same, but CK3, Imperator: Rome, and
+  Victoria 3 nest it under a `launcher/` subfolder, so the previous `installDir`-relative join
+  pointed outside the install for those three. A second bypass strategy - replacing the
+  launcher's own binary with a small shim so Steam keeps owning the process - is designed for
+  (`LaunchMode` is a named string, not a bool, specifically so it can be added later) but not yet
+  built. See [docs/game-launching.md](docs/game-launching.md).
 - **Importing existing Paradox Launcher playsets** (`internal/launcherdb`) - reads a game's real
   `launcher-v2.sqlite`, strictly read-only (confirmed schema against real, live databases for two
   different classic-descriptor games on this machine, not just a secondary source - see
