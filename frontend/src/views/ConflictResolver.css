@@ -1,7 +1,7 @@
 .resolver {
-    width: 1180px;
+    width: 1440px;
     max-width: 96vw;
-    max-height: 90vh;
+    max-height: 92vh;
     background: var(--bg-panel);
     border: 1px solid var(--border);
     border-radius: 8px;
@@ -184,14 +184,22 @@
     align-items: center;
     gap: 8px;
     margin-bottom: 5px;
+    min-width: 0;
 }
 
 .contender-head .pos {
     font-size: 10px;
     color: var(--text-muted);
+    flex: none;
 }
 
+/* flex + min-width: 0 is what lets a real, unusually long mod name clip
+   (via the MarqueeText it wraps) instead of forcing this row - and with
+   it the whole fixed-width contenders column - into a horizontal
+   scrollbar. */
 .contender-head .name {
+    flex: 1;
+    min-width: 0;
     font: 600 12.5px Barlow, sans-serif;
     color: var(--text);
 }
@@ -222,7 +230,7 @@
 
 .resolution-card {
     flex: none;
-    margin: 0 13px 13px;
+    margin: 13px;
     border: 1px dashed var(--border-light);
     border-radius: 5px;
     padding: 10px 11px;
@@ -234,20 +242,42 @@
     margin-bottom: 4px;
 }
 
-.resolution-card span:not(.resolution-title) {
+/* Excludes .resolution-option/.resolution-option-disabled (chained
+   single-argument :not() rather than one comma-list argument, since the
+   former has been valid CSS for far longer) - those two get their own
+   flex-row layout below instead of this plain block one, so a long real
+   mod name can shrink and clip/marquee instead of overflowing this
+   dashed-border box. */
+.resolution-card span:not(.resolution-title):not(.resolution-option):not(.resolution-option-disabled) {
     display: block;
     font: 400 11.5px Barlow, sans-serif;
     color: var(--text-muted);
     margin-top: 6px;
 }
 
-.resolution-option {
+.resolution-card .resolution-option,
+.resolution-card .resolution-option-disabled {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    margin-top: 6px;
+    font: 400 11.5px Barlow, sans-serif;
+    color: var(--text-muted);
+}
+
+.resolution-card .resolution-option {
     cursor: pointer;
 }
 
 .resolution-option.inert {
     cursor: default;
     pointer-events: none;
+}
+
+.resolution-option-label {
+    flex: 1;
+    min-width: 0;
 }
 
 .resolution-option-disabled {
@@ -284,29 +314,66 @@
     flex: 1;
 }
 
+/* Shared vertical scroll across both panes (so the two stay row-aligned
+   as you scroll through a long file), but never a shared *horizontal*
+   one - a long line in one pane used to force the other pane's rows to
+   stretch along with it (align-items' default 'stretch' forces every
+   flex row child to the same cross-size), so the row providing that
+   width often wasn't the row whose background/line actually needed to
+   show past the visible edge - past that point you'd see the long
+   line's real text on bare, untinted background, looking like the
+   syntax/diff colors had simply stopped applying. align-items:
+   flex-start here (each pane sized to its own natural content height,
+   not stretched to match the other) is what makes .diff-pane's own
+   independent horizontal scroll below actually correct - see its own
+   comment. */
 .diff-body {
     flex: 1;
-    overflow: auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
     display: flex;
+    align-items: flex-start;
     font-size: 11px;
     line-height: 1.75;
 }
 
+/* Each pane scrolls horizontally on its own - a long line on one side
+   (say the winner's file) no longer forces the other side to scroll
+   along with content it doesn't have. overflow-x: auto here technically
+   also computes overflow-y to auto (a long-standing CSS rule: setting
+   one axis non-visible forces the other away from visible too), but
+   since this pane's own height is never stretched taller than its real
+   content (see .diff-body's align-items above), there's nothing for
+   that incidental vertical auto to ever actually scroll - vertical
+   scrolling stays exclusively .diff-body's job. */
 .diff-pane {
     flex: 1;
     min-width: 0;
     border-right: 1px solid #1a212b;
     padding: 10px 0;
+    display: flex;
+    flex-direction: column;
+    overflow-x: auto;
 }
 
 .diff-pane:last-child {
     border-right: none;
 }
 
+/* width: max-content + min-width: 100% (rather than plain flex stretch)
+   is what lets a line's own row grow past the pane's visible width when
+   its real content is that long, instead of being capped at the pane's
+   width while its text quietly overflows the box that was supposed to
+   tint it - carries the row's own background/border along with it the
+   whole way, so scrolling right never runs out of styling. Short lines
+   still fill the pane's full width either way, via the min-width floor. */
 .diff-line {
     display: flex;
     gap: 9px;
     padding: 0 11px;
+    width: max-content;
+    min-width: 100%;
 }
 
 .diff-line .ln {
@@ -316,22 +383,41 @@
     flex: none;
 }
 
+/* Preserves the real file's exact whitespace (indentation is
+   significant/readable in Clausewitz script) and stops a long line from
+   silently reflow-wrapping mid-token - the .diff-pane above is what
+   turns the resulting overflow into a deliberate horizontal scroll
+   instead of a rendering mess. */
+.diff-line .line-content {
+    white-space: pre;
+}
+
 /* A line only this side's file has, per the real LCS diff in
    data/lineDiff.ts - not a fabricated highlight, an actual line-by-line
-   comparison against the other candidate's file. */
+   comparison against the other candidate's file. The inset box-shadow
+   (rather than background alone) reads closer to a real source-control
+   diff view - a solid color edge next to the tint, not just a faint
+   wash. */
 .diff-line.removed {
-    background: rgba(212, 87, 78, .14);
+    background: rgba(212, 87, 78, .22);
+    box-shadow: inset 3px 0 0 var(--red);
 }
 
 .diff-line.added {
-    background: rgba(95, 174, 126, .14);
+    background: rgba(95, 174, 126, .22);
+    box-shadow: inset 3px 0 0 var(--green);
 }
 
+/* flex: 1 (not just centered content) is what lets this actually center
+   in the middle of the pane, filling the space real code would
+   otherwise occupy below the file-name header, rather than sitting
+   pinned to the top like one more code line. */
 .diff-loading {
+    flex: 1;
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
-    padding: 22px 11px;
     color: var(--text-dim);
     font: 400 12px Barlow, sans-serif;
 }

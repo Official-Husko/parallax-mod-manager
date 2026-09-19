@@ -1,0 +1,36 @@
+.marquee {
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    vertical-align: bottom;
+}
+
+.marquee-track {
+    display: inline-flex;
+}
+
+.marquee-item {
+    white-space: nowrap;
+}
+
+/* Only present (and only given room to loop) once real overflow was
+   measured - a name that already fits shows once, motionless. */
+.marquee.overflowing .marquee-item {
+    padding-right: 40px;
+}
+
+.marquee.overflowing:hover .marquee-track {
+    animation: marquee-scroll 9s linear infinite;
+}
+
+/* Translating by exactly -50% is what makes this loop seamlessly
+   regardless of the real text's length: .marquee-track holds two back-
+   to-back copies of the same text (see the component), so 50% of the
+   track's own width is always exactly one copy's width, and the second
+   copy scrolls into the first one's starting position just as it
+   finishes leaving. */
+@keyframes marquee-scroll {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+}

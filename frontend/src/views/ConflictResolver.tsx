@@ -7,6 +7,7 @@ import {highlightLine, syntaxForPath, type FileSyntax} from '../data/highlight';
 import {diffLines} from '../data/lineDiff';
 import {timeAgo} from '../data/format';
 import {EmptyState} from '../components/EmptyState';
+import {MarqueeText} from '../components/MarqueeText';
 
 // maxMatrixMods caps how many mods the overlap matrix renders - a real
 // modlist can have 50+ mods touching at least one contested key, and an
@@ -292,21 +293,20 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged}: {
                         const isWinnerCard = winner?.ModID === c.ModID;
                         const loadedContent = isLoser ? leftContent : isWinnerCard ? rightContent : null;
                         const loadedModified = isLoser ? leftModified : isWinnerCard ? rightModified : null;
+                        const metaText = loadedContent != null && loadedModified != null
+                            ? (() => {
+                                const lines = loadedContent === '' ? 0 : loadedContent.split('\n').length;
+                                return `${lines} line${lines === 1 ? '' : 's'} · modified ${timeAgo(loadedModified)}`;
+                            })()
+                            : c.FilePath;
                         return (
                             <div key={c.ModID} className={`contender-card ${wins ? 'wins' : ''}`}>
                                 <div className="contender-head">
                                     <span className="mono pos">{i + 1}</span>
-                                    <span className="name">{c.ModName}</span>
+                                    <span className="name"><MarqueeText text={c.ModName}/></span>
                                     {wins && <span className="wins-badge">{conflict.Overridden ? 'WINS · MANUAL' : 'WINS'}</span>}
                                 </div>
-                                <div className="mono meta">
-                                    {loadedContent != null && loadedModified != null
-                                        ? (() => {
-                                            const lines = loadedContent === '' ? 0 : loadedContent.split('\n').length;
-                                            return `${lines} line${lines === 1 ? '' : 's'} · modified ${timeAgo(loadedModified)}`;
-                                        })()
-                                        : c.FilePath}
-                                </div>
+                                <div className="mono meta"><MarqueeText text={metaText}/></div>
                                 <div className={`note ${wins ? 'wins-note' : ''}`}>
                                     {framingFor(i, winnerIdx, conflict.Candidates.length, conflict.Overridden)}
                                 </div>
@@ -331,7 +331,8 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged}: {
                                 className={`resolution-option ${overrideBusy ? 'inert' : ''}`}
                                 onClick={() => !overrideBusy && !forced && chooseWinner(c.ModID)}
                             >
-                                <span className={forced ? 'radio-on' : 'radio-off'}>{forced ? '●' : '○'}</span> Force {c.ModName}
+                                <span className={forced ? 'radio-on' : 'radio-off'}>{forced ? '●' : '○'}</span>
+                                <MarqueeText text={`Force ${c.ModName}`} className="resolution-option-label"/>
                             </span>
                         );
                     })}
@@ -438,7 +439,7 @@ function ContentPane({label, content, syntax, lineStates, changedClassName}: {
                 return (
                     <div key={i} className={`diff-line ${changed ? changedClassName : ''}`}>
                         <span className="ln">{i + 1}</span>
-                        <span>
+                        <span className="line-content">
                             {highlightLine(line, syntax).map((tok, j) => (
                                 <span key={j} className={`tok-${tok.kind}`}>{tok.text}</span>
                             ))}
