@@ -13,6 +13,7 @@ import type {library} from '../../wailsjs/go/models';
 import {highlightLine, syntaxForPath, type FileSyntax} from '../data/highlight';
 import {diffLines, type LineDiffResult} from '../data/lineDiff';
 import {afterNextPaint} from '../data/deferred';
+import {describePatchStatus, patchNeedsAttention} from '../data/patchStatus';
 import {useVirtualWindow} from '../data/useVirtualWindow';
 import {timeAgo} from '../data/format';
 import {EmptyState} from '../components/EmptyState';
@@ -58,9 +59,13 @@ function framingFor(idx: number, winnerIdx: number, candidateCount: number, over
     return idx < winnerIdx ? 'Loses - earlier in load order' : 'Loses - later in load order';
 }
 
-export function ConflictResolver({gameId, conflicts, order, onClose, onPatchGenerated, onOverrideChanged}: {
+export function ConflictResolver({gameId, conflicts, patch, order, onClose, onPatchGenerated, onOverrideChanged}: {
     gameId: string;
     conflicts: library.ConflictSummary[];
+    // How the generated patch mod stands against these conflicts (which keys
+    // it no longer matches, and why) - see library.PatchSummary. Undefined
+    // until a full scan has produced one.
+    patch?: library.PatchSummary;
     order: string[];
     onClose: () => void;
     onPatchGenerated: (modId: string) => void;
@@ -190,6 +195,11 @@ export function ConflictResolver({gameId, conflicts, order, onClose, onPatchGene
                     {manualCount > 0 && (
                         <span className="badge soft">{manualCount} manual override{manualCount === 1 ? '' : 's'}</span>
                     )}
+                    {patch && patch.Changed > 0 && (
+                        <span className="badge review" title="Keys whose mods changed since the patch was generated - shown with an orange line">
+                            {patch.Changed} to review
+                        </span>
+                    )}
                     <div className="spacer"/>
                     <span className="mode-toggle">
                         <span className={mode === 'list' ? 'active' : ''} onClick={() => setMode('list')}>List</span>
@@ -200,7 +210,7 @@ export function ConflictResolver({gameId, conflicts, order, onClose, onPatchGene
                     )}
                     {conflicts.length > 0 && (
                         <span className={`btn-primary ${patching ? 'inert' : ''}`} onClick={patching ? undefined : handleGeneratePatch}>
-                            {patching ? 'Generating...' : 'Generate patch'}
+                            {patching ? 'Generating...' : patch?.Exists ? 'Regenerate patch' : 'Generate patch'}
                         </span>
                     )}
                     <i className="fa-solid fa-xmark close-btn" onClick={onClose}/>
@@ -210,6 +220,21 @@ export function ConflictResolver({gameId, conflicts, order, onClose, onPatchGene
                     <div className={`patch-banner ${patchMessage.kind}`}>
                         <span>{patchMessage.text}</span>
                         <i className="fa-solid fa-xmark" onClick={() => setPatchMessage(null)}/>
+                    </div>
+                )}
+
+                {patchNeedsAttention(patch) && (
+                    <div className="patch-banner stale">
+                        <i className="fa-solid fa-circle-exclamation"/>
+                        <span>
+                            {describePatchStatus(patch)}{' '}
+                            {patch.Changed > 0
+                                ? 'Review the orange keys, then regenerate it.'
+                                : 'Regenerate it to bring it up to date.'}
+                        </span>
+                        <div className={`btn-primary ${patching ? 'inert' : ''}`} onClick={patching ? undefined : handleGeneratePatch}>
+                            Regenerate patch
+                        </div>
                     </div>
                 )}
 
@@ -262,19 +287,25 @@ function ConflictRow({conflict, selected, resolved, onSelect}: {
     resolved: boolean;
     onSelect: (c: library.ConflictSummary) => void;
 }) {
+    // The generated patch no longer matches what its mods say for this key -
+    // orange takes priority over both "done" (green) and unresolved (red),
+    // since a review the user finished before the change no longer holds.
+    const patchOutdated = conflict.PatchState === 'changed';
     return (
         <div
             className="file-item conflict-row"
             style={{
                 background: selected ? '#1b232e' : 'transparent',
-                borderLeftColor: resolved ? 'var(--green)' : 'var(--red)',
+                borderLeftColor: patchOutdated ? 'var(--amber)' : resolved ? 'var(--green)' : 'var(--red)',
                 cursor: 'pointer',
             }}
+            title={patchOutdated ? conflict.PatchNote : undefined}
             onClick={() => onSelect(conflict)}
         >
             <div className="mono path" title={conflict.Type}>{conflict.Type}</div>
             <div className="note" title={conflict.ID}>
                 {conflict.ID} · {conflict.Candidates.length} mods{conflict.Overridden ? ' · manual' : ''}{resolved ? ' · done' : ''}
+                {patchOutdated ? ' · patch outdated' : conflict.PatchState === 'patched' ? ' · patched' : ''}
             </div>
         </div>
     );
@@ -534,6 +565,21 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged, runApply, re
         <>
             <div className="contenders-col">
                 <div className="col-header">CONTENDERS · LOAD ORDER</div>
+                {conflict.PatchState === 'changed' && (
+                    <div className="patch-stale-note">
+                        <i className="fa-solid fa-circle-exclamation"/>
+                        <div>
+                            <b>The patch is out of date for this key.</b> {conflict.PatchNote} Check the files
+                            below, then regenerate the patch to bring it up to date.
+                        </div>
+                    </div>
+                )}
+                {conflict.PatchState === 'new' && (
+                    <div className="patch-stale-note muted">
+                        <i className="fa-solid fa-circle-info"/>
+                        <div>{conflict.PatchNote} Regenerate the patch to include it.</div>
+                    </div>
+                )}
                 <div className="contenders-list">
                     {conflict.Candidates.map((c, i) => {
                         const wins = c.ModID === conflict.Winner;

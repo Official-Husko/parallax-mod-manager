@@ -121,6 +121,15 @@
     color: var(--green);
 }
 
+.notification-warning {
+    background: #211a10;
+    color: #ecd3a6;
+}
+
+.notification-warning i:first-child {
+    color: var(--amber);
+}
+
 .notification-error {
     background: #201414;
     color: #e8b9b2;

@@ -24,6 +24,7 @@ import {BrowserOpenURL, EventsOn} from '../../wailsjs/runtime/runtime';
 import type {launcherdb, library, playset, preferences, steamapi} from '../../wailsjs/go/models';
 import {autosort, findMissingActiveDependencies, type MissingActiveDependencies} from '../data/autosort';
 import {dismiss, notify, updateNotification} from '../data/notifications';
+import {describePatchStatus, patchNeedsAttention} from '../data/patchStatus';
 import {type ContextMenuItem, openContextMenu} from '../data/contextMenu';
 import {useDragMultiSelect} from '../data/dragMultiSelect';
 import {type DropTarget, useListDragMove} from '../data/listDragMove';
@@ -121,6 +122,11 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
     const [disabledDlc, setDisabledDlc] = useState<string[]>([]);
     const [showPreflight, setShowPreflight] = useState(false);
     const [showConflictResolver, setShowConflictResolver] = useState(false);
+    // The notification currently asking the user to review a stale generated
+    // patch (see the effect below), and the situation it was raised for - so
+    // a rescan that finds the very same staleness doesn't raise a second one,
+    // but a different situation (or a fixed one) replaces or clears it.
+    const patchAlertRef = useRef<{ id: string; signature: string } | null>(null);
     const [showPurgeModal, setShowPurgeModal] = useState(false);
     // Set by handleAutosort when it finds a currently-active mod's own
     // declared dependency isn't itself active yet - null means no pending
@@ -302,6 +308,39 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
         return () => unsubscribe();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedGame]);
+
+    // Tell the user when the generated patch has gone stale - a mod it was
+    // built from updated, a new conflict appeared, or the chosen winners no
+    // longer match - instead of leaving them to notice in the resolver. It's a
+    // persistent notification (they can act on it later), raised once per
+    // distinct situation and taken down as soon as the patch is current again.
+    useEffect(() => {
+        const patch = summary?.Patch;
+        if (!patch) {
+            // The quick scan preview has no patch information yet - leave
+            // whatever is showing alone until the full result arrives.
+            return;
+        }
+        const current = patchAlertRef.current;
+        if (!patchNeedsAttention(patch)) {
+            if (current) {
+                dismiss(current.id);
+                patchAlertRef.current = null;
+            }
+            return;
+        }
+        const signature = `${selectedGame}:${patch.Generation}:${patch.Changed}:${patch.New}:${patch.Obsolete}:${(patch.ChangedMods ?? []).join('|')}`;
+        if (current?.signature === signature) {
+            return;
+        }
+        if (current) {
+            dismiss(current.id);
+        }
+        const id = notify('warning', describePatchStatus(patch), {
+            action: {label: 'Review', onClick: () => setShowConflictResolver(true)},
+        });
+        patchAlertRef.current = {id, signature};
+    }, [summary, selectedGame]);
 
     // A scan's mod list (names/versions/sources) is known well before
     // conflict detection's slower per-mod parsing finishes - this preview
@@ -1276,6 +1315,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                 <ConflictResolver
                     gameId={selectedGame}
                     conflicts={summary?.Conflicts ?? []}
+                    patch={summary?.Patch}
                     order={order}
                     onClose={() => setShowConflictResolver(false)}
                     onPatchGenerated={(modId) => {

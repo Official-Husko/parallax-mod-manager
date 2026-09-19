@@ -76,6 +76,21 @@
     flex: 1;
 }
 
+/* The generated patch has gone stale - amber, the same "worth a look, not a
+   failure" colour the rest of the app uses for warnings. The action button
+   sits at the right edge. */
+.patch-banner.stale {
+    background: #211a10;
+    border-bottom: 1px solid #5a4523;
+    color: #ecd3a6;
+}
+
+.patch-banner.stale > i:first-child {
+    cursor: default;
+    color: var(--amber);
+    font-size: 14px;
+}
+
 .patch-banner i {
     cursor: pointer;
     font-size: 12px;
@@ -118,6 +133,14 @@
 
 .badge.clean {
     background: var(--green);
+}
+
+/* Outlined rather than filled, so it can't be mistaken for the filled amber
+   "manual overrides" badge next to it. */
+.badge.review {
+    background: transparent;
+    color: var(--amber);
+    border: 1px solid var(--amber);
 }
 
 .resolver-header .spacer {
@@ -215,6 +238,41 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+/* Why this key's patch entry can't be trusted any more (which mods changed),
+   shown above the contenders so it's the first thing seen when an orange key is
+   opened. */
+.patch-stale-note {
+    display: flex;
+    gap: 9px;
+    margin: 10px 13px 0;
+    padding: 9px 11px;
+    border: 1px solid #5a4523;
+    border-radius: 5px;
+    background: #211a10;
+    color: #ecd3a6;
+    font: 400 11.5px/1.5 Barlow, sans-serif;
+    flex: none;
+}
+
+.patch-stale-note > i {
+    color: var(--amber);
+    margin-top: 2px;
+}
+
+.patch-stale-note b {
+    font-weight: 600;
+}
+
+.patch-stale-note.muted {
+    border-color: var(--border-light);
+    background: #161d27;
+    color: var(--text-muted);
+}
+
+.patch-stale-note.muted > i {
+    color: var(--text-dim);
 }
 
 .contenders-col {

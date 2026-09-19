@@ -311,6 +311,20 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   skipped, including 542 localization entries spanning 10 real languages. Classic-descriptor
   games only; regenerated from a clean slate on every call so a resolved-then-later-removed
   conflict never leaves a stale override behind.
+  The patch is a **proper mod**: a `descriptor.mod` inside its folder plus the registering stub in
+  the game's mod folder (name, a version that moves every regeneration, a `supported_version`
+  derived from the installed game, tags, and a picture), with the built-in placeholder thumbnail
+  (`data/patch_thumbnail.png`, overridable by a `patch_thumbnail.png` in the config folder) written
+  into every new patch. It also carries a **manifest** (`internal/patchmanifest`) recording, for
+  every patched key, a content hash of each candidate's version and which mod's text was copied, so
+  a scan can tell when the patch has gone stale - a source mod updated, another mod started
+  defining the key, a source mod is gone, a different winner was chosen, or a new conflict
+  appeared. Stale keys get an **orange line** in the Conflict Resolver with the reasons spelled out,
+  a banner offers **Regenerate patch**, and the Workspace raises a persistent notification. The
+  comparison is on content, not version numbers or file times, so an update that never touched a
+  patched key doesn't flag anything. Checked against this project's real 86-mod install: 4,788
+  conflicts patched and then all reported current. The generated patch is no longer counted as a
+  competitor in the conflicts it resolves.
   A real **per-conflict manual override** (`internal/patchoverride`) lets a user pick a specific
   different winner for one contested key, instead of the automatic load-order rule - a radio
   next to each candidate in the Conflict Resolver plus a "Keep load-order winner" option to reset

@@ -29,6 +29,7 @@ import (
 	"github.com/Official-Husko/parallax-mod-manager/internal/conflict"
 	"github.com/Official-Husko/parallax-mod-manager/internal/game"
 	"github.com/Official-Husko/parallax-mod-manager/internal/mod"
+	"github.com/Official-Husko/parallax-mod-manager/internal/patchmanifest"
 	"github.com/Official-Husko/parallax-mod-manager/internal/patchoverride"
 	"github.com/Official-Husko/parallax-mod-manager/internal/pipeline"
 	"github.com/Official-Husko/parallax-mod-manager/internal/scan"
@@ -153,6 +154,14 @@ type ConflictSummary struct {
 	// the user has explicitly decided on differently from one still using
 	// the default.
 	Overridden bool
+	// PatchState says how this key stands against the generated patch
+	// mod: "" when no patch has been generated, otherwise one of the
+	// PatchState* constants. See applyPatchState.
+	PatchState string
+	// PatchNote is a plain-language explanation of PatchState when it's
+	// "changed" or "new" (what changed, and in which mods) - empty
+	// otherwise.
+	PatchNote string
 }
 
 // Summary is everything a LoadGame call produces.
@@ -160,6 +169,9 @@ type Summary struct {
 	Game      GameInfo
 	Mods      []ModSummary
 	Conflicts []ConflictSummary
+	// Patch describes the generated patch mod's freshness against this
+	// scan's conflicts. Zero value (Exists false) when there's no patch.
+	Patch PatchSummary
 	// Errors collects non-fatal problems (a bad descriptor, a mod that
 	// failed to parse) as strings - one bad mod must not abort the whole
 	// scan, matching scan.go's and pipeline.go's own established
@@ -212,6 +224,15 @@ type Options struct {
 	// so a single-file read doesn't need a full re-scan to find its mod -
 	// see ContentPathCache. nil disables both.
 	ContentPaths *ContentPathCache
+	// GameVersion is the installed game's real version (e.g. "v4.4.6"), if
+	// known. GeneratePatch turns it into the patch mod's own
+	// supported_version so the launcher doesn't flag the patch as
+	// out-of-date; empty falls back to "*" (any version).
+	GameVersion string
+	// PatchThumbnail is the PNG GeneratePatch writes into a new patch mod as
+	// its thumbnail (and names as the descriptor's picture). Empty means the
+	// patch is written without one.
+	PatchThumbnail []byte
 }
 
 // resolvedGame is the raw, unsummarized output of scanning, parsing, and
@@ -288,6 +309,17 @@ func resolveConflicts(ctx context.Context, cfg game.GameConfig, opts Options) (r
 
 	var inputs []conflict.Input
 	for _, m := range mods {
+		if m.ID == patchModID {
+			// The generated patch is an *output* of conflict resolution, not
+			// a competitor in it: it repeats the winner's text for every key
+			// it covers, so parsing it here would make it a candidate (and,
+			// being last in the load order, the winner) of every one of
+			// those conflicts, and there'd be no way left to tell what the
+			// real mods say from what the patch says they should. It's still
+			// listed as a mod, and still loads in the game. See
+			// docs/patch-mods.md.
+			continue
+		}
 		if !enabled[m.ID] {
 			// A disabled mod is never parsed: it can't contribute to a
 			// conflict it isn't loaded for, and skipping the parse
@@ -324,10 +356,18 @@ func LoadGame(ctx context.Context, cfg game.GameConfig, opts Options) (Summary, 
 	if err != nil {
 		return Summary{}, err
 	}
+	conflicts := buildConflictSummaries(rg.result.Conflicts, rg.names, opts.Overrides)
+	patch := PatchSummary{ChangedMods: []string{}}
+	if dir, ok := patchContentDir(cfg, opts); ok {
+		if manifest, ok := patchmanifest.Load(dir); ok {
+			patch = applyPatchState(conflicts, rg.result.Conflicts, manifest, rg.names)
+		}
+	}
 	return Summary{
 		Game:      GameInfo{ID: cfg.ID, DisplayName: cfg.DisplayName},
 		Mods:      rg.modSummaries,
-		Conflicts: buildConflictSummaries(rg.result.Conflicts, rg.names, opts.Overrides),
+		Conflicts: conflicts,
+		Patch:     patch,
 		Errors:    rg.errs,
 	}, nil
 }

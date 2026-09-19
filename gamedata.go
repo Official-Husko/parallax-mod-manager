@@ -15,3 +15,11 @@ var embeddedGamesList []byte
 //
 //go:embed data/game_media
 var embeddedGameMedia embed.FS
+
+// embeddedPatchThumbnail is the image every newly generated patch mod gets as
+// its thumbnail - see internal/library.GeneratePatch. A patch_thumbnail.png
+// dropped in the app's config folder takes precedence (see App.patchThumbnail),
+// the same override convention the games list and per-game art follow.
+//
+//go:embed data/patch_thumbnail.png
+var embeddedPatchThumbnail []byte

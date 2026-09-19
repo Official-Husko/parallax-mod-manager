@@ -6,6 +6,7 @@ import {dismiss, type Notification, useNotifications} from '../data/notification
 const ICONS: Record<string, string> = {
     info: 'fa-circle-info',
     success: 'fa-circle-check',
+    warning: 'fa-circle-exclamation',
     error: 'fa-triangle-exclamation',
     progress: 'fa-spinner fa-spin',
 };

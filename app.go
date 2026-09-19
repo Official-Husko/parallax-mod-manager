@@ -78,9 +78,12 @@ type App struct {
 	// flag only, see internal/resolvedconflicts. Dir is empty (methods
 	// degrade gracefully) when configDir couldn't be resolved.
 	resolvedConflicts resolvedconflicts.Store
-	steamRoots        []string
-	modWatcher        *watch.FolderWatcher
-	watchedGameID     string
+	// patchThumbnailPath is where a user-supplied patch_thumbnail.png would
+	// live (empty when configDir couldn't be resolved) - see patchThumbnail.
+	patchThumbnailPath string
+	steamRoots         []string
+	modWatcher         *watch.FolderWatcher
+	watchedGameID      string
 	// workshopDetails holds real Steam Workshop metadata in memory for the
 	// app's runtime - see library.WorkshopDetailsCache. Zero-value usable.
 	workshopDetails library.WorkshopDetailsCache
@@ -142,6 +145,7 @@ func (a *App) startup(ctx context.Context) {
 		a.patchOverrides = patchoverride.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "patch_overrides")}
 		a.versionIgnore = versionignore.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "version_ignore")}
 		a.resolvedConflicts = resolvedconflicts.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "resolved_conflicts")}
+		a.patchThumbnailPath = filepath.Join(configDir, "parallax-mod-manager", "patch_thumbnail.png")
 	}
 
 	mediaFS, err := fs.Sub(embeddedGameMedia, "data/game_media")
@@ -739,12 +743,29 @@ func (a *App) GeneratePatch(gameID string, order []string) (library.PatchResult,
 	if !ok {
 		return library.PatchResult{}, fmt.Errorf("app: unknown game %q", gameID)
 	}
+	// An unknown version isn't fatal: the patch just declares itself
+	// compatible with any game version instead of a specific one.
+	gameVersion, _ := a.GameVersion(gameID)
 	return library.GeneratePatch(a.ctx, cfg, library.Options{
-		SteamRoots:   a.steamRoots,
-		ExtraFolders: a.extraModFolders(gameID),
-		Order:        conflict.LoadOrder(order),
-		Overrides:    a.patchOverrides.Load(gameID),
+		SteamRoots:     a.steamRoots,
+		ExtraFolders:   a.extraModFolders(gameID),
+		Order:          conflict.LoadOrder(order),
+		Overrides:      a.patchOverrides.Load(gameID),
+		GameVersion:    gameVersion,
+		PatchThumbnail: a.patchThumbnail(),
 	})
+}
+
+// patchThumbnail returns the image a newly generated patch mod uses as its
+// thumbnail: a patch_thumbnail.png the user has put in this app's config
+// folder if there is a readable, non-empty one, otherwise the built-in image.
+func (a *App) patchThumbnail() []byte {
+	if a.patchThumbnailPath != "" {
+		if data, err := os.ReadFile(a.patchThumbnailPath); err == nil && len(data) > 0 {
+			return data
+		}
+	}
+	return embeddedPatchThumbnail
 }
 
 // SetPatchOverride persists a manual winner override for one specific

@@ -218,6 +218,8 @@ export namespace library {
 	    Candidates: ConflictCandidate[];
 	    Winner: string;
 	    Overridden: boolean;
+	    PatchState: string;
+	    PatchNote: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new ConflictSummary(source);
@@ -230,6 +232,8 @@ export namespace library {
 	        this.Candidates = this.convertValues(source["Candidates"], ConflictCandidate);
 	        this.Winner = source["Winner"];
 	        this.Overridden = source["Overridden"];
+	        this.PatchState = source["PatchState"];
+	        this.PatchNote = source["PatchNote"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -405,6 +409,7 @@ export namespace library {
 	    PatchedKeys: number;
 	    SkippedKeys: number;
 	    ModID: string;
+	    Generation: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new PatchResult(source);
@@ -416,6 +421,33 @@ export namespace library {
 	        this.PatchedKeys = source["PatchedKeys"];
 	        this.SkippedKeys = source["SkippedKeys"];
 	        this.ModID = source["ModID"];
+	        this.Generation = source["Generation"];
+	    }
+	}
+	export class PatchSummary {
+	    Exists: boolean;
+	    GeneratedAt: number;
+	    Generation: number;
+	    Patched: number;
+	    Changed: number;
+	    New: number;
+	    Obsolete: number;
+	    ChangedMods: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new PatchSummary(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Exists = source["Exists"];
+	        this.GeneratedAt = source["GeneratedAt"];
+	        this.Generation = source["Generation"];
+	        this.Patched = source["Patched"];
+	        this.Changed = source["Changed"];
+	        this.New = source["New"];
+	        this.Obsolete = source["Obsolete"];
+	        this.ChangedMods = source["ChangedMods"];
 	    }
 	}
 	export class PurgeResult {
@@ -436,6 +468,7 @@ export namespace library {
 	    Game: GameInfo;
 	    Mods: ModSummary[];
 	    Conflicts: ConflictSummary[];
+	    Patch: PatchSummary;
 	    Errors: string[];
 	
 	    static createFrom(source: any = {}) {
@@ -447,6 +480,7 @@ export namespace library {
 	        this.Game = this.convertValues(source["Game"], GameInfo);
 	        this.Mods = this.convertValues(source["Mods"], ModSummary);
 	        this.Conflicts = this.convertValues(source["Conflicts"], ConflictSummary);
+	        this.Patch = this.convertValues(source["Patch"], PatchSummary);
 	        this.Errors = source["Errors"];
 	    }
 	

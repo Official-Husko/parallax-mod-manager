@@ -7,12 +7,21 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/Official-Husko/parallax-mod-manager/internal/atomicfile"
+	"github.com/Official-Husko/parallax-mod-manager/internal/conflict"
 	"github.com/Official-Husko/parallax-mod-manager/internal/definition"
 	"github.com/Official-Husko/parallax-mod-manager/internal/game"
 	"github.com/Official-Husko/parallax-mod-manager/internal/mod"
+	"github.com/Official-Husko/parallax-mod-manager/internal/patchmanifest"
 )
+
+// patchThumbnailName is the thumbnail's filename inside the patch mod, and
+// what its descriptor's picture field points at. "thumbnail.png" is also the
+// name Steam Workshop and this app's own ModThumbnail fall back to, so it's
+// found even by tools that ignore the picture field.
+const patchThumbnailName = "thumbnail.png"
 
 // localisationTypePrefix marks a definition.Type produced by
 // definition.FromLocaleCatalog - "localisation/<language>", matching the
@@ -53,6 +62,9 @@ type PatchResult struct {
 	// ModID is patchModID, handed back so callers don't need to know the
 	// constant themselves.
 	ModID string
+	// Generation is which generation of the patch this was (1 for the
+	// first), also the patch mod's own version.
+	Generation int
 }
 
 // GeneratePatch resolves every genuine conflict in cfg's current mod set
@@ -98,6 +110,13 @@ func GeneratePatch(ctx context.Context, cfg game.GameConfig, opts Options) (Patc
 	patchDescriptorPath := filepath.Join(modDir, patchModID+".mod")
 	patchContentDir := filepath.Join(modDir, patchModID)
 
+	// Read what the previous patch recorded *before* the wipe below - it's
+	// only there to keep the generation counter going.
+	generation := 1
+	if prev, ok := patchmanifest.Load(patchContentDir); ok {
+		generation = prev.Generation + 1
+	}
+
 	if err := os.RemoveAll(patchDescriptorPath); err != nil {
 		return PatchResult{}, fmt.Errorf("library: removing previous patch descriptor: %w", err)
 	}
@@ -138,8 +157,32 @@ func GeneratePatch(ctx context.Context, cfg game.GameConfig, opts Options) (Patc
 	var typeOrder []string
 	patched, skipped := 0, 0
 
+	// What this patch is being built from, for the manifest - see
+	// internal/patchmanifest and patchstate.go.
+	manifest := patchmanifest.Manifest{
+		Generation:  generation,
+		GeneratedAt: time.Now().Unix(),
+		GameVersion: opts.GameVersion,
+		Mods:        map[string]patchmanifest.ModRecord{},
+		Keys:        make([]patchmanifest.KeyRecord, 0, len(rg.result.Conflicts)),
+	}
+	record := func(c conflict.Conflict, winner string, manual, wasSkipped bool) {
+		sources := make(map[string]string, len(c.Candidates))
+		for _, cand := range c.Candidates {
+			sources[cand.ModID] = patchmanifest.Hash(cand.Hash)
+			if m, ok := modsByID[cand.ModID]; ok {
+				manifest.Mods[cand.ModID] = patchmanifest.ModRecord{Name: displayName(m), Version: m.Descriptor.Version}
+			}
+		}
+		manifest.Keys = append(manifest.Keys, patchmanifest.KeyRecord{
+			Type: string(c.Key.Type), ID: c.Key.ID,
+			Winner: winner, Manual: manual, Skipped: wasSkipped,
+			Sources: sources,
+		})
+	}
+
 	for _, c := range rg.result.Conflicts {
-		winner, _ := effectiveWinner(c, opts.Overrides)
+		winner, manual := effectiveWinner(c, opts.Overrides)
 		var winnerDef *definition.Definition
 		for i := range c.Candidates {
 			if c.Candidates[i].ModID == winner {
@@ -152,6 +195,7 @@ func GeneratePatch(ctx context.Context, cfg game.GameConfig, opts Options) (Patc
 		// nothing here should assume that forever). Skip, don't guess.
 		if winnerDef == nil || winnerDef.Span.EndOffset <= winnerDef.Span.StartOffset {
 			skipped++
+			record(c, winner, manual, true)
 			continue
 		}
 
@@ -164,6 +208,7 @@ func GeneratePatch(ctx context.Context, cfg game.GameConfig, opts Options) (Patc
 			// entry or a concurrent edit. Skip rather than slice out of
 			// bounds or copy the wrong bytes.
 			skipped++
+			record(c, winner, manual, true)
 			continue
 		}
 
@@ -177,6 +222,7 @@ func GeneratePatch(ctx context.Context, cfg game.GameConfig, opts Options) (Patc
 		buf.Write(data[winnerDef.Span.StartOffset:winnerDef.Span.EndOffset])
 		buf.WriteString("\n\n")
 		patched++
+		record(c, winner, manual, false)
 	}
 
 	if patched == 0 {
@@ -191,17 +237,71 @@ func GeneratePatch(ctx context.Context, cfg game.GameConfig, opts Options) (Patc
 		}
 	}
 
-	desc := mod.Descriptor{
-		Name:    "Parallax Mod Manager - Generated Patch",
-		Path:    patchContentDir,
-		Tags:    []string{"Utilities", "Patch"},
-		Version: "1",
+	// The thumbnail goes in first so the descriptors below can name it only
+	// if it really got written.
+	picture := ""
+	if len(opts.PatchThumbnail) > 0 {
+		if _, err := atomicfile.Write(patchContentDir, patchThumbnailName, opts.PatchThumbnail); err != nil {
+			return PatchResult{}, fmt.Errorf("library: writing patch thumbnail: %w", err)
+		}
+		picture = patchThumbnailName
 	}
-	if _, err := atomicfile.Write(modDir, patchModID+".mod", mod.WriteClassicDescriptor(desc)); err != nil {
+
+	desc := mod.Descriptor{
+		Name:             "Parallax Mod Manager - Generated Patch",
+		Version:          patchmanifest.VersionString(generation),
+		SupportedVersion: supportedVersionPattern(opts.GameVersion),
+		Picture:          picture,
+		Tags:             []string{"Utilities", "Patch"},
+	}
+
+	// A mod has two descriptors, and a proper one needs both: descriptor.mod
+	// inside its own folder (what the game and the launcher read for the
+	// mod's own metadata, and what makes the folder a self-contained mod
+	// that can be moved or shared), and the stub in the game's mod folder
+	// that registers it and says where it lives - the same two files every
+	// mod the launcher or Steam installs has. The folder's copy has no path
+	// (it's already where it says it is); the stub's is absolute.
+	if _, err := atomicfile.Write(patchContentDir, "descriptor.mod", mod.WriteClassicDescriptor(desc)); err != nil {
+		return PatchResult{}, fmt.Errorf("library: writing patch descriptor.mod: %w", err)
+	}
+
+	if err := patchmanifest.Write(patchContentDir, manifest); err != nil {
+		return PatchResult{}, fmt.Errorf("library: %w", err)
+	}
+
+	// Registering the stub is last on purpose: until it exists the game
+	// can't see the patch, so a failure anywhere above never leaves a
+	// half-written patch loaded.
+	stub := desc
+	stub.Path = patchContentDir
+	if _, err := atomicfile.Write(modDir, patchModID+".mod", mod.WriteClassicDescriptor(stub)); err != nil {
 		return PatchResult{}, fmt.Errorf("library: writing patch descriptor: %w", err)
 	}
 
-	return PatchResult{Written: true, PatchedKeys: patched, SkippedKeys: skipped, ModID: patchModID}, nil
+	return PatchResult{Written: true, PatchedKeys: patched, SkippedKeys: skipped, ModID: patchModID, Generation: generation}, nil
+}
+
+// supportedVersionPattern turns a real game version ("v4.4.6") into the
+// major.minor wildcard classic descriptors use ("v4.4.*"), which is what
+// stops the launcher flagging the patch as made for a different game
+// version. A version it can't split (empty, or no minor part) falls back to
+// "*", meaning any version - never a guess.
+func supportedVersionPattern(gameVersion string) string {
+	v := strings.TrimSpace(gameVersion)
+	if v == "" {
+		return "*"
+	}
+	prefix := ""
+	if v[0] == 'v' || v[0] == 'V' {
+		prefix = "v"
+		v = v[1:]
+	}
+	parts := strings.Split(v, ".")
+	if len(parts) < 2 || parts[0] == "" || parts[1] == "" {
+		return "*"
+	}
+	return prefix + parts[0] + "." + parts[1] + ".*"
 }
 
 // patchContentFile returns the filename and final byte content for one

@@ -6,7 +6,10 @@
 // library - this app has no other global state need beyond this one.
 import {useEffect, useState} from 'preact/hooks';
 
-export type NotificationKind = 'info' | 'success' | 'error' | 'progress';
+// 'warning' is for something the user should act on but that isn't a failure
+// (a patch that's gone stale, say): like an error it stays until dismissed, and
+// unlike an error it isn't red.
+export type NotificationKind = 'info' | 'success' | 'warning' | 'error' | 'progress';
 
 export interface Notification {
     id: string;
@@ -22,7 +25,7 @@ export interface Notification {
     action?: {label: string; onClick: () => void};
 }
 
-// Messages/infos auto-dismiss after this long - errors and in-progress
+// Messages/infos auto-dismiss after this long - warnings, errors and in-progress
 // notifications stay until the code driving them resolves them (progress
 // -> success/error) or the user dismisses them by hand.
 const AUTO_DISMISS_MS = 5000;
