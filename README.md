@@ -289,9 +289,11 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   every file it reads. The overlap matrix is computed
   client-side from that same real conflict data (which mod pairs share the most contested keys), capped to the 30
   most-contested mods so the grid stays fast and legible against a large real modlist rather than
-  rendering every mod that touches at least one conflict. The mockup's original "Auto-resolve"
-  and merge-strategy controls were removed rather than left inert; "Generate patch" (below) is
-  the real replacement.
+  rendering every mod that touches at least one conflict. "Auto-resolve all" is real (it clears
+  every manual pick so the load order decides again), and "Generate patch" (below) writes the
+  resolutions out. The mockup's two other resolution ideas survive only as clearly disabled
+  entries in the Resolution card, each with a design note instead of code - see "Not yet built"
+  below.
 - **Real patch-mod generation** (`internal/library.GeneratePatch`, `docs/patch-mods.md`) -
   writes a real, generated mod that pins down the winning definition's *exact original source
   bytes* (via `definition.Span`, never a re-serialized parse tree) for every genuine conflict,
@@ -621,6 +623,16 @@ that legitimately does rewrite the file's `modsOrder`).
 - **Remote games-list updates** - `data/games.jsonc` supports a live on-disk override already
   (see above), but nothing fetches an update from its own `source` URL yet; that's a deliberate
   follow-up, not an oversight (see `internal/game.LoadRegistry`'s doc comment).
+- **Merge patch** - the Conflict Resolver's disabled "Generate merge patch" option: a resolution
+  that combines content from more than one candidate instead of picking a single winner. No code
+  yet; [docs/merge-patch.md](docs/merge-patch.md) records what it would take (byte-range
+  splicing, since there's no script writer, plus a confirmed list of safe-to-combine types) and
+  what must be verified against a real install first.
+- **Exclude file from both** - the Conflict Resolver's disabled option for dropping a file from
+  every mod that supplies it, expressed through the generated patch mod since another mod's files
+  can't be edited. No code yet, and the intent behind the label was never written down;
+  [docs/exclude-file.md](docs/exclude-file.md) works through the mechanisms and the open
+  questions to settle before building.
 - **Playset sharing via codes** - the Library screen's collections and bulk actions are now real
   (see [Progress](#progress) above); encoding/decoding a playset as a shareable local code
   ("Import code"/"Share"/"Join a friend's playset" in the Playsets modal) is still a static
