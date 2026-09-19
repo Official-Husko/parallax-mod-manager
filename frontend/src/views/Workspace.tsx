@@ -797,6 +797,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
         const result = autosort(withOrder, modsById, {
             dependencies: prefs.autosortDependencies,
             fixesLast: prefs.autosortFixesLast,
+            patchLast: prefs.autosortPatchLast,
         });
         setOrder(result.order);
         if (result.cycleMods.length > 0) {

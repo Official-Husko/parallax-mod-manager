@@ -1,3 +1,78 @@
+export namespace about {
+	
+	export class Link {
+	    Icon: string;
+	    Label: string;
+	    URL: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Link(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Icon = source["Icon"];
+	        this.Label = source["Label"];
+	        this.URL = source["URL"];
+	    }
+	}
+	export class Info {
+	    Name: string;
+	    Version: string;
+	    Commit: string;
+	    Dirty: boolean;
+	    GoVersion: string;
+	    WailsVersion: string;
+	    OS: string;
+	    Arch: string;
+	    ConfigDir: string;
+	    CacheDir: string;
+	    Games: number;
+	    Author: string;
+	    Links: Link[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Info(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Name = source["Name"];
+	        this.Version = source["Version"];
+	        this.Commit = source["Commit"];
+	        this.Dirty = source["Dirty"];
+	        this.GoVersion = source["GoVersion"];
+	        this.WailsVersion = source["WailsVersion"];
+	        this.OS = source["OS"];
+	        this.Arch = source["Arch"];
+	        this.ConfigDir = source["ConfigDir"];
+	        this.CacheDir = source["CacheDir"];
+	        this.Games = source["Games"];
+	        this.Author = source["Author"];
+	        this.Links = this.convertValues(source["Links"], Link);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
 export namespace collection {
 	
 	export class ModRef {
@@ -385,6 +460,7 @@ export namespace library {
 	    RemoteFileID: string;
 	    ShortDescription: string;
 	    Enabled: boolean;
+	    GeneratedPatch: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new ModSummary(source);
@@ -402,6 +478,7 @@ export namespace library {
 	        this.RemoteFileID = source["RemoteFileID"];
 	        this.ShortDescription = source["ShortDescription"];
 	        this.Enabled = source["Enabled"];
+	        this.GeneratedPatch = source["GeneratedPatch"];
 	    }
 	}
 	export class PatchResult {
@@ -537,6 +614,7 @@ export namespace preferences {
 	    lastSelectedGame: string;
 	    autosortDependencies: boolean;
 	    autosortFixesLast: boolean;
+	    autosortPatchLast: boolean;
 	    managedGames: string[];
 	    gamePaths: Record<string, string>;
 	    extraModFolders: Record<string, Array<string>>;
@@ -560,6 +638,7 @@ export namespace preferences {
 	        this.lastSelectedGame = source["lastSelectedGame"];
 	        this.autosortDependencies = source["autosortDependencies"];
 	        this.autosortFixesLast = source["autosortFixesLast"];
+	        this.autosortPatchLast = source["autosortPatchLast"];
 	        this.managedGames = source["managedGames"];
 	        this.gamePaths = source["gamePaths"];
 	        this.extraModFolders = source["extraModFolders"];

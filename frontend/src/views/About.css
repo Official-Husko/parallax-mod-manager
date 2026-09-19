@@ -1,0 +1,285 @@
+/* Duotone is only used on this page (the rest of the app is solid/regular/
+   brands, loaded globally from App.css) - importing it here means its font is
+   only fetched once this page is first shown. */
+@import '../assets/fontawesome/css/duotone.css';
+
+.about {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 28px 32px 40px;
+}
+
+.about-inner {
+    max-width: 940px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+}
+
+.about-hero {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    padding: 24px 26px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-panel);
+}
+
+.about-logo {
+    width: 84px;
+    height: 84px;
+    flex: none;
+    border-radius: 18px;
+    box-shadow: 0 6px 22px rgba(0, 0, 0, .45);
+}
+
+.about-hero-main {
+    min-width: 0;
+}
+
+.about-name {
+    margin: 0;
+    font: 700 24px Barlow, sans-serif;
+    color: var(--text-bright);
+    letter-spacing: .01em;
+}
+
+.about-tagline {
+    margin: 5px 0 14px;
+    font: 400 13.5px/1.5 Barlow, sans-serif;
+    color: var(--text-muted);
+}
+
+/* --- Badges: label on the left, value on the right, like the ones on a
+   GitHub README. Colors come from the app's own palette. --- */
+
+.about-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+}
+
+.about-badge {
+    display: inline-flex;
+    height: 21px;
+    border-radius: 4px;
+    overflow: hidden;
+    font: 500 11px/21px "Azeret Mono", monospace;
+    box-shadow: 0 1px 0 rgba(0, 0, 0, .35);
+}
+
+.about-badge-label {
+    padding: 0 8px;
+    background: #2a323d;
+    color: #c3cad4;
+}
+
+.about-badge-value {
+    padding: 0 9px;
+    color: #0e1218;
+    font-weight: 600;
+}
+
+.about-badge-value.rust {
+    background: var(--rust);
+}
+
+.about-badge-value.blue {
+    background: var(--blue);
+}
+
+.about-badge-value.green {
+    background: var(--green);
+}
+
+.about-badge-value.amber {
+    background: var(--amber);
+}
+
+.about-badge-value.grey {
+    background: #6b7686;
+}
+
+/* --- Links --- */
+
+.about-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.about-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    padding: 9px 16px;
+    border: 1px solid var(--border-light);
+    border-radius: 6px;
+    background: var(--bg-panel);
+    color: var(--text-bright);
+    font: 600 12.5px Barlow, sans-serif;
+    cursor: pointer;
+    transition: border-color .12s, background .12s, transform .12s;
+}
+
+.about-link i {
+    font-size: 16px;
+    color: var(--text-muted);
+    transition: color .12s;
+}
+
+.about-link:hover {
+    border-color: var(--rust);
+    background: rgba(196, 98, 58, .12);
+    transform: translateY(-1px);
+}
+
+.about-link:hover i {
+    color: var(--rust);
+}
+
+/* --- Sections --- */
+
+.about-section-label {
+    font: 600 9.5px "Azeret Mono", monospace;
+    color: var(--text-dim);
+    letter-spacing: .12em;
+    margin-bottom: 11px;
+}
+
+.about-features {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+    gap: 12px;
+}
+
+.about-feature {
+    padding: 16px 17px;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    background: var(--bg-panel);
+}
+
+.about-feature-icon {
+    font-size: 21px;
+    margin-bottom: 10px;
+    display: block;
+    --fa-primary-color: var(--rust);
+    --fa-secondary-color: var(--amber);
+    --fa-secondary-opacity: .55;
+}
+
+.about-feature-title {
+    font: 600 13px Barlow, sans-serif;
+    color: var(--text-bright);
+    margin-bottom: 4px;
+}
+
+.about-feature-text {
+    font: 400 12px/1.55 Barlow, sans-serif;
+    color: var(--text-muted);
+}
+
+.about-columns {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 12px;
+}
+
+@media (max-width: 800px) {
+    .about-columns {
+        grid-template-columns: 1fr;
+    }
+}
+
+.about-card {
+    padding: 16px 18px;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    background: var(--bg-panel);
+    min-width: 0;
+}
+
+.about-detail-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 7px 0;
+    border-bottom: 1px solid #1a212b;
+    font: 400 12px Barlow, sans-serif;
+}
+
+.about-detail-row:last-child {
+    border-bottom: none;
+}
+
+.about-detail-label {
+    width: 112px;
+    flex: none;
+    color: var(--text-dim);
+}
+
+.about-detail-value {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-mid);
+    font-size: 11.5px;
+}
+
+.about-detail-open {
+    flex: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 2px 4px;
+}
+
+.about-detail-open:hover {
+    color: var(--rust);
+}
+
+.about-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin-bottom: 14px;
+}
+
+.about-chip {
+    padding: 4px 11px;
+    border: 1px solid var(--border-light);
+    border-radius: 999px;
+    background: #161d27;
+    color: var(--text-mid);
+    font: 500 11.5px Barlow, sans-serif;
+}
+
+.about-note {
+    margin: 0;
+    font: 400 11.5px/1.55 Barlow, sans-serif;
+    color: var(--text-dim);
+}
+
+.about-footer {
+    text-align: center;
+    font: 400 12px Barlow, sans-serif;
+    color: var(--text-muted);
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.about-footer b {
+    color: var(--text-bright);
+    font-weight: 600;
+}
+
+.about-disclaimer {
+    font-size: 11px;
+    color: var(--text-dim);
+}

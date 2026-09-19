@@ -62,8 +62,44 @@ func TestLoadToleratesJSONCComments(t *testing.T) {
 	}
 
 	got := Load(path)
-	want := Preferences{ScanForNewMods: false, CloseAfterLaunch: true, WarnOnPatchMismatch: true}
+	// What the file states wins; every setting it doesn't mention keeps its
+	// default (see Load).
+	want := Defaults()
+	want.ScanForNewMods = false
+	want.CloseAfterLaunch = true
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Load(jsonc) = %+v, want %+v", got, want)
+	}
+}
+
+func TestLoadKeepsDefaultsForSettingsAddedAfterTheFileWasSaved(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "preferences.jsonc")
+	// An older file: it has never heard of autosortPatchLast.
+	old := `{"scanForNewMods": false, "autosortDependencies": true}`
+	if err := os.WriteFile(path, []byte(old), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got := Load(path)
+	if !got.AutosortPatchLast {
+		t.Error("a setting the file doesn't mention must keep its default (on), not silently read as off")
+	}
+	if got.ScanForNewMods {
+		t.Error("a setting the file does state must still win over the default")
+	}
+}
+
+func TestLoadExplicitFalseOverridesAnOnByDefaultSetting(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "preferences.jsonc")
+	if err := os.WriteFile(path, []byte(`{"autosortPatchLast": false}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if Load(path).AutosortPatchLast {
+		t.Error("an explicit false must stay false")
+	}
+}
+
+func TestDefaultsKeepTheGeneratedPatchLast(t *testing.T) {
+	if !Defaults().AutosortPatchLast {
+		t.Error("keeping the generated patch last must be on by default")
 	}
 }

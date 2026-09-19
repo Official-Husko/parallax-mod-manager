@@ -253,6 +253,7 @@ func GeneratePatch(ctx context.Context, cfg game.GameConfig, opts Options) (Patc
 		SupportedVersion: supportedVersionPattern(opts.GameVersion),
 		Picture:          picture,
 		Tags:             []string{"Utilities", "Patch"},
+		Dependencies:     patchDependencies(opts.Order, modsByID),
 	}
 
 	// A mod has two descriptors, and a proper one needs both: descriptor.mod
@@ -280,6 +281,31 @@ func GeneratePatch(ctx context.Context, cfg game.GameConfig, opts Options) (Patc
 	}
 
 	return PatchResult{Written: true, PatchedKeys: patched, SkippedKeys: skipped, ModID: patchModID, Generation: generation}, nil
+}
+
+// patchDependencies lists, by name and in load order, every mod that's loaded
+// alongside the patch - the patch is built from all of them, so declaring them
+// as its dependencies is what tells the launcher to load it after every one
+// (and to warn when one is missing from a playset). Classic descriptors name a
+// dependency by the mod's display name, so a mod that has no name of its own
+// can't be listed, and one whose content is missing isn't loaded by the game
+// anyway; each name appears once even if two mods share it. The patch itself
+// is never its own dependency.
+func patchDependencies(order conflict.LoadOrder, modsByID map[string]mod.Mod) []string {
+	var names []string
+	seen := map[string]bool{}
+	for _, id := range order {
+		if id == patchModID {
+			continue
+		}
+		m, ok := modsByID[id]
+		if !ok || m.ContentMissing || m.Descriptor.Name == "" || seen[m.Descriptor.Name] {
+			continue
+		}
+		seen[m.Descriptor.Name] = true
+		names = append(names, m.Descriptor.Name)
+	}
+	return names
 }
 
 // supportedVersionPattern turns a real game version ("v4.4.6") into the

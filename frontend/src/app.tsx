@@ -13,6 +13,7 @@ import {Workspace} from './views/Workspace';
 import {Library} from './views/Library';
 import {Dlc} from './views/Dlc';
 import {Settings} from './views/Settings';
+import {About} from './views/About';
 import {UpdatesModal} from './views/UpdatesModal';
 import {FirstRunWizard} from './views/FirstRunWizard';
 import {getLegacyManagedGames} from './data/managedGames';
@@ -307,6 +308,14 @@ export function App() {
                         // Settings would only take effect after a restart.
                         onPreferencesChanged={loadGames}
                     />
+                </div>
+            )}
+
+            {/* Like Settings, About needs nothing from the games list, so it
+                stays reachable even while the "no games" error is showing. */}
+            {visitedViews.has('about') && (
+                <div style={{display: view === 'about' ? 'contents' : 'none'}}>
+                    <About/>
                 </div>
             )}
 

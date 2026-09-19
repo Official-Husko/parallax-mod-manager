@@ -14,6 +14,7 @@ import (
 	"github.com/pkg/browser"
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 
+	"github.com/Official-Husko/parallax-mod-manager/internal/about"
 	"github.com/Official-Husko/parallax-mod-manager/internal/collection"
 	"github.com/Official-Husko/parallax-mod-manager/internal/conflict"
 	"github.com/Official-Husko/parallax-mod-manager/internal/dlc"
@@ -81,9 +82,14 @@ type App struct {
 	// patchThumbnailPath is where a user-supplied patch_thumbnail.png would
 	// live (empty when configDir couldn't be resolved) - see patchThumbnail.
 	patchThumbnailPath string
-	steamRoots         []string
-	modWatcher         *watch.FolderWatcher
-	watchedGameID      string
+	// configAppDir is this app's own folder under the user's config dir,
+	// and aboutPath where a user-edited About page content file would live
+	// in it (both empty when configDir couldn't be resolved).
+	configAppDir  string
+	aboutPath     string
+	steamRoots    []string
+	modWatcher    *watch.FolderWatcher
+	watchedGameID string
 	// workshopDetails holds real Steam Workshop metadata in memory for the
 	// app's runtime - see library.WorkshopDetailsCache. Zero-value usable.
 	workshopDetails library.WorkshopDetailsCache
@@ -146,6 +152,8 @@ func (a *App) startup(ctx context.Context) {
 		a.versionIgnore = versionignore.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "version_ignore")}
 		a.resolvedConflicts = resolvedconflicts.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "resolved_conflicts")}
 		a.patchThumbnailPath = filepath.Join(configDir, "parallax-mod-manager", "patch_thumbnail.png")
+		a.configAppDir = filepath.Join(configDir, "parallax-mod-manager")
+		a.aboutPath = filepath.Join(configDir, "parallax-mod-manager", "about.jsonc")
 	}
 
 	mediaFS, err := fs.Sub(embeddedGameMedia, "data/game_media")
@@ -754,6 +762,21 @@ func (a *App) GeneratePatch(gameID string, order []string) (library.PatchResult,
 		GameVersion:    gameVersion,
 		PatchThumbnail: a.patchThumbnail(),
 	})
+}
+
+// AboutInfo returns everything the About page shows: this build's real
+// version, commit, toolchain and platform, where this app keeps its settings
+// and cache, how many games are registered, and the author line and links
+// from data/about.jsonc (or the user's replacement for it). No network access.
+func (a *App) AboutInfo() about.Info {
+	info := about.Collect(AppName, AppVersion)
+	info.ConfigDir = a.configAppDir
+	info.CacheDir = a.cacheDir
+	info.Games = len(a.registry.List())
+	content := about.LoadData(embeddedAboutData, a.aboutPath)
+	info.Author = content.Author
+	info.Links = content.Links
+	return info
 }
 
 // patchThumbnail returns the image a newly generated patch mod uses as its

@@ -41,6 +41,12 @@ export function findDependencyIssues(active: library.ModSummary[]): DependencyIs
     let misordered = 0;
     const affectedIds = new Set<string>();
     for (const m of active) {
+        // The generated patch lists every mod it was built from as a
+        // dependency, as a snapshot for the launcher. Whether it's still
+        // accurate is the patch's own staleness check, and where it sits is
+        // governed by the "keep the generated patch last" setting - neither
+        // belongs in the dependency chain check.
+        if (m.GeneratedPatch) continue;
         for (const depName of m.Dependencies) {
             if (!activeNames.has(depName)) {
                 missing++;

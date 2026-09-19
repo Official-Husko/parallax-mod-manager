@@ -36,6 +36,13 @@ type Preferences struct {
 	// uses (see internal/library.GeneratePatch) and real-world modding
 	// convention (compatibility patches load last).
 	AutosortFixesLast bool `json:"autosortFixesLast"`
+	// AutosortPatchLast makes Autosort keep this project's own generated
+	// patch mod (see internal/library.GeneratePatch) at the very end of the
+	// load order, after everything else, so the resolutions it pins always
+	// win. With it off Autosort leaves the patch exactly where the user put
+	// it. On by default - see Defaults, and Load for why an older settings
+	// file that never had this field still gets that default.
+	AutosortPatchLast bool `json:"autosortPatchLast"`
 	// ManagedGames is the set of registered game IDs the user has chosen
 	// for Parallax Mod Manager to actively manage - only these show up in
 	// the game switcher, Library, DLC, and Workspace. nil (or empty) means
@@ -129,18 +136,26 @@ func Defaults() Preferences {
 		WarnOnPatchMismatch:  true,
 		AutosortDependencies: true,
 		AutosortFixesLast:    true,
+		AutosortPatchLast:    true,
 	}
 }
 
 // Load reads path and returns Defaults() on any problem (missing file,
 // unreadable, corrupt JSON) - never an error, since falling back to
 // defaults is always a safe, sensible response for a settings file.
+//
+// The file is decoded *onto* Defaults(), not onto a zero value: a setting
+// the file doesn't mention (one added after it was saved) keeps its default
+// instead of silently reading as false. That matters for every setting that
+// is on by default - an older file would otherwise have quietly switched
+// them all off the day a new version shipped. Every field the file does
+// contain still wins, so an explicit false stays false.
 func Load(path string) Preferences {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return Defaults()
 	}
-	var p Preferences
+	p := Defaults()
 	if err := jsonc.Unmarshal(data, &p); err != nil {
 		return Defaults()
 	}

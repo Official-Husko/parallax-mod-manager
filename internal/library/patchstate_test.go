@@ -419,3 +419,61 @@ func TestSupportedVersionPattern(t *testing.T) {
 		}
 	}
 }
+
+func TestGeneratedPatchDeclaresEveryLoadedModAsADependency(t *testing.T) {
+	modDir := t.TempDir()
+	writeMod(t, modDir, "mod_a", "Mod A", `shared_thing = { cost = 1 }`)
+	writeMod(t, modDir, "mod_b", "Mod B", `shared_thing = { cost = 2 }`)
+	writeMod(t, modDir, "mod_c", "Mod C", `other_thing = { cost = 3 }`)
+	// A second mod with an already-used name: listed once.
+	writeMod(t, modDir, "mod_d", "Mod A", `another_thing = { cost = 4 }`)
+	// A mod whose content isn't there isn't loaded by the game, so the patch
+	// mustn't require it.
+	writeFile(t, modDir, "mod_gone.mod", "name=\"Mod Gone\"\npath=\"/this/path/does/not/exist\"\n")
+	// A mod that is not part of this load order at all.
+	writeMod(t, modDir, "mod_off", "Mod Off", `unused_thing = { cost = 5 }`)
+
+	opts := Options{
+		CacheDir: t.TempDir(), ModDir: modDir,
+		// The patch itself being in the order (a re-run does this) must not make it its own dependency.
+		Order: conflict.LoadOrder{"mod_c", "mod_a", "mod_gone", patchModID, "mod_b", "mod_d"},
+	}
+	if _, err := GeneratePatch(context.Background(), testGameConfig(), opts); err != nil {
+		t.Fatal(err)
+	}
+
+	want := []string{"Mod C", "Mod A", "Mod B"}
+	for name, path := range map[string]string{
+		"stub":           filepath.Join(modDir, patchModID+".mod"),
+		"descriptor.mod": filepath.Join(modDir, patchModID, "descriptor.mod"),
+	} {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		d, err := mod.ParseDescriptor(data, mod.DescriptorClassic)
+		if err != nil {
+			t.Fatalf("%s doesn't parse: %v", name, err)
+		}
+		if strings.Join(d.Dependencies, "|") != strings.Join(want, "|") {
+			t.Errorf("%s dependencies = %v, want %v (load order, each name once, no missing-content or unloaded mods, never the patch itself)", name, d.Dependencies, want)
+		}
+	}
+}
+
+func TestLoadGameMarksOnlyTheGeneratedPatchAsThePatch(t *testing.T) {
+	f := newPatchFixture(t)
+	s := f.load(t, abOrder, nil)
+	patches := 0
+	for _, m := range s.Mods {
+		if m.GeneratedPatch {
+			patches++
+			if m.ID != patchModID {
+				t.Errorf("mod %q flagged as the generated patch", m.ID)
+			}
+		}
+	}
+	if patches != 1 {
+		t.Errorf("flagged patches = %d, want exactly 1", patches)
+	}
+}

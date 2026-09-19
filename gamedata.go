@@ -23,3 +23,10 @@ var embeddedGameMedia embed.FS
 //
 //go:embed data/patch_thumbnail.png
 var embeddedPatchThumbnail []byte
+
+// embeddedAboutData is the built-in About page content (author line and
+// links) - see internal/about.LoadData for how a replacement in the user's
+// config folder takes precedence.
+//
+//go:embed data/about.jsonc
+var embeddedAboutData []byte

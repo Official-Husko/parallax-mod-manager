@@ -20,7 +20,7 @@ import {settingsNav} from '../data/mockData';
 import {DEFAULT_BACKGROUND_INTERVAL_SECONDS} from '../components/AppBackground';
 import {type PlaysetAutoloadMode, playsetAutoloadModeFor} from '../data/playsetAutoload';
 
-type Section = 'manage' | 'paths' | 'launch' | 'playsets' | 'sort' | 'appearance';
+type Section = 'manage' | 'paths' | 'launch' | 'playsets' | 'sort' | 'appearance' | 'advanced';
 
 export function Settings({jumpToManageGames, onGamesChanged, onPreferencesChanged}: {
     // Incremented by app.tsx (the TopBar's own "Manage games" entry) to
@@ -51,7 +51,7 @@ export function Settings({jumpToManageGames, onGamesChanged, onPreferencesChange
             <div className="settings-nav">
                 <div className="sidebar-label">SETTINGS</div>
                 {settingsNav.map((s) => {
-                    const clickable = s.key === 'manage' || s.key === 'paths' || s.key === 'launch' || s.key === 'playsets' || s.key === 'sort' || s.key === 'appearance';
+                    const clickable = s.key === 'manage' || s.key === 'paths' || s.key === 'launch' || s.key === 'playsets' || s.key === 'sort' || s.key === 'appearance' || s.key === 'advanced';
                     const active = clickable && s.key === section;
                     return (
                         <div
@@ -72,6 +72,7 @@ export function Settings({jumpToManageGames, onGamesChanged, onPreferencesChange
             {section === 'playsets' && <PlaysetsSettingsPanel/>}
             {section === 'sort' && <SortRulesPanel/>}
             {section === 'appearance' && <AppearancePanel onPreferencesChanged={onPreferencesChanged}/>}
+            {section === 'advanced' && <AdvancedPanel/>}
         </div>
     );
 }
@@ -732,6 +733,50 @@ function SortRulesPanel() {
                 <span className="btn-ghost inert">Import community ruleset</span>
                 <span className="btn-ghost inert" style={{border: 'none', background: 'none'}}>Reset to defaults</span>
             </div>
+        </div>
+    );
+}
+
+// Settings that change how the app treats its own generated files, rather than
+// anything about how it looks or which games it manages.
+function AdvancedPanel() {
+    const [prefs, setPrefs] = useState<preferences.Preferences | null>(null);
+
+    useEffect(() => {
+        GetPreferences().then(setPrefs).catch(() => undefined);
+    }, []);
+
+    function togglePref(key: 'autosortPatchLast') {
+        if (!prefs) return;
+        const next = {...prefs, [key]: !prefs[key]};
+        setPrefs(next);
+        SetPreferences(next).catch(() => setPrefs(prefs));
+    }
+
+    return (
+        <div className="settings-content single">
+            <div>
+                <div className="settings-title">Advanced</div>
+                <div className="settings-subtitle">
+                    How the app handles the files it generates for you.
+                </div>
+            </div>
+            {prefs && (
+                <div className="sort-rules-list">
+                    <div className="sort-rule-row">
+                        <div className="sort-rule-main">
+                            <div className="sort-rule-name">Keep the generated patch last</div>
+                            <div className="sort-rule-desc">
+                                When you Autosort, always move Parallax's generated patch mod to the very
+                                end of the load order, after every other mod, so the conflict resolutions
+                                it carries win. Turn this off and Autosort leaves the patch exactly where
+                                you put it.
+                            </div>
+                        </div>
+                        <Toggle on={prefs.autosortPatchLast} onClick={() => togglePref('autosortPatchLast')}/>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

@@ -126,6 +126,11 @@ type ModSummary struct {
 	// LoadGame call - a disabled mod is listed here but was never parsed
 	// or considered for conflicts (see LoadGame).
 	Enabled bool
+	// GeneratedPatch is true for the one mod this project itself generates
+	// (see GeneratePatch) - lets the frontend give it special treatment
+	// (Autosort keeps it last, dependency checks leave it alone) without
+	// knowing its ID.
+	GeneratedPatch bool
 }
 
 // ConflictCandidate is one mod competing for a contested Type+ID pair,
@@ -296,6 +301,7 @@ func resolveConflicts(ctx context.Context, cfg game.GameConfig, opts Options) (r
 			ShortDescription: m.Descriptor.ShortDescription,
 			RemoteFileID:     m.Descriptor.RemoteFileID,
 			Enabled:          enabled[m.ID],
+			GeneratedPatch:   m.ID == patchModID,
 		})
 	}
 

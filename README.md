@@ -324,7 +324,10 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   comparison is on content, not version numbers or file times, so an update that never touched a
   patched key doesn't flag anything. Checked against this project's real 86-mod install: 4,788
   conflicts patched and then all reported current. The generated patch is no longer counted as a
-  competitor in the conflicts it resolves.
+  competitor in the conflicts it resolves. Its descriptor also lists every loaded mod as a
+  dependency (by name, in load order), so the launcher loads it after all of them, and Autosort
+  keeps it at the very end - a setting under **Settings > Advanced** ("Keep the generated patch
+  last", on by default) lets you turn that off and have Autosort leave it where you put it.
   A real **per-conflict manual override** (`internal/patchoverride`) lets a user pick a specific
   different winner for one contested key, instead of the automatic load-order rule - a radio
   next to each candidate in the Conflict Resolver plus a "Keep load-order winner" option to reset
@@ -336,6 +339,15 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   same safe fallback a missing override already has. Both the Conflict Resolver's own display and
   `GeneratePatch`'s actual byte-copying read the exact same computed winner, so what a user sees
   win is always what gets patched - never two separate calculations that could drift apart.
+- **About page** (`frontend/src/views/About.tsx`, `internal/about`) - the app's version, the
+  commit it was built from, Go and Wails versions, platform, and where its settings and cache
+  live (with buttons to open them), plus what it does, drawn as GitHub-style badges and Font
+  Awesome Pro icons (brand logos for the link buttons, duotone for the feature cards). The badges
+  are drawn locally from the real build details rather than fetched from a badge service, so the
+  page makes no network requests. The link buttons come from `data/about.jsonc`, embedded and
+  replaceable by `~/.config/parallax-mod-manager/about.jsonc`: an entry with no URL is hidden, and
+  anything that isn't an absolute http(s) address is dropped, so adding a Discord invite is one
+  line and a hand-edited file can't put a bad link on the page.
 - **Real autosort** (`frontend/src/data/autosort.ts`, Workspace's Autosort button, Settings'
   "Sort rules" panel) - two real, derivable rules, adapted from a proven design (a working
   sibling Stellaris mod-sorting tool on this machine, cross-checked against its own real-world

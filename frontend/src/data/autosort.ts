@@ -1,7 +1,14 @@
 import type {library} from '../../wailsjs/go/models';
 
-// Autosort rearranges a load order using two real, derivable rules - never
+// Autosort rearranges a load order using three real, derivable rules - never
 // anything fabricated:
+//
+// 0. Generated-patch rule (see below, applied around the other two): this
+//    app's own generated patch mod (library.ModSummary.GeneratedPatch) is
+//    taken out before anything else runs, so no other rule can move it, and
+//    then either goes to the very end (the default - its resolutions only win
+//    if it loads last) or, with the "keep the generated patch last" setting
+//    off, goes back exactly where it was.
 //
 // 1. Fixes/Utilities/Patch tag rule: a mod tagged "Fixes", "Utilities", or
 //    "Patch" moves to the very end - the same convention this app's own
@@ -33,6 +40,12 @@ export interface AutosortMove {
 export interface AutosortOptions {
     dependencies: boolean;
     fixesLast: boolean;
+    // Keep the generated patch mod at the very end. When false the patch is
+    // left where it is instead of being sorted like any other mod: it
+    // declares every mod it was built from as a dependency and is tagged
+    // Patch, so letting the other rules see it would push it last anyway and
+    // turn this setting into a no-op.
+    patchLast: boolean;
 }
 
 export interface AutosortResult {
@@ -172,7 +185,11 @@ export function findMissingActiveDependencies(
     const unresolved: string[] = [];
     for (const id of order) {
         const mod = modsById.get(id);
-        if (!mod) continue;
+        // The generated patch lists every mod it was built from as a
+        // dependency - a snapshot, not a requirement. One of them being off
+        // now is something the patch's own staleness check reports; it's not a
+        // reason to offer adding mods to the load order.
+        if (!mod || mod.GeneratedPatch) continue;
         for (const depName of mod.Dependencies) {
             if (activeNames.has(depName) || seen.has(depName)) continue;
             seen.add(depName);
@@ -187,10 +204,34 @@ export function findMissingActiveDependencies(
     return {resolvable, unresolved};
 }
 
+// putBack returns sorted with the generated patch mods from original re-added:
+// each one directly after the nearest mod that preceded it in original (or at
+// the start if nothing did) - "loads right after the same mod as before".
+function putBack(sorted: string[], original: string[], patchIds: Set<string>): string[] {
+    const result = [...sorted];
+    original.forEach((id, i) => {
+        if (!patchIds.has(id)) return;
+        let anchor = -1;
+        for (let j = i - 1; j >= 0; j--) {
+            const at = result.indexOf(original[j]);
+            if (at >= 0) {
+                anchor = at;
+                break;
+            }
+        }
+        result.splice(anchor + 1, 0, id);
+    });
+    return result;
+}
+
 export function autosort(order: string[], modsById: Map<string, library.ModSummary>, opts: AutosortOptions): AutosortResult {
     const knownNames = new Set([...modsById.values()].map((m) => m.Name));
 
-    let working = [...order];
+    // The generated patch sits out the sorting below entirely - see the
+    // generated-patch rule at the top of this file.
+    const patchIds = new Set(order.filter((id) => modsById.get(id)?.GeneratedPatch === true));
+
+    let working = order.filter((id) => !patchIds.has(id));
     let cycleMods: string[] = [];
     if (opts.fixesLast) {
         working = moveTaggedToEnd(working, modsById);
@@ -200,6 +241,7 @@ export function autosort(order: string[], modsById: Map<string, library.ModSumma
         working = result.order;
         cycleMods = result.cycleMods;
     }
+    working = opts.patchLast ? [...working, ...order.filter((id) => patchIds.has(id))] : putBack(working, order, patchIds);
 
     const moves: AutosortMove[] = [];
     for (let toIndex = 0; toIndex < working.length; toIndex++) {
@@ -209,15 +251,23 @@ export function autosort(order: string[], modsById: Map<string, library.ModSumma
 
         const mod = modsById.get(id);
         const reasons: string[] = [];
-        if (opts.fixesLast && isLateTagged(mod)) {
-            reasons.push('Tagged Fixes/Utilities/Patch - moved to the end');
-        }
-        if (opts.dependencies && cycleMods.includes(id)) {
-            reasons.push("Part of a circular dependency - couldn't be fully ordered");
-        } else if (opts.dependencies && mod) {
-            const resolvedDeps = mod.Dependencies.filter((name) => knownNames.has(name));
-            if (resolvedDeps.length > 0) {
-                reasons.push(`Depends on ${resolvedDeps.join(', ')}`);
+        if (patchIds.has(id)) {
+            // Only its own rule applies to the generated patch - listing the
+            // dozens of mods it declares as dependencies would bury the reason.
+            reasons.push(opts.patchLast
+                ? 'Generated patch - kept at the end so its resolutions win'
+                : 'Left in place while the other mods were sorted around it');
+        } else {
+            if (opts.fixesLast && isLateTagged(mod)) {
+                reasons.push('Tagged Fixes/Utilities/Patch - moved to the end');
+            }
+            if (opts.dependencies && cycleMods.includes(id)) {
+                reasons.push("Part of a circular dependency - couldn't be fully ordered");
+            } else if (opts.dependencies && mod) {
+                const resolvedDeps = mod.Dependencies.filter((name) => knownNames.has(name));
+                if (resolvedDeps.length > 0) {
+                    reasons.push(`Depends on ${resolvedDeps.join(', ')}`);
+                }
             }
         }
         if (reasons.length === 0) {

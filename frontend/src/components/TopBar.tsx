@@ -4,13 +4,14 @@ import {APP_NAME} from '../data/mockData';
 import {colorFromName} from '../data/nameColor';
 import {displayVersion} from '../data/versionCompat';
 
-export type ViewKey = 'library' | 'workspace' | 'dlc' | 'settings';
+export type ViewKey = 'library' | 'workspace' | 'dlc' | 'settings' | 'about';
 
 const NAV_ITEMS: { key: ViewKey; label: string }[] = [
     {key: 'library', label: 'Library'},
     {key: 'workspace', label: 'Workspace'},
     {key: 'dlc', label: 'DLC'},
     {key: 'settings', label: 'Settings'},
+    {key: 'about', label: 'About'},
 ];
 
 export function TopBar({view, onNavigate, gamePicker}: {
