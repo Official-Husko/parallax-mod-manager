@@ -27,6 +27,7 @@ import (
 	"github.com/Official-Husko/parallax-mod-manager/internal/patchoverride"
 	"github.com/Official-Husko/parallax-mod-manager/internal/playset"
 	"github.com/Official-Husko/parallax-mod-manager/internal/preferences"
+	"github.com/Official-Husko/parallax-mod-manager/internal/resolvedconflicts"
 	"github.com/Official-Husko/parallax-mod-manager/internal/scan"
 	"github.com/Official-Husko/parallax-mod-manager/internal/steam"
 	"github.com/Official-Husko/parallax-mod-manager/internal/steamapi"
@@ -51,9 +52,9 @@ type App struct {
 	// collections persists user-defined, cross-game mod groupings for the
 	// Library screen - see internal/collection. Distinct from playsets:
 	// not per-game, not a load order.
-	collections     collection.Store
-	gameMedia       gamemedia.Store
-	preferences     preferences.Preferences
+	collections collection.Store
+	gameMedia   gamemedia.Store
+	preferences preferences.Preferences
 	// preferencesMu guards every read and write of preferences: Wails
 	// dispatches each frontend-triggered call on its own goroutine, and
 	// preferences.Preferences now carries a map field (GamePaths) - an
@@ -72,9 +73,14 @@ type App struct {
 	// Dir is empty (methods degrade gracefully) when configDir couldn't
 	// be resolved.
 	versionIgnore versionignore.Store
-	steamRoots    []string
-	modWatcher     *watch.FolderWatcher
-	watchedGameID  string
+	// resolvedConflicts persists which contested conflict keys a user has
+	// manually marked reviewed in the Conflict Resolver - a bookkeeping
+	// flag only, see internal/resolvedconflicts. Dir is empty (methods
+	// degrade gracefully) when configDir couldn't be resolved.
+	resolvedConflicts resolvedconflicts.Store
+	steamRoots        []string
+	modWatcher        *watch.FolderWatcher
+	watchedGameID     string
 	// workshopDetails holds real Steam Workshop metadata in memory for the
 	// app's runtime - see library.WorkshopDetailsCache. Zero-value usable.
 	workshopDetails library.WorkshopDetailsCache
@@ -130,6 +136,7 @@ func (a *App) startup(ctx context.Context) {
 		a.collections = collection.FileStore{Dir: filepath.Join(configDir, "parallax-mod-manager", "collections")}
 		a.patchOverrides = patchoverride.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "patch_overrides")}
 		a.versionIgnore = versionignore.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "version_ignore")}
+		a.resolvedConflicts = resolvedconflicts.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "resolved_conflicts")}
 	}
 
 	mediaFS, err := fs.Sub(embeddedGameMedia, "data/game_media")
@@ -784,6 +791,39 @@ func (a *App) SetModIncompatibilityIgnored(gameID, modID string, ignored bool) e
 		ids = append(ids, id)
 	}
 	return a.versionIgnore.Save(gameID, ids)
+}
+
+// ResolvedConflicts returns gameID's real, currently-marked-resolved
+// conflict keys (see internal/resolvedconflicts.Key) - the Conflict
+// Resolver's own contested-keys list uses this to show a manually
+// reviewed key in green instead of red.
+func (a *App) ResolvedConflicts(gameID string) []string {
+	return a.resolvedConflicts.Load(gameID)
+}
+
+// SetConflictResolved adds or removes one conflict (identified the same
+// Type+ID way library.ConflictSummary itself is) from gameID's resolved
+// set - the diff view's own "Mark done"/"Mark unresolved" toggle. Purely
+// a personal bookkeeping flag: it never changes which mod actually wins
+// that key (see internal/resolvedconflicts' own doc comment) - for that,
+// see SetPatchOverride.
+func (a *App) SetConflictResolved(gameID, conflictType, conflictID string, resolved bool) error {
+	key := resolvedconflicts.Key(conflictType, conflictID)
+	existing := a.resolvedConflicts.Load(gameID)
+	set := make(map[string]bool, len(existing))
+	for _, k := range existing {
+		set[k] = true
+	}
+	if resolved {
+		set[key] = true
+	} else {
+		delete(set, key)
+	}
+	keys := make([]string, 0, len(set))
+	for k := range set {
+		keys = append(keys, k)
+	}
+	return a.resolvedConflicts.Save(gameID, keys)
 }
 
 // OpenModFolder opens modID's real content folder in the OS file manager.

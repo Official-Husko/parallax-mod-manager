@@ -1,4 +1,5 @@
 .resolver {
+    position: relative;
     width: 1440px;
     max-width: 96vw;
     max-height: 92vh;
@@ -10,6 +11,43 @@
     flex-direction: column;
 }
 
+/* Covers the whole resolver (not just the header button) while a patch is
+   generating - blocks every click underneath it for the duration, not
+   just the button that started it, so nothing else can be changed out
+   from under an in-progress patch. */
+.resolver-progress-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    background: rgba(10, 13, 18, .92);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    text-align: center;
+    padding: 24px;
+}
+
+.resolver-progress-overlay i {
+    font-size: 26px;
+    color: var(--rust);
+}
+
+.resolver-progress-title {
+    font: 600 14px Barlow, sans-serif;
+    color: var(--text-bright);
+}
+
+.resolver-progress-subtitle {
+    font: 400 12px/1.5 Barlow, sans-serif;
+    color: var(--text-muted);
+    max-width: 340px;
+}
+
+/* Base (no modifier) reads as informational/neutral - "no conflicts
+   needed patching," some keys skipped, etc. .success/.error below cover
+   the two outcomes that actually matter for whether the patch worked. */
 .patch-banner {
     display: flex;
     align-items: center;
@@ -22,6 +60,18 @@
     flex: none;
 }
 
+.patch-banner.success {
+    background: #13211a;
+    border-bottom: 1px solid #2f5a41;
+    color: #b7e5c9;
+}
+
+.patch-banner.error {
+    background: #241416;
+    border-bottom: 1px solid #5a2f34;
+    color: #f0b8bd;
+}
+
 .patch-banner span {
     flex: 1;
 }
@@ -29,7 +79,7 @@
 .patch-banner i {
     cursor: pointer;
     font-size: 12px;
-    color: #e8c7b2;
+    color: inherit;
 }
 
 .resolver-header {
@@ -167,16 +217,26 @@
     overflow-y: auto;
 }
 
+/* Clickable in its own right - clicking any candidate's own card makes it
+   win, the same action the Resolution box's matching "Force X" row does.
+   Two paths to the one real action, not two different features. */
 .contender-card {
     border: 1px solid var(--border-light);
     border-radius: 5px;
     padding: 10px 11px;
     background: #161d27;
+    cursor: pointer;
 }
 
 .contender-card.wins {
     border-color: var(--green);
     background: #13211a;
+    cursor: default;
+}
+
+.contender-card.inert {
+    cursor: default;
+    pointer-events: none;
 }
 
 .contender-head {
@@ -314,60 +374,51 @@
     flex: 1;
 }
 
-/* Shared vertical scroll across both panes (so the two stay row-aligned
-   as you scroll through a long file), but never a shared *horizontal*
-   one - a long line in one pane used to force the other pane's rows to
-   stretch along with it (align-items' default 'stretch' forces every
-   flex row child to the same cross-size), so the row providing that
-   width often wasn't the row whose background/line actually needed to
-   show past the visible edge - past that point you'd see the long
-   line's real text on bare, untinted background, looking like the
-   syntax/diff colors had simply stopped applying. align-items:
-   flex-start here (each pane sized to its own natural content height,
-   not stretched to match the other) is what makes .diff-pane's own
-   independent horizontal scroll below actually correct - see its own
-   comment. */
+/* The single shared scroll container for *both* panes at once, in both
+   directions - like VS Code's side-by-side diff, one physical scrollbar
+   drives both sides together rather than each pane scrolling on its own
+   (which used to mean two separate horizontal scrollbars that could drift
+   out of sync, or even sit at different heights when the two files have
+   different line counts). align-items: flex-start keeps each pane sized
+   to its own real content height instead of stretching to match the
+   other - without that, a pane taller than its sibling would try to
+   scroll vertically *inside itself* too, decoupling it from the other
+   pane's row alignment as you scroll. */
 .diff-body {
     flex: 1;
     min-height: 0;
-    overflow-y: auto;
-    overflow-x: hidden;
+    overflow: auto;
     display: flex;
     align-items: flex-start;
     font-size: 11px;
     line-height: 1.75;
 }
 
-/* Each pane scrolls horizontally on its own - a long line on one side
-   (say the winner's file) no longer forces the other side to scroll
-   along with content it doesn't have. overflow-x: auto here technically
-   also computes overflow-y to auto (a long-standing CSS rule: setting
-   one axis non-visible forces the other away from visible too), but
-   since this pane's own height is never stretched taller than its real
-   content (see .diff-body's align-items above), there's nothing for
-   that incidental vertical auto to ever actually scroll - vertical
-   scrolling stays exclusively .diff-body's job. */
+/* No overflow of its own - .diff-body above is the only scroll container.
+   Also no min-width: 0: leaving a flex item's automatic minimum size at
+   its real content's width (rather than forcing it to 0, allowing it to
+   shrink arbitrarily) is exactly what lets this pane grow to fit its own
+   longest real line when .diff-line demands more room below, instead of
+   capping the row at the pane's "fair share" width while the line's real
+   text quietly overflowed past the box that was supposed to tint it -
+   that gap was why scrolling right used to run into plain, untinted text
+   with no syntax or diff coloring at all. */
 .diff-pane {
     flex: 1;
-    min-width: 0;
     border-right: 1px solid #1a212b;
     padding: 10px 0;
     display: flex;
     flex-direction: column;
-    overflow-x: auto;
 }
 
 .diff-pane:last-child {
     border-right: none;
 }
 
-/* width: max-content + min-width: 100% (rather than plain flex stretch)
-   is what lets a line's own row grow past the pane's visible width when
-   its real content is that long, instead of being capped at the pane's
-   width while its text quietly overflows the box that was supposed to
-   tint it - carries the row's own background/border along with it the
-   whole way, so scrolling right never runs out of styling. Short lines
-   still fill the pane's full width either way, via the min-width floor. */
+/* width: max-content + min-width: 100% is what lets a line's own row grow
+   past the pane's usual width when its real content is that long, always
+   carrying its own background/border along with it - short lines still
+   fill the pane's full width either way, via the min-width floor. */
 .diff-line {
     display: flex;
     gap: 9px;
@@ -495,6 +546,26 @@
 
 .diff-stat-removed {
     color: var(--red);
+}
+
+/* The one purely personal, bookkeeping-only action in this whole view -
+   see internal/resolvedconflicts' own doc comment. Sits at the far right
+   of the footer, right next to the line-count/diff stats. */
+.resolved-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+    cursor: pointer;
+    color: var(--text-muted);
+}
+
+.resolved-toggle:hover {
+    color: var(--text-bright);
+}
+
+.resolved-toggle.active {
+    color: var(--green);
 }
 
 /* --- Matrix view --- */

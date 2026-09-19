@@ -130,6 +130,10 @@ export function RemoveExtraModFolder(arg1, arg2) {
   return window['go']['main']['App']['RemoveExtraModFolder'](arg1, arg2);
 }
 
+export function ResolvedConflicts(arg1) {
+  return window['go']['main']['App']['ResolvedConflicts'](arg1);
+}
+
 export function SaveCollection(arg1) {
   return window['go']['main']['App']['SaveCollection'](arg1);
 }
@@ -140,6 +144,10 @@ export function SavePlayset(arg1) {
 
 export function ScanGame(arg1, arg2) {
   return window['go']['main']['App']['ScanGame'](arg1, arg2);
+}
+
+export function SetConflictResolved(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['SetConflictResolved'](arg1, arg2, arg3, arg4);
 }
 
 export function SetGameManaged(arg1, arg2) {

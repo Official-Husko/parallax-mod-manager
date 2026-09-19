@@ -73,11 +73,15 @@ export function ReadModFile(arg1:string,arg2:string,arg3:string):Promise<library
 
 export function RemoveExtraModFolder(arg1:string,arg2:string):Promise<void>;
 
+export function ResolvedConflicts(arg1:string):Promise<Array<string>>;
+
 export function SaveCollection(arg1:collection.Collection):Promise<void>;
 
 export function SavePlayset(arg1:playset.Playset):Promise<void>;
 
 export function ScanGame(arg1:string,arg2:string):Promise<library.Summary>;
+
+export function SetConflictResolved(arg1:string,arg2:string,arg3:string,arg4:boolean):Promise<void>;
 
 export function SetGameManaged(arg1:string,arg2:boolean):Promise<void>;
 

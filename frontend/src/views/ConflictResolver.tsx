@@ -1,7 +1,14 @@
 import './ConflictResolver.css';
 import {h} from 'preact';
 import {useEffect, useMemo, useState} from 'preact/hooks';
-import {ClearPatchOverrides, GeneratePatch, ReadModFile, SetPatchOverride} from '../../wailsjs/go/main/App';
+import {
+    ClearPatchOverrides,
+    GeneratePatch,
+    ReadModFile,
+    ResolvedConflicts,
+    SetConflictResolved,
+    SetPatchOverride,
+} from '../../wailsjs/go/main/App';
 import type {library} from '../../wailsjs/go/models';
 import {highlightLine, syntaxForPath, type FileSyntax} from '../data/highlight';
 import {diffLines} from '../data/lineDiff';
@@ -50,8 +57,43 @@ export function ConflictResolver({gameId, conflicts, order, onClose, onPatchGene
     const [search, setSearch] = useState('');
     const [selectedKey, setSelectedKey] = useState('');
     const [patching, setPatching] = useState(false);
-    const [patchMessage, setPatchMessage] = useState('');
+    // kind drives both the banner's color (success/error/info - see
+    // .patch-banner's own CSS) and, while patching is true, doubles as
+    // the message shown on the full-window progress overlay below.
+    const [patchMessage, setPatchMessage] = useState<{ kind: 'success' | 'error' | 'info'; text: string } | null>(null);
     const [resolvingAll, setResolvingAll] = useState(false);
+    // Which contested keys (see conflictKey) this user has manually
+    // marked reviewed for this game - see internal/resolvedconflicts.
+    // Purely a personal bookkeeping flag: it never changes who actually
+    // wins a key, just how the keys list below colors it. Fetched once
+    // per game, then kept in sync locally by setConflictResolved so
+    // marking/unmarking one doesn't need a full refetch.
+    const [resolvedKeys, setResolvedKeys] = useState<Set<string>>(new Set());
+
+    useEffect(() => {
+        ResolvedConflicts(gameId).then((keys) => setResolvedKeys(new Set(keys))).catch(() => setResolvedKeys(new Set()));
+    }, [gameId]);
+
+    async function setConflictResolved(c: library.ConflictSummary, resolved: boolean) {
+        const key = conflictKey(c);
+        setResolvedKeys((prev) => {
+            const next = new Set(prev);
+            if (resolved) next.add(key); else next.delete(key);
+            return next;
+        });
+        try {
+            await SetConflictResolved(gameId, c.Type, c.ID, resolved);
+        } catch (err) {
+            // Revert the optimistic update - the save didn't actually
+            // stick, so the UI shouldn't claim it did.
+            setResolvedKeys((prev) => {
+                const next = new Set(prev);
+                if (resolved) next.delete(key); else next.add(key);
+                return next;
+            });
+            setPatchMessage({kind: 'error', text: `Failed to update: ${String(err)}`});
+        }
+    }
 
     const filtered = conflicts.filter((c) => {
         const q = search.trim().toLowerCase();
@@ -68,7 +110,7 @@ export function ConflictResolver({gameId, conflicts, order, onClose, onPatchGene
             await ClearPatchOverrides(gameId);
             onOverrideChanged();
         } catch (err) {
-            setPatchMessage(`Failed to auto-resolve: ${String(err)}`);
+            setPatchMessage({kind: 'error', text: `Failed to auto-resolve: ${String(err)}`});
         } finally {
             setResolvingAll(false);
         }
@@ -76,23 +118,25 @@ export function ConflictResolver({gameId, conflicts, order, onClose, onPatchGene
 
     async function handleGeneratePatch() {
         setPatching(true);
-        setPatchMessage('');
+        setPatchMessage(null);
         try {
             const result = await GeneratePatch(gameId, order);
             if (result.Written) {
                 let msg = `Generated a patch for ${result.PatchedKeys} conflict${result.PatchedKeys === 1 ? '' : 's'}.`;
                 if (result.SkippedKeys > 0) {
                     msg += ` ${result.SkippedKeys} skipped - localization patching isn't built yet.`;
+                    setPatchMessage({kind: 'info', text: msg});
+                } else {
+                    setPatchMessage({kind: 'success', text: msg});
                 }
-                setPatchMessage(msg);
                 onPatchGenerated(result.ModID);
             } else if (result.SkippedKeys > 0) {
-                setPatchMessage(`No conflicts could be patched - all ${result.SkippedKeys} were localization, which isn't supported yet.`);
+                setPatchMessage({kind: 'info', text: `No conflicts could be patched - all ${result.SkippedKeys} were localization, which isn't supported yet.`});
             } else {
-                setPatchMessage('No conflicts needed patching.');
+                setPatchMessage({kind: 'info', text: 'No conflicts needed patching.'});
             }
         } catch (err) {
-            setPatchMessage(`Failed to generate patch: ${String(err)}`);
+            setPatchMessage({kind: 'error', text: `Failed to generate patch: ${String(err)}`});
         } finally {
             setPatching(false);
         }
@@ -129,9 +173,9 @@ export function ConflictResolver({gameId, conflicts, order, onClose, onPatchGene
                 </div>
 
                 {patchMessage && (
-                    <div className="patch-banner">
-                        <span>{patchMessage}</span>
-                        <i className="fa-solid fa-xmark" onClick={() => setPatchMessage('')}/>
+                    <div className={`patch-banner ${patchMessage.kind}`}>
+                        <span>{patchMessage.text}</span>
+                        <i className="fa-solid fa-xmark" onClick={() => setPatchMessage(null)}/>
                     </div>
                 )}
 
@@ -153,15 +197,29 @@ export function ConflictResolver({gameId, conflicts, order, onClose, onPatchGene
                         selected={selected}
                         onSelect={(c) => setSelectedKey(conflictKey(c))}
                         onOverrideChanged={onOverrideChanged}
+                        resolvedKeys={resolvedKeys}
+                        onSetResolved={setConflictResolved}
                     />
                 )}
                 {conflicts.length > 0 && mode === 'matrix' && <MatrixView conflicts={conflicts}/>}
+
+                {patching && (
+                    <div className="resolver-progress-overlay">
+                        <i className="fa-solid fa-spinner fa-spin"/>
+                        <div className="resolver-progress-title">Generating patch...</div>
+                        <div className="resolver-progress-subtitle">
+                            Resolving every contested key against the current load order and writing the
+                            winning content into a patch mod. Sit tight - this window is locked until it's
+                            done.
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
 }
 
-function ListView({gameId, conflicts, search, onSearch, selected, onSelect, onOverrideChanged}: {
+function ListView({gameId, conflicts, search, onSearch, selected, onSelect, onOverrideChanged, resolvedKeys, onSetResolved}: {
     gameId: string;
     conflicts: library.ConflictSummary[];
     search: string;
@@ -169,6 +227,8 @@ function ListView({gameId, conflicts, search, onSearch, selected, onSelect, onOv
     selected: library.ConflictSummary | null;
     onSelect: (c: library.ConflictSummary) => void;
     onOverrideChanged: () => void;
+    resolvedKeys: Set<string>;
+    onSetResolved: (c: library.ConflictSummary, resolved: boolean) => void;
 }) {
     return (
         <div className="resolver-body">
@@ -185,19 +245,22 @@ function ListView({gameId, conflicts, search, onSearch, selected, onSelect, onOv
                 <div className="files-list">
                     {conflicts.map((c) => {
                         const isSelected = selected !== null && conflictKey(selected) === conflictKey(c);
+                        const isResolved = resolvedKeys.has(conflictKey(c));
                         return (
                             <div
                                 key={conflictKey(c)}
                                 className="file-item"
                                 style={{
                                     background: isSelected ? '#1b232e' : 'transparent',
-                                    borderLeftColor: 'var(--red)',
+                                    borderLeftColor: isResolved ? 'var(--green)' : 'var(--red)',
                                     cursor: 'pointer',
                                 }}
                                 onClick={() => onSelect(c)}
                             >
                                 <div className="mono path">{c.Type}</div>
-                                <div className="note">{c.ID} · {c.Candidates.length} mods{c.Overridden ? ' · manual' : ''}</div>
+                                <div className="note">
+                                    {c.ID} · {c.Candidates.length} mods{c.Overridden ? ' · manual' : ''}{isResolved ? ' · done' : ''}
+                                </div>
                             </div>
                         );
                     })}
@@ -211,16 +274,20 @@ function ListView({gameId, conflicts, search, onSearch, selected, onSelect, onOv
                     gameId={gameId}
                     conflict={selected}
                     onOverrideChanged={onOverrideChanged}
+                    resolved={resolvedKeys.has(conflictKey(selected))}
+                    onSetResolved={(resolved) => onSetResolved(selected, resolved)}
                 />
             )}
         </div>
     );
 }
 
-function ContendersAndContent({gameId, conflict, onOverrideChanged}: {
+function ContendersAndContent({gameId, conflict, onOverrideChanged, resolved, onSetResolved}: {
     gameId: string;
     conflict: library.ConflictSummary;
     onOverrideChanged: () => void;
+    resolved: boolean;
+    onSetResolved: (resolved: boolean) => void;
 }) {
     const [leftContent, setLeftContent] = useState<string | null>(null);
     const [rightContent, setRightContent] = useState<string | null>(null);
@@ -300,7 +367,12 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged}: {
                             })()
                             : c.FilePath;
                         return (
-                            <div key={c.ModID} className={`contender-card ${wins ? 'wins' : ''}`}>
+                            <div
+                                key={c.ModID}
+                                className={`contender-card ${wins ? 'wins' : ''} ${overrideBusy ? 'inert' : ''}`}
+                                title={wins ? 'Currently wins this conflict' : 'Click to make this mod win this conflict'}
+                                onClick={() => !overrideBusy && !wins && chooseWinner(c.ModID)}
+                            >
                                 <div className="contender-head">
                                     <span className="mono pos">{i + 1}</span>
                                     <span className="name"><MarqueeText text={c.ModName}/></span>
@@ -397,6 +469,14 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged}: {
                                     : 'Comparing...'}
                         </span>
                     )}
+                    <span
+                        className={`resolved-toggle ${resolved ? 'active' : ''}`}
+                        title={resolved ? 'Mark this key unresolved again' : "Mark this key as reviewed - doesn't change who wins it"}
+                        onClick={() => onSetResolved(!resolved)}
+                    >
+                        <i className={`fa-solid ${resolved ? 'fa-circle-check' : 'fa-circle'}`}/>
+                        {resolved ? 'Marked done' : 'Mark done'}
+                    </span>
                 </div>
             </div>
         </>
