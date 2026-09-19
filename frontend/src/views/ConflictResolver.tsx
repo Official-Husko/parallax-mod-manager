@@ -301,13 +301,20 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged, resolved, on
     // real side-by-side comparison means never letting one pane's own
     // long line push the other one out of view, so each pane keeps its
     // own fixed half of the width (see .diff-pane's CSS) and this instead
-    // shifts both panes' real content left together by the same amount.
-    // maxScroll is the wider of the two panes' own overflow past that
-    // fixed width - "how far there is to scroll" is set by whichever side
-    // needs it more, exactly like one shared scrollbar under a real
-    // side-by-side code/diff viewer.
+    // shifts both panes' real content left together by the same amount,
+    // each clamped to its *own* real overflow (leftMaxScroll/
+    // rightMaxScroll) rather than applied raw - once the shorter side's
+    // real content is fully scrolled into view it holds there instead of
+    // continuing into blank space, while the longer side keeps scrolling;
+    // scrolling back the other way, both move together again as soon as
+    // scrollX drops back under the shorter side's own max. The shared
+    // scrollbar's own range (see .diff-hscroll) still goes all the way to
+    // the *wider* side's real need, exactly like one shared scrollbar
+    // under a real side-by-side code/diff viewer.
     const [scrollX, setScrollX] = useState(0);
-    const [maxScroll, setMaxScroll] = useState(0);
+    const [leftMaxScroll, setLeftMaxScroll] = useState(0);
+    const [rightMaxScroll, setRightMaxScroll] = useState(0);
+    const maxScroll = Math.max(leftMaxScroll, rightMaxScroll);
     const leftPaneRef = useRef<HTMLDivElement>(null);
     const leftInnerRef = useRef<HTMLDivElement>(null);
     const rightInnerRef = useRef<HTMLDivElement>(null);
@@ -318,9 +325,11 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged, resolved, on
             const paneWidth = leftPaneRef.current?.clientWidth ?? 0;
             const leftWidth = leftInnerRef.current?.scrollWidth ?? 0;
             const rightWidth = rightInnerRef.current?.scrollWidth ?? 0;
-            const next = Math.max(0, Math.max(leftWidth, rightWidth) - paneWidth);
-            setMaxScroll(next);
-            setScrollX((x) => Math.min(x, next));
+            const leftMax = Math.max(0, leftWidth - paneWidth);
+            const rightMax = Math.max(0, rightWidth - paneWidth);
+            setLeftMaxScroll(leftMax);
+            setRightMaxScroll(rightMax);
+            setScrollX((x) => Math.min(x, Math.max(leftMax, rightMax)));
         }
         recompute();
         const observer = new ResizeObserver(recompute);
@@ -472,7 +481,7 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged, resolved, on
                                         lineStates={diff?.leftMatched}
                                         changedClassName="removed"
                                         busy={overrideBusy}
-                                        scrollX={scrollX}
+                                        scrollX={Math.min(scrollX, leftMaxScroll)}
                                         innerRef={leftInnerRef}
                                     />
                                 )
@@ -487,7 +496,7 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged, resolved, on
                                     lineStates={diff?.rightMatched}
                                     changedClassName="added"
                                     busy={overrideBusy}
-                                    scrollX={scrollX}
+                                    scrollX={Math.min(scrollX, rightMaxScroll)}
                                     innerRef={rightInnerRef}
                                 />
                             )}
