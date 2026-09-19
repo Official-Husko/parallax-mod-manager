@@ -193,10 +193,18 @@
     white-space: nowrap;
 }
 
+/* A real conflict ID is often a long snake_case identifier with no
+   spaces - default text wrapping only breaks at whitespace, so without
+   this it could overflow this fixed-width column as a single unbroken
+   "word" instead of wrapping, forcing the exact horizontal scrollbar
+   this list should never have (matching .path's own treatment above). */
 .file-item .note {
     font: 400 11px Barlow, sans-serif;
     color: var(--text-dim);
     margin-top: 3px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .contenders-col {
@@ -381,16 +389,19 @@
     flex: 1;
 }
 
-/* Shared vertical scroll only - the point of a side-by-side view is
-   seeing *both* files at once to compare them, so neither pane's own
-   width should ever grow to swallow the other one out of view. Each
-   pane keeps its own even, fixed share of the width (see .diff-pane
-   below) and scrolls its own horizontal overflow independently -
-   align-items: flex-start keeps each pane sized to its own real content
-   height (rather than stretched to match the other), so a pane taller
-   than its sibling never tries to scroll vertically *inside itself*
-   too, which would decouple it from the other pane's row alignment as
-   you scroll through the file. */
+/* Shared vertical scroll only, in the browser's own native sense - the
+   point of a side-by-side view is seeing *both* files at once to compare
+   them, so neither pane's own width should ever grow to swallow the
+   other one out of view. Each pane keeps its own even, fixed share of
+   the width (see .diff-pane below); horizontal movement instead comes
+   from one shared scrollX applied to both panes' real content as a CSS
+   transform (see .diff-hscroll and ContendersAndContent's own comment) -
+   a real synced scrollbar, not two independent ones that could drift
+   apart or sit at different heights. align-items: flex-start keeps each
+   pane sized to its own real content height (rather than stretched to
+   match the other), so a pane taller than its sibling never tries to
+   scroll vertically *inside itself* too, which would decouple it from
+   the other pane's row alignment as you scroll through the file. */
 .diff-body {
     flex: 1;
     min-height: 0;
@@ -406,11 +417,11 @@
    size) plus flex: 1 with no basis is what keeps this pane locked to its
    even, fixed share of .diff-body's width, always - so the other pane
    always stays visible too, letter for letter the point of a side-by-
-   side view. overflow-x: auto handles anything that doesn't fit *within*
-   that fixed share (a single long line) as this pane's own independent
-   scroll, rather than growing the box - which used to mean the row's own
-   background/border ran out mid-way, since the box providing them never
-   grew to match the overflowing text past its edge. */
+   side view. overflow: hidden clips whatever .diff-pane-inner's own
+   transform below scrolls past that fixed share, rather than growing
+   this box to match - which used to mean the row's own background/
+   border ran out mid-way, since the box providing them never grew to
+   match the overflowing text past its edge. */
 .diff-pane {
     flex: 1;
     min-width: 0;
@@ -418,24 +429,32 @@
     padding: 10px 0;
     display: flex;
     flex-direction: column;
-    overflow-x: auto;
+    overflow: hidden;
 }
 
 .diff-pane:last-child {
     border-right: none;
 }
 
-/* width: max-content + min-width: 100% (of the pane's own fixed share,
-   not the whole diff-body) is what lets one long line's row grow wide
-   enough to scroll within its own pane, always carrying its own
-   background/border along with it - short lines still fill the pane's
-   full width either way, via the min-width floor. */
+/* width: max-content is what lets this size itself to its own real
+   longest line - ContendersAndContent measures that real width (via
+   scrollWidth) to work out how far there is to scroll. The transform
+   that actually moves it (both panes' own inner, shifted by the same
+   scrollX together) lives inline, since it changes on every scroll
+   event - see ContentPane. Default align-items: stretch (a plain flex
+   column, nothing overridden here) is what makes every .diff-line below
+   fill this same full width regardless of that particular line's own
+   length, short lines included. */
+.diff-pane-inner {
+    display: flex;
+    flex-direction: column;
+    width: max-content;
+}
+
 .diff-line {
     display: flex;
     gap: 9px;
     padding: 0 11px;
-    width: max-content;
-    min-width: 100%;
 }
 
 .diff-line .ln {
@@ -538,6 +557,29 @@
     color: var(--text-mid);
 }
 
+/* The one real scrollbar for both panes' horizontal overflow - dragging
+   or clicking it is a native browser scrollbar (for free: click-to-jump,
+   keyboard, trackpad), read back via onScroll into the shared scrollX
+   both panes apply as a transform (see ContendersAndContent). Only
+   rendered at all once there's real overflow (maxScroll > 0) - a
+   permanently-empty scroll track for two files that already fit would
+   just be visual noise. The spacer's calc(100% + Npx) width, rather than
+   a plain pixel width, is what makes this track's own native scrollLeft
+   range exactly [0, maxScroll] regardless of how wide the track itself
+   renders. */
+.diff-hscroll {
+    flex: none;
+    height: 14px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-top: 1px solid var(--border);
+    background: var(--bg-header);
+}
+
+.diff-hscroll-spacer {
+    height: 1px;
+}
+
 .diff-footer {
     height: 34px;
     flex: none;
@@ -561,22 +603,35 @@
 
 /* The one purely personal, bookkeeping-only action in this whole view -
    see internal/resolvedconflicts' own doc comment. Sits at the far right
-   of the footer, right next to the line-count/diff stats. */
+   of the footer, right next to the line-count/diff stats. Green (rather
+   than this app's usual muted/ghost button look) on purpose, in both
+   states, so it reads as its own distinct action at a glance instead of
+   blending into the rest of the footer's plain text. */
 .resolved-toggle {
     display: flex;
     align-items: center;
     gap: 6px;
     margin-left: auto;
     cursor: pointer;
-    color: var(--text-muted);
+    padding: 4px 10px;
+    border-radius: 4px;
+    font: 600 11px Barlow, sans-serif;
+    border: 1px solid var(--green);
+    color: var(--green);
+    background: transparent;
 }
 
 .resolved-toggle:hover {
-    color: var(--text-bright);
+    background: rgba(95, 174, 126, .14);
 }
 
 .resolved-toggle.active {
-    color: var(--green);
+    background: var(--green);
+    color: var(--bg-panel-solid);
+}
+
+.resolved-toggle.active:hover {
+    filter: brightness(1.08);
 }
 
 /* --- Matrix view --- */

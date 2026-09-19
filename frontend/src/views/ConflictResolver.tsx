@@ -1,6 +1,6 @@
 import './ConflictResolver.css';
 import {h} from 'preact';
-import {useEffect, useMemo, useState} from 'preact/hooks';
+import {useEffect, useMemo, useRef, useState} from 'preact/hooks';
 import {
     ClearPatchOverrides,
     GeneratePatch,
@@ -257,8 +257,8 @@ function ListView({gameId, conflicts, search, onSearch, selected, onSelect, onOv
                                 }}
                                 onClick={() => onSelect(c)}
                             >
-                                <div className="mono path">{c.Type}</div>
-                                <div className="note">
+                                <div className="mono path" title={c.Type}>{c.Type}</div>
+                                <div className="note" title={c.ID}>
                                     {c.ID} · {c.Candidates.length} mods{c.Overridden ? ' · manual' : ''}{isResolved ? ' · done' : ''}
                                 </div>
                             </div>
@@ -297,6 +297,39 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged, resolved, on
     const [overrideBusy, setOverrideBusy] = useState(false);
     const [overrideError, setOverrideError] = useState('');
 
+    // A single, shared horizontal scroll position for *both* diff panes -
+    // real side-by-side comparison means never letting one pane's own
+    // long line push the other one out of view, so each pane keeps its
+    // own fixed half of the width (see .diff-pane's CSS) and this instead
+    // shifts both panes' real content left together by the same amount.
+    // maxScroll is the wider of the two panes' own overflow past that
+    // fixed width - "how far there is to scroll" is set by whichever side
+    // needs it more, exactly like one shared scrollbar under a real
+    // side-by-side code/diff viewer.
+    const [scrollX, setScrollX] = useState(0);
+    const [maxScroll, setMaxScroll] = useState(0);
+    const leftPaneRef = useRef<HTMLDivElement>(null);
+    const leftInnerRef = useRef<HTMLDivElement>(null);
+    const rightInnerRef = useRef<HTMLDivElement>(null);
+    const hscrollRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        function recompute() {
+            const paneWidth = leftPaneRef.current?.clientWidth ?? 0;
+            const leftWidth = leftInnerRef.current?.scrollWidth ?? 0;
+            const rightWidth = rightInnerRef.current?.scrollWidth ?? 0;
+            const next = Math.max(0, Math.max(leftWidth, rightWidth) - paneWidth);
+            setMaxScroll(next);
+            setScrollX((x) => Math.min(x, next));
+        }
+        recompute();
+        const observer = new ResizeObserver(recompute);
+        if (leftPaneRef.current) observer.observe(leftPaneRef.current);
+        if (leftInnerRef.current) observer.observe(leftInnerRef.current);
+        if (rightInnerRef.current) observer.observe(rightInnerRef.current);
+        return () => observer.disconnect();
+    }, [leftContent, rightContent]);
+
     async function chooseWinner(modId: string) {
         setOverrideBusy(true);
         setOverrideError('');
@@ -325,6 +358,8 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged, resolved, on
         setLeftModified(null);
         setRightModified(null);
         setError('');
+        setScrollX(0);
+        if (hscrollRef.current) hscrollRef.current.scrollLeft = 0;
         if (loser) {
             ReadModFile(gameId, loser.ModID, loser.FilePath)
                 .then((f) => { if (!cancelled) { setLeftContent(f.Content); setLeftModified(f.ModifiedAt); } })
@@ -427,7 +462,7 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged, resolved, on
                 {error && <p className="status-page error" style={{padding: 12}}>{error}</p>}
                 {!error && (loser || winner) && (
                     <div className="diff-body mono">
-                        <div className="diff-pane">
+                        <div className="diff-pane" ref={leftPaneRef}>
                             {loser
                                 ? (
                                     <ContentPane
@@ -436,6 +471,9 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged, resolved, on
                                         syntax={syntaxForPath(loser.FilePath)}
                                         lineStates={diff?.leftMatched}
                                         changedClassName="removed"
+                                        busy={overrideBusy}
+                                        scrollX={scrollX}
+                                        innerRef={leftInnerRef}
                                     />
                                 )
                                 : <ContentPane label="Only one mod touches this key" content="" syntax="plain"/>}
@@ -448,9 +486,21 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged, resolved, on
                                     syntax={syntaxForPath(winner.FilePath)}
                                     lineStates={diff?.rightMatched}
                                     changedClassName="added"
+                                    busy={overrideBusy}
+                                    scrollX={scrollX}
+                                    innerRef={rightInnerRef}
                                 />
                             )}
                         </div>
+                    </div>
+                )}
+                {maxScroll > 0 && (
+                    <div
+                        className="diff-hscroll"
+                        ref={hscrollRef}
+                        onScroll={(e) => setScrollX((e.target as HTMLDivElement).scrollLeft)}
+                    >
+                        <div className="diff-hscroll-spacer" style={{width: `calc(100% + ${maxScroll}px)`}}/>
                     </div>
                 )}
                 <div className="diff-footer">
@@ -474,7 +524,7 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged, resolved, on
                         title={resolved ? 'Mark this key unresolved again' : "Mark this key as reviewed - doesn't change who wins it"}
                         onClick={() => onSetResolved(!resolved)}
                     >
-                        <i className={`fa-solid ${resolved ? 'fa-circle-check' : 'fa-circle'}`}/>
+                        <i className="fa-solid fa-check"/>
                         {resolved ? 'Marked done' : 'Mark done'}
                     </span>
                 </div>
@@ -483,7 +533,7 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged, resolved, on
     );
 }
 
-function ContentPane({label, content, syntax, lineStates, changedClassName}: {
+function ContentPane({label, content, syntax, lineStates, changedClassName, busy, scrollX, innerRef}: {
     label: string;
     content: string | null;
     syntax: FileSyntax;
@@ -499,34 +549,54 @@ function ContentPane({label, content, syntax, lineStates, changedClassName}: {
     // Applied to a line whose lineStates entry is false - 'removed' for
     // the losing side, 'added' for the winning side.
     changedClassName?: 'removed' | 'added';
+    // True while a contender-card/Resolution click is forcing a new
+    // winner for this same conflict (see chooseWinner) - shows the
+    // loading state even though `content` is still the previous winner/
+    // loser's real, already-fetched text, so clicking a contender gives
+    // immediate feedback instead of leaving the old (about to be wrong)
+    // pair on screen until the override round-trip and re-scan finish.
+    busy?: boolean;
+    // The one shared horizontal scroll position both panes apply to their
+    // own real code (see ContendersAndContent's own comment on scrollX) -
+    // 0 when omitted, for the single-candidate fallback pane that has no
+    // scrollable content in the first place.
+    scrollX?: number;
+    // Measures this pane's own real, unscrolled content width, so
+    // ContendersAndContent can work out how far there is to scroll -
+    // omitted for that same fallback pane.
+    innerRef?: { current: HTMLDivElement | null };
 }) {
     return (
         <>
             <div className="file-item" style={{borderLeft: 'none', padding: '5px 11px'}}>
                 <span className="note">{label}</span>
             </div>
-            {content === null && (
+            {(content === null || busy) && (
                 <div className="diff-loading">
                     <i className="fa-solid fa-spinner fa-spin"/>
                     <span>Loading file...</span>
                 </div>
             )}
-            {content === '' && (
+            {!busy && content === '' && (
                 <div className="diff-line"><span className="ln"/><span/></div>
             )}
-            {content != null && content !== '' && content.split('\n').map((line, i) => {
-                const changed = lineStates?.[i] === false;
-                return (
-                    <div key={i} className={`diff-line ${changed ? changedClassName : ''}`}>
-                        <span className="ln">{i + 1}</span>
-                        <span className="line-content">
-                            {highlightLine(line, syntax).map((tok, j) => (
-                                <span key={j} className={`tok-${tok.kind}`}>{tok.text}</span>
-                            ))}
-                        </span>
-                    </div>
-                );
-            })}
+            {!busy && content != null && content !== '' && (
+                <div className="diff-pane-inner" ref={innerRef} style={{transform: `translateX(-${scrollX ?? 0}px)`}}>
+                    {content.split('\n').map((line, i) => {
+                        const changed = lineStates?.[i] === false;
+                        return (
+                            <div key={i} className={`diff-line ${changed ? changedClassName : ''}`}>
+                                <span className="ln">{i + 1}</span>
+                                <span className="line-content">
+                                    {highlightLine(line, syntax).map((tok, j) => (
+                                        <span key={j} className={`tok-${tok.kind}`}>{tok.text}</span>
+                                    ))}
+                                </span>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
         </>
     );
 }
