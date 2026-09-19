@@ -1567,38 +1567,105 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, gameVersion, allM
                                 )}
                             </div>
                         )}
-                        {tab === 'conflicts' && (
-                            <div className="conflicts-tab">
-                                <div className="conflict-stats">
-                                    <div>
-                                        <div className="stat-num" style={{color: myConflicts.length ? '#d4574e' : '#5fae7e'}}>{myConflicts.length}</div>
-                                        <div className="stat-label">contested {myConflicts.length === 1 ? 'key' : 'keys'}</div>
+                        {tab === 'conflicts' && (() => {
+                            // Every other mod this one shares at least one
+                            // contested key with, regardless of who wins it -
+                            // "N mods involved" per mockup/Mod Manager.dc.html's
+                            // own Conflicts tab.
+                            const otherModIDs = new Set(
+                                myConflicts.flatMap((c) => c.Candidates.filter((cand) => cand.ModID !== mod.ID).map((cand) => cand.ModID)),
+                            );
+                            const wins = myConflicts.filter((c) => c.Winner === mod.ID).length;
+
+                            // LOSES TO: every key this mod doesn't win,
+                            // attributed to whichever mod actually does (not
+                            // just "any other candidate") and tallied per
+                            // winner - the mockup's own aggregate bar chart,
+                            // not a flat per-key list (that detail already
+                            // lives in the full resolver - see "Open in
+                            // resolver" below).
+                            const losesToByWinner = new Map<string, { name: string; count: number }>();
+                            for (const c of myConflicts) {
+                                if (c.Winner === mod.ID) continue;
+                                const winner = c.Candidates.find((cand) => cand.ModID === c.Winner);
+                                if (!winner) continue;
+                                const entry = losesToByWinner.get(winner.ModID) ?? {name: winner.ModName, count: 0};
+                                entry.count += 1;
+                                losesToByWinner.set(winner.ModID, entry);
+                            }
+                            const losesTo = [...losesToByWinner.values()].sort((a, b) => b.count - a.count);
+                            const totalLost = losesTo.reduce((sum, l) => sum + l.count, 0);
+
+                            // BY TYPE: every contested key this mod is a
+                            // candidate for (win or lose), grouped by its own
+                            // Type - already the definition's real containing
+                            // folder path (e.g. "common/buildings"), not a
+                            // fabricated category - see conflict.Key's own
+                            // comment in internal/conflict.
+                            const byType = new Map<string, number>();
+                            for (const c of myConflicts) {
+                                byType.set(c.Type, (byType.get(c.Type) ?? 0) + 1);
+                            }
+                            const byTypeSorted = [...byType.entries()].sort((a, b) => b[1] - a[1]);
+
+                            return (
+                                <div className="conflicts-tab">
+                                    <div className="conflict-stats">
+                                        <div>
+                                            <div className="stat-num" style={{color: myConflicts.length ? 'var(--red)' : 'var(--green)'}}>{myConflicts.length}</div>
+                                            <div className="stat-label">contested {myConflicts.length === 1 ? 'key' : 'keys'}</div>
+                                        </div>
+                                        {myConflicts.length > 0 && (
+                                            <>
+                                                <div>
+                                                    <div className="stat-num" style={{color: 'var(--amber)'}}>{otherModIDs.size}</div>
+                                                    <div className="stat-label">{otherModIDs.size === 1 ? 'mod' : 'mods'} involved</div>
+                                                </div>
+                                                <div>
+                                                    <div className="stat-num" style={{color: 'var(--green)'}}>{wins}</div>
+                                                    <div className="stat-label">{wins === 1 ? 'key' : 'keys'} won</div>
+                                                </div>
+                                            </>
+                                        )}
                                     </div>
+
+                                    {myConflicts.length === 0 && (
+                                        <EmptyState icon="fa-circle-check" title="No conflicts" subtitle="No genuine conflicts detected for this mod."/>
+                                    )}
+
+                                    {losesTo.length > 0 && (
+                                        <div className="section">
+                                            <div className="section-label">LOSES TO</div>
+                                            {losesTo.map((l) => (
+                                                <div key={l.name} className="loses-row">
+                                                    <div className="loses-head">
+                                                        <span>{l.name}</span>
+                                                        <span className="mono">{l.count} {l.count === 1 ? 'key' : 'keys'}</span>
+                                                    </div>
+                                                    <div className="loses-bar">
+                                                        <div style={{width: `${totalLost ? Math.round((l.count / totalLost) * 100) : 0}%`, background: 'var(--red)'}}/>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {byTypeSorted.length > 0 && (
+                                        <div className="section">
+                                            <div className="section-label">BY TYPE</div>
+                                            {byTypeSorted.map(([type, count]) => (
+                                                <div key={type} className="domain-row">
+                                                    <span>{type}</span>
+                                                    <span className="mono" style={{color: 'var(--amber)'}}>{count}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    <span className="resolver-btn" onClick={onOpenResolver}>Open in resolver</span>
                                 </div>
-                                {myConflicts.length === 0 && (
-                                    <EmptyState icon="fa-circle-check" title="No conflicts" subtitle="No genuine conflicts detected for this mod."/>
-                                )}
-                                {myConflicts.length > 0 && (
-                                    <div className="section">
-                                        <div className="section-label">CONFLICTS WITH</div>
-                                        {myConflicts.map((c) => (
-                                            <div key={c.Type + c.ID} className="loses-row">
-                                                <div className="loses-head">
-                                                    <span className="mono">{c.Type}: {c.ID}</span>
-                                                    {c.Winner === mod.ID
-                                                        ? <span className="wins-badge">WINS</span>
-                                                        : <span className="mono note">loses</span>}
-                                                </div>
-                                                <div className="section-body">
-                                                    vs. {c.Candidates.filter((cand) => cand.ModID !== mod.ID).map((cand) => cand.ModName).join(', ')}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                                <span className="resolver-btn" onClick={onOpenResolver}>Open in resolver</span>
-                            </div>
-                        )}
+                            );
+                        })()}
                         {tab === 'changelog' && (
                             <div className="changelog-tab">
                                 {mod.Source !== 'workshop' && (

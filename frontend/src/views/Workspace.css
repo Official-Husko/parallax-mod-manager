@@ -452,12 +452,9 @@
     color: var(--text);
 }
 
-.wins-badge {
-    font: 600 9px "Azeret Mono", monospace;
-    color: var(--bg-panel-solid);
-    background: var(--green);
-    border-radius: 2px;
-    padding: 2px 5px;
+.loses-head .mono {
+    font-size: 10.5px;
+    color: var(--text-muted);
 }
 
 .loses-bar {
