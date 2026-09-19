@@ -21,10 +21,18 @@
     transition: opacity 2.5s ease;
 }
 
-/* Slight, constant darkening over whichever image is showing, independent
-   of which layer/opacity is currently animating. */
+/* Heavy, constant darkening over whichever image is showing, independent
+   of which layer/opacity is currently animating - matches mockup/Mod
+   Manager.dc.html's own background treatment (a near-black gradient over
+   the art on every screen, including Settings). The art is meant to read
+   as a dim, textured backdrop behind the flat UI chrome, not a bright
+   photo competing with it - every panel that has no --bg-panel/--bg-rail
+   fill of its own (Settings' own main column chief among them) sits
+   directly on top of this, so it has to stay dark enough for body text to
+   stay readable there, not just in the header/rail strips that already
+   get their own translucent fill. */
 .app-background-scrim {
     position: absolute;
     inset: 0;
-    background: rgba(6, 8, 11, .35);
+    background: linear-gradient(rgba(8, 11, 16, .8), rgba(8, 11, 16, .88));
 }

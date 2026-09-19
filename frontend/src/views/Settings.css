@@ -298,19 +298,85 @@
     gap: 7px;
 }
 
-.appearance-interval input {
-    width: 64px;
-    font: 500 12px "Azeret Mono", monospace;
-    color: var(--text);
+/* A custom stepper replacing the number input's own native up/down
+   spinner (hidden below) - built from real elements so it can be styled
+   to match the rest of the app's chrome instead of whatever the platform
+   webview draws for <input type=number>. */
+.interval-stepper {
+    display: flex;
+    align-items: stretch;
     background: #161d27;
     border: 1px solid var(--border-light);
     border-radius: 4px;
-    padding: 5px 8px;
+    overflow: hidden;
+}
+
+.interval-stepper.disabled {
+    cursor: not-allowed;
+}
+
+.interval-stepper input {
+    width: 46px;
+    font: 500 12px "Azeret Mono", monospace;
+    color: var(--text);
+    background: transparent;
+    border: none;
+    padding: 5px 6px 5px 8px;
     text-align: right;
 }
 
-.appearance-interval input:disabled {
+.interval-stepper input:disabled {
     cursor: not-allowed;
+}
+
+.interval-stepper input::-webkit-inner-spin-button,
+.interval-stepper input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.interval-stepper input[type=number] {
+    -moz-appearance: textfield;
+}
+
+.interval-stepper-buttons {
+    display: flex;
+    flex-direction: column;
+    flex: none;
+    width: 17px;
+    border-left: 1px solid var(--border-light);
+}
+
+.interval-stepper-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 8px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.interval-stepper-btn.up {
+    border-bottom: 1px solid var(--border-light);
+}
+
+.interval-stepper-btn:hover:not(:disabled) {
+    color: var(--text-bright);
+    background: var(--bg-row-alt);
+}
+
+.interval-stepper-btn:active:not(:disabled) {
+    background: #1b232e;
+}
+
+.interval-stepper-btn:disabled {
+    cursor: not-allowed;
+    opacity: .5;
 }
 
 .appearance-interval .unit {

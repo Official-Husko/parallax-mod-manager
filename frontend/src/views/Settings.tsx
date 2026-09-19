@@ -442,6 +442,22 @@ function SortRulesPanel() {
 
 const MIN_BACKGROUND_INTERVAL_SECONDS = 5;
 const MAX_BACKGROUND_INTERVAL_SECONDS = 86400;
+const BACKGROUND_INTERVAL_STEP = 10;
+
+// "300" on its own doesn't tell you much at a glance - shown next to the
+// stepper as the unit label instead of a static "seconds".
+function formatIntervalDuration(totalSeconds: number): string {
+    const seconds = Math.max(0, Math.round(totalSeconds));
+    if (seconds < 60) return `${seconds}s`;
+    if (seconds < 3600) {
+        const minutes = Math.floor(seconds / 60);
+        const rest = seconds % 60;
+        return rest === 0 ? `${minutes}m` : `${minutes}m ${rest}s`;
+    }
+    const hours = Math.floor(seconds / 3600);
+    const restMinutes = Math.floor((seconds % 3600) / 60);
+    return restMinutes === 0 ? `${hours}h` : `${hours}h ${restMinutes}m`;
+}
 
 function AppearancePanel({onPreferencesChanged}: { onPreferencesChanged?: () => void }) {
     const [prefs, setPrefs] = useState<preferences.Preferences | null>(null);
@@ -467,17 +483,28 @@ function AppearancePanel({onPreferencesChanged}: { onPreferencesChanged?: () => 
         SetPreferences(next).then(onPreferencesChanged).catch(() => setPrefs(prefs));
     }
 
-    function commitInterval() {
+    function commitIntervalValue(rawValue: number) {
         if (!prefs) return;
-        const parsed = Math.round(Number(intervalInput));
-        const clamped = Number.isFinite(parsed)
-            ? Math.min(MAX_BACKGROUND_INTERVAL_SECONDS, Math.max(MIN_BACKGROUND_INTERVAL_SECONDS, parsed))
+        const clamped = Number.isFinite(rawValue)
+            ? Math.min(MAX_BACKGROUND_INTERVAL_SECONDS, Math.max(MIN_BACKGROUND_INTERVAL_SECONDS, Math.round(rawValue)))
             : DEFAULT_BACKGROUND_INTERVAL_SECONDS;
         setIntervalInput(String(clamped));
         if (clamped === prefs.backgroundIntervalSeconds) return;
         const next = {...prefs, backgroundIntervalSeconds: clamped};
         setPrefs(next);
         SetPreferences(next).then(onPreferencesChanged).catch(() => setPrefs(prefs));
+    }
+
+    function commitInterval() {
+        commitIntervalValue(Number(intervalInput));
+    }
+
+    // The custom up/down buttons commit immediately (like the toggles
+    // above), rather than waiting for blur the way typing into the field
+    // does - there's no in-progress keystroke to debounce.
+    function stepInterval(delta: number) {
+        const current = Number(intervalInput);
+        commitIntervalValue((Number.isFinite(current) ? current : DEFAULT_BACKGROUND_INTERVAL_SECONDS) + delta);
     }
 
     if (!prefs) {
@@ -508,17 +535,40 @@ function AppearancePanel({onPreferencesChanged}: { onPreferencesChanged?: () => 
                 <div className={`profile-toggle-row ${backgroundOn && rotationOn ? '' : 'disabled'}`}>
                     <span>Change every</span>
                     <span className="appearance-interval">
-                        <input
-                            type="number"
-                            min={MIN_BACKGROUND_INTERVAL_SECONDS}
-                            max={MAX_BACKGROUND_INTERVAL_SECONDS}
-                            value={intervalInput}
-                            disabled={!backgroundOn || !rotationOn}
-                            onInput={(e) => setIntervalInput((e.target as HTMLInputElement).value)}
-                            onBlur={commitInterval}
-                            onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-                        />
-                        <span className="mono unit">seconds</span>
+                        <span className={`interval-stepper ${!backgroundOn || !rotationOn ? 'disabled' : ''}`}>
+                            <input
+                                type="number"
+                                step={BACKGROUND_INTERVAL_STEP}
+                                min={MIN_BACKGROUND_INTERVAL_SECONDS}
+                                max={MAX_BACKGROUND_INTERVAL_SECONDS}
+                                value={intervalInput}
+                                disabled={!backgroundOn || !rotationOn}
+                                onInput={(e) => setIntervalInput((e.target as HTMLInputElement).value)}
+                                onBlur={commitInterval}
+                                onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                            />
+                            <span className="interval-stepper-buttons">
+                                <button
+                                    type="button"
+                                    className="interval-stepper-btn up"
+                                    tabIndex={-1}
+                                    disabled={!backgroundOn || !rotationOn}
+                                    onClick={() => stepInterval(BACKGROUND_INTERVAL_STEP)}
+                                >
+                                    <i className="fa-solid fa-chevron-up"/>
+                                </button>
+                                <button
+                                    type="button"
+                                    className="interval-stepper-btn down"
+                                    tabIndex={-1}
+                                    disabled={!backgroundOn || !rotationOn}
+                                    onClick={() => stepInterval(-BACKGROUND_INTERVAL_STEP)}
+                                >
+                                    <i className="fa-solid fa-chevron-down"/>
+                                </button>
+                            </span>
+                        </span>
+                        <span className="mono unit">{formatIntervalDuration(Number(intervalInput))}</span>
                     </span>
                 </div>
             </div>
