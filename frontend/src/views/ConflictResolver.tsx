@@ -11,7 +11,9 @@ import {
 } from '../../wailsjs/go/main/App';
 import type {library} from '../../wailsjs/go/models';
 import {highlightLine, syntaxForPath, type FileSyntax} from '../data/highlight';
-import {diffLines} from '../data/lineDiff';
+import {diffLines, type LineDiffResult} from '../data/lineDiff';
+import {afterNextPaint} from '../data/deferred';
+import {useVirtualWindow} from '../data/useVirtualWindow';
 import {timeAgo} from '../data/format';
 import {EmptyState} from '../components/EmptyState';
 import {MarqueeText} from '../components/MarqueeText';
@@ -22,6 +24,13 @@ import {MarqueeText} from '../components/MarqueeText';
 // actually scan. The mods left out are the ones involved in the fewest
 // conflicts, so the ones most worth looking at stay visible.
 const maxMatrixMods = 30;
+
+// Both long scrolling areas here - the contested-keys list and each side of
+// the diff - only put the rows on screen in the DOM (see useVirtualWindow),
+// which needs every row to be exactly this many pixels tall. The matching CSS
+// (.conflict-row, .diff-line) pins the same numbers.
+const conflictRowHeight = 50;
+const diffLineHeight = 19;
 
 function conflictKey(c: library.ConflictSummary): string {
     return `${c.Type}:${c.ID}`;
@@ -51,7 +60,7 @@ export function ConflictResolver({gameId, conflicts, order, onClose, onPatchGene
     order: string[];
     onClose: () => void;
     onPatchGenerated: (modId: string) => void;
-    onOverrideChanged: () => void;
+    onOverrideChanged: () => void | Promise<void>;
 }) {
     const [mode, setMode] = useState<'list' | 'matrix'>('list');
     const [search, setSearch] = useState('');
@@ -108,7 +117,9 @@ export function ConflictResolver({gameId, conflicts, order, onClose, onPatchGene
         setResolvingAll(true);
         try {
             await ClearPatchOverrides(gameId);
-            onOverrideChanged();
+            // Awaited so "Resolving..." lasts until the rescan has actually
+            // brought back the reset winners, not just until the file write.
+            await onOverrideChanged();
         } catch (err) {
             setPatchMessage({kind: 'error', text: `Failed to auto-resolve: ${String(err)}`});
         } finally {
@@ -219,6 +230,32 @@ export function ConflictResolver({gameId, conflicts, order, onClose, onPatchGene
     );
 }
 
+// One row of the contested-keys list. Exactly conflictRowHeight tall (see
+// .conflict-row), which is what lets ListView render only the rows on screen.
+function ConflictRow({conflict, selected, resolved, onSelect}: {
+    conflict: library.ConflictSummary;
+    selected: boolean;
+    resolved: boolean;
+    onSelect: (c: library.ConflictSummary) => void;
+}) {
+    return (
+        <div
+            className="file-item conflict-row"
+            style={{
+                background: selected ? '#1b232e' : 'transparent',
+                borderLeftColor: resolved ? 'var(--green)' : 'var(--red)',
+                cursor: 'pointer',
+            }}
+            onClick={() => onSelect(conflict)}
+        >
+            <div className="mono path" title={conflict.Type}>{conflict.Type}</div>
+            <div className="note" title={conflict.ID}>
+                {conflict.ID} · {conflict.Candidates.length} mods{conflict.Overridden ? ' · manual' : ''}{resolved ? ' · done' : ''}
+            </div>
+        </div>
+    );
+}
+
 function ListView({gameId, conflicts, search, onSearch, selected, onSelect, onOverrideChanged, resolvedKeys, onSetResolved}: {
     gameId: string;
     conflicts: library.ConflictSummary[];
@@ -226,10 +263,12 @@ function ListView({gameId, conflicts, search, onSearch, selected, onSelect, onOv
     onSearch: (s: string) => void;
     selected: library.ConflictSummary | null;
     onSelect: (c: library.ConflictSummary) => void;
-    onOverrideChanged: () => void;
+    onOverrideChanged: () => void | Promise<void>;
     resolvedKeys: Set<string>;
     onSetResolved: (c: library.ConflictSummary, resolved: boolean) => void;
 }) {
+    const selectedKey = selected ? conflictKey(selected) : '';
+    const {ref: listRef, onScroll: onListScroll, first, last} = useVirtualWindow<HTMLDivElement>(conflicts.length, conflictRowHeight, 8);
     return (
         <div className="resolver-body">
             <div className="files-col">
@@ -242,28 +281,21 @@ function ListView({gameId, conflicts, search, onSearch, selected, onSelect, onOv
                         onInput={(e) => onSearch((e.target as HTMLInputElement).value)}
                     />
                 </div>
-                <div className="files-list">
-                    {conflicts.map((c) => {
-                        const isSelected = selected !== null && conflictKey(selected) === conflictKey(c);
-                        const isResolved = resolvedKeys.has(conflictKey(c));
-                        return (
-                            <div
-                                key={conflictKey(c)}
-                                className="file-item"
-                                style={{
-                                    background: isSelected ? '#1b232e' : 'transparent',
-                                    borderLeftColor: isResolved ? 'var(--green)' : 'var(--red)',
-                                    cursor: 'pointer',
-                                }}
-                                onClick={() => onSelect(c)}
-                            >
-                                <div className="mono path" title={c.Type}>{c.Type}</div>
-                                <div className="note" title={c.ID}>
-                                    {c.ID} · {c.Candidates.length} mods{c.Overridden ? ' · manual' : ''}{isResolved ? ' · done' : ''}
-                                </div>
-                            </div>
-                        );
-                    })}
+                <div className="files-list" ref={listRef} onScroll={onListScroll}>
+                    <div style={{height: conflicts.length * conflictRowHeight, paddingTop: first * conflictRowHeight, boxSizing: 'border-box'}}>
+                        {conflicts.slice(first, last).map((c) => {
+                            const key = conflictKey(c);
+                            return (
+                                <ConflictRow
+                                    key={key}
+                                    conflict={c}
+                                    selected={selectedKey === key}
+                                    resolved={resolvedKeys.has(key)}
+                                    onSelect={onSelect}
+                                />
+                            );
+                        })}
+                    </div>
                     {conflicts.length === 0 && <p className="detail-empty" style={{padding: 14}}>No matches.</p>}
                 </div>
             </div>
@@ -285,7 +317,7 @@ function ListView({gameId, conflicts, search, onSearch, selected, onSelect, onOv
 function ContendersAndContent({gameId, conflict, onOverrideChanged, resolved, onSetResolved}: {
     gameId: string;
     conflict: library.ConflictSummary;
-    onOverrideChanged: () => void;
+    onOverrideChanged: () => void | Promise<void>;
     resolved: boolean;
     onSetResolved: (resolved: boolean) => void;
 }) {
@@ -296,6 +328,16 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged, resolved, on
     const [error, setError] = useState('');
     const [overrideBusy, setOverrideBusy] = useState(false);
     const [overrideError, setOverrideError] = useState('');
+    // The mod just picked to win, from the click until the rescan that makes
+    // it official comes back - so the WINS badge, the resolution radios and
+    // the two diff panes follow the click immediately instead of sitting on
+    // the old winner for the whole rescan. Null when there's nothing pending,
+    // and for "back to the automatic winner" too: the frontend doesn't know
+    // who that is (see framingFor), so that one has to wait for the rescan.
+    const [pendingWinner, setPendingWinner] = useState<string | null>(null);
+    // The line diff between the two sides, computed once both have loaded -
+    // see the effect below for why it's state rather than a useMemo.
+    const [diff, setDiff] = useState<LineDiffResult | null>(null);
 
     // A single, shared horizontal scroll position for *both* diff panes -
     // real side-by-side comparison means never letting one pane's own
@@ -320,39 +362,30 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged, resolved, on
     const rightInnerRef = useRef<HTMLDivElement>(null);
     const hscrollRef = useRef<HTMLDivElement>(null);
 
-    useEffect(() => {
-        function recompute() {
-            const paneWidth = leftPaneRef.current?.clientWidth ?? 0;
-            const leftWidth = leftInnerRef.current?.scrollWidth ?? 0;
-            const rightWidth = rightInnerRef.current?.scrollWidth ?? 0;
-            const leftMax = Math.max(0, leftWidth - paneWidth);
-            const rightMax = Math.max(0, rightWidth - paneWidth);
-            setLeftMaxScroll(leftMax);
-            setRightMaxScroll(rightMax);
-            setScrollX((x) => Math.min(x, Math.max(leftMax, rightMax)));
-        }
-        recompute();
-        const observer = new ResizeObserver(recompute);
-        if (leftPaneRef.current) observer.observe(leftPaneRef.current);
-        if (leftInnerRef.current) observer.observe(leftInnerRef.current);
-        if (rightInnerRef.current) observer.observe(rightInnerRef.current);
-        return () => observer.disconnect();
-    }, [leftContent, rightContent]);
-
     async function chooseWinner(modId: string) {
         setOverrideBusy(true);
         setOverrideError('');
+        if (modId !== '') setPendingWinner(modId);
         try {
             await SetPatchOverride(gameId, conflict.Type, conflict.ID, modId);
-            onOverrideChanged();
+            // Awaited: the refresh behind this is a full rescan of the game
+            // (seconds on a big modlist), and staying busy until it lands is
+            // what keeps the cards inert and the "Applying..." indicator up
+            // for that whole time instead of only for the tiny file write.
+            await onOverrideChanged();
         } catch (err) {
             setOverrideError(String(err));
         } finally {
             setOverrideBusy(false);
+            setPendingWinner(null);
         }
     }
 
-    const winnerIdx = conflict.Candidates.findIndex((c) => c.ModID === conflict.Winner);
+    // What to show as the winner: the just-clicked pick if the rescan hasn't
+    // confirmed it yet, otherwise what the backend says.
+    const winnerId = pendingWinner ?? conflict.Winner;
+    const overridden = pendingWinner !== null || conflict.Overridden;
+    const winnerIdx = conflict.Candidates.findIndex((c) => c.ModID === winnerId);
     // Compare the winner against whichever candidate sits right before it
     // in load order - the one it's actually overriding - rather than an
     // arbitrary pair, when there are more than two candidates.
@@ -382,16 +415,79 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged, resolved, on
         return () => { cancelled = true; };
     }, [gameId, winner?.ModID, winner?.FilePath, loser?.ModID, loser?.FilePath]);
 
+    // An empty file is zero lines, not one ('' split on '\n' would otherwise
+    // report a single blank line, misclassifying it against the other side).
+    // Split once per content, here, since the diff, both panes, and the
+    // contender cards' line counts all need the same array.
+    const leftLines = useMemo(() => splitLines(leftContent), [leftContent]);
+    const rightLines = useMemo(() => splitLines(rightContent), [rightContent]);
+
     // Real line-level diffing (see data/lineDiff.ts) once both sides have
-    // actually loaded - an empty file is zero lines, not one ('' split on
-    // '\n' would otherwise report a single blank line, misclassifying it
-    // against the other side).
-    const diff = useMemo(() => {
-        if (leftContent == null || rightContent == null) return null;
-        const leftLines = leftContent === '' ? [] : leftContent.split('\n');
-        const rightLines = rightContent === '' ? [] : rightContent.split('\n');
-        return diffLines(leftLines, rightLines);
-    }, [leftContent, rightContent]);
+    // actually loaded. Deferred until after the browser has painted the
+    // "Comparing..." state (see afterNextPaint) rather than computed inline
+    // during render - the LCS table is O(n*m), so on a big pair of files the
+    // synchronous version froze the window before that state could show.
+    useEffect(() => {
+        setDiff(null);
+        if (!loser || !winner || leftLines === null || rightLines === null) return;
+        return afterNextPaint(() => setDiff(diffLines(leftLines, rightLines)));
+    }, [leftLines, rightLines]);
+
+    // What each pane shows instead of its file while it isn't ready to: one
+    // short line saying what's actually going on. Undefined means "show the
+    // real content".
+    const diffPending = loser !== null && winner !== null && diff === null;
+    function pendingTextFor(lines: string[] | null): string | undefined {
+        // With a pending pick the panes already show the new pair loading,
+        // so only the "back to automatic" case (no pick to show yet) blanks
+        // them behind this message.
+        if (overrideBusy && pendingWinner === null) return 'Applying your choice...';
+        if (lines === null) return 'Reading the file from disk...';
+        if (diffPending) return 'Comparing the two files...';
+        return undefined;
+    }
+    // A side with no candidate at all (the one-mod-touches-this-key case)
+    // has nothing to load, so it's never pending.
+    const leftPending = loser ? pendingTextFor(leftLines) : undefined;
+    const rightPending = winner ? pendingTextFor(rightLines) : undefined;
+    const panesReady = !error && leftPending === undefined && rightPending === undefined;
+
+    // Only the lines on screen are in the DOM (see useVirtualWindow), for the
+    // same reason as the contested-keys list: a file can run to thousands of
+    // lines, and building every line's syntax-highlighted DOM froze the whole
+    // window - including the click on the next contested key - for as long as
+    // that took. Both panes share one window so their rows stay level.
+    const totalLines = Math.max(leftLines?.length ?? 0, rightLines?.length ?? 0);
+    const {ref: diffBodyRef, onScroll: onDiffScroll, first: firstLine, last: lastLine} =
+        useVirtualWindow<HTMLDivElement>(totalLines, diffLineHeight, 20);
+    // How wide each side's longest line is, in monospace columns - each pane
+    // reserves that much width up front (see ContentPane), so the shared
+    // horizontal scrollbar's range doesn't change as different lines scroll in
+    // and out of the rendered window.
+    const leftCols = useMemo(() => maxColumns(leftLines), [leftLines]);
+    const rightCols = useMemo(() => maxColumns(rightLines), [rightLines]);
+
+    // Measure how far each pane can scroll horizontally. Re-run once the
+    // panes actually exist (panesReady) - until then their inner elements
+    // aren't in the DOM for the observer to attach to.
+    useEffect(() => {
+        function recompute() {
+            const paneWidth = leftPaneRef.current?.clientWidth ?? 0;
+            const leftWidth = leftInnerRef.current?.scrollWidth ?? 0;
+            const rightWidth = rightInnerRef.current?.scrollWidth ?? 0;
+            const leftMax = Math.max(0, leftWidth - paneWidth);
+            const rightMax = Math.max(0, rightWidth - paneWidth);
+            setLeftMaxScroll(leftMax);
+            setRightMaxScroll(rightMax);
+            setScrollX((x) => Math.min(x, Math.max(leftMax, rightMax)));
+        }
+        recompute();
+        const observer = new ResizeObserver(recompute);
+        if (leftPaneRef.current) observer.observe(leftPaneRef.current);
+        if (leftInnerRef.current) observer.observe(leftInnerRef.current);
+        if (rightInnerRef.current) observer.observe(rightInnerRef.current);
+        return () => observer.disconnect();
+    }, [leftContent, rightContent, panesReady]);
 
     return (
         <>
@@ -399,16 +495,13 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged, resolved, on
                 <div className="col-header">CONTENDERS · LOAD ORDER</div>
                 <div className="contenders-list">
                     {conflict.Candidates.map((c, i) => {
-                        const wins = c.ModID === conflict.Winner;
+                        const wins = c.ModID === winnerId;
                         const isLoser = loser?.ModID === c.ModID;
                         const isWinnerCard = winner?.ModID === c.ModID;
-                        const loadedContent = isLoser ? leftContent : isWinnerCard ? rightContent : null;
+                        const loadedLines = isLoser ? leftLines : isWinnerCard ? rightLines : null;
                         const loadedModified = isLoser ? leftModified : isWinnerCard ? rightModified : null;
-                        const metaText = loadedContent != null && loadedModified != null
-                            ? (() => {
-                                const lines = loadedContent === '' ? 0 : loadedContent.split('\n').length;
-                                return `${lines} line${lines === 1 ? '' : 's'} · modified ${timeAgo(loadedModified)}`;
-                            })()
+                        const metaText = loadedLines !== null && loadedModified !== null
+                            ? `${loadedLines.length} line${loadedLines.length === 1 ? '' : 's'} · modified ${timeAgo(loadedModified)}`
                             : c.FilePath;
                         return (
                             <div
@@ -420,11 +513,11 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged, resolved, on
                                 <div className="contender-head">
                                     <span className="mono pos">{i + 1}</span>
                                     <span className="name"><MarqueeText text={c.ModName}/></span>
-                                    {wins && <span className="wins-badge">{conflict.Overridden ? 'WINS · MANUAL' : 'WINS'}</span>}
+                                    {wins && <span className="wins-badge">{overridden ? 'WINS · MANUAL' : 'WINS'}</span>}
                                 </div>
                                 <div className="mono meta" title={metaText}>{metaText}</div>
                                 <div className={`note ${wins ? 'wins-note' : ''}`}>
-                                    {framingFor(i, winnerIdx, conflict.Candidates.length, conflict.Overridden)}
+                                    {framingFor(i, winnerIdx, conflict.Candidates.length, overridden)}
                                 </div>
                             </div>
                         );
@@ -432,15 +525,23 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged, resolved, on
                 </div>
 
                 <div className="resolution-card">
-                    <div className="resolution-title">Resolution</div>
+                    <div className="resolution-title">
+                        Resolution
+                        {overrideBusy && (
+                            <div className="resolution-busy">
+                                <i className="fa-solid fa-spinner fa-spin"/>
+                                Applying...
+                            </div>
+                        )}
+                    </div>
                     <span
                         className={`resolution-option ${overrideBusy ? 'inert' : ''}`}
-                        onClick={() => !overrideBusy && conflict.Overridden && chooseWinner('')}
+                        onClick={() => !overrideBusy && overridden && chooseWinner('')}
                     >
-                        <span className={!conflict.Overridden ? 'radio-on' : 'radio-off'}>{!conflict.Overridden ? '●' : '○'}</span> Keep load-order winner
+                        <span className={!overridden ? 'radio-on' : 'radio-off'}>{!overridden ? '●' : '○'}</span> Keep load-order winner
                     </span>
                     {conflict.Candidates.map((c) => {
-                        const forced = conflict.Overridden && conflict.Winner === c.ModID;
+                        const forced = overridden && winnerId === c.ModID;
                         return (
                             <span
                                 key={c.ModID}
@@ -470,32 +571,38 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged, resolved, on
                 </div>
                 {error && <p className="status-page error" style={{padding: 12}}>{error}</p>}
                 {!error && (loser || winner) && (
-                    <div className="diff-body mono">
-                        <div className="diff-pane" ref={leftPaneRef}>
+                    <div className="diff-body mono" ref={diffBodyRef} onScroll={onDiffScroll}>
+                        <div className={`diff-pane ${leftPending !== undefined ? 'loading' : ''}`} ref={leftPaneRef}>
                             {loser
                                 ? (
                                     <ContentPane
                                         label={`${loser.ModName} (loses)`}
-                                        content={leftContent}
+                                        lines={leftLines}
+                                        pendingText={leftPending}
                                         syntax={syntaxForPath(loser.FilePath)}
                                         lineStates={diff?.leftMatched}
                                         changedClassName="removed"
-                                        busy={overrideBusy}
+                                        firstLine={firstLine}
+                                        lastLine={lastLine}
+                                        maxCols={leftCols}
                                         scrollX={Math.min(scrollX, leftMaxScroll)}
                                         innerRef={leftInnerRef}
                                     />
                                 )
-                                : <ContentPane label="Only one mod touches this key" content="" syntax="plain"/>}
+                                : <ContentPane label="Only one mod touches this key" lines={noLines} syntax="plain" firstLine={0} lastLine={1} maxCols={0}/>}
                         </div>
-                        <div className="diff-pane">
+                        <div className={`diff-pane ${rightPending !== undefined ? 'loading' : ''}`}>
                             {winner && (
                                 <ContentPane
                                     label={`${winner.ModName} (wins)`}
-                                    content={rightContent}
+                                    lines={rightLines}
+                                    pendingText={rightPending}
                                     syntax={syntaxForPath(winner.FilePath)}
                                     lineStates={diff?.rightMatched}
                                     changedClassName="added"
-                                    busy={overrideBusy}
+                                    firstLine={firstLine}
+                                    lastLine={lastLine}
+                                    maxCols={rightCols}
                                     scrollX={Math.min(scrollX, rightMaxScroll)}
                                     innerRef={rightInnerRef}
                                 />
@@ -525,7 +632,8 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged, resolved, on
                                 ? "Only one mod touches this key - there's nothing to diff against."
                                 : diff?.skipped
                                     ? "This file is too large to diff line-by-line - showing its real, syntax-highlighted content as-is."
-                                    : 'Comparing...'}
+                                    : error ? "Couldn't load these files."
+                                    : leftLines === null || rightLines === null ? 'Reading files...' : 'Comparing...'}
                         </span>
                     )}
                     <span
@@ -542,29 +650,65 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged, resolved, on
     );
 }
 
-function ContentPane({label, content, syntax, lineStates, changedClassName, busy, scrollX, innerRef}: {
+// One shared empty array, so the single-candidate fallback pane gets the same
+// reference on every render (a fresh [] each time would look like new content).
+const noLines: string[] = [];
+
+// A file's real lines - an empty file is zero lines, not one, and null means
+// it hasn't loaded yet.
+function splitLines(content: string | null): string[] | null {
+    if (content === null) return null;
+    return content === '' ? noLines : content.split('\n');
+}
+
+// How wide a file's longest line is, in monospace columns. A tab counts as
+// the distance to the next 8-column stop, the way white-space: pre renders it
+// (Clausewitz files are usually tab-indented, so counting a tab as one column
+// would badly under-reserve). Approximate for wide glyphs, which is fine -
+// this only sizes the scroll range.
+function maxColumns(lines: string[] | null): number {
+    let max = 0;
+    if (lines === null) return max;
+    for (const line of lines) {
+        let col = 0;
+        for (let i = 0; i < line.length; i++) {
+            col = line.charCodeAt(i) === 9 ? col + 8 - (col % 8) : col + 1;
+        }
+        if (col > max) max = col;
+    }
+    return max;
+}
+
+function ContentPane({label, lines, pendingText, syntax, lineStates, changedClassName, firstLine, lastLine, maxCols, scrollX, innerRef}: {
     label: string;
-    content: string | null;
+    // The file's real lines, or null while it hasn't loaded.
+    lines: string[] | null;
+    // Set while this pane can't show its file yet - what's actually going on,
+    // in a few words ("Reading the file from disk...", "Comparing the two
+    // files...", "Applying your choice...") - and swaps the file for a
+    // spinner and that text. Unset means "show `lines`". A pane whose file
+    // is still on its way (lines === null) shows the spinner regardless.
+    pendingText?: string;
     syntax: FileSyntax;
-    // Per real line in `content`: true if that line is also present (in
-    // the same relative order) in the other side's file, false if it's
-    // only here - see data/lineDiff.ts. Omitted (undefined) means "don't
-    // tint anything," either because there's nothing to diff against yet
-    // (still loading, or only one mod touches this key) or because the
-    // diff was skipped for being too large - either way this pane still
-    // shows its own real, syntax-highlighted content, just without the
-    // added/removed tint.
+    // Per real line in `lines`: true if that line is also present (in the
+    // same relative order) in the other side's file, false if it's only here
+    // - see data/lineDiff.ts. Omitted (undefined) means "don't tint
+    // anything," either because there's nothing to diff against (only one
+    // mod touches this key) or because the diff was skipped for being too
+    // large - either way this pane still shows its own real, syntax-
+    // highlighted content, just without the added/removed tint.
     lineStates?: boolean[];
     // Applied to a line whose lineStates entry is false - 'removed' for
     // the losing side, 'added' for the winning side.
     changedClassName?: 'removed' | 'added';
-    // True while a contender-card/Resolution click is forcing a new
-    // winner for this same conflict (see chooseWinner) - shows the
-    // loading state even though `content` is still the previous winner/
-    // loser's real, already-fetched text, so clicking a contender gives
-    // immediate feedback instead of leaving the old (about to be wrong)
-    // pair on screen until the override round-trip and re-scan finish.
-    busy?: boolean;
+    // The slice of `lines` [firstLine, lastLine) that's actually on screen
+    // and so actually rendered - everything else is just reserved height (see
+    // useVirtualWindow).
+    firstLine: number;
+    lastLine: number;
+    // Width of this file's longest line in monospace columns (see
+    // maxColumns), reserved up front for the shared horizontal scrollbar.
+    maxCols: number;
     // The one shared horizontal scroll position both panes apply to their
     // own real code (see ContendersAndContent's own comment on scrollX) -
     // 0 when omitted, for the single-candidate fallback pane that has no
@@ -575,23 +719,35 @@ function ContentPane({label, content, syntax, lineStates, changedClassName, busy
     // omitted for that same fallback pane.
     innerRef?: { current: HTMLDivElement | null };
 }) {
+    const loading = lines === null || pendingText !== undefined;
     return (
         <>
             <div className="file-item" style={{borderLeft: 'none', padding: '5px 11px'}}>
                 <span className="note">{label}</span>
             </div>
-            {(content === null || busy) && (
+            {loading && (
                 <div className="diff-loading">
                     <i className="fa-solid fa-spinner fa-spin"/>
-                    <span>Loading file...</span>
+                    <span className="diff-loading-title">Loading file...</span>
+                    {pendingText && <span className="diff-loading-info">{pendingText}</span>}
                 </div>
             )}
-            {!busy && content === '' && (
+            {!loading && lines !== null && lines.length === 0 && (
                 <div className="diff-line"><span className="ln"/><span/></div>
             )}
-            {!busy && content != null && content !== '' && (
-                <div className="diff-pane-inner" ref={innerRef} style={{transform: `translateX(-${scrollX ?? 0}px)`}}>
-                    {content.split('\n').map((line, i) => {
+            {!loading && lines !== null && lines.length > 0 && (
+                <div
+                    className="diff-pane-inner"
+                    ref={innerRef}
+                    style={{
+                        height: `${lines.length * diffLineHeight}px`,
+                        paddingTop: `${firstLine * diffLineHeight}px`,
+                        transform: `translateX(-${scrollX ?? 0}px)`,
+                        '--diff-cols': maxCols,
+                    } as h.JSX.CSSProperties}
+                >
+                    {lines.slice(firstLine, lastLine).map((line, k) => {
+                        const i = firstLine + k;
                         const changed = lineStates?.[i] === false;
                         return (
                             <div key={i} className={`diff-line ${changed ? changedClassName : ''}`}>

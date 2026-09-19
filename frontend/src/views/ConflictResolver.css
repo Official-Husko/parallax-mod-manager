@@ -186,6 +186,16 @@
     border-left: 2px solid;
 }
 
+/* A contested-keys list row is pinned to conflictRowHeight (see
+   ConflictResolver.tsx), which is what lets the list render only the rows
+   on screen - so it can't grow with its content. Both lines inside are
+   already single-line with an ellipsis. */
+.file-item.conflict-row {
+    height: 50px;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
 .file-item .path {
     font-size: 11px;
     overflow: hidden;
@@ -315,6 +325,19 @@
     font: 600 12px Barlow, sans-serif;
     color: var(--text-muted);
     margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Shown while a winner change is still being applied - the change is a full
+   rescan of the game behind the scenes, which takes a moment. */
+.resolution-busy {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font: 400 11px Barlow, sans-serif;
+    color: var(--text-dim);
 }
 
 /* Excludes .resolution-option/.resolution-option-disabled (chained
@@ -410,7 +433,7 @@
     display: flex;
     align-items: flex-start;
     font-size: 11px;
-    line-height: 1.75;
+    line-height: 19px;
 }
 
 /* min-width: 0 (allowing this to shrink below its own content's natural
@@ -436,6 +459,14 @@
     border-right: none;
 }
 
+/* A pane that's still loading has no content height of its own to size to,
+   so let it fill the whole diff area instead - that's what centers its
+   spinner (see .diff-loading) in the middle of the space the file is about
+   to occupy, rather than leaving it stuck at the top of a short box. */
+.diff-pane.loading {
+    align-self: stretch;
+}
+
 /* width: max-content is what lets this size itself to its own real
    longest line - ContendersAndContent measures that real width (via
    scrollWidth) to work out how far there is to scroll. The transform
@@ -445,16 +476,28 @@
    column, nothing overridden here) is what makes every .diff-line below
    fill this same full width regardless of that particular line's own
    length, short lines included. */
+/* Only the lines on screen are rendered (see useVirtualWindow), so this
+   box's own height and padding-top are set inline to stand in for the rest,
+   and the reserved width below stands in for lines that aren't rendered but
+   would be wider than any that are: --diff-cols is the file's longest line
+   in monospace columns, and 51px is .diff-line's own chrome around its text
+   (22px padding + 20px line number + 9px gap). */
 .diff-pane-inner {
     display: flex;
     flex-direction: column;
     width: max-content;
+    min-width: calc(var(--diff-cols, 0) * 1ch + 51px);
+    box-sizing: border-box;
 }
 
+/* Exactly diffLineHeight tall (see ConflictResolver.tsx) - the windowing
+   maths depends on every line being the same height. */
 .diff-line {
     display: flex;
     gap: 9px;
     padding: 0 11px;
+    height: 19px;
+    box-sizing: border-box;
 }
 
 .diff-line .ln {
@@ -496,16 +539,32 @@
 .diff-loading {
     flex: 1;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: 6px;
+    padding: 24px 16px;
+    text-align: center;
     color: var(--text-dim);
     font: 400 12px Barlow, sans-serif;
 }
 
 .diff-loading i {
-    font-size: 13px;
+    font-size: 20px;
     color: var(--text-muted);
+    margin-bottom: 2px;
+}
+
+.diff-loading-title {
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+/* The small "what's actually happening" line under the title - reading
+   from disk, comparing, applying a choice. */
+.diff-loading-info {
+    font-size: 11px;
+    color: var(--text-dim);
 }
 
 /* --- Syntax highlighting, for the two real editable text formats this

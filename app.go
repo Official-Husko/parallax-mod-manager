@@ -92,6 +92,11 @@ type App struct {
 	// app's runtime, fetched per mod on demand - see
 	// library.ChangelogCache. Zero-value usable.
 	changelogs library.ChangelogCache
+	// contentPaths remembers each scanned mod's content directory from the
+	// last ScanGame, so ReadModFile (called once per side each time the
+	// Conflict Resolver switches contested keys) can skip re-scanning the
+	// whole game - see library.ContentPathCache. Zero-value usable.
+	contentPaths library.ContentPathCache
 	// dlcRefreshing tracks which games already have a DLC Store-data
 	// background refresh in flight, so a burst of DLCStoreData calls
 	// (e.g. the DLC screen re-rendering) never kicks off more than one at
@@ -636,6 +641,7 @@ func (a *App) ScanGame(gameID, playsetName string) (library.Summary, error) {
 		SteamRoots:   a.steamRoots,
 		ExtraFolders: a.extraModFolders(gameID),
 		Overrides:    a.patchOverrides.Load(gameID),
+		ContentPaths: &a.contentPaths,
 		// The mod list itself (names/versions/sources) is known the moment
 		// scanning finishes, well before conflict detection's slower
 		// per-mod content parsing completes - emit it immediately so the
@@ -693,7 +699,11 @@ func (a *App) ReadModFile(gameID, modID, relPath string) (library.ModFileContent
 	if !ok {
 		return library.ModFileContent{}, fmt.Errorf("app: unknown game %q", gameID)
 	}
-	return library.ReadModFile(a.ctx, cfg, library.Options{SteamRoots: a.steamRoots, ExtraFolders: a.extraModFolders(gameID)}, modID, relPath)
+	return library.ReadModFile(a.ctx, cfg, library.Options{
+		SteamRoots:   a.steamRoots,
+		ExtraFolders: a.extraModFolders(gameID),
+		ContentPaths: &a.contentPaths,
+	}, modID, relPath)
 }
 
 // FindEmptyMods lists gameID's real local mods with no usable content, for

@@ -194,16 +194,16 @@ type ModFileContent struct {
 // inside the mod's own content directory, so a malformed or unexpected
 // relPath can never read anything outside it.
 func ReadModFile(ctx context.Context, cfg game.GameConfig, opts Options, modID, relPath string) (ModFileContent, error) {
-	m, err := findMod(ctx, cfg, opts, modID)
+	contentPath, err := contentDir(ctx, cfg, opts, modID)
 	if err != nil {
 		return ModFileContent{}, err
 	}
 
-	root, err := filepath.Abs(m.ContentPath)
+	root, err := filepath.Abs(contentPath)
 	if err != nil {
 		return ModFileContent{}, err
 	}
-	absPath, err := filepath.Abs(filepath.Join(m.ContentPath, relPath))
+	absPath, err := filepath.Abs(filepath.Join(contentPath, relPath))
 	if err != nil {
 		return ModFileContent{}, err
 	}
@@ -227,6 +227,22 @@ func ReadModFile(ctx context.Context, cfg game.GameConfig, opts Options, modID, 
 		return ModFileContent{}, err
 	}
 	return ModFileContent{Content: string(data), ModifiedAt: info.ModTime().Unix()}, nil
+}
+
+// contentDir returns modID's real content directory: straight from
+// opts.ContentPaths when the last scan already recorded it (and it's still
+// there), otherwise by re-scanning via findMod - and remembering the answer,
+// so the next call for this mod is a hit.
+func contentDir(ctx context.Context, cfg game.GameConfig, opts Options, modID string) (string, error) {
+	if dir, ok := opts.ContentPaths.lookup(cfg.ID, modID); ok {
+		return dir, nil
+	}
+	m, err := findMod(ctx, cfg, opts, modID)
+	if err != nil {
+		return "", err
+	}
+	opts.ContentPaths.remember(cfg.ID, modID, m.ContentPath)
+	return m.ContentPath, nil
 }
 
 // findMod re-scans cfg (the same discovery LoadGame itself uses) and

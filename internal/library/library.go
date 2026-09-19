@@ -207,6 +207,11 @@ type Options struct {
 	// parsing to finish. The final return value is always the complete,
 	// authoritative Summary; this is purely an earlier, partial preview.
 	OnQuickSummary func(Summary)
+	// ContentPaths, if set, is filled with every scanned mod's content
+	// directory as a side effect of LoadGame, and consulted by ReadModFile
+	// so a single-file read doesn't need a full re-scan to find its mod -
+	// see ContentPathCache. nil disables both.
+	ContentPaths *ContentPathCache
 }
 
 // resolvedGame is the raw, unsummarized output of scanning, parsing, and
@@ -235,6 +240,7 @@ func resolveConflicts(ctx context.Context, cfg game.GameConfig, opts Options) (r
 
 	mods := append([]mod.Mod(nil), scanResult.Mods...)
 	sort.Slice(mods, func(i, j int) bool { return mods[i].ID < mods[j].ID })
+	opts.ContentPaths.Store(cfg.ID, mods)
 
 	var errs []string
 	for _, se := range scanResult.Errors {

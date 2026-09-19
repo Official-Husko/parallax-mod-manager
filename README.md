@@ -272,8 +272,19 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   script and Paradox locale `.yml` - tokenized by the exact same rules this project's own real
   parsers use (`internal/script/lexer.go`, `internal/locale/locale.go`), not a separate guessed
   grammar, so a key, string, number, comment, `@variable`, or `yes`/`no` literal is colored
-  exactly as this project's own scanner would classify it (line-level diff highlighting isn't
-  built yet, so it's shown as-is rather than faked as a diff). The overlap matrix is computed
+  exactly as this project's own scanner would classify it, with a real line-level diff
+  (`frontend/src/data/lineDiff.ts`) tinting the lines only one side has. Switching to another
+  contested key is instant however big the modlist is: the clicked key highlights and the
+  contender cards update immediately, both side-by-side panes show a spinner with a short
+  status line ("Reading the file from disk...", "Comparing the two files...") while the files
+  load and the diff is computed off the critical path, and only the rows and lines actually on
+  screen are ever in the DOM (`frontend/src/data/useVirtualWindow.ts`). Picking a different
+  winner shows immediately too (the WINS badge and both panes follow the click), with an
+  "Applying..." indicator held until the rescan that makes it official comes back. In a synthetic
+  benchmark of 12,000 contested keys and 6,000-line files, a click went from a window frozen
+  for seconds to a ~3 ms render. On the Go side, `ReadModFile` looks a mod's folder up in a cache filled by the
+  last scan (`internal/library.ContentPathCache`) instead of re-scanning the whole game for
+  every file it reads. The overlap matrix is computed
   client-side from that same real conflict data (which mod pairs share the most contested keys), capped to the 30
   most-contested mods so the grid stays fast and legible against a large real modlist rather than
   rendering every mod that touches at least one conflict. The mockup's original "Auto-resolve"

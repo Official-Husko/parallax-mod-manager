@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/Official-Husko/parallax-mod-manager/internal/mod"
 )
 
 func TestListModFilesListsRealFilesAndFolders(t *testing.T) {
@@ -232,6 +234,86 @@ func TestReadModFileRejectsOversizedFile(t *testing.T) {
 	_, err := ReadModFile(context.Background(), testGameConfig(), Options{ModDir: modDir}, "mod_a", "gfx/huge.txt")
 	if err == nil {
 		t.Fatal("expected an error for a file over maxReadModFileSize")
+	}
+}
+
+func TestReadModFileUsesContentPathsRecordedByLoadGame(t *testing.T) {
+	modDir := t.TempDir()
+	writeMod(t, modDir, "mod_a", "Mod A", `thing = { cost = 1 }`)
+	paths := &ContentPathCache{}
+	opts := Options{CacheDir: t.TempDir(), ModDir: modDir, ContentPaths: paths}
+
+	if _, err := LoadGame(context.Background(), testGameConfig(), opts); err != nil {
+		t.Fatalf("LoadGame: %v", err)
+	}
+	// With its descriptor gone, a fresh scan can no longer find mod_a at
+	// all - so a successful read below proves ReadModFile took the path
+	// LoadGame recorded instead of scanning again.
+	if err := os.Remove(filepath.Join(modDir, "mod_a.mod")); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+
+	got, err := ReadModFile(context.Background(), testGameConfig(), opts, "mod_a", "common/x.txt")
+	if err != nil {
+		t.Fatalf("ReadModFile: %v", err)
+	}
+	if got.Content != `thing = { cost = 1 }` {
+		t.Errorf("Content = %q, want %q", got.Content, `thing = { cost = 1 }`)
+	}
+}
+
+func TestReadModFileRescansWhenRecordedPathIsStale(t *testing.T) {
+	modDir := t.TempDir()
+	writeMod(t, modDir, "mod_a", "Mod A", `thing = { cost = 1 }`)
+	paths := &ContentPathCache{}
+	paths.remember("test-game", "mod_a", filepath.Join(modDir, "moved_away"))
+	opts := Options{ModDir: modDir, ContentPaths: paths}
+
+	got, err := ReadModFile(context.Background(), testGameConfig(), opts, "mod_a", "common/x.txt")
+	if err != nil {
+		t.Fatalf("ReadModFile: %v", err)
+	}
+	if got.Content != `thing = { cost = 1 }` {
+		t.Errorf("Content = %q, want %q", got.Content, `thing = { cost = 1 }`)
+	}
+	if dir, ok := paths.lookup("test-game", "mod_a"); !ok || dir != filepath.Join(modDir, "mod_a") {
+		t.Errorf("after a rescan the cache should hold the real path, got %q (ok=%v)", dir, ok)
+	}
+}
+
+func TestReadModFileStillErrorsForUnknownMod(t *testing.T) {
+	modDir := t.TempDir()
+	writeMod(t, modDir, "mod_a", "Mod A", `thing = { cost = 1 }`)
+	opts := Options{ModDir: modDir, ContentPaths: &ContentPathCache{}}
+
+	if _, err := ReadModFile(context.Background(), testGameConfig(), opts, "nope", "common/x.txt"); err == nil {
+		t.Fatal("expected an error for a mod that isn't in the scan or the cache")
+	}
+}
+
+func TestContentPathCacheStoreReplacesAndSkipsMissingContent(t *testing.T) {
+	dir := t.TempDir()
+	paths := &ContentPathCache{}
+	paths.Store("g", []mod.Mod{
+		{ID: "present", ContentPath: dir},
+		{ID: "missing", ContentPath: dir, ContentMissing: true},
+	})
+	if _, ok := paths.lookup("g", "present"); !ok {
+		t.Error("present mod should be remembered")
+	}
+	if _, ok := paths.lookup("g", "missing"); ok {
+		t.Error("a mod with missing content should not be remembered")
+	}
+
+	paths.Store("g", []mod.Mod{{ID: "other", ContentPath: dir}})
+	if _, ok := paths.lookup("g", "present"); ok {
+		t.Error("Store should replace the game's previous entries")
+	}
+
+	var none *ContentPathCache
+	none.Store("g", nil) // must not panic
+	if _, ok := none.lookup("g", "x"); ok {
+		t.Error("a nil cache should never report a hit")
 	}
 }
 
