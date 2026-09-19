@@ -278,9 +278,11 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   contender cards update immediately, both side-by-side panes show a spinner with a short
   status line ("Reading the file from disk...", "Comparing the two files...") while the files
   load and the diff is computed off the critical path, and only the rows and lines actually on
-  screen are ever in the DOM (`frontend/src/data/useVirtualWindow.ts`). Picking a different
-  winner shows immediately too (the WINS badge and both panes follow the click), with an
-  "Applying..." indicator held until the rescan that makes it official comes back. In a synthetic
+  screen are ever in the DOM (`frontend/src/data/useVirtualWindow.ts`). Choosing a
+  different winner is a two-step, reviewable action: clicking a contender (or a radio) only
+  previews it, showing its file next to the current winner's with the real line diff of what it
+  would replace, and nothing is saved until you press Apply, which locks the window behind an
+  "Applying... please wait" overlay until the rescan that makes it official comes back. In a synthetic
   benchmark of 12,000 contested keys and 6,000-line files, a click went from a window frozen
   for seconds to a ~3 ms render. On the Go side, `ReadModFile` looks a mod's folder up in a cache filled by the
   last scan (`internal/library.ContentPathCache`) instead of re-scanning the whole game for
@@ -308,9 +310,9 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   games only; regenerated from a clean slate on every call so a resolved-then-later-removed
   conflict never leaves a stale override behind.
   A real **per-conflict manual override** (`internal/patchoverride`) lets a user pick a specific
-  different winner for one contested key, instead of the automatic load-order rule - a clickable
-  radio next to any losing candidate in the Conflict Resolver, and a "Reset to automatic" link
-  once one's set. One override file per game (matching patch generation's own one-per-game scope,
+  different winner for one contested key, instead of the automatic load-order rule - a radio
+  next to each candidate in the Conflict Resolver plus a "Keep load-order winner" option to reset
+  it, both staged and previewed before an explicit Apply. One override file per game (matching patch generation's own one-per-game scope,
   for the same reason), degrading gracefully like `internal/preferences` rather than erroring like
   `internal/playset` - low-stakes, re-derivable data where a missing or corrupt file just means
   every conflict falls back to its automatic winner. A stale override (the chosen mod removed,

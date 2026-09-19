@@ -249,12 +249,15 @@
 .contender-card.wins {
     border-color: var(--green);
     background: #13211a;
-    cursor: default;
 }
 
-.contender-card.inert {
-    cursor: default;
-    pointer-events: none;
+/* The contender whose file is on the right-hand side of the comparison
+   right now - either the winner or a mod the user has clicked to preview.
+   A distinct outline (rather than the winner's green border) so "the one I'm
+   looking at" and "the one that currently wins" can differ at a glance. */
+.contender-card.viewing {
+    outline: 1px solid var(--rust);
+    outline-offset: -1px;
 }
 
 .contender-head {
@@ -291,6 +294,21 @@
     margin-left: auto;
 }
 
+/* A mod the user has picked but not applied yet - see ContendersAndContent's
+   staged choice. */
+.selected-badge {
+    font: 600 9px "Azeret Mono", monospace;
+    color: var(--rust-text);
+    background: var(--rust);
+    border-radius: 2px;
+    padding: 2px 5px;
+    margin-left: auto;
+}
+
+.wins-badge + .selected-badge {
+    margin-left: 6px;
+}
+
 /* Plain ellipsis, not a marquee - unlike a mod's own name, this is
    either a short, fixed-shape "N lines - modified X ago" stat or a real
    file path, and clipping it is enough; the full value is still one
@@ -325,19 +343,31 @@
     font: 600 12px Barlow, sans-serif;
     color: var(--text-muted);
     margin-bottom: 4px;
+}
+
+/* What picking the current radio would do (or a nudge to compare files
+   when nothing's staged) - a div, not a span, because the rule above turns
+   every plain span in this card into a block with its own margin. */
+.resolution-hint {
+    font: 400 11px/1.5 Barlow, sans-serif;
+    color: var(--text-dim);
+    margin-top: 9px;
+}
+
+.resolution-hint:empty {
+    display: none;
+}
+
+.resolution-hint.pending {
+    color: var(--text-muted);
+}
+
+/* Apply/Cancel - only present while a choice is staged but not saved. */
+.resolution-actions {
     display: flex;
     align-items: center;
     gap: 8px;
-}
-
-/* Shown while a winner change is still being applied - the change is a full
-   rescan of the game behind the scenes, which takes a moment. */
-.resolution-busy {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    font: 400 11px Barlow, sans-serif;
-    color: var(--text-dim);
+    margin-top: 10px;
 }
 
 /* Excludes .resolution-option/.resolution-option-disabled (chained
@@ -366,11 +396,6 @@
 
 .resolution-card .resolution-option {
     cursor: pointer;
-}
-
-.resolution-option.inert {
-    cursor: default;
-    pointer-events: none;
 }
 
 .resolution-option-label {

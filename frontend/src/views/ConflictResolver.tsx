@@ -32,6 +32,10 @@ const maxMatrixMods = 30;
 const conflictRowHeight = 50;
 const diffLineHeight = 19;
 
+// Runs a task behind the resolver's "Applying... please wait" overlay - see
+// ConflictResolver's runApply.
+type ApplyRunner = (what: string, task: () => Promise<void>) => Promise<void>;
+
 function conflictKey(c: library.ConflictSummary): string {
     return `${c.Type}:${c.ID}`;
 }
@@ -70,7 +74,13 @@ export function ConflictResolver({gameId, conflicts, order, onClose, onPatchGene
     // .patch-banner's own CSS) and, while patching is true, doubles as
     // the message shown on the full-window progress overlay below.
     const [patchMessage, setPatchMessage] = useState<{ kind: 'success' | 'error' | 'info'; text: string } | null>(null);
-    const [resolvingAll, setResolvingAll] = useState(false);
+    // What the full-window "Applying... please wait" overlay says is being
+    // done, or null when nothing is. Applying a winner (or resetting every
+    // manual pick) ends in a full rescan of the game, which takes a moment on
+    // a big modlist - the overlay locks the window for that whole time so a
+    // click can't land on a half-updated view, and so it's obvious something
+    // is still happening.
+    const [applying, setApplying] = useState<string | null>(null);
     // Which contested keys (see conflictKey) this user has manually
     // marked reviewed for this game - see internal/resolvedconflicts.
     // Purely a personal bookkeeping flag: it never changes who actually
@@ -113,17 +123,32 @@ export function ConflictResolver({gameId, conflicts, order, onClose, onPatchGene
     const selected = conflicts.find((c) => conflictKey(c) === selectedKey) ?? filtered[0] ?? null;
     const manualCount = conflicts.filter((c) => c.Overridden).length;
 
-    async function handleAutoResolveAll() {
-        setResolvingAll(true);
+    // Runs task behind the applying overlay (`what` is its explanation line),
+    // and rethrows whatever task throws once the overlay is down so the
+    // caller can show its own error.
+    async function runApply(what: string, task: () => Promise<void>) {
+        setApplying(what);
         try {
-            await ClearPatchOverrides(gameId);
-            // Awaited so "Resolving..." lasts until the rescan has actually
-            // brought back the reset winners, not just until the file write.
-            await onOverrideChanged();
+            await task();
+        } finally {
+            setApplying(null);
+        }
+    }
+
+    async function handleAutoResolveAll() {
+        try {
+            await runApply(
+                "Resetting every manual pick and re-checking all conflicts against the load order. This window is locked until it's done.",
+                async () => {
+                    await ClearPatchOverrides(gameId);
+                    // Awaited so the overlay stays up until the rescan has
+                    // actually brought back the reset winners, not just until
+                    // the file write.
+                    await onOverrideChanged();
+                },
+            );
         } catch (err) {
             setPatchMessage({kind: 'error', text: `Failed to auto-resolve: ${String(err)}`});
-        } finally {
-            setResolvingAll(false);
         }
     }
 
@@ -171,9 +196,7 @@ export function ConflictResolver({gameId, conflicts, order, onClose, onPatchGene
                         <span className={mode === 'matrix' ? 'active' : ''} onClick={() => setMode('matrix')}>Matrix</span>
                     </span>
                     {manualCount > 0 && (
-                        <span className={`btn-ghost ${resolvingAll ? 'inert' : ''}`} onClick={resolvingAll ? undefined : handleAutoResolveAll}>
-                            {resolvingAll ? 'Resolving...' : 'Auto-resolve all'}
-                        </span>
+                        <span className="btn-ghost" onClick={handleAutoResolveAll}>Auto-resolve all</span>
                     )}
                     {conflicts.length > 0 && (
                         <span className={`btn-primary ${patching ? 'inert' : ''}`} onClick={patching ? undefined : handleGeneratePatch}>
@@ -208,20 +231,21 @@ export function ConflictResolver({gameId, conflicts, order, onClose, onPatchGene
                         selected={selected}
                         onSelect={(c) => setSelectedKey(conflictKey(c))}
                         onOverrideChanged={onOverrideChanged}
+                        runApply={runApply}
                         resolvedKeys={resolvedKeys}
                         onSetResolved={setConflictResolved}
                     />
                 )}
                 {conflicts.length > 0 && mode === 'matrix' && <MatrixView conflicts={conflicts}/>}
 
-                {patching && (
+                {(patching || applying !== null) && (
                     <div className="resolver-progress-overlay">
                         <i className="fa-solid fa-spinner fa-spin"/>
-                        <div className="resolver-progress-title">Generating patch...</div>
+                        <div className="resolver-progress-title">{patching ? 'Generating patch...' : 'Applying... please wait'}</div>
                         <div className="resolver-progress-subtitle">
-                            Resolving every contested key against the current load order and writing the
-                            winning content into a patch mod. Sit tight - this window is locked until it's
-                            done.
+                            {patching
+                                ? "Resolving every contested key against the current load order and writing the winning content into a patch mod. Sit tight - this window is locked until it's done."
+                                : applying}
                         </div>
                     </div>
                 )}
@@ -256,7 +280,7 @@ function ConflictRow({conflict, selected, resolved, onSelect}: {
     );
 }
 
-function ListView({gameId, conflicts, search, onSearch, selected, onSelect, onOverrideChanged, resolvedKeys, onSetResolved}: {
+function ListView({gameId, conflicts, search, onSearch, selected, onSelect, onOverrideChanged, runApply, resolvedKeys, onSetResolved}: {
     gameId: string;
     conflicts: library.ConflictSummary[];
     search: string;
@@ -264,6 +288,7 @@ function ListView({gameId, conflicts, search, onSearch, selected, onSelect, onOv
     selected: library.ConflictSummary | null;
     onSelect: (c: library.ConflictSummary) => void;
     onOverrideChanged: () => void | Promise<void>;
+    runApply: ApplyRunner;
     resolvedKeys: Set<string>;
     onSetResolved: (c: library.ConflictSummary, resolved: boolean) => void;
 }) {
@@ -306,6 +331,7 @@ function ListView({gameId, conflicts, search, onSearch, selected, onSelect, onOv
                     gameId={gameId}
                     conflict={selected}
                     onOverrideChanged={onOverrideChanged}
+                    runApply={runApply}
                     resolved={resolvedKeys.has(conflictKey(selected))}
                     onSetResolved={(resolved) => onSetResolved(selected, resolved)}
                 />
@@ -314,10 +340,11 @@ function ListView({gameId, conflicts, search, onSearch, selected, onSelect, onOv
     );
 }
 
-function ContendersAndContent({gameId, conflict, onOverrideChanged, resolved, onSetResolved}: {
+function ContendersAndContent({gameId, conflict, onOverrideChanged, runApply, resolved, onSetResolved}: {
     gameId: string;
     conflict: library.ConflictSummary;
     onOverrideChanged: () => void | Promise<void>;
+    runApply: ApplyRunner;
     resolved: boolean;
     onSetResolved: (resolved: boolean) => void;
 }) {
@@ -326,15 +353,19 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged, resolved, on
     const [leftModified, setLeftModified] = useState<number | null>(null);
     const [rightModified, setRightModified] = useState<number | null>(null);
     const [error, setError] = useState('');
-    const [overrideBusy, setOverrideBusy] = useState(false);
     const [overrideError, setOverrideError] = useState('');
-    // The mod just picked to win, from the click until the rescan that makes
-    // it official comes back - so the WINS badge, the resolution radios and
-    // the two diff panes follow the click immediately instead of sitting on
-    // the old winner for the whole rescan. Null when there's nothing pending,
-    // and for "back to the automatic winner" too: the frontend doesn't know
-    // who that is (see framingFor), so that one has to wait for the rescan.
-    const [pendingWinner, setPendingWinner] = useState<string | null>(null);
+    // What's actually saved for this key right now: a mod ID if the user has
+    // manually forced that mod to win, '' if the load order decides.
+    const applied = conflict.Overridden ? conflict.Winner : '';
+    // The resolution the user has picked but not applied yet - clicking a
+    // contender or a radio only *stages* it here (and previews it in the
+    // diff), it never changes anything on disk. Only the Apply button does
+    // (see applyChoice). '' means "keep the load-order winner".
+    const [choice, setChoice] = useState(applied);
+    // Follow what's really saved whenever that changes underneath us (an
+    // apply landing, or "Auto-resolve all" clearing every override).
+    useEffect(() => setChoice(applied), [applied]);
+    const dirty = choice !== applied;
     // The line diff between the two sides, computed once both have loaded -
     // see the effect below for why it's state rather than a useMemo.
     const [diff, setDiff] = useState<LineDiffResult | null>(null);
@@ -362,36 +393,50 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged, resolved, on
     const rightInnerRef = useRef<HTMLDivElement>(null);
     const hscrollRef = useRef<HTMLDivElement>(null);
 
-    async function chooseWinner(modId: string) {
-        setOverrideBusy(true);
+    // Clicking the mod that already wins (and isn't manually forced) just
+    // goes back to viewing it against what it overwrites - there's nothing
+    // to stage.
+    function stageChoice(modId: string) {
         setOverrideError('');
-        if (modId !== '') setPendingWinner(modId);
+        setChoice(modId === conflict.Winner ? applied : modId);
+    }
+
+    async function applyChoice() {
+        setOverrideError('');
         try {
-            await SetPatchOverride(gameId, conflict.Type, conflict.ID, modId);
-            // Awaited: the refresh behind this is a full rescan of the game
-            // (seconds on a big modlist), and staying busy until it lands is
-            // what keeps the cards inert and the "Applying..." indicator up
-            // for that whole time instead of only for the tiny file write.
-            await onOverrideChanged();
+            await runApply(
+                "Saving your choice and re-checking every conflict against the load order. This window is locked until it's done.",
+                async () => {
+                    await SetPatchOverride(gameId, conflict.Type, conflict.ID, choice);
+                    // Awaited: the refresh behind this is a full rescan of the
+                    // game (seconds on a big modlist), and the overlay has to
+                    // stay up until the new winner has actually come back.
+                    await onOverrideChanged();
+                },
+            );
         } catch (err) {
             setOverrideError(String(err));
-        } finally {
-            setOverrideBusy(false);
-            setPendingWinner(null);
         }
     }
 
-    // What to show as the winner: the just-clicked pick if the rescan hasn't
-    // confirmed it yet, otherwise what the backend says.
-    const winnerId = pendingWinner ?? conflict.Winner;
-    const overridden = pendingWinner !== null || conflict.Overridden;
-    const winnerIdx = conflict.Candidates.findIndex((c) => c.ModID === winnerId);
-    // Compare the winner against whichever candidate sits right before it
-    // in load order - the one it's actually overriding - rather than an
-    // arbitrary pair, when there are more than two candidates.
-    const loserIdx = winnerIdx > 0 ? winnerIdx - 1 : (conflict.Candidates.length > 1 ? 1 : -1);
-    const winner = winnerIdx >= 0 ? conflict.Candidates[winnerIdx] : null;
-    const loser = loserIdx >= 0 ? conflict.Candidates[loserIdx] : null;
+    // What the right-hand pane shows is the contender the user is looking at
+    // (the staged pick, or otherwise the current winner), and the left-hand
+    // pane shows what it would replace or, if it already wins, what it
+    // overwrites:
+    //  - viewing a mod that isn't the current winner: left = the current
+    //    winner, whose version this file would replace if applied;
+    //  - viewing the current winner: left = the candidate right before it in
+    //    load order (the one it's actually overriding), or the second one
+    //    when it's first - rather than an arbitrary pair.
+    const winnerIdx = conflict.Candidates.findIndex((c) => c.ModID === conflict.Winner);
+    const viewId = choice !== '' ? choice : conflict.Winner;
+    const viewIdx = conflict.Candidates.findIndex((c) => c.ModID === viewId);
+    const viewingWinner = viewId === conflict.Winner;
+    const againstIdx = !viewingWinner
+        ? winnerIdx
+        : (viewIdx > 0 ? viewIdx - 1 : (conflict.Candidates.length > 1 ? 1 : -1));
+    const viewed = viewIdx >= 0 ? conflict.Candidates[viewIdx] : null;
+    const against = againstIdx >= 0 ? conflict.Candidates[againstIdx] : null;
 
     useEffect(() => {
         let cancelled = false;
@@ -402,18 +447,18 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged, resolved, on
         setError('');
         setScrollX(0);
         if (hscrollRef.current) hscrollRef.current.scrollLeft = 0;
-        if (loser) {
-            ReadModFile(gameId, loser.ModID, loser.FilePath)
+        if (against) {
+            ReadModFile(gameId, against.ModID, against.FilePath)
                 .then((f) => { if (!cancelled) { setLeftContent(f.Content); setLeftModified(f.ModifiedAt); } })
                 .catch((err) => { if (!cancelled) setError(String(err)); });
         }
-        if (winner) {
-            ReadModFile(gameId, winner.ModID, winner.FilePath)
+        if (viewed) {
+            ReadModFile(gameId, viewed.ModID, viewed.FilePath)
                 .then((f) => { if (!cancelled) { setRightContent(f.Content); setRightModified(f.ModifiedAt); } })
                 .catch((err) => { if (!cancelled) setError(String(err)); });
         }
         return () => { cancelled = true; };
-    }, [gameId, winner?.ModID, winner?.FilePath, loser?.ModID, loser?.FilePath]);
+    }, [gameId, viewed?.ModID, viewed?.FilePath, against?.ModID, against?.FilePath]);
 
     // An empty file is zero lines, not one ('' split on '\n' would otherwise
     // report a single blank line, misclassifying it against the other side).
@@ -429,27 +474,23 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged, resolved, on
     // synchronous version froze the window before that state could show.
     useEffect(() => {
         setDiff(null);
-        if (!loser || !winner || leftLines === null || rightLines === null) return;
+        if (!against || !viewed || leftLines === null || rightLines === null) return;
         return afterNextPaint(() => setDiff(diffLines(leftLines, rightLines)));
     }, [leftLines, rightLines]);
 
     // What each pane shows instead of its file while it isn't ready to: one
     // short line saying what's actually going on. Undefined means "show the
     // real content".
-    const diffPending = loser !== null && winner !== null && diff === null;
+    const diffPending = against !== null && viewed !== null && diff === null;
     function pendingTextFor(lines: string[] | null): string | undefined {
-        // With a pending pick the panes already show the new pair loading,
-        // so only the "back to automatic" case (no pick to show yet) blanks
-        // them behind this message.
-        if (overrideBusy && pendingWinner === null) return 'Applying your choice...';
         if (lines === null) return 'Reading the file from disk...';
         if (diffPending) return 'Comparing the two files...';
         return undefined;
     }
     // A side with no candidate at all (the one-mod-touches-this-key case)
     // has nothing to load, so it's never pending.
-    const leftPending = loser ? pendingTextFor(leftLines) : undefined;
-    const rightPending = winner ? pendingTextFor(rightLines) : undefined;
+    const leftPending = against ? pendingTextFor(leftLines) : undefined;
+    const rightPending = viewed ? pendingTextFor(rightLines) : undefined;
     const panesReady = !error && leftPending === undefined && rightPending === undefined;
 
     // Only the lines on screen are in the DOM (see useVirtualWindow), for the
@@ -495,29 +536,34 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged, resolved, on
                 <div className="col-header">CONTENDERS · LOAD ORDER</div>
                 <div className="contenders-list">
                     {conflict.Candidates.map((c, i) => {
-                        const wins = c.ModID === winnerId;
-                        const isLoser = loser?.ModID === c.ModID;
-                        const isWinnerCard = winner?.ModID === c.ModID;
-                        const loadedLines = isLoser ? leftLines : isWinnerCard ? rightLines : null;
-                        const loadedModified = isLoser ? leftModified : isWinnerCard ? rightModified : null;
+                        const wins = c.ModID === conflict.Winner;
+                        const viewing = c.ModID === viewId;
+                        const staged = dirty && choice === c.ModID;
+                        const isLeft = against?.ModID === c.ModID;
+                        const isRight = viewed?.ModID === c.ModID;
+                        const loadedLines = isLeft ? leftLines : isRight ? rightLines : null;
+                        const loadedModified = isLeft ? leftModified : isRight ? rightModified : null;
                         const metaText = loadedLines !== null && loadedModified !== null
                             ? `${loadedLines.length} line${loadedLines.length === 1 ? '' : 's'} · modified ${timeAgo(loadedModified)}`
                             : c.FilePath;
                         return (
                             <div
                                 key={c.ModID}
-                                className={`contender-card ${wins ? 'wins' : ''} ${overrideBusy ? 'inert' : ''}`}
-                                title={wins ? 'Currently wins this conflict' : 'Click to make this mod win this conflict'}
-                                onClick={() => !overrideBusy && !wins && chooseWinner(c.ModID)}
+                                className={`contender-card ${wins ? 'wins' : ''} ${viewing ? 'viewing' : ''}`}
+                                title={wins
+                                    ? "Currently wins this conflict - click to compare it with what it overwrites"
+                                    : "Click to compare this file with the current winner's (nothing changes until you apply)"}
+                                onClick={() => stageChoice(c.ModID)}
                             >
                                 <div className="contender-head">
                                     <span className="mono pos">{i + 1}</span>
                                     <span className="name"><MarqueeText text={c.ModName}/></span>
-                                    {wins && <span className="wins-badge">{overridden ? 'WINS · MANUAL' : 'WINS'}</span>}
+                                    {wins && <span className="wins-badge">{conflict.Overridden ? 'WINS · MANUAL' : 'WINS'}</span>}
+                                    {staged && <span className="selected-badge">SELECTED</span>}
                                 </div>
                                 <div className="mono meta" title={metaText}>{metaText}</div>
                                 <div className={`note ${wins ? 'wins-note' : ''}`}>
-                                    {framingFor(i, winnerIdx, conflict.Candidates.length, overridden)}
+                                    {framingFor(i, winnerIdx, conflict.Candidates.length, conflict.Overridden)}
                                 </div>
                             </div>
                         );
@@ -525,30 +571,19 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged, resolved, on
                 </div>
 
                 <div className="resolution-card">
-                    <div className="resolution-title">
-                        Resolution
-                        {overrideBusy && (
-                            <div className="resolution-busy">
-                                <i className="fa-solid fa-spinner fa-spin"/>
-                                Applying...
-                            </div>
-                        )}
-                    </div>
-                    <span
-                        className={`resolution-option ${overrideBusy ? 'inert' : ''}`}
-                        onClick={() => !overrideBusy && overridden && chooseWinner('')}
-                    >
-                        <span className={!overridden ? 'radio-on' : 'radio-off'}>{!overridden ? '●' : '○'}</span> Keep load-order winner
+                    <div className="resolution-title">Resolution</div>
+                    <span className="resolution-option" onClick={() => { setOverrideError(''); setChoice(''); }}>
+                        <span className={choice === '' ? 'radio-on' : 'radio-off'}>{choice === '' ? '●' : '○'}</span> Keep load-order winner
                     </span>
                     {conflict.Candidates.map((c) => {
-                        const forced = overridden && winnerId === c.ModID;
+                        const picked = choice === c.ModID;
                         return (
                             <span
                                 key={c.ModID}
-                                className={`resolution-option ${overrideBusy ? 'inert' : ''}`}
-                                onClick={() => !overrideBusy && !forced && chooseWinner(c.ModID)}
+                                className="resolution-option"
+                                onClick={() => { setOverrideError(''); setChoice(c.ModID); }}
                             >
-                                <span className={forced ? 'radio-on' : 'radio-off'}>{forced ? '●' : '○'}</span>
+                                <span className={picked ? 'radio-on' : 'radio-off'}>{picked ? '●' : '○'}</span>
                                 <MarqueeText text={`Force ${c.ModName}`} className="resolution-option-label"/>
                             </span>
                         );
@@ -559,27 +594,44 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged, resolved, on
                     <span className="resolution-option-disabled" title="Not built yet">
                         <span className="radio-off">○</span> Exclude file from both
                     </span>
+                    <div className={`resolution-hint ${dirty ? 'pending' : ''}`}>
+                        {dirty
+                            ? (choice === ''
+                                ? "Your manual pick will be removed and the load order will decide the winner again. Nothing is saved until you apply."
+                                : choice === conflict.Winner
+                                    ? `${viewed?.ModName ?? 'This mod'} already wins - this locks it in as the winner even if the load order changes later. Nothing is saved until you apply.`
+                                    : `${viewed?.ModName ?? 'This mod'} will win this key instead of ${against?.ModName ?? 'the current winner'}, so its file replaces that one. The comparison on the right shows exactly what changes. Nothing is saved until you apply.`)
+                            : conflict.Candidates.length > 1
+                                ? "Select a mod to compare its file with the current winner's. Nothing changes until you apply a choice."
+                                : ''}
+                    </div>
+                    {dirty && (
+                        <div className="resolution-actions">
+                            <div className="btn-primary" onClick={applyChoice}>Apply</div>
+                            <div className="btn-ghost" onClick={() => { setOverrideError(''); setChoice(applied); }}>Cancel</div>
+                        </div>
+                    )}
                 </div>
                 {overrideError && <p className="status-page error" style={{padding: '0 13px 10px'}}>{overrideError}</p>}
             </div>
 
             <div className="diff-col">
                 <div className="diff-toolbar">
-                    <span className="mono">{winner?.FilePath ?? conflict.ID}</span>
+                    <span className="mono">{viewed?.FilePath ?? conflict.ID}</span>
                     <div className="spacer"/>
                     <span className="sort-label">Side by side</span>
                 </div>
                 {error && <p className="status-page error" style={{padding: 12}}>{error}</p>}
-                {!error && (loser || winner) && (
+                {!error && (against || viewed) && (
                     <div className="diff-body mono" ref={diffBodyRef} onScroll={onDiffScroll}>
                         <div className={`diff-pane ${leftPending !== undefined ? 'loading' : ''}`} ref={leftPaneRef}>
-                            {loser
+                            {against
                                 ? (
                                     <ContentPane
-                                        label={`${loser.ModName} (loses)`}
+                                        label={`${against.ModName} (${viewingWinner ? 'loses' : 'current winner'})`}
                                         lines={leftLines}
                                         pendingText={leftPending}
-                                        syntax={syntaxForPath(loser.FilePath)}
+                                        syntax={syntaxForPath(against.FilePath)}
                                         lineStates={diff?.leftMatched}
                                         changedClassName="removed"
                                         firstLine={firstLine}
@@ -592,12 +644,12 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged, resolved, on
                                 : <ContentPane label="Only one mod touches this key" lines={noLines} syntax="plain" firstLine={0} lastLine={1} maxCols={0}/>}
                         </div>
                         <div className={`diff-pane ${rightPending !== undefined ? 'loading' : ''}`}>
-                            {winner && (
+                            {viewed && (
                                 <ContentPane
-                                    label={`${winner.ModName} (wins)`}
+                                    label={`${viewed.ModName} (${viewingWinner ? 'wins' : 'selected'})`}
                                     lines={rightLines}
                                     pendingText={rightPending}
-                                    syntax={syntaxForPath(winner.FilePath)}
+                                    syntax={syntaxForPath(viewed.FilePath)}
                                     lineStates={diff?.rightMatched}
                                     changedClassName="added"
                                     firstLine={firstLine}
@@ -628,7 +680,7 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged, resolved, on
                     )}
                     {(!diff || diff.skipped) && (
                         <span className="mono">
-                            {!loser
+                            {!against
                                 ? "Only one mod touches this key - there's nothing to diff against."
                                 : diff?.skipped
                                     ? "This file is too large to diff line-by-line - showing its real, syntax-highlighted content as-is."
