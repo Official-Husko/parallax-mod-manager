@@ -273,9 +273,16 @@
     margin-left: auto;
 }
 
+/* Plain ellipsis, not a marquee - unlike a mod's own name, this is
+   either a short, fixed-shape "N lines - modified X ago" stat or a real
+   file path, and clipping it is enough; the full value is still one
+   hover away via its own title attribute. */
 .contender-card .meta {
     font-size: 11px;
     color: var(--text-dim);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .contender-card .note {
@@ -374,51 +381,55 @@
     flex: 1;
 }
 
-/* The single shared scroll container for *both* panes at once, in both
-   directions - like VS Code's side-by-side diff, one physical scrollbar
-   drives both sides together rather than each pane scrolling on its own
-   (which used to mean two separate horizontal scrollbars that could drift
-   out of sync, or even sit at different heights when the two files have
-   different line counts). align-items: flex-start keeps each pane sized
-   to its own real content height instead of stretching to match the
-   other - without that, a pane taller than its sibling would try to
-   scroll vertically *inside itself* too, decoupling it from the other
-   pane's row alignment as you scroll. */
+/* Shared vertical scroll only - the point of a side-by-side view is
+   seeing *both* files at once to compare them, so neither pane's own
+   width should ever grow to swallow the other one out of view. Each
+   pane keeps its own even, fixed share of the width (see .diff-pane
+   below) and scrolls its own horizontal overflow independently -
+   align-items: flex-start keeps each pane sized to its own real content
+   height (rather than stretched to match the other), so a pane taller
+   than its sibling never tries to scroll vertically *inside itself*
+   too, which would decouple it from the other pane's row alignment as
+   you scroll through the file. */
 .diff-body {
     flex: 1;
     min-height: 0;
-    overflow: auto;
+    overflow-y: auto;
+    overflow-x: hidden;
     display: flex;
     align-items: flex-start;
     font-size: 11px;
     line-height: 1.75;
 }
 
-/* No overflow of its own - .diff-body above is the only scroll container.
-   Also no min-width: 0: leaving a flex item's automatic minimum size at
-   its real content's width (rather than forcing it to 0, allowing it to
-   shrink arbitrarily) is exactly what lets this pane grow to fit its own
-   longest real line when .diff-line demands more room below, instead of
-   capping the row at the pane's "fair share" width while the line's real
-   text quietly overflowed past the box that was supposed to tint it -
-   that gap was why scrolling right used to run into plain, untinted text
-   with no syntax or diff coloring at all. */
+/* min-width: 0 (allowing this to shrink below its own content's natural
+   size) plus flex: 1 with no basis is what keeps this pane locked to its
+   even, fixed share of .diff-body's width, always - so the other pane
+   always stays visible too, letter for letter the point of a side-by-
+   side view. overflow-x: auto handles anything that doesn't fit *within*
+   that fixed share (a single long line) as this pane's own independent
+   scroll, rather than growing the box - which used to mean the row's own
+   background/border ran out mid-way, since the box providing them never
+   grew to match the overflowing text past its edge. */
 .diff-pane {
     flex: 1;
+    min-width: 0;
     border-right: 1px solid #1a212b;
     padding: 10px 0;
     display: flex;
     flex-direction: column;
+    overflow-x: auto;
 }
 
 .diff-pane:last-child {
     border-right: none;
 }
 
-/* width: max-content + min-width: 100% is what lets a line's own row grow
-   past the pane's usual width when its real content is that long, always
-   carrying its own background/border along with it - short lines still
-   fill the pane's full width either way, via the min-width floor. */
+/* width: max-content + min-width: 100% (of the pane's own fixed share,
+   not the whole diff-body) is what lets one long line's row grow wide
+   enough to scroll within its own pane, always carrying its own
+   background/border along with it - short lines still fill the pane's
+   full width either way, via the min-width floor. */
 .diff-line {
     display: flex;
     gap: 9px;

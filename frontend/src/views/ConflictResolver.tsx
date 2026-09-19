@@ -378,7 +378,7 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged, resolved, on
                                     <span className="name"><MarqueeText text={c.ModName}/></span>
                                     {wins && <span className="wins-badge">{conflict.Overridden ? 'WINS · MANUAL' : 'WINS'}</span>}
                                 </div>
-                                <div className="mono meta"><MarqueeText text={metaText}/></div>
+                                <div className="mono meta" title={metaText}>{metaText}</div>
                                 <div className={`note ${wins ? 'wins-note' : ''}`}>
                                     {framingFor(i, winnerIdx, conflict.Candidates.length, conflict.Overridden)}
                                 </div>
