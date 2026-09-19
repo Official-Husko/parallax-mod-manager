@@ -87,6 +87,39 @@ type Preferences struct {
 	// existed, and any game the user has never configured) reads as
 	// launch.LaunchModeSteam - the unchanged, pre-existing behavior.
 	LaunchModes map[string]string `json:"launchModes"`
+	// LastActivePlaysets persists, per game ID, the playset name most
+	// recently saved or explicitly switched to for that game (see
+	// Workspace.tsx's rememberActivePlayset) - what PlaysetAutoloadModes'
+	// "last" mode (the default) reloads automatically the next time that
+	// game is opened, so a returning user doesn't have to reselect it
+	// every time. Play itself never depends on a playset being loaded at
+	// all (see App.LaunchGame) - launching with nothing selected just
+	// launches the game against whatever's already on disk untouched, so
+	// this is purely a convenience default, not something correctness
+	// depends on. A missing or since-deleted/renamed entry is treated as
+	// unset by its one reader (Workspace's own mount effect, which
+	// double-checks the name still exists in ListPlaysets before loading
+	// it) rather than erroring - Workspace just starts blank.
+	LastActivePlaysets map[string]string `json:"lastActivePlaysets"`
+	// PlaysetAutoloadModes persists, per game ID, how Workspace should
+	// choose which playset (if any) to automatically load when that game
+	// is opened: "off" (never autoload - start blank every time, letting
+	// Play launch whatever's already on disk untouched until the user
+	// explicitly picks or types a name), "last" (LastActivePlaysets for
+	// that game), or "custom" (always the specific playset named in
+	// PlaysetAutoloadCustom for that game, regardless of what was last
+	// active - for a game where you always want the same curated
+	// collection loaded even after experimenting with others). An unset
+	// entry means "last" - the default, and the behavior this app already
+	// had before this setting existed.
+	PlaysetAutoloadModes map[string]string `json:"playsetAutoloadModes"`
+	// PlaysetAutoloadCustom persists, per game ID, which playset name
+	// PlaysetAutoloadModes' "custom" mode should always load for that
+	// game - meaningless while that game's mode is "off" or "last". A
+	// name that no longer exists (renamed or deleted since) is treated as
+	// unset by its one reader (Workspace's own mount effect) rather than
+	// erroring, the same as LastActivePlaysets above.
+	PlaysetAutoloadCustom map[string]string `json:"playsetAutoloadCustom"`
 }
 
 // Defaults returns the preferences a fresh install starts with.

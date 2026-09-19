@@ -496,6 +496,9 @@ export namespace preferences {
 	    backgroundRotationPaused: boolean;
 	    backgroundIntervalSeconds: number;
 	    launchModes: Record<string, string>;
+	    lastActivePlaysets: Record<string, string>;
+	    playsetAutoloadModes: Record<string, string>;
+	    playsetAutoloadCustom: Record<string, string>;
 	
 	    static createFrom(source: any = {}) {
 	        return new Preferences(source);
@@ -516,6 +519,9 @@ export namespace preferences {
 	        this.backgroundRotationPaused = source["backgroundRotationPaused"];
 	        this.backgroundIntervalSeconds = source["backgroundIntervalSeconds"];
 	        this.launchModes = source["launchModes"];
+	        this.lastActivePlaysets = source["lastActivePlaysets"];
+	        this.playsetAutoloadModes = source["playsetAutoloadModes"];
+	        this.playsetAutoloadCustom = source["playsetAutoloadCustom"];
 	    }
 	}
 

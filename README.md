@@ -139,9 +139,22 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   root - true for Stellaris/EU4/HOI4, where the two are the same, but CK3, Imperator: Rome, and
   Victoria 3 nest it under a `launcher/` subfolder, so the previous `installDir`-relative join
   pointed outside the install for those three. A second bypass strategy - replacing the
-  launcher's own binary with a small shim so Steam keeps owning the process - is designed for
-  (`LaunchMode` is a named string, not a bool, specifically so it can be added later) but not yet
-  built. See [docs/game-launching.md](docs/game-launching.md).
+  launcher's own binary with a small shim so Steam keeps owning the process, shown in the UI
+  today as "Steam Direct (Recommended)" - is designed for (`LaunchMode` is a named string, not a
+  bool, specifically so it can be added later) but not yet built; once it is, it's intended to
+  become the default, since it keeps Steam integration Parallax Direct can't promise on every
+  game. See [docs/game-launching.md](docs/game-launching.md).
+- **Play never depends on a playset being loaded** (`app.go`'s `LaunchGame`) - launching with no
+  playset name selected skips every one of this project's own state writes (`dlc_load.json`,
+  `mods_registry.json`, `game_data.json`) entirely and starts the game against whatever's already
+  on disk untouched, rather than refusing to launch or inventing an empty state of its own. Paired
+  with a new **Playsets** settings panel (renamed from the former "Playset sharing" placeholder
+  entry) that configures, one game at a time, whether Workspace automatically reloads a playset
+  when you open that game: off (always start blank), autoload whichever one was last saved or
+  switched to (the default), or always autoload one specific pinned playset regardless of what
+  else you've used since. Playset sharing itself (export/import as a shareable code) now lives as
+  its own row inside that same panel rather than a top-level tab, still unbuilt - see
+  [Not yet built](#not-yet-built).
 - **Importing existing Paradox Launcher playsets** (`internal/launcherdb`) - reads a game's real
   `launcher-v2.sqlite`, strictly read-only (confirmed schema against real, live databases for two
   different classic-descriptor games on this machine, not just a secondary source - see

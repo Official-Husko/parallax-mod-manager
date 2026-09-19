@@ -384,23 +384,46 @@
     color: var(--text-dim);
 }
 
-.launch-game-picker {
+.settings-game-picker {
     display: flex;
     flex-wrap: wrap;
     gap: 7px;
 }
 
-.launch-game-picker .chip {
+.settings-game-picker .chip {
     cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
 }
 
-.launch-mode-list {
+.chip-logo {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    object-fit: cover;
+    flex: none;
+}
+
+.chip-logo.fallback {
+    background: var(--border-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.chip-logo.fallback i {
+    font-size: 8px;
+    color: var(--text-dim);
+}
+
+.mode-option-list {
     display: flex;
     flex-direction: column;
     gap: 9px;
 }
 
-.launch-mode-option {
+.mode-option {
     display: flex;
     align-items: flex-start;
     gap: 12px;
@@ -410,36 +433,36 @@
     cursor: pointer;
 }
 
-.launch-mode-option.active {
+.mode-option.active {
     border-color: var(--rust);
     background: rgba(196, 98, 58, .08);
 }
 
-.launch-mode-option.disabled {
+.mode-option.disabled {
     cursor: not-allowed;
     opacity: .6;
 }
 
-.launch-mode-radio {
+.mode-option-radio {
     font-size: 13px;
     margin-top: 1px;
     flex: none;
 }
 
-.launch-mode-radio.on {
+.mode-option-radio.on {
     color: var(--rust);
 }
 
-.launch-mode-radio.off {
+.mode-option-radio.off {
     color: #3c4858;
 }
 
-.launch-mode-main {
+.mode-option-main {
     flex: 1;
     min-width: 0;
 }
 
-.launch-mode-name {
+.mode-option-name {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -448,9 +471,45 @@
     margin-bottom: 3px;
 }
 
-.launch-mode-desc {
+.mode-option-desc {
     font: 400 11.5px/1.5 Barlow, sans-serif;
     color: var(--text-muted);
+}
+
+.mode-option-recommended {
+    font: 500 11px Barlow, sans-serif;
+    color: var(--amber);
+}
+
+.playset-autoload-targets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 9px;
+}
+
+.playset-autoload-targets .chip {
+    cursor: pointer;
+}
+
+.playset-autoload-empty {
+    font: 400 11px Barlow, sans-serif;
+    color: var(--text-dim);
+    margin-top: 8px;
+}
+
+.playset-sharing-block {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    padding-top: 18px;
+    border-top: 1px solid var(--border);
+}
+
+.playset-sharing-label {
+    font: 600 9.5px "Azeret Mono", monospace;
+    color: var(--text-dim);
+    letter-spacing: .12em;
 }
 
 .sort-rules-list {

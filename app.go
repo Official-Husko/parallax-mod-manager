@@ -1035,53 +1035,65 @@ func (a *App) DeletePlayset(gameID, name string) error {
 // LaunchGame writes the named playset's dlc_load.json and launches the game
 // via the real OSLauncher - this is the one method in this app that opens
 // Steam and starts the actual game process.
+//
+// playsetName == "" is a deliberate, supported case, not a missing
+// argument: Play is never disabled just because no playset is loaded (see
+// Workspace.tsx's play-button) - launching with nothing selected here
+// skips loading a playset and every one of this function's own state
+// writes entirely, leaving dlc_load.json/mods_registry.json/game_data.json
+// exactly as they already are and launching the game against that as-is.
+// That's either whatever this app last wrote for a real playset, or
+// whatever Steam/the Paradox Launcher last wrote before this app ever
+// touched the game - never a state this function invents itself.
 func (a *App) LaunchGame(gameID, playsetName string) error {
 	cfg, ok := a.registry.Get(gameID)
 	if !ok {
 		return fmt.Errorf("app: unknown game %q", gameID)
 	}
 
-	p, err := a.playsets.Load(a.ctx, gameID, playsetName)
-	if err != nil {
-		return err
-	}
-
-	scanResult, err := scan.Scan(a.ctx, scan.Options{Game: cfg, SteamRoots: a.steamRoots, ExtraFolders: a.extraModFolders(gameID)})
-	if err != nil {
-		return err
-	}
-
-	stateDir, err := cfg.UserDataDir()
-	if err != nil {
-		return err
-	}
-
-	// Some subscribed Workshop mods may have been discovered without a
-	// game/mod/ linking stub yet (see scan.discoverUnlinkedWorkshopItems) -
-	// write one for anything this playset actually enables, so the game
-	// itself (which reads dlc_load.json's "mod/ugc_<id>.mod" entries) can
-	// find it. Only classic-descriptor games use this stub convention.
-	if cfg.DescriptorType == mod.DescriptorClassic {
-		modsByID := make(map[string]mod.Mod, len(scanResult.Mods))
-		for _, m := range scanResult.Mods {
-			modsByID[m.ID] = m
+	if playsetName != "" {
+		p, err := a.playsets.Load(a.ctx, gameID, playsetName)
+		if err != nil {
+			return err
 		}
-		modDir := filepath.Join(stateDir, "mod")
-		for _, id := range p.ModIDs {
-			if m, ok := modsByID[id]; ok {
-				if _, err := scan.EnsureWorkshopStub(m, modDir); err != nil {
-					return err
+
+		scanResult, err := scan.Scan(a.ctx, scan.Options{Game: cfg, SteamRoots: a.steamRoots, ExtraFolders: a.extraModFolders(gameID)})
+		if err != nil {
+			return err
+		}
+
+		stateDir, err := cfg.UserDataDir()
+		if err != nil {
+			return err
+		}
+
+		// Some subscribed Workshop mods may have been discovered without a
+		// game/mod/ linking stub yet (see scan.discoverUnlinkedWorkshopItems) -
+		// write one for anything this playset actually enables, so the game
+		// itself (which reads dlc_load.json's "mod/ugc_<id>.mod" entries) can
+		// find it. Only classic-descriptor games use this stub convention.
+		if cfg.DescriptorType == mod.DescriptorClassic {
+			modsByID := make(map[string]mod.Mod, len(scanResult.Mods))
+			for _, m := range scanResult.Mods {
+				modsByID[m.ID] = m
+			}
+			modDir := filepath.Join(stateDir, "mod")
+			for _, id := range p.ModIDs {
+				if m, ok := modsByID[id]; ok {
+					if _, err := scan.EnsureWorkshopStub(m, modDir); err != nil {
+						return err
+					}
 				}
 			}
 		}
-	}
 
-	order := conflict.LoadOrder(p.ModIDs)
-	if _, err := launch.WriteState(order, scanResult.Mods, cfg, launch.Options{
-		StateDir:    stateDir,
-		DisabledDLC: p.DisabledDLC,
-	}); err != nil {
-		return err
+		order := conflict.LoadOrder(p.ModIDs)
+		if _, err := launch.WriteState(order, scanResult.Mods, cfg, launch.Options{
+			StateDir:    stateDir,
+			DisabledDLC: p.DisabledDLC,
+		}); err != nil {
+			return err
+		}
 	}
 
 	opts, err := a.launchOptionsFor(cfg)

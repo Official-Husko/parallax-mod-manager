@@ -15,10 +15,10 @@ export const settingsNav = [
     {label: 'Manage games', key: 'manage'},
     {label: 'Paths & folders', key: 'paths'},
     {label: 'Launch options', key: 'launch'},
+    {label: 'Playsets', key: 'playsets'},
     {label: 'Sort rules', key: 'sort'},
     {label: 'Conflict scanning', key: 'conflict'},
     {label: 'Updates', key: 'updates'},
-    {label: 'Playset sharing', key: 'sharing'},
     {label: 'Appearance', key: 'appearance'},
     {label: 'Advanced', key: 'advanced'},
 ];

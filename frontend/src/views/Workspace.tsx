@@ -16,6 +16,7 @@ import {
     SavePlayset,
     ScanGame,
     SetModIncompatibilityIgnored,
+    SetPreferences,
     WatchMods,
     WorkshopDetails,
 } from '../../wailsjs/go/main/App';
@@ -27,6 +28,7 @@ import {type ContextMenuItem, openContextMenu} from '../data/contextMenu';
 import {useDragMultiSelect} from '../data/dragMultiSelect';
 import {type DropTarget, useListDragMove} from '../data/listDragMove';
 import {domains} from '../data/mockData';
+import {playsetAutoloadTarget} from '../data/playsetAutoload';
 import {computeDomainOverlap, DOMAIN_NAMES} from '../data/domainOverlap';
 import {buildPreflightItems, findDependencyIssues} from '../data/preflight';
 import {checkVersionCompatibility, displayVersion} from '../data/versionCompat';
@@ -160,6 +162,23 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
         onPlaysetNameChange(name);
     }
 
+    // Persists name as selectedGame's "last active playset" (see
+    // preferences.Preferences.LastActivePlaysets) so the mount effect
+    // below can reload it automatically next time this game is opened,
+    // instead of always starting blank with Play disabled. Called after an
+    // explicit save or switch, never for an unsaved draft (importing a
+    // Paradox Launcher playset, or "New") - those aren't in ListPlaysets
+    // yet, so pointing this at one of them would just fail to auto-load
+    // next time anyway. Best-effort and silently skipped if prefs hasn't
+    // loaded yet - worse case is simply not auto-loading next time, not a
+    // lost setting, so this never blocks the save/load it's attached to.
+    function rememberActivePlayset(name: string) {
+        if (!prefs) return;
+        const next = {...prefs, lastActivePlaysets: {...prefs.lastActivePlaysets, [selectedGame]: name}};
+        setPrefs(next);
+        SetPreferences(next).catch(() => undefined);
+    }
+
     // refreshMods re-fetches the mod summary for the current game.
     // preserveSelection=false is a real game switch (a full reset: clear
     // the playset name and Available selection, rebuild the load order
@@ -217,7 +236,25 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
         WatchMods(selectedGame).catch(() => undefined);
         refreshMods(false);
         ListPlaysets(selectedGame)
-            .then(setPlaysetList)
+            .then(async (names) => {
+                setPlaysetList(names);
+                // Auto-loads per Settings' Playsets panel - "last" (the
+                // default) reloads LastActivePlaysets, "custom" always
+                // reloads whichever playset is pinned there, "off" leaves
+                // this game blank until the user explicitly picks one
+                // (Play still works either way - see LaunchGame). Fetched
+                // fresh here rather than read from this component's own
+                // `prefs` state, which only loads once on mount (a
+                // separate effect below) and could still be null by the
+                // time this resolves. Re-verified against the names list
+                // that just came back, in case the target playset was
+                // since renamed or deleted.
+                const savedPrefs = await GetPreferences().catch(() => null);
+                const wanted = playsetAutoloadTarget(savedPrefs, selectedGame);
+                if (wanted && names.includes(wanted)) {
+                    handleLoadPlayset(wanted);
+                }
+            })
             .catch((err) => setStatus({kind: 'error', message: String(err)}));
         ImportLauncherPlaysets(selectedGame)
             .then(setLauncherPlaysets)
@@ -805,6 +842,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
             const p = {name: playsetName.trim(), gameKey: selectedGame, modIds: order, disabledDlc: disabledDlc} as playset.Playset;
             await SavePlayset(p);
             await refreshAfterSave(p.name);
+            rememberActivePlayset(p.name);
             setStatus({kind: 'idle'});
         } catch (err) {
             setStatus({kind: 'error', message: String(err)});
@@ -818,6 +856,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
             setOrder(p.modIds ?? []);
             setPlaysetName(p.name);
             setDisabledDlc(p.disabledDlc ?? []);
+            rememberActivePlayset(p.name);
             const result = await ScanGame(selectedGame, p.name);
             setSummary(result);
             setShowPlaysets(false);
@@ -856,14 +895,24 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
         }
     }
 
+    // No playset name is a real, supported case here, not a blocked one -
+    // see LaunchGame's own doc comment on the Go side. Skips SavePlayset
+    // entirely (there's nothing to name) and passes "" straight through,
+    // which tells LaunchGame to skip writing any state and launch the
+    // game against whatever's already on disk untouched - either this
+    // app's own last real playset write, or the game's own state from
+    // before this app ever touched it.
     async function handleLaunchAnyway() {
-        if (!playsetName.trim()) return;
         setShowPreflight(false);
         setStatus({kind: 'busy', message: 'Launching...'});
         try {
-            const p = {name: playsetName.trim(), gameKey: selectedGame, modIds: order, disabledDlc: disabledDlc} as playset.Playset;
-            await SavePlayset(p);
-            await LaunchGame(selectedGame, p.name);
+            if (playsetName.trim()) {
+                const p = {name: playsetName.trim(), gameKey: selectedGame, modIds: order, disabledDlc: disabledDlc} as playset.Playset;
+                await SavePlayset(p);
+                await LaunchGame(selectedGame, p.name);
+            } else {
+                await LaunchGame(selectedGame, '');
+            }
             setStatus({kind: 'idle'});
         } catch (err) {
             setStatus({kind: 'error', message: String(err)});
@@ -1143,11 +1192,14 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                         <div className="play-block">
                             <button
                                 className="play-button"
-                                disabled={!playsetName.trim()}
                                 onClick={() => setShowPreflight(true)}
                             >
                                 <div className="play-title">PLAY {gameName.toUpperCase()}</div>
-                                <div className="play-subtitle mono">{active.length} mods · launch via Steam</div>
+                                <div className="play-subtitle mono">
+                                    {playsetName.trim()
+                                        ? `${active.length} mods · launch via Steam`
+                                        : 'No playset selected · launches as-is'}
+                                </div>
                             </button>
                             <div className="play-secondary">
                                 <span className="btn-ghost inert">Vanilla</span>

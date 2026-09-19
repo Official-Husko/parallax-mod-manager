@@ -7,6 +7,7 @@ import {
     ClearGamePath,
     DetectGames,
     GetPreferences,
+    ListPlaysets,
     OpenPath,
     RemoveExtraModFolder,
     SetGameManaged,
@@ -17,8 +18,9 @@ import {GameLogo} from '../components/GameLogo';
 import {Toggle} from '../components/Toggle';
 import {settingsNav} from '../data/mockData';
 import {DEFAULT_BACKGROUND_INTERVAL_SECONDS} from '../components/AppBackground';
+import {type PlaysetAutoloadMode, playsetAutoloadModeFor} from '../data/playsetAutoload';
 
-type Section = 'manage' | 'paths' | 'launch' | 'sort' | 'appearance';
+type Section = 'manage' | 'paths' | 'launch' | 'playsets' | 'sort' | 'appearance';
 
 export function Settings({jumpToManageGames, onGamesChanged, onPreferencesChanged}: {
     // Incremented by app.tsx (the TopBar's own "Manage games" entry) to
@@ -49,7 +51,7 @@ export function Settings({jumpToManageGames, onGamesChanged, onPreferencesChange
             <div className="settings-nav">
                 <div className="sidebar-label">SETTINGS</div>
                 {settingsNav.map((s) => {
-                    const clickable = s.key === 'manage' || s.key === 'paths' || s.key === 'launch' || s.key === 'sort' || s.key === 'appearance';
+                    const clickable = s.key === 'manage' || s.key === 'paths' || s.key === 'launch' || s.key === 'playsets' || s.key === 'sort' || s.key === 'appearance';
                     const active = clickable && s.key === section;
                     return (
                         <div
@@ -67,6 +69,7 @@ export function Settings({jumpToManageGames, onGamesChanged, onPreferencesChange
             {section === 'manage' && <ManageGamesPanel onGamesChanged={onGamesChanged}/>}
             {section === 'paths' && <PathsPanel/>}
             {section === 'launch' && <LaunchOptionsPanel/>}
+            {section === 'playsets' && <PlaysetsSettingsPanel/>}
             {section === 'sort' && <SortRulesPanel/>}
             {section === 'appearance' && <AppearancePanel onPreferencesChanged={onPreferencesChanged}/>}
         </div>
@@ -382,25 +385,20 @@ function PathsPanel() {
     );
 }
 
-// Mirrors internal/launch.LaunchMode's two values - preferences.launchModes
-// is stored as a plain map[string]string on the Go side (see that type's
-// own comment for why), so there's no generated binding to import here.
-type LaunchMode = 'steam' | 'direct';
-
-function launchModeFor(prefs: preferences.Preferences | null, gameId: string): LaunchMode {
-    return prefs?.launchModes?.[gameId] === 'direct' ? 'direct' : 'steam';
-}
-
-function LaunchOptionsPanel() {
+// Shared "pick one managed game to configure" behavior between Launch
+// Options and Playsets below - both configure per-game settings one game
+// at a time (see each panel's own subtitle), so this is the same
+// selection logic, not two subtly different ones. prefs is read (for
+// managedGames/lastSelectedGame) but never written here - each panel
+// keeps its own prefs state for that, since each writes different fields.
+function useManagedGamePicker(prefs: preferences.Preferences | null) {
     const [state, setState] = useState<ManageGamesState>({kind: 'loading'});
-    const [prefs, setPrefs] = useState<preferences.Preferences | null>(null);
     const [selectedGameId, setSelectedGameId] = useState('');
 
     useEffect(() => {
         DetectGames()
             .then((games) => setState({kind: 'ready', games}))
             .catch((err) => setState({kind: 'error', message: String(err)}));
-        GetPreferences().then(setPrefs).catch(() => undefined);
     }, []);
 
     const managedGames = state.kind === 'ready'
@@ -418,6 +416,51 @@ function LaunchOptionsPanel() {
     }, [managedGames.length, prefs]);
 
     const selectedGame = managedGames.find((g) => g.ID === selectedGameId);
+    return {state, managedGames, selectedGame, selectedGameId, setSelectedGameId};
+}
+
+// The chip row itself, shared by the same two panels useManagedGamePicker
+// is - each game's real logo (GameLogo already handles the no-art-yet
+// fallback) next to its name, so picking one among several games isn't
+// just reading text.
+function GamePickerChips({games, selectedGameId, onSelect}: {
+    games: library.DetectedGame[];
+    selectedGameId: string;
+    onSelect: (gameId: string) => void;
+}) {
+    return (
+        <div className="settings-game-picker">
+            {games.map((g) => (
+                <span
+                    key={g.ID}
+                    className={`chip ${g.ID === selectedGameId ? 'chip-active' : ''}`}
+                    onClick={() => onSelect(g.ID)}
+                >
+                    <GameLogo gameId={g.ID} className="chip-logo"/>
+                    {g.DisplayName}
+                </span>
+            ))}
+        </div>
+    );
+}
+
+// Mirrors internal/launch.LaunchMode's two values - preferences.launchModes
+// is stored as a plain map[string]string on the Go side (see that type's
+// own comment for why), so there's no generated binding to import here.
+type LaunchMode = 'steam' | 'direct';
+
+function launchModeFor(prefs: preferences.Preferences | null, gameId: string): LaunchMode {
+    return prefs?.launchModes?.[gameId] === 'direct' ? 'direct' : 'steam';
+}
+
+function LaunchOptionsPanel() {
+    const [prefs, setPrefs] = useState<preferences.Preferences | null>(null);
+
+    useEffect(() => {
+        GetPreferences().then(setPrefs).catch(() => undefined);
+    }, []);
+
+    const {state, managedGames, selectedGame, selectedGameId, setSelectedGameId} = useManagedGamePicker(prefs);
 
     function setMode(mode: LaunchMode) {
         if (!prefs || !selectedGame) return;
@@ -443,34 +486,24 @@ function LaunchOptionsPanel() {
             )}
 
             {managedGames.length > 0 && (
-                <div className="launch-game-picker">
-                    {managedGames.map((g) => (
-                        <span
-                            key={g.ID}
-                            className={`chip ${g.ID === selectedGameId ? 'chip-active' : ''}`}
-                            onClick={() => setSelectedGameId(g.ID)}
-                        >
-                            {g.DisplayName}
-                        </span>
-                    ))}
-                </div>
+                <GamePickerChips games={managedGames} selectedGameId={selectedGameId} onSelect={setSelectedGameId}/>
             )}
 
             {selectedGame && prefs && (() => {
                 const mode = launchModeFor(prefs, selectedGame.ID);
                 return (
-                    <div className="launch-mode-list">
+                    <div className="mode-option-list">
                         {!selectedGame.Installed && (
                             <p className="status-page">
                                 {selectedGame.DisplayName} isn't installed yet - set its path under
                                 Paths & folders before switching it to Parallax Direct.
                             </p>
                         )}
-                        <div className={`launch-mode-option ${mode === 'steam' ? 'active' : ''}`} onClick={() => setMode('steam')}>
-                            <i className={`fa-solid ${mode === 'steam' ? 'fa-circle-dot' : 'fa-circle'} launch-mode-radio ${mode === 'steam' ? 'on' : 'off'}`}/>
-                            <div className="launch-mode-main">
-                                <div className="launch-mode-name">Steam / Paradox Launcher</div>
-                                <div className="launch-mode-desc">
+                        <div className={`mode-option ${mode === 'steam' ? 'active' : ''}`} onClick={() => setMode('steam')}>
+                            <i className={`fa-solid ${mode === 'steam' ? 'fa-circle-dot' : 'fa-circle'} mode-option-radio ${mode === 'steam' ? 'on' : 'off'}`}/>
+                            <div className="mode-option-main">
+                                <div className="mode-option-name">Steam / Paradox Launcher</div>
+                                <div className="mode-option-desc">
                                     The normal path - Steam opens the Paradox Launcher, which starts
                                     the game. Keeps full Steam integration: overlay, achievements, DLC
                                     ownership checks.
@@ -478,13 +511,13 @@ function LaunchOptionsPanel() {
                             </div>
                         </div>
                         <div
-                            className={`launch-mode-option ${mode === 'direct' ? 'active' : ''} ${!selectedGame.Installed ? 'disabled' : ''}`}
+                            className={`mode-option ${mode === 'direct' ? 'active' : ''} ${!selectedGame.Installed ? 'disabled' : ''}`}
                             onClick={() => selectedGame.Installed && setMode('direct')}
                         >
-                            <i className={`fa-solid ${mode === 'direct' ? 'fa-circle-dot' : 'fa-circle'} launch-mode-radio ${mode === 'direct' ? 'on' : 'off'}`}/>
-                            <div className="launch-mode-main">
-                                <div className="launch-mode-name">Parallax Direct</div>
-                                <div className="launch-mode-desc">
+                            <i className={`fa-solid ${mode === 'direct' ? 'fa-circle-dot' : 'fa-circle'} mode-option-radio ${mode === 'direct' ? 'on' : 'off'}`}/>
+                            <div className="mode-option-main">
+                                <div className="mode-option-name">Parallax Direct</div>
+                                <div className="mode-option-desc">
                                     Skips the Paradox Launcher entirely and starts {selectedGame.DisplayName}'s
                                     own executable straight away. Steam overlay, achievements, and DLC
                                     checks may not work on every game - switch back to Steam / Paradox
@@ -492,23 +525,154 @@ function LaunchOptionsPanel() {
                                 </div>
                             </div>
                         </div>
-                        <div className="launch-mode-option disabled">
-                            <i className="fa-solid fa-circle launch-mode-radio off"/>
-                            <div className="launch-mode-main">
-                                <div className="launch-mode-name">
+                        <div className="mode-option disabled">
+                            <i className="fa-solid fa-circle mode-option-radio off"/>
+                            <div className="mode-option-main">
+                                <div className="mode-option-name">
                                     Steam Direct
+                                    <span className="mode-option-recommended">(Recommended)</span>
                                     <span className="chip">Planned</span>
                                 </div>
-                                <div className="launch-mode-desc">
+                                <div className="mode-option-desc">
                                     Replaces the launcher's own entry point so Steam launches the game
-                                    directly while keeping Steam's process context - best of both,
-                                    once it's built.
+                                    directly while keeping Steam's full process context - overlay,
+                                    achievements, and DLC checks all intact, unlike Parallax Direct
+                                    above. Will become the default launch mode once it's built, since
+                                    it keeps the most Steam integration of any bypass here.
                                 </div>
                             </div>
                         </div>
                     </div>
                 );
             })()}
+        </div>
+    );
+}
+
+function PlaysetsSettingsPanel() {
+    const [prefs, setPrefs] = useState<preferences.Preferences | null>(null);
+    const [playsetNames, setPlaysetNames] = useState<string[]>([]);
+
+    useEffect(() => {
+        GetPreferences().then(setPrefs).catch(() => undefined);
+    }, []);
+
+    const {state, managedGames, selectedGame, selectedGameId, setSelectedGameId} = useManagedGamePicker(prefs);
+
+    useEffect(() => {
+        if (!selectedGame) {
+            setPlaysetNames([]);
+            return;
+        }
+        ListPlaysets(selectedGame.ID).then(setPlaysetNames).catch(() => setPlaysetNames([]));
+    }, [selectedGame?.ID]);
+
+    function setAutoloadMode(mode: PlaysetAutoloadMode) {
+        if (!prefs || !selectedGame) return;
+        const next = {...prefs, playsetAutoloadModes: {...prefs.playsetAutoloadModes, [selectedGame.ID]: mode}};
+        setPrefs(next);
+        SetPreferences(next).catch(() => setPrefs(prefs));
+    }
+
+    function setAutoloadCustomTarget(name: string) {
+        if (!prefs || !selectedGame) return;
+        const next = {...prefs, playsetAutoloadCustom: {...prefs.playsetAutoloadCustom, [selectedGame.ID]: name}};
+        setPrefs(next);
+        SetPreferences(next).catch(() => setPrefs(prefs));
+    }
+
+    return (
+        <div className="settings-content single">
+            <div>
+                <div className="settings-title">Playsets</div>
+                <div className="settings-subtitle">
+                    Which playset (if any) Workspace loads automatically when you open a game -
+                    configured one game at a time. Play never depends on one being loaded, so this
+                    only controls what's already selected by the time you get there, not whether
+                    you can launch at all.
+                </div>
+            </div>
+
+            {state.kind === 'loading' && <p className="status-page">Checking installed games...</p>}
+            {state.kind === 'error' && <p className="status-page error">{state.message}</p>}
+            {state.kind === 'ready' && managedGames.length === 0 && (
+                <p className="status-page">No games are set up to manage yet - open Manage games to pick one.</p>
+            )}
+
+            {managedGames.length > 0 && (
+                <GamePickerChips games={managedGames} selectedGameId={selectedGameId} onSelect={setSelectedGameId}/>
+            )}
+
+            {selectedGame && prefs && (() => {
+                const mode = playsetAutoloadModeFor(prefs, selectedGame.ID);
+                const customTarget = prefs.playsetAutoloadCustom?.[selectedGame.ID] ?? '';
+                return (
+                    <div className="mode-option-list">
+                        <div className={`mode-option ${mode === 'off' ? 'active' : ''}`} onClick={() => setAutoloadMode('off')}>
+                            <i className={`fa-solid ${mode === 'off' ? 'fa-circle-dot' : 'fa-circle'} mode-option-radio ${mode === 'off' ? 'on' : 'off'}`}/>
+                            <div className="mode-option-main">
+                                <div className="mode-option-name">Start blank</div>
+                                <div className="mode-option-desc">
+                                    No playset loads automatically - Play still works, launching
+                                    whatever's already on disk untouched until you pick or type a
+                                    name yourself.
+                                </div>
+                            </div>
+                        </div>
+                        <div className={`mode-option ${mode === 'last' ? 'active' : ''}`} onClick={() => setAutoloadMode('last')}>
+                            <i className={`fa-solid ${mode === 'last' ? 'fa-circle-dot' : 'fa-circle'} mode-option-radio ${mode === 'last' ? 'on' : 'off'}`}/>
+                            <div className="mode-option-main">
+                                <div className="mode-option-name">Autoload last used</div>
+                                <div className="mode-option-desc">
+                                    Whichever playset you most recently saved or switched to for
+                                    {' '}{selectedGame.DisplayName} loads automatically next time.
+                                </div>
+                            </div>
+                        </div>
+                        <div className={`mode-option ${mode === 'custom' ? 'active' : ''}`} onClick={() => setAutoloadMode('custom')}>
+                            <i className={`fa-solid ${mode === 'custom' ? 'fa-circle-dot' : 'fa-circle'} mode-option-radio ${mode === 'custom' ? 'on' : 'off'}`}/>
+                            <div className="mode-option-main">
+                                <div className="mode-option-name">Always load a specific playset</div>
+                                <div className="mode-option-desc">
+                                    Always the one playset you pick below, no matter what you
+                                    switched to most recently.
+                                </div>
+                                {mode === 'custom' && (
+                                    playsetNames.length > 0 ? (
+                                        <div className="playset-autoload-targets" onClick={(e) => e.stopPropagation()}>
+                                            {playsetNames.map((name) => (
+                                                <span
+                                                    key={name}
+                                                    className={`chip ${name === customTarget ? 'chip-active' : ''}`}
+                                                    onClick={() => setAutoloadCustomTarget(name)}
+                                                >
+                                                    {name}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="playset-autoload-empty">
+                                            No playsets saved yet for {selectedGame.DisplayName} - save one in
+                                            Workspace first.
+                                        </div>
+                                    )
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                );
+            })()}
+
+            <div className="playset-sharing-block">
+                <div className="playset-sharing-label">PLAYSET SHARING</div>
+                <div className="settings-subtitle">
+                    Export a playset as a shareable code, or import one someone sent you, so a
+                    group can stay on the exact same mod list without hand-copying it. Not built
+                    yet - Workspace's own "Share" button next to Save/Switch is this feature's
+                    future home.
+                </div>
+                <span className="btn-ghost inert">Share a playset <i className="fa-solid fa-arrow-up-right-from-square"/></span>
+            </div>
         </div>
     );
 }
