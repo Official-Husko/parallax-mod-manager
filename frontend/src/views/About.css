@@ -233,7 +233,88 @@
     font-weight: 600;
 }
 
+/* The red heart in the credit line. */
+.about-heart {
+    width: auto;
+    color: var(--red);
+    font-size: 11px;
+    vertical-align: 0;
+}
+
+.about-footer-link {
+    color: var(--text-mid);
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-color: var(--border-light);
+    text-underline-offset: 3px;
+}
+
+.about-footer-link:hover {
+    color: var(--text-bright);
+    text-decoration-color: var(--text-dim);
+}
+
 .about-disclaimer {
     font-size: 11px;
     color: var(--text-dim);
+}
+
+/* --- Licence card --- */
+
+.about-licence {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.about-licence-head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.about-licence-head > i {
+    width: auto;
+    color: var(--amber);
+    font-size: 15px;
+}
+
+.about-licence-name {
+    font: 600 13.5px Barlow, sans-serif;
+    color: var(--text-bright);
+}
+
+.about-licence-points {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    margin: 4px 0 2px;
+    padding: 0;
+    list-style: none;
+}
+
+.about-licence-points li {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    font: 400 12.5px/1.5 Barlow, sans-serif;
+    color: var(--text-mid);
+}
+
+.about-licence-points li i {
+    flex: none;
+    width: 16px;
+    font-size: 12px;
+    text-align: center;
+}
+
+.about-licence-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.about-licence-actions .btn-ghost i {
+    width: auto;
+    font-size: 11px;
 }

@@ -98,6 +98,10 @@ export function LaunchGame(arg1, arg2) {
   return window['go']['main']['App']['LaunchGame'](arg1, arg2);
 }
 
+export function LicenceText() {
+  return window['go']['main']['App']['LicenceText']();
+}
+
 export function ListCollections() {
   return window['go']['main']['App']['ListCollections']();
 }

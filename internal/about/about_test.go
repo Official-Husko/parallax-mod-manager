@@ -51,3 +51,28 @@ func TestEveryHardcodedLinkIsWellFormed(t *testing.T) {
 		t.Errorf("the first link should be the GitHub repository, got %+v", links()[0])
 	}
 }
+
+func TestParseLicenceReadsTheTitleAndIdentifier(t *testing.T) {
+	text := "# Example Non-Commercial License 2.0\n\n**EX-NCL-2.0**\n\nCopyright (c) 2026 Someone\n\n## 1. Purpose\n\n**NOT-AN-ID**\n"
+	name, id := ParseLicence(text)
+	if name != "Example Non-Commercial License 2.0" || id != "EX-NCL-2.0" {
+		t.Errorf("got %q / %q", name, id)
+	}
+}
+
+func TestParseLicenceStopsAtTheFirstSection(t *testing.T) {
+	// A bold line further down (a defined term, say) is not the identifier.
+	name, id := ParseLicence("# Title\n\n## 1. Purpose\n\n**Software**\n")
+	if name != "Title" || id != "" {
+		t.Errorf("got %q / %q, want the title and no identifier", name, id)
+	}
+}
+
+func TestParseLicenceToleratesMissingPieces(t *testing.T) {
+	if name, id := ParseLicence(""); name != "" || id != "" {
+		t.Errorf("empty text gave %q / %q", name, id)
+	}
+	if name, id := ParseLicence("no headings here\n**ID-1**"); name != "" || id != "" {
+		t.Errorf("text without a title gave %q / %q, want nothing", name, id)
+	}
+}

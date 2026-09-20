@@ -62,6 +62,8 @@ export function ImportLauncherPlaysets(arg1:string):Promise<Array<launcherdb.Pla
 
 export function LaunchGame(arg1:string,arg2:string):Promise<void>;
 
+export function LicenceText():Promise<string>;
+
 export function ListCollections():Promise<Array<collection.Collection>>;
 
 export function ListDLC(arg1:string):Promise<Array<dlc.Entry>>;

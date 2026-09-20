@@ -1075,7 +1075,14 @@ func (a *App) AboutInfo() about.Info {
 	info.CacheDir = a.cacheDir
 	info.LogDir = a.logDir
 	info.Games = len(a.registry.List())
+	info.LicenceName, info.LicenceID = about.ParseLicence(embeddedLicence)
 	return info
+}
+
+// LicenceText returns the full text of the project's licence (markdown), the one
+// shipped inside this build - what the About page's licence viewer shows.
+func (a *App) LicenceText() string {
+	return embeddedLicence
 }
 
 // patchThumbnail returns the image a newly generated patch mod uses as its

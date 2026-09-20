@@ -430,6 +430,14 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   in the cache folder, so there's something to attach to a bug report. The logger is a small
   reusable package - see [docs/logging.md](docs/logging.md) - meant to be used more and more as the
   project grows.
+  The page also carries the project's **licence**: the licence text (`LICENCE.md`) is embedded in the
+  binary, and a card summarises it in five lines (free for non-commercial use, donations welcome but
+  never unlocking anything, no selling or paywalls, source and licence stay with shared copies, forks
+  need their own name and a link to the official project) with a **Read the full licence** button that
+  opens the whole text in a window (`LicenceModal.tsx`, rendered by a small markdown reader in
+  `data/markdown.ts`). The title and identifier come from the text itself, so the page can never name a
+  different licence than the one that ships. The footer credits "Made by Official-Husko with" a red Font
+  Awesome Pro heart and links the licence too.
 - **Real autosort** (`frontend/src/data/autosort.ts`, Workspace's Autosort button, Settings'
   "Sort rules" panel) - two real, derivable rules, adapted from a proven design (a working
   sibling Stellaris mod-sorting tool on this machine, cross-checked against its own real-world
@@ -828,3 +836,13 @@ needed on Windows/macOS.
 - [CLAUDE.md](CLAUDE.md) - project conventions, layout, and contributor guidance.
 - [docs/](docs/) - Paradox modding domain knowledge (file formats, conflict resolution,
   game launching, performance strategy), written from research rather than assumption.
+
+## Licence
+
+Parallax Mod Manager is released under the **Parallax Mod Manager Non-Commercial Source License 1.0**
+(PMM-NCSL-1.0) - see [LICENCE.md](LICENCE.md). In short: free to use, study and modify for
+non-commercial purposes; it may not be sold, paywalled or offered with paid features, though voluntary
+donations are welcome; shared copies must include the source and stay under the same licence; forks need
+their own distinguishing name. That is a summary - the licence text is what applies.
+
+Official project: <https://github.com/Official-Husko/parallax-mod-manager>

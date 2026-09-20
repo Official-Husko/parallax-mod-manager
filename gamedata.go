@@ -9,6 +9,13 @@ import "embed"
 //go:embed data/games.jsonc
 var embeddedGamesList []byte
 
+// embeddedLicence is the project's licence text (LICENCE.md at the repo root),
+// shipped inside the binary: the licence requires every copy to carry it, and the
+// About page shows it - see LicenceText.
+//
+//go:embed LICENCE.md
+var embeddedLicence string
+
 // embeddedGameMedia is this build's built-in per-game art (logos,
 // backgrounds) - see internal/gamemedia.Store for how an on-disk override
 // directory can take precedence over it.

@@ -30,6 +30,8 @@ export namespace about {
 	    LogDir: string;
 	    Games: number;
 	    Author: string;
+	    LicenceName: string;
+	    LicenceID: string;
 	    Links: Link[];
 	
 	    static createFrom(source: any = {}) {
@@ -51,6 +53,8 @@ export namespace about {
 	        this.LogDir = source["LogDir"];
 	        this.Games = source["Games"];
 	        this.Author = source["Author"];
+	        this.LicenceName = source["LicenceName"];
+	        this.LicenceID = source["LicenceID"];
 	        this.Links = this.convertValues(source["Links"], Link);
 	    }
 	

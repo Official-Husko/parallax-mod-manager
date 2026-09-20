@@ -5,9 +5,22 @@ import {AboutInfo, OpenPath} from '../../wailsjs/go/main/App';
 import {BrowserOpenURL} from '../../wailsjs/runtime/runtime';
 import type {about} from '../../wailsjs/go/models';
 import {LogView} from '../components/LogView';
+import {LicenceModal} from './LicenceModal';
 
 // The stack, shown as plain chips.
 const BUILT_WITH = ['Go', 'Wails', 'Preact', 'TypeScript', 'Vite'];
+
+// What the licence means for someone using the app, in a few lines. A summary of
+// the sections that matter day to day (3 grant, 4 and 7 no payment or resale, 5
+// donations, 8 and 11 source and same licence, 13 and 14 attribution and forks);
+// the About card says it is not the licence itself.
+const LICENCE_POINTS = [
+    {icon: 'fa-circle-check', color: 'var(--green)', text: 'Free to use, study and modify for non-commercial purposes.'},
+    {icon: 'fa-hand-holding-heart', color: 'var(--red)', text: 'Voluntary donations are welcome - they never unlock anything.'},
+    {icon: 'fa-ban', color: 'var(--amber)', text: 'No selling, paywalls, or paid editions, features or updates.'},
+    {icon: 'fa-code-branch', color: 'var(--blue)', text: 'Copies you share include the source and stay under this licence.'},
+    {icon: 'fa-signature', color: 'var(--text-muted)', text: 'Forks need their own name and a link to the official project.'},
+];
 
 // One GitHub-style badge: a muted label on the left, a colored value on the
 // right. Drawn here rather than fetched as an image from a badge service, so
@@ -40,6 +53,7 @@ function DetailRow({label, value, onOpen}: { label: string; value: string; onOpe
 export function AboutPanel() {
     const [info, setInfo] = useState<about.Info | null>(null);
     const [failed, setFailed] = useState(false);
+    const [showLicence, setShowLicence] = useState(false);
 
     useEffect(() => {
         AboutInfo().then(setInfo).catch(() => setFailed(true));
@@ -116,13 +130,51 @@ export function AboutPanel() {
                     </div>
                 </section>
 
+                {info.LicenceName && (
+                    <section className="about-card about-licence">
+                        <div className="about-section-label">LICENCE</div>
+                        <div className="about-licence-head">
+                            <i className="fa-solid fa-scale-balanced"/>
+                            <span className="about-licence-name">{info.LicenceName}</span>
+                            {info.LicenceID && <Badge label="licence" value={info.LicenceID} tone="amber"/>}
+                        </div>
+                        <ul className="about-licence-points">
+                            {LICENCE_POINTS.map((p) => (
+                                <li key={p.text}>
+                                    <i className={`fa-solid ${p.icon}`} style={{color: p.color}}/>
+                                    <span>{p.text}</span>
+                                </li>
+                            ))}
+                        </ul>
+                        <p className="about-note">
+                            That is a summary, not the licence - the full text is what applies.
+                        </p>
+                        <div className="about-licence-actions">
+                            <span className="btn-ghost" onClick={() => setShowLicence(true)}>
+                                <i className="fa-solid fa-file-contract"/> Read the full licence
+                            </span>
+                        </div>
+                    </section>
+                )}
+
                 <footer className="about-footer">
-                    {info.Author && <div>Made by <b>{info.Author}</b></div>}
+                    {info.Author && (
+                        <div>
+                            Made by <b>{info.Author}</b> with <i className="fa-solid fa-heart about-heart" aria-label="love"/>
+                        </div>
+                    )}
+                    {info.LicenceName && (
+                        <div className="about-licence-line">
+                            Licensed under{' '}
+                            <span className="about-footer-link" onClick={() => setShowLicence(true)}>{info.LicenceName}</span>
+                        </div>
+                    )}
                     <div className="about-disclaimer">
                         An independent project - not affiliated with or endorsed by Paradox Interactive or Valve.
                     </div>
                 </footer>
             </div>
+            {showLicence && <LicenceModal name={info.LicenceName} id={info.LicenceID} onClose={() => setShowLicence(false)}/>}
         </div>
     );
 }

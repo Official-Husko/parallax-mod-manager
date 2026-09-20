@@ -11,6 +11,7 @@
 package about
 
 import (
+	"regexp"
 	"runtime"
 	"runtime/debug"
 	"strings"
@@ -68,6 +69,10 @@ type Info struct {
 	// Games is how many games are registered.
 	Games  int
 	Author string
+	// LicenceName and LicenceID are the licence's own title and short identifier,
+	// read out of its text (see ParseLicence) by the caller, which owns that text.
+	LicenceName string
+	LicenceID   string
 	// Links is never nil - a nil slice would marshal as JSON null and crash
 	// the frontend's first .map on it.
 	Links []Link
@@ -116,4 +121,28 @@ func Collect(name, version string) Info {
 		}
 	}
 	return info
+}
+
+var licenceID = regexp.MustCompile(`^\*\*([A-Za-z0-9][A-Za-z0-9.\-]*)\*\*$`)
+
+// ParseLicence reads a licence's title and short identifier from the top of its
+// markdown text: the first "# Title" line, and the bold identifier line after it
+// ("**PMM-NCSL-1.0**"). Taken from the text itself, not written out again here,
+// so the About page can never name a licence other than the one that ships. Either
+// is empty when the text does not have it; scanning stops at the first section.
+func ParseLicence(text string) (name, id string) {
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.TrimSpace(line)
+		switch {
+		case strings.HasPrefix(line, "## "):
+			return name, id
+		case name == "" && strings.HasPrefix(line, "# "):
+			name = strings.TrimSpace(line[2:])
+		case name != "" && id == "":
+			if m := licenceID.FindStringSubmatch(line); m != nil {
+				return name, m[1]
+			}
+		}
+	}
+	return name, id
 }
