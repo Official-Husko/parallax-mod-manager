@@ -21,6 +21,7 @@ import {
 } from '../data/gameLog';
 import {useVirtualWindow} from '../data/useVirtualWindow';
 import {Select} from '../components/Select';
+import {UploadLogButton} from '../components/UploadLogButton';
 
 // Every line is exactly this tall (the same .log-line as the app's own log),
 // which is what lets only the visible ones be in the DOM.
@@ -239,6 +240,17 @@ export function GameLogModal({gameId, gameName, running, onClose}: {
                                 <i className="fa-regular fa-folder-open"/> Files
                             </span>
                         )}
+                        {/*
+                            Upload / share this game log - NOT BUILT YET, shown disabled
+                            to reserve the spot, like the activity log's own (see
+                            components/LogView.tsx and docs/log-sharing.md for the
+                            design). Two things matter more here than there: the game
+                            writes absolute paths, so the home folder and the user's
+                            name have to be redacted from these lines before anything
+                            is shown for review; and it must never upload on click,
+                            only after a review dialog and a confirmation.
+                        */}
+                        <UploadLogButton/>
                         <span
                             className="log-btn"
                             title="Empty this view (the file keeps its lines; new ones still arrive)"

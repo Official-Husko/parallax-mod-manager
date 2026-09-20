@@ -753,7 +753,8 @@ that legitimately does rewrite the file's `modsOrder`).
   can't be edited. No code yet, and the intent behind the label was never written down;
   [docs/exclude-file.md](docs/exclude-file.md) works through the mechanisms and the open
   questions to settle before building.
-- **Uploading the activity log** - the log view's **Upload** button is shown disabled. When built it
+- **Uploading logs** - the **Upload** button on both the activity log and the game's own log window is
+  shown disabled (its hover explains it's coming). When built it
   opens a review dialog (the redacted log, exactly as it would be sent) with an opt-in "include
   computer details" option (CPU, GPU, OS, mod counts, whether a patch has been generated, and so on)
   to help with statistics and investigating bugs. Never uploads without a confirmation, never sends mod

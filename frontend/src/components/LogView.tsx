@@ -3,6 +3,7 @@ import {h} from 'preact';
 import {useEffect, useMemo, useRef, useState} from 'preact/hooks';
 import {colorFromName} from '../data/nameColor';
 import {Select} from './Select';
+import {UploadLogButton} from './UploadLogButton';
 import {
     durationTone,
     entryText,
@@ -179,12 +180,10 @@ export function LogView({onOpenFolder}: {
                       or account IDs, file contents, full paths, or anything typed
                       into the app.
 
-                    To wire it up: pass an onUpload prop (like onOpenFolder) and
-                    drop the "inert" class - the styling for both states exists.
+                    To wire it up: give UploadLogButton an onUpload prop (like
+                    onOpenFolder here) - the styling for both states exists.
                 */}
-                <span className="log-btn inert" title="Uploading logs isn't built yet - it will let you share this log, with an option to include computer details, to help investigate problems">
-                    <i className="fa-solid fa-cloud-arrow-up"/> Upload
-                </span>
+                <UploadLogButton/>
                 <span className="log-btn" title="Empty this view (the log file keeps its lines)" onClick={clear}>
                     <i className="fa-regular fa-trash-can"/> Clear
                 </span>
