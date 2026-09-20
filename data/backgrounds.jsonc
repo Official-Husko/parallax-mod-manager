@@ -14,5 +14,5 @@
 
     // The folder in that repository with one subfolder per game, named by the game's
     // id (the UUID in games.jsonc), each holding that game's images (jpg, png, webp).
-    "path": "game_media/backgrounds",
+    "path": "frontend/src/assets/game_media/background",
 }

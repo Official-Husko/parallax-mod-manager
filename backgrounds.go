@@ -21,6 +21,18 @@ import (
 // against the limit when nothing changed.
 const manifestMaxAge = time.Hour
 
+// An empty listing (nothing published yet) is trusted for much less: it is the
+// state someone is about to change by publishing, and should not stay in effect
+// for an hour after they have.
+const emptyManifestMaxAge = 5 * time.Minute
+
+func manifestFreshFor(m backgrounds.Manifest) time.Duration {
+	if len(m.Packs) == 0 {
+		return emptyManifestMaxAge
+	}
+	return manifestMaxAge
+}
+
 // backgroundState is everything the background art keeps between calls. The zero
 // value works once initBackgrounds has set the paths.
 type backgroundState struct {
@@ -78,12 +90,12 @@ func (a *App) backgroundManifest(force bool) (backgrounds.Manifest, string) {
 	defer bg.mu.Unlock()
 
 	if bg.manifest == nil {
-		if cached, ok := bg.cache.Load(); ok {
+		if cached, ok := bg.cache.Load(); ok && cached.Source == bg.source {
 			m := cached.Manifest
 			bg.manifest, bg.etag, bg.fetchedAt = &m, cached.ETag, time.Unix(cached.FetchedAt, 0)
 		}
 	}
-	if bg.manifest != nil && !force && time.Since(bg.fetchedAt) < manifestMaxAge {
+	if bg.manifest != nil && !force && time.Since(bg.fetchedAt) < manifestFreshFor(*bg.manifest) {
 		return *bg.manifest, ""
 	}
 
@@ -104,7 +116,7 @@ func (a *App) backgroundManifest(force bool) (backgrounds.Manifest, string) {
 		timer.Infof("listed %d game%s of published backgrounds", len(m.Packs), plural(len(m.Packs)))
 	}
 	bg.manifest, bg.etag, bg.fetchedAt = &m, etag, time.Now()
-	if err := bg.cache.Save(backgrounds.CachedManifest{ETag: etag, FetchedAt: bg.fetchedAt.Unix(), Manifest: m}); err != nil && bg.cache.Path != "" {
+	if err := bg.cache.Save(backgrounds.CachedManifest{Source: bg.source, ETag: etag, FetchedAt: bg.fetchedAt.Unix(), Manifest: m}); err != nil && bg.cache.Path != "" {
 		log.Warnf("couldn't cache the background listing: %v", err)
 	}
 	return m, ""

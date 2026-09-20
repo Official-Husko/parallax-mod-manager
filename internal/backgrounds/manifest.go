@@ -181,6 +181,10 @@ func parseTree(tree treeResponse) Manifest {
 // CachedManifest is a listing kept on disk, so the app can start without the
 // network and a fresh-enough one needs no request at all.
 type CachedManifest struct {
+	// Source is where the listing came from. A cache written for a different source
+	// (the folder moved, or the user pointed the app somewhere else) describes the
+	// wrong place and must not be used.
+	Source    Source
 	ETag      string
 	FetchedAt int64 // unix seconds
 	Manifest  Manifest

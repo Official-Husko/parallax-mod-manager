@@ -420,3 +420,85 @@ func TestBackgroundMiddlewareServesTheAppsOwnStore(t *testing.T) {
 		t.Errorf("other paths must reach the app's assets, got %d", rec.Code)
 	}
 }
+
+func TestBackgroundListingCacheIsIgnoredWhenItCameFromAnotherSource(t *testing.T) {
+	fake := newGithubFake(t, map[string]string{"g1/a.png": "A"})
+	cfg, cache := t.TempDir(), t.TempDir()
+	a, _ := backgroundsApp(t, fake, cfg, cache)
+
+	// A cache written for somewhere else (the folder moved, or an older build that
+	// recorded no source at all) describes the wrong place.
+	stale := backgrounds.CachedManifest{
+		Source:    backgrounds.Source{Repo: "o/r", Branch: "main", Path: "an/older/folder"},
+		ETag:      `"old"`,
+		FetchedAt: time.Now().Unix(),
+		Manifest:  backgrounds.Manifest{Packs: []backgrounds.Pack{{GameID: "ghost", Files: []backgrounds.File{{Name: "x.png", Size: 1}}, Bytes: 1}}},
+	}
+	if err := a.backgrounds.cache.Save(stale); err != nil {
+		t.Fatal(err)
+	}
+	imgs := a.BackgroundImages("g1")
+	if len(imgs) != 1 || !strings.Contains(imgs[0], "/g1/a.png") {
+		t.Errorf("images = %v, want the real listing, not the other source's cache", imgs)
+	}
+	if got := atomic.LoadInt32(&fake.treeHits); got != 1 {
+		t.Errorf("listing requests = %d, want 1 (the mismatched cache must not count as fresh)", got)
+	}
+	if len(a.BackgroundImages("ghost")) != 0 {
+		t.Error("the other source's pack leaked through")
+	}
+
+	// A cache with no source recorded at all (written before this field existed).
+	oldFormat := `{"ETag":"","FetchedAt":` + itoa(int(time.Now().Unix())) + `,"Manifest":{"Packs":null}}`
+	if err := os.WriteFile(a.backgrounds.cache.Path, []byte(oldFormat), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	restarted, _ := backgroundsApp(t, fake, cfg, cache)
+	if imgs := restarted.BackgroundImages("g1"); len(imgs) != 1 {
+		t.Errorf("after a restart over an old-format cache: %v, want the real listing", imgs)
+	}
+}
+
+func TestAnEmptyListingIsRecheckedSoonSoPublishingShowsUpQuickly(t *testing.T) {
+	fake := newGithubFake(t, map[string]string{})
+	a, _ := backgroundsApp(t, fake, t.TempDir(), t.TempDir())
+
+	if imgs := a.BackgroundImages("g1"); len(imgs) != 0 {
+		t.Fatalf("nothing is published yet, got %v", imgs)
+	}
+	a.BackgroundImages("g1")
+	if got := atomic.LoadInt32(&fake.treeHits); got != 1 {
+		t.Errorf("listing requests = %d, want 1: an empty listing is still cached briefly", got)
+	}
+
+	// Someone publishes; 6 minutes later (past the short window for an empty list,
+	// far inside the hour a real listing gets) it is noticed.
+	fake.files["g1/a.png"] = "A"
+	fake.etag = `"v2"`
+	a.backgrounds.mu.Lock()
+	a.backgrounds.fetchedAt = time.Now().Add(-6 * time.Minute)
+	a.backgrounds.mu.Unlock()
+	if imgs := a.BackgroundImages("g1"); len(imgs) != 1 {
+		t.Errorf("after publishing: %v, want the new image", imgs)
+	}
+
+	// A non-empty listing keeps the long window: 6 minutes old is still fresh.
+	hits := atomic.LoadInt32(&fake.treeHits)
+	a.backgrounds.mu.Lock()
+	a.backgrounds.fetchedAt = time.Now().Add(-6 * time.Minute)
+	a.backgrounds.mu.Unlock()
+	a.BackgroundImages("g1")
+	if got := atomic.LoadInt32(&fake.treeHits); got != hits {
+		t.Errorf("a real listing 6 minutes old was refetched (%d -> %d)", hits, got)
+	}
+}
+
+func TestTheBuiltInBackgroundSourcePointsAtWhereTheImagesArePublished(t *testing.T) {
+	src, _, err := backgrounds.LoadSource(embeddedBackgroundSource, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if src.Path != "frontend/src/assets/game_media/background" || src.Branch != "main" {
+		t.Errorf("src = %+v, want the folder the images are published in", src)
+	}
+}

@@ -804,7 +804,8 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   listing, three at a time with retries; one failed image does not stop the rest. The offline files are
   served to the webview by a small asset route inside the app that only serves valid image names from valid
   game folders. Where the images are published (a repository folder with one subfolder per game id) is
-  `data/backgrounds.jsonc`, replaceable by a `backgrounds.jsonc` in the settings folder; see
+  `data/backgrounds.jsonc` (default: the repository's `frontend/src/assets/game_media/background/<game id>/`,
+  which nothing imports, so it is not bundled), replaceable by a `backgrounds.jsonc` in the settings folder; see
   [docs/backgrounds.md](docs/backgrounds.md) for how to publish. The About page and this README now name
   GitHub as a second outside service (online mode only) alongside Steam. Tested with the race detector
   (listing, ETag, cache, resume, cancel, path safety, the asset route), a virtual-clock test of the
