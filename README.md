@@ -457,9 +457,12 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   that record. The window groups what it finds: **updated** (the descriptor version changed, or the
   Workshop page was updated - shown with the version change, how long ago, and how many files were
   added or removed and by how many bytes), **files changed** (a local mod edited, a file replaced),
-  **removed** (no longer installed) and **deleted from the Workshop** (Steam reports the item deleted
-  or banned - the mod keeps working but will never update, and stays listed as a standing entry
-  rather than vanishing at the next start). Each Workshop row opens its Steam page. The card shows a
+  **removed** (no longer installed) and **deleted from the Workshop** (the item's own Workshop
+  page is confirmed missing, or Steam flags it banned - the mod keeps working but will never
+  update, and stays listed as a standing entry rather than vanishing at the next start; Steam's
+  web API alone is not trusted for this, since it answers "not found" for some items whose page is
+  up, such as one an author retitled "OUTDATED ...", so a "not found" is checked against the page
+  and left unflagged when that cannot be confirmed either way). Each Workshop row opens its Steam page. The card shows a
   headline and a colored count per kind; **Check again** asks Steam again, **Mark all seen** clears
   the list. The comparison point is fixed for the whole run, so a later check (the mod folder
   watcher triggers one) still says everything since the last startup; the next startup then starts

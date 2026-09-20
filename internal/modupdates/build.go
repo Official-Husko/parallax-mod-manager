@@ -26,6 +26,13 @@ type Workshop struct {
 	// trusted, and Build keeps what the previous snapshot knew.
 	OK      bool
 	Details map[string]steamapi.PublishedFileDetails
+	// PageLive says, for items the API answered "not found" (result other than
+	// 1) for, whether the item's own Workshop page is there. The API alone does
+	// not prove a deletion - it says "not found" for some items whose page is up
+	// (see steamapi.ItemPageExists) - so an item only counts as deleted when its
+	// page is confirmed missing. An id absent from this map was not (or could not
+	// be) checked, which is "unknown", never "deleted".
+	PageLive map[string]bool
 }
 
 // Build makes the snapshot for the mods just scanned. prev is the last one
@@ -49,7 +56,18 @@ func Build(mods []ModInput, ws Workshop, prev *Snapshot, now time.Time) Snapshot
 		}
 		if m.Source == SourceWorkshop && m.RemoteFileID != "" {
 			if d, ok := ws.Details[m.RemoteFileID]; ws.OK && ok {
-				rec.WorkshopGone = d.Result != 1 || d.Banned
+				switch {
+				case d.Banned:
+					rec.WorkshopGone = true
+				case d.Result != 1:
+					if live, checked := ws.PageLive[m.RemoteFileID]; checked {
+						rec.WorkshopGone = !live
+					} else {
+						// Not confirmed either way: keep what was known, and
+						// never claim a deletion nothing confirmed.
+						rec.WorkshopGone = hadOld && old.WorkshopGone
+					}
+				}
 				rec.WorkshopUpdated = d.TimeUpdated
 			} else if hadOld {
 				rec.WorkshopGone = old.WorkshopGone

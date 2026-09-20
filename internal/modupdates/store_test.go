@@ -101,3 +101,42 @@ func TestStoreIsPerGame(t *testing.T) {
 		t.Error("hoi4 loaded stellaris's snapshot")
 	}
 }
+
+func TestStoreLoadClearsUnconfirmedDeletionsFromAnOldFormat(t *testing.T) {
+	// A version-1 file (written before deletions were confirmed against the item's
+	// page) can hold false "deleted from the Workshop" marks: they are dropped on
+	// load, everything else is kept.
+	dir := t.TempDir()
+	old := `{"takenAt": 5, "mods": {
+		"ugc_1": {"name": "Outdated Mod", "source": "workshop", "version": "1.0", "remoteFileId": "1",
+			"content": {"known": true, "files": 3, "size": 30, "newest": 4}, "workshopUpdated": 99, "workshopGone": true, "goneSince": 4}
+	}}`
+	if err := os.WriteFile(filepath.Join(dir, "g.jsonc"), []byte(old), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got := (Store{Dir: dir}).Load("g")
+	if got == nil {
+		t.Fatal("Load returned nil")
+	}
+	r := got.Mods["ugc_1"]
+	if r.WorkshopGone || r.GoneSince != 0 {
+		t.Errorf("record = %+v, want the unconfirmed deletion cleared", r)
+	}
+	if r.Name != "Outdated Mod" || r.WorkshopUpdated != 99 || r.Content.Files != 3 {
+		t.Errorf("record = %+v, want everything else kept", r)
+	}
+	if got.Version != snapshotVersion {
+		t.Errorf("Version = %d, want %d", got.Version, snapshotVersion)
+	}
+}
+
+func TestStoreSavesTheCurrentVersionAndKeepsConfirmedDeletions(t *testing.T) {
+	s := Store{Dir: t.TempDir()}
+	if err := s.Save("g", snap(1, map[string]Record{"a": {Name: "A", WorkshopGone: true, GoneSince: 3}})); err != nil {
+		t.Fatal(err)
+	}
+	got := s.Load("g")
+	if got == nil || got.Version != snapshotVersion || !got.Mods["a"].WorkshopGone || got.Mods["a"].GoneSince != 3 {
+		t.Errorf("Load = %+v, want a current-format snapshot with the deletion kept", got)
+	}
+}

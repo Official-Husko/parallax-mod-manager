@@ -52,8 +52,15 @@ type Record struct {
 	GoneSince int64 `json:"goneSince"`
 }
 
+// snapshotVersion is the current file format. 2 is the first in which a mod is
+// only recorded as deleted from the Workshop once its page was confirmed missing;
+// version 1 (no version field) took the API's "not found" at its word, which
+// wrongly marked items that are still up.
+const snapshotVersion = 2
+
 // Snapshot is every mod of one game at one moment, keyed by mod id.
 type Snapshot struct {
+	Version int               `json:"version"`
 	TakenAt int64             `json:"takenAt"`
 	Mods    map[string]Record `json:"mods"`
 }
@@ -65,6 +72,7 @@ const header = `// Parallax Mod Manager: what this game's mods looked like the l
 // changed, removed or deleted from the Steam Workshop in between. It is safe to
 // delete: the next startup then has nothing to compare with and starts a new one.
 //
+// version: the file format (see internal/modupdates).
 // takenAt: when this was written, in unix seconds.
 // mods: one entry per mod, keyed by the mod's id, each with:
 //   name, source (local, workshop or paradox-launcher), version: from its descriptor.
@@ -104,6 +112,17 @@ func (s Store) Load(gameID string) *Snapshot {
 	if err := jsonc.Unmarshal(data, &snap); err != nil || snap.Mods == nil {
 		return nil
 	}
+	if snap.Version < snapshotVersion {
+		// Its "deleted from the Workshop" marks were never confirmed against the
+		// item's page, and some were wrong: drop them rather than carry a false
+		// deletion forward. A real one is marked again on the next check.
+		for id, rec := range snap.Mods {
+			rec.WorkshopGone = false
+			rec.GoneSince = 0
+			snap.Mods[id] = rec
+		}
+		snap.Version = snapshotVersion
+	}
 	return &snap
 }
 
@@ -112,6 +131,7 @@ func (s Store) Save(gameID string, snap Snapshot) error {
 	if s.Dir == "" {
 		return fmt.Errorf("modupdates: Store dir must be set explicitly")
 	}
+	snap.Version = snapshotVersion
 	body, err := json.MarshalIndent(snap, "", "  ")
 	if err != nil {
 		return fmt.Errorf("modupdates: encoding snapshot for %q: %w", gameID, err)

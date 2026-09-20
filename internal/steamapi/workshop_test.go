@@ -187,3 +187,53 @@ func TestGetPublishedFileDetailsReportsBannedItems(t *testing.T) {
 		t.Error("item 2 should not be reported as banned")
 	}
 }
+
+func withItemPage(t *testing.T, status int, body string) {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("id") != "42" {
+			t.Errorf("requested id %q, want 42", r.URL.Query().Get("id"))
+		}
+		w.WriteHeader(status)
+		w.Write([]byte(body))
+	}))
+	t.Cleanup(server.Close)
+	restore := itemPageURL
+	itemPageURL = server.URL + "/?id=%s"
+	t.Cleanup(func() { itemPageURL = restore })
+}
+
+func TestItemPageExistsTrueForALivePage(t *testing.T) {
+	// The shape of a real page: the ban notice is present but hidden.
+	withItemPage(t, 200, `<title>Steam Workshop::OUTDATED Cross Border Trade</title>
+		<div class="bannedNotification" id="bannedNotification" style="display: none">This item has been removed</div>
+		<div class="workshopItemTitle">OUTDATED Cross Border Trade</div>`)
+	exists, err := ItemPageExists(context.Background(), "42")
+	if err != nil || !exists {
+		t.Errorf("exists = %v, err = %v, want true", exists, err)
+	}
+}
+
+func TestItemPageExistsFalseForSteamsNotFoundPage(t *testing.T) {
+	withItemPage(t, 200, `<title>Steam Community :: Error</title><h1>Sorry!</h1>
+		An error was encountered while processing your request: There was a problem accessing the item. Please try again.`)
+	exists, err := ItemPageExists(context.Background(), "42")
+	if err != nil || exists {
+		t.Errorf("exists = %v, err = %v, want false with no error", exists, err)
+	}
+}
+
+func TestItemPageExistsUnknownPageIsAnErrorNotAnAnswer(t *testing.T) {
+	// A login or age-check wall says nothing about whether the item exists.
+	withItemPage(t, 200, `<title>Steam Community :: Age Check</title><p>Please enter your date of birth</p>`)
+	if _, err := ItemPageExists(context.Background(), "42"); err == nil {
+		t.Error("an unrecognised page must be an error (unknown), not a verdict")
+	}
+}
+
+func TestItemPageExistsHTTPFailureIsAnError(t *testing.T) {
+	withItemPage(t, 429, `slow down`)
+	if _, err := ItemPageExists(context.Background(), "42"); err == nil {
+		t.Error("HTTP 429 must be an error (unknown), not a verdict")
+	}
+}

@@ -106,7 +106,42 @@ func (a *App) workshopState(gameID string, cfg game.GameConfig, mods []mod.Mod, 
 	if err != nil {
 		return modupdates.Workshop{}, err.Error()
 	}
-	return modupdates.Workshop{OK: true, Details: details}, ""
+	return modupdates.Workshop{OK: true, Details: details, PageLive: a.confirmWorkshopPages(details)}, ""
+}
+
+// confirmWorkshopPages looks at the item page of every Workshop item the API
+// answered "not found" for, because that answer is not proof of a deletion (see
+// steamapi.ItemPageExists). Only the few items in that state are fetched. One
+// whose page could not be read is left out of the result: unknown, not deleted.
+func (a *App) confirmWorkshopPages(details map[string]steamapi.PublishedFileDetails) map[string]bool {
+	var ids []string
+	for id, d := range details {
+		if d.Result != 1 && !d.Banned {
+			ids = append(ids, id)
+		}
+	}
+	live := make(map[string]bool, len(ids))
+	if len(ids) == 0 {
+		return live
+	}
+	var mu sync.Mutex
+	g, gctx := errgroup.WithContext(a.ctx)
+	g.SetLimit(4)
+	for _, id := range ids {
+		g.Go(func() error {
+			exists, err := steamapi.ItemPageExists(gctx, id)
+			if err != nil {
+				applog.For("Updates").Warnf("couldn't confirm Workshop item %s: %v", id, err)
+				return nil
+			}
+			mu.Lock()
+			live[id] = exists
+			mu.Unlock()
+			return nil
+		})
+	}
+	_ = g.Wait()
+	return live
 }
 
 // modUpdateInputs turns scanned mods into what modupdates.Build takes,
