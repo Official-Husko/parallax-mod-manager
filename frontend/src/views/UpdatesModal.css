@@ -1,5 +1,5 @@
 .updates-modal {
-    width: 560px;
+    width: 660px;
     max-height: 80vh;
     background: var(--bg-panel);
     border: 1px solid var(--border);
@@ -45,17 +45,42 @@
     overflow-y: auto;
 }
 
-.updates-warning {
+/* A strip of context above the list: something the report can't show as a row.
+   Info by default (the first run), .warn for a partial check (Steam could not be
+   reached), .error for a check that failed. */
+.updates-note {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 9px;
-    background: #1e1714;
-    border: 1px solid #4a2f22;
+    background: #141c27;
+    border: 1px solid var(--border-light);
     border-radius: 5px;
     padding: 9px 11px;
     margin-bottom: 12px;
-    font: 500 11.5px Barlow, sans-serif;
-    color: #e8c7b2;
+    font: 500 11.5px/1.5 Barlow, sans-serif;
+    color: var(--text-mid);
+}
+
+.updates-note i {
+    width: auto;
+    margin-top: 2px;
+    color: var(--blue);
+}
+
+.updates-note.warn {
+    background: #1e1a12;
+    border-color: #4a3a1e;
+    color: #e8d3a6;
+}
+
+.updates-note.warn i {
+    color: var(--amber);
+}
+
+.updates-note.error {
+    background: #241416;
+    border-color: #5a2f34;
+    color: #f0b8bd;
 }
 
 .update-row {
@@ -66,12 +91,77 @@
     border-bottom: 1px solid #1a212b;
 }
 
-.update-row .checkbox {
-    width: 13px;
-    height: 13px;
-    border: 1px solid;
-    border-radius: 3px;
+/* One group of changes of the same kind (see data/modUpdates.ts): its icon and
+   colour head the group, and the same icon leads each row. --kind-color is set
+   inline. */
+.updates-group {
+    margin-bottom: 14px;
+}
+
+.updates-group-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--kind-color);
+    font: 600 11.5px Barlow, sans-serif;
+    color: var(--kind-color);
+}
+
+.updates-group-header i {
+    width: auto;
+    font-size: 12px;
+}
+
+.updates-group-count {
+    margin-left: auto;
+    font-size: 10.5px;
+    color: var(--text-dim);
+}
+
+.update-kind {
     flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 5px;
+    background: rgba(255, 255, 255, .04);
+    color: var(--kind-color);
+    font-size: 12px;
+}
+
+.update-kind i {
+    width: auto;
+}
+
+/* A mod that was already deleted from the Workshop before the last startup: still
+   listed, but not news. */
+.update-row.standing {
+    opacity: .72;
+}
+
+.update-standing {
+    flex: none;
+    padding: 0 6px;
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    font: 500 9.5px "Azeret Mono", monospace;
+    color: var(--text-dim);
+}
+
+.update-link {
+    flex: none;
+    width: auto;
+    padding: 4px;
+    font-size: 11px;
+    color: var(--text-dim);
+    cursor: pointer;
+}
+
+.update-link:hover {
+    color: var(--blue);
 }
 
 .update-main {
@@ -80,16 +170,24 @@
 }
 
 .update-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     font: 500 12.5px Barlow, sans-serif;
     color: var(--text);
+    min-width: 0;
+}
+
+.update-name-text {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
 .update-note {
-    font-size: 10.5px;
-    margin-top: 2px;
+    font: 400 11.5px/1.45 Barlow, sans-serif;
+    margin-top: 3px;
+    color: var(--text-muted);
 }
 
 .update-versions {

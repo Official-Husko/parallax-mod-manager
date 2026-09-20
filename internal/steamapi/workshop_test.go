@@ -161,3 +161,29 @@ func TestGetPublishedFileDetailsHTTPErrorSurfaces(t *testing.T) {
 		t.Fatal("expected an error for a non-200 response")
 	}
 }
+
+func TestGetPublishedFileDetailsReportsBannedItems(t *testing.T) {
+	// Steam's moderators can remove an item while it still looks up fine
+	// (result 1): the banned flag is what says it is gone.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"response":{"result":1,"resultcount":2,"publishedfiledetails":[
+			{"publishedfileid":"1","result":1,"banned":1,"ban_reason":"rules"},
+			{"publishedfileid":"2","result":1,"banned":0}
+		]}}`))
+	}))
+	defer server.Close()
+	restoreURL := workshopDetailsURL
+	workshopDetailsURL = server.URL
+	defer func() { workshopDetailsURL = restoreURL }()
+
+	result, err := GetPublishedFileDetails(context.Background(), []string{"1", "2"})
+	if err != nil {
+		t.Fatalf("GetPublishedFileDetails: %v", err)
+	}
+	if !result["1"].Banned {
+		t.Error("item 1 should be reported as banned")
+	}
+	if result["2"].Banned {
+		t.Error("item 2 should not be reported as banned")
+	}
+}

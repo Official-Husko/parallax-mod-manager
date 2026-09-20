@@ -124,3 +124,37 @@ func TestWorkshopDetailsCacheIgnoresNonWorkshopMods(t *testing.T) {
 		t.Errorf("result = %+v, want empty", result)
 	}
 }
+
+func TestWorkshopDetailsCacheGetFreshAsksSteamAgain(t *testing.T) {
+	modDir := t.TempDir()
+	writeWorkshopMod(t, modDir, "111")
+
+	updated := int64(100)
+	fetchCount := 0
+	c := &WorkshopDetailsCache{
+		fetch: func(ctx context.Context, ids []string) (map[string]steamapi.PublishedFileDetails, error) {
+			fetchCount++
+			return map[string]steamapi.PublishedFileDetails{"111": {ID: "111", Result: 1, TimeUpdated: updated}}, nil
+		},
+	}
+
+	if _, err := c.Get(context.Background(), testGameConfig(), Options{ModDir: modDir}); err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	updated = 200
+	cached, _ := c.Get(context.Background(), testGameConfig(), Options{ModDir: modDir})
+	if fetchCount != 1 || cached["111"].TimeUpdated != 100 {
+		t.Fatalf("Get should serve from memory: fetches %d, updated %d", fetchCount, cached["111"].TimeUpdated)
+	}
+
+	fresh, err := c.GetFresh(context.Background(), testGameConfig(), Options{ModDir: modDir})
+	if err != nil {
+		t.Fatalf("GetFresh: %v", err)
+	}
+	if fetchCount != 2 || fresh["111"].TimeUpdated != 200 {
+		t.Errorf("GetFresh: fetches %d, updated %d, want a second fetch seeing 200", fetchCount, fresh["111"].TimeUpdated)
+	}
+	if after, _ := c.Get(context.Background(), testGameConfig(), Options{ModDir: modDir}); after["111"].TimeUpdated != 200 {
+		t.Errorf("Get after GetFresh = %d, want the refreshed 200 remembered", after["111"].TimeUpdated)
+	}
+}

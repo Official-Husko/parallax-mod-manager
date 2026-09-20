@@ -29,6 +29,7 @@ import (
 	"github.com/Official-Husko/parallax-mod-manager/internal/launcherdb"
 	"github.com/Official-Husko/parallax-mod-manager/internal/library"
 	"github.com/Official-Husko/parallax-mod-manager/internal/mod"
+	"github.com/Official-Husko/parallax-mod-manager/internal/modupdates"
 	"github.com/Official-Husko/parallax-mod-manager/internal/patchoverride"
 	"github.com/Official-Husko/parallax-mod-manager/internal/playset"
 	"github.com/Official-Husko/parallax-mod-manager/internal/preferences"
@@ -88,6 +89,10 @@ type App struct {
 	// flag only, see internal/resolvedconflicts. Dir is empty (methods
 	// degrade gracefully) when configDir couldn't be resolved.
 	resolvedConflicts resolvedconflicts.Store
+	// modUpdates remembers what each game's mods looked like at the last startup
+	// and reports what changed since - see internal/modupdates and
+	// CheckModUpdates. Its Store is set in startup; zero-value usable.
+	modUpdates modupdates.Tracker
 	// patchThumbnailPath is where a user-supplied patch_thumbnail.png would
 	// live (empty when configDir couldn't be resolved) - see patchThumbnail.
 	patchThumbnailPath string
@@ -191,6 +196,7 @@ func (a *App) startup(ctx context.Context) {
 		a.patchOverrides = patchoverride.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "patch_overrides")}
 		a.versionIgnore = versionignore.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "version_ignore")}
 		a.resolvedConflicts = resolvedconflicts.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "resolved_conflicts")}
+		a.modUpdates.Store = modupdates.Store{Dir: modUpdatesDir(filepath.Join(configDir, "parallax-mod-manager"))}
 		a.patchThumbnailPath = filepath.Join(configDir, "parallax-mod-manager", "patch_thumbnail.png")
 		a.configAppDir = filepath.Join(configDir, "parallax-mod-manager")
 	}

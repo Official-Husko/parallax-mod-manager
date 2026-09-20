@@ -43,26 +43,6 @@ export const mockPlaysets = playsetsRaw.map((p, ix) => ({
     actionC: ix === 0 ? '#e0a340' : '#8d99a9',
 }));
 
-// --- Update checker (3d) ---
-
-const updatesRaw: [string, string, string, string, string, boolean][] = [
-    ['Kaiserreich: Legacy of the Weltkrieg', 'changelog: naval rework, 41 fixes', '#6a7484', '0.26.1', '0.26.2', true],
-    ['Road to 56', 'changelog: 1.16.4 compatibility', '#6a7484', '13.9', '14.0', true],
-    ['Expert AI 4.0', 'still targets 1.16.2 - active in your playset', '#e0a340', '4.1', '4.2', true],
-    ['Coloured Buttons', 'minor fixes', '#6a7484', '2.8', '2.9', true],
-    ['Historical Portraits HD', 'new art for 14 nations', '#6a7484', '1.4', '1.5', true],
-    ['Endsieg', 'changelog: focus tree additions', '#6a7484', '3.0', '3.1', true],
-    ['Thousand Week Reich', 'major release · 1.2 GB download', '#6a7484', '1.7', '2.0', true],
-    ['Better Peace Deals', 'abandoned by author · last update 2024', '#e0a340', '1.2', '1.2', false],
-    ['Improved Division Designer', 'changelog: not published', '#6a7484', '2.0', '2.1', false],
-];
-
-export const updates = updatesRaw.map((u) => ({
-    name: u[0], note: u[1], noteC: u[2], from: u[3], to: u[4],
-    boxC: u[5] ? '#c4623a' : '#3c4858',
-    boxBg: u[5] ? '#c4623a' : 'transparent',
-}));
-
 // --- First-run wizard (3f) ---
 
 export const wizardSteps = [

@@ -46,6 +46,8 @@ import {colorFromName} from '../data/nameColor';
 import {listEditedSinceScan, liveConflicts} from '../data/liveConflicts';
 import {domainLegendTip, domainTip, flagLegendTip, modFlagsTip} from '../components/FlagTips';
 import {TipItem} from '../components/Tooltip';
+import {UpdatesCard} from '../components/UpdatesCard';
+import {checkModUpdates} from '../data/modUpdates';
 import {EmptyState} from '../components/EmptyState';
 import {FileTree} from '../components/FileTree';
 import {AutosortMissingDepsModal} from './AutosortMissingDepsModal';
@@ -350,6 +352,9 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
         const unsubscribe = EventsOn('mods-changed', (gameId: string) => {
             if (gameId === selectedGame) {
                 refreshMods(true);
+                // Mods were added, removed or rewritten on disk: what changed since
+                // the last startup may have changed with them.
+                checkModUpdates(gameId);
             }
         });
         return () => unsubscribe();
@@ -1310,10 +1315,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
 
                         <div className="rail-section">
                             <div className="rail-label">UPDATES</div>
-                            <div className="updates-card">
-                                <span>Not checked yet</span>
-                                <span className="link-btn amber" onClick={onOpenUpdates}>Review</span>
-                            </div>
+                            <UpdatesCard gameId={selectedGame} onReview={onOpenUpdates}/>
                         </div>
 
                         <div className="rail-spacer"/>

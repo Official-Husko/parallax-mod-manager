@@ -31,6 +31,17 @@ type WorkshopDetailsCache struct {
 // recognize, or that this cache hasn't been asked about yet, is simply
 // absent from the result.
 func (c *WorkshopDetailsCache) Get(ctx context.Context, cfg game.GameConfig, opts Options) (map[string]steamapi.PublishedFileDetails, error) {
+	return c.get(ctx, cfg, opts, false)
+}
+
+// GetFresh is Get that asks Steam again for every one of cfg's Workshop mods,
+// replacing what was remembered - for a "check again" that has to see an
+// update published since the details were first fetched this session.
+func (c *WorkshopDetailsCache) GetFresh(ctx context.Context, cfg game.GameConfig, opts Options) (map[string]steamapi.PublishedFileDetails, error) {
+	return c.get(ctx, cfg, opts, true)
+}
+
+func (c *WorkshopDetailsCache) get(ctx context.Context, cfg game.GameConfig, opts Options, refetchAll bool) (map[string]steamapi.PublishedFileDetails, error) {
 	scanResult, err := scan.Scan(ctx, scan.Options{Game: cfg, SteamRoots: opts.SteamRoots, ModDir: opts.ModDir, ExtraFolders: opts.ExtraFolders})
 	if err != nil {
 		return nil, err
@@ -51,7 +62,7 @@ func (c *WorkshopDetailsCache) Get(ctx context.Context, cfg game.GameConfig, opt
 
 	missing := make([]string, 0, len(ids))
 	for _, id := range ids {
-		if _, ok := c.byID[id]; !ok {
+		if _, ok := c.byID[id]; !ok || refetchAll {
 			missing = append(missing, id)
 		}
 	}

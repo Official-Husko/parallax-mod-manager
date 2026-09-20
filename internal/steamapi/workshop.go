@@ -24,7 +24,10 @@ type PublishedFileDetails struct {
 	// Result rather than being silently dropped, so a caller can tell
 	// "fetched, but Steam says this one's gone" from "never asked about
 	// this one at all".
-	Result      int
+	Result int
+	// Banned is true when Steam's moderators removed the item: it is still
+	// looked up successfully (Result 1) but is no longer available.
+	Banned      bool
 	Title       string
 	Description string
 	PreviewURL  string
@@ -50,6 +53,7 @@ type PublishedFileDetails struct {
 type rawPublishedFileDetails struct {
 	PublishedFileID string `json:"publishedfileid"`
 	Result          int    `json:"result"`
+	Banned          int    `json:"banned"`
 	Creator         string `json:"creator"`
 	FileSize        string `json:"file_size"`
 	PreviewURL      string `json:"preview_url"`
@@ -121,6 +125,7 @@ func GetPublishedFileDetails(ctx context.Context, ids []string) (map[string]Publ
 		result[raw.PublishedFileID] = PublishedFileDetails{
 			ID:            raw.PublishedFileID,
 			Result:        raw.Result,
+			Banned:        raw.Banned != 0,
 			Title:         raw.Title,
 			Description:   raw.Description,
 			PreviewURL:    raw.PreviewURL,

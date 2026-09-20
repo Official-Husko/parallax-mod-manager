@@ -26,6 +26,10 @@ export function CheckGameUpdates() {
   return window['go']['main']['App']['CheckGameUpdates']();
 }
 
+export function CheckModUpdates(arg1, arg2) {
+  return window['go']['main']['App']['CheckModUpdates'](arg1, arg2);
+}
+
 export function ClearGamePath(arg1) {
   return window['go']['main']['App']['ClearGamePath'](arg1);
 }
@@ -124,6 +128,10 @@ export function LogEntries() {
 
 export function LogEvent(arg1, arg2, arg3) {
   return window['go']['main']['App']['LogEvent'](arg1, arg2, arg3);
+}
+
+export function MarkModUpdatesSeen(arg1) {
+  return window['go']['main']['App']['MarkModUpdatesSeen'](arg1);
 }
 
 export function ModChangelog(arg1) {

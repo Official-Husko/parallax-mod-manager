@@ -258,8 +258,8 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   design and terminology from `mockup/Mod Manager.dc.html`, a local design reference kept out
   of version control; that mockup also sketches a larger product (a cross-game library, DLC
   management, a file-level conflict resolver, playset sharing, an update checker), most of which
-  now exists as a static visual preview (the conflict resolver is a real, working exception -
-  see below) - see the entries below for exactly what's real.
+  now exists as a static visual preview (the conflict resolver and the mod update tracking are
+  real, working exceptions - see below) - see the entries below for exactly what's real.
   `app.go`'s `LaunchGame` is the one function in the whole
   codebase that opens Steam and starts the real game process; `internal/atomicfile` now holds
   the shared atomic-JSON-write helper this package, `internal/cache`, and `internal/launch` all
@@ -448,6 +448,27 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   isn't just correct in theory, it does real, useful work on a real modlist. In-memory only
   (reorders the current load order; the user still has to Save the playset), so there's nothing
   destructive to undo it - close without saving.
+- **Mod update tracking: what changed since the last startup** (`internal/modupdates`,
+  `modupdates.go`, `frontend/src/data/modUpdates.ts`, `UpdatesModal.tsx`, `UpdatesCard.tsx`) - the
+  sidebar's UPDATES card and its **Review** window, formerly mockup data, are real. Every startup
+  records what each of a game's mods looked like (its version, a cheap fingerprint of its files -
+  count, total size and newest modified time - and, for Workshop mods, what Steam says about the
+  item) into `mod_updates/<game>.jsonc` in the config folder, and the next startup compares against
+  that record. The window groups what it finds: **updated** (the descriptor version changed, or the
+  Workshop page was updated - shown with the version change, how long ago, and how many files were
+  added or removed and by how many bytes), **files changed** (a local mod edited, a file replaced),
+  **removed** (no longer installed) and **deleted from the Workshop** (Steam reports the item deleted
+  or banned - the mod keeps working but will never update, and stays listed as a standing entry
+  rather than vanishing at the next start). Each Workshop row opens its Steam page. The card shows a
+  headline and a colored count per kind; **Check again** asks Steam again, **Mark all seen** clears
+  the list. The comparison point is fixed for the whole run, so a later check (the mod folder
+  watcher triggers one) still says everything since the last startup; the next startup then starts
+  from what this run saw, so nothing is repeated. Safeguards: a Steam failure only limits the
+  check to file changes and says so; an unreadable mod folder (a drive that is not connected) is
+  never read as every mod being removed; the generated patch, which the app rewrites itself, is
+  excluded; the first run has nothing to compare and says tracking starts now. Covered by unit
+  tests for the diff, snapshot building, fingerprints, the store and the tracker, and an
+  end-to-end test that changes real mod folders between two simulated startups.
 - **Conflicts follow the load order you are editing** (`frontend/src/data/liveConflicts.ts`,
   `Workspace.tsx`) - the "N mods in hard conflicts" line no longer sits above the Active list and no
   longer sticks around after you clear the list or start a new one. It is a message card in the
@@ -474,8 +495,7 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   honest replacement and were dropped rather than faked: detecting the game's own currently-
   installed version (for "N mods target an older patch") and an online checksum-sharing feature
   (for "matches your friends") don't exist anywhere in this project. The rail's UPDATES card
-  similarly no longer shows a fabricated count - the real update checker itself remains a
-  separate, not-yet-built feature (see below).
+  similarly no longer shows a fabricated count; it is now real (see "Mod update tracking" below).
 - **Real DLC toggling** (`internal/dlc`, `Dlc.tsx`) - lets a user disable specific installed
   DLC for a saved playset. The write path was already real and already launched
   (`internal/launch` has written `dlc_load.json`'s `disabled_dlcs` field since playsets shipped);
@@ -573,7 +593,7 @@ This list grows as features land - see [Progress](#progress) below, which is kep
     its own **NOT FOUND** row (dimmed, no working toggle - nothing to verify) with a one-click
     way to clear the stale reference, plus a footer count so it's never just invisible.
 - **The rest of the design mockup's screens** (`frontend/src/views/Library.tsx`,
-  `PlaysetsModal.tsx`, `UpdatesModal.tsx`) - a faithful, fully navigable visual preview of the
+  `PlaysetsModal.tsx`) - a faithful, fully navigable visual preview of the
   mockup's cross-game library, built from the mockup's own example content.
   **Mostly static previews, not working features yet** - they render real Font Awesome Pro
   icons and this project's dark theme, but (with five exceptions) don't read or write real
@@ -626,8 +646,8 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   existing mod-deletion path (`PurgeMods`) is narrowly scoped to already-empty local mods on
   purpose, and a general "delete a mod's real content" action is a materially bigger,
   higher-stakes capability than what shipped here, not something to add as a side effect of
-  wiring up the rest of the row. Everything else in this list - playset sharing via codes and the
-  update checker - stays a static preview.
+  wiring up the rest of the row. Everything else in this list - playset sharing via codes - stays a
+  static preview.
 - **A real, stacking notification system** (`frontend/src/data/notifications.ts`,
   `NotificationStack.tsx`) - replaces the single ad-hoc startup-notice banner with a proper
   toast stack anchored right below the top bar, so it never covers the app's own title or game

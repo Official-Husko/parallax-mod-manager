@@ -7,6 +7,7 @@ import {TopBar} from './components/TopBar';
 import type {ViewKey} from './components/TopBar';
 import {NotificationStack} from './components/NotificationStack';
 import {ContextMenu} from './components/ContextMenu';
+import {ensureModUpdates} from './data/modUpdates';
 import {Tooltip} from './components/Tooltip';
 import {AppBackground} from './components/AppBackground';
 import {dismiss, notify} from './data/notifications';
@@ -252,6 +253,13 @@ export function App() {
 
     const accent = useGameAccent(onboarded ? selectedGame : '');
 
+    // Once per run for each game, work out what happened to its mods since the
+    // app last started (see data/modUpdates.ts) - the sidebar card and the
+    // Updates window both read the result.
+    useEffect(() => {
+        if (onboarded && selectedGame) ensureModUpdates(selectedGame);
+    }, [onboarded, selectedGame]);
+
     if (!onboarded) {
         return (
             <div id="app">
@@ -374,7 +382,7 @@ export function App() {
                 </div>
             )}
 
-            {showUpdates && <UpdatesModal onClose={() => setShowUpdates(false)}/>}
+            {showUpdates && <UpdatesModal gameId={selectedGame} gameName={gameName} onClose={() => setShowUpdates(false)}/>}
             <ContextMenu/>
             <Tooltip/>
         </div>

@@ -46,6 +46,11 @@ var utf8BOM = []byte{0xEF, 0xBB, 0xBF}
 // share the exact same name. See docs/patch-mods.md.
 const patchModID = "zzzzz_parallax_patch"
 
+// PatchModID is patchModID for other packages, which need to tell the generated
+// patch apart from the mods a user installed (it changes every time it is
+// regenerated, so it must not be reported as a mod that changed).
+const PatchModID = patchModID
+
 // PatchResult reports what GeneratePatch did.
 type PatchResult struct {
 	// Written is false when there were no patchable conflicts - nothing
