@@ -6,9 +6,11 @@ package pipeline
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync"
 	"sync/atomic"
 
 	"golang.org/x/sync/errgroup"
@@ -22,12 +24,90 @@ import (
 	"github.com/Official-Husko/parallax-mod-manager/internal/xhash"
 )
 
+// outcome is how a file's definitions were obtained.
+type outcome int
+
+const (
+	outcomeCached  outcome = iota // (mtime,size) matched: reused with no I/O
+	outcomeTouched                // stat changed but the content hash matched: reused, stat refreshed
+	outcomeParsed                 // read and parsed fresh
+)
+
 // FileResult is one file's outcome from a LoadMod run.
 type FileResult struct {
 	RelPath     string
 	Record      cache.FileRecord
 	Definitions []definition.Definition
 	Err         error
+	outcome     outcome
+}
+
+// Stats counts what a run of LoadMod calls did, across as many mods as share
+// one Stats - the numbers behind "how well is the cache working?". Safe for
+// concurrent use.
+type Stats struct {
+	// Files is every file examined.
+	Files atomic.Int64
+	// Cached is how many were reused on their (mtime,size) alone.
+	Cached atomic.Int64
+	// Touched is how many had a new mtime or size but identical content.
+	Touched atomic.Int64
+	// Parsed is how many had to be read and parsed.
+	Parsed atomic.Int64
+	// ParseErrors is how many files currently have a parse problem: ones that
+	// couldn't be read at all, and localisation files read with some lines
+	// skipped. Counted on every run, not just the one that first hit them - a
+	// problem is remembered in the cache, so a warm run reports the same files
+	// rather than a misleading zero.
+	ParseErrors atomic.Int64
+	// Saved is how many mod caches were written back to disk (one that was
+	// entirely unchanged is not written).
+	Saved atomic.Int64
+
+	mu       sync.Mutex
+	problems []Problem
+	dropped  int
+}
+
+// Problem is one file that couldn't be read cleanly, and why.
+type Problem struct {
+	ModID string
+	// Path is relative to the mod's content folder, slash-separated.
+	Path string
+	Err  string
+}
+
+// maxProblems bounds how many Problems a Stats keeps: a mod that is broken
+// throughout would otherwise turn one scan into thousands of log lines.
+const maxProblems = 20
+
+// note records ps, keeping the first maxProblems and only counting the rest.
+func (s *Stats) note(ps []Problem) {
+	if len(ps) == 0 {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, p := range ps {
+		if len(s.problems) < maxProblems {
+			s.problems = append(s.problems, p)
+		} else {
+			s.dropped++
+		}
+	}
+}
+
+// Problems returns the files noted as having a problem, up to a bound, and how
+// many more there were beyond it.
+//
+// Only a run that itself hit a problem reports it: a file that failed to parse
+// is remembered in the cache and not parsed again, so a warm run counts it in
+// ParseErrors but doesn't repeat it here. That is what keeps the same broken
+// file from being reported on every scan.
+func (s *Stats) Problems() (problems []Problem, more int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]Problem(nil), s.problems...), s.dropped
 }
 
 // Progress reports how far a LoadMod run has gotten, for per-mod (not
@@ -49,6 +129,9 @@ type Options struct {
 	// whichever goroutine finished it - it must be safe to call
 	// concurrently, or do its own synchronization).
 	OnProgress func(Progress)
+	// Stats, if set, is added to as files are handled - share one across
+	// several LoadMod calls to total a whole scan.
+	Stats *Stats
 }
 
 // Store is the subset of cache.Store this package needs - defined locally
@@ -118,19 +201,74 @@ func LoadMod(ctx context.Context, m mod.Mod, cfg game.GameConfig, opts Options) 
 
 	// Sequential merge: single-threaded, in file order. The only step that
 	// mutates modCache or builds the merged slice.
-	var defs []definition.Definition
+	total := 0
+	for _, r := range results {
+		if r.Err == nil {
+			total += len(r.Definitions)
+		}
+	}
+	// Sized once: appending file by file grew this slice by doubling, copying
+	// every definition (a hundred-odd bytes each) several times over.
+	defs := make([]definition.Definition, 0, total)
+	dirty := false
+	var cached, touched, parsed, parseErrors int64
+	var fresh []Problem
 	for _, r := range results {
 		if r.Err != nil {
+			// A file that couldn't be read at all: it contributes nothing, and
+			// there is no cached record to remember that by, so it is reported
+			// every run.
+			fresh = append(fresh, Problem{ModID: m.ID, Path: r.RelPath, Err: r.Err.Error()})
 			continue
 		}
-		modCache.Put(r.RelPath, r.Record)
+		switch r.outcome {
+		case outcomeCached:
+			cached++
+		case outcomeTouched:
+			touched++
+		case outcomeParsed:
+			parsed++
+		}
+		if r.Record.ParseError != "" {
+			parseErrors++
+			if r.outcome == outcomeParsed {
+				fresh = append(fresh, Problem{ModID: m.ID, Path: r.RelPath, Err: r.Record.ParseError})
+			}
+		}
+		if prev, ok := modCache.Files[r.RelPath]; !ok || !sameRecord(prev, r.Record) {
+			modCache.Put(r.RelPath, r.Record)
+			dirty = true
+		}
 		defs = append(defs, r.Definitions...)
 	}
+	if opts.Stats != nil {
+		opts.Stats.Files.Add(cached + touched + parsed)
+		opts.Stats.Cached.Add(cached)
+		opts.Stats.Touched.Add(touched)
+		opts.Stats.Parsed.Add(parsed)
+		opts.Stats.ParseErrors.Add(parseErrors)
+		opts.Stats.note(fresh)
+	}
 
-	if err := opts.Store.Save(ctx, modCache); err != nil {
-		return nil, err
+	// Writing the cache back is the expensive half of a warm run (encoding
+	// every definition of the mod), and on a warm run there is nothing new to
+	// write - so only do it when a file was added, changed, or re-stat'd.
+	if dirty {
+		if err := opts.Store.Save(ctx, modCache); err != nil {
+			return nil, err
+		}
+		if opts.Stats != nil {
+			opts.Stats.Saved.Add(1)
+		}
 	}
 	return defs, nil
+}
+
+// sameRecord reports whether two cached records for one file agree on
+// everything that identifies its state. Definitions are deliberately not
+// compared: they're a pure function of the content the Hash already covers.
+func sameRecord(a, b cache.FileRecord) bool {
+	return a.ModTimeUnixNano == b.ModTimeUnixNano && a.Size == b.Size && a.Hash == b.Hash && a.ParseError == b.ParseError
 }
 
 // processFile implements stat -> hash -> parse for one file: a (mtime,size)
@@ -146,7 +284,7 @@ func processFile(modCache *cache.ModCache, modID, contentRoot, relPath string) F
 	}
 
 	if rec, ok := modCache.Lookup(relPath, info); ok {
-		return FileResult{RelPath: relPath, Record: rec, Definitions: rec.Definitions}
+		return FileResult{RelPath: relPath, Record: rec, Definitions: rec.Definitions, outcome: outcomeCached}
 	}
 
 	data, err := os.ReadFile(absPath)
@@ -159,7 +297,7 @@ func processFile(modCache *cache.ModCache, modID, contentRoot, relPath string) F
 		rec := prev
 		rec.ModTimeUnixNano = info.ModTime().UnixNano()
 		rec.Size = info.Size()
-		return FileResult{RelPath: relPath, Record: rec, Definitions: rec.Definitions}
+		return FileResult{RelPath: relPath, Record: rec, Definitions: rec.Definitions, outcome: outcomeTouched}
 	}
 
 	defs, parseErr := parseFile(modID, relPath, data)
@@ -173,7 +311,14 @@ func processFile(modCache *cache.ModCache, modID, contentRoot, relPath string) F
 	if parseErr != nil {
 		rec.ParseError = parseErr.Error()
 	}
-	return FileResult{RelPath: relPath, Record: rec, Definitions: defs}
+	return FileResult{RelPath: relPath, Record: rec, Definitions: defs, outcome: outcomeParsed}
+}
+
+func plural(n int) string {
+	if n == 1 {
+		return ""
+	}
+	return "s"
 }
 
 // parseFile dispatches on file extension: .yml is localization, everything
@@ -186,7 +331,14 @@ func parseFile(modID, relPath string, data []byte) ([]definition.Definition, err
 		if err != nil {
 			return nil, err
 		}
-		return definition.FromLocaleCatalog(modID, relPath, cat), nil
+		defs := definition.FromLocaleCatalog(modID, relPath, cat)
+		if n := len(cat.Skipped); n > 0 {
+			// The readable entries are kept and used; the note travels with the
+			// record (FileRecord.ParseError) so the scan can say the file has a
+			// problem, without losing everything else in it.
+			return defs, fmt.Errorf("%d line%s skipped, first: %s", n, plural(n), cat.Skipped[0].Reason)
+		}
+		return defs, nil
 	}
 
 	f, err := script.Parse(data)

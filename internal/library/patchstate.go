@@ -51,6 +51,20 @@ type PatchSummary struct {
 	// (the mods involved changed, were removed, or were disabled). They stay
 	// in the patch harmlessly until it's regenerated.
 	Obsolete int
+	// GeneratedForVersion is the game version the patch was made for, as it
+	// was recorded ("" for a patch made before that was tracked, or when the
+	// version was unknown).
+	GeneratedForVersion string
+	// GameVersion is the version the game reports now, when known.
+	GameVersion string
+	// GameChanged is true when the game has moved to a different major.minor
+	// (v4.4.x to v4.5.x) since the patch was made. The patch declares itself
+	// compatible with the version it was made for (supported_version), so after
+	// such an update the launcher flags it as made for another game version,
+	// and the mods it was built from may have been updated to match. A change
+	// within a minor version (v4.4.5 to v4.4.6) doesn't count: the patch's
+	// wildcard still covers it.
+	GameChanged bool
 	// ChangedMods names every mod whose content for a covered key changed,
 	// was added to it, or is gone - what a "check these mods" prompt should
 	// point at. Never nil; sorted.
@@ -63,7 +77,7 @@ type PatchSummary struct {
 // only ever been made stale by keys becoming obsolete is the mildest case,
 // but it's still out of date.
 func (p PatchSummary) NeedsAttention() bool {
-	return p.Exists && (p.Changed > 0 || p.New > 0 || p.Obsolete > 0)
+	return p.Exists && (p.Changed > 0 || p.New > 0 || p.Obsolete > 0 || p.GameChanged)
 }
 
 // patchContentDir returns where cfg's generated patch mod keeps its content
@@ -81,6 +95,28 @@ func patchContentDir(cfg game.GameConfig, opts Options) (dir string, ok bool) {
 	return filepath.Join(modDir, patchModID), true
 }
 
+// describePatch is what is known about the generated patch without comparing
+// it to anything: that it exists, when and for which game version it was made,
+// and whether the game has moved on since. Every count is zero - which is also
+// the answer when there is nothing to compare against, see LoadGame.
+func describePatch(manifest patchmanifest.Manifest, gameVersion string) PatchSummary {
+	out := PatchSummary{
+		Exists:              true,
+		GeneratedAt:         manifest.GeneratedAt,
+		Generation:          manifest.Generation,
+		GeneratedForVersion: manifest.GameVersion,
+		GameVersion:         gameVersion,
+		ChangedMods:         []string{},
+	}
+	// Only when both versions are known and read as a real major.minor: an
+	// older patch that never recorded one, or a game that reports none, is
+	// unknown, not changed.
+	if was, now := supportedVersionPattern(manifest.GameVersion), supportedVersionPattern(gameVersion); was != "*" && now != "*" {
+		out.GameChanged = was != now
+	}
+	return out
+}
+
 // applyPatchState compares the current conflicts against manifest - what the
 // generated patch was built from - and records the outcome on summaries (one
 // per conflict, same order) and in the returned PatchSummary.
@@ -89,13 +125,8 @@ func patchContentDir(cfg game.GameConfig, opts Options) (dir string, ok bool) {
 // mod update that never touched a key the patch covers changes nothing here,
 // and a mod that silently rewrites one definition without bumping its
 // version is still caught.
-func applyPatchState(summaries []ConflictSummary, conflicts []conflict.Conflict, manifest patchmanifest.Manifest, names map[string]string) PatchSummary {
-	out := PatchSummary{
-		Exists:      true,
-		GeneratedAt: manifest.GeneratedAt,
-		Generation:  manifest.Generation,
-		ChangedMods: []string{},
-	}
+func applyPatchState(summaries []ConflictSummary, conflicts []conflict.Conflict, manifest patchmanifest.Manifest, names map[string]string, gameVersion string) PatchSummary {
+	out := describePatch(manifest, gameVersion)
 
 	covered := make(map[string]patchmanifest.KeyRecord, len(manifest.Keys))
 	for _, k := range manifest.Keys {

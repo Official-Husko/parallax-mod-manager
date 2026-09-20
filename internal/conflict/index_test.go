@@ -1,6 +1,8 @@
 package conflict
 
 import (
+	"reflect"
+	"runtime"
 	"testing"
 
 	"github.com/Official-Husko/parallax-mod-manager/internal/definition"
@@ -114,5 +116,107 @@ func TestIndexAtPreservesSameModOrder(t *testing.T) {
 	}
 	if defs[0].FilePath != first.FilePath || defs[1].FilePath != second.FilePath {
 		t.Errorf("At() did not preserve original order: %+v", defs)
+	}
+}
+
+// withShardThreshold runs fn with BuildIndex's parallel threshold changed.
+func withShardThreshold(t *testing.T, v int, fn func()) {
+	t.Helper()
+	old := shardThreshold
+	shardThreshold = v
+	defer func() { shardThreshold = old }()
+	fn()
+}
+
+func TestShardedIndexIsIdenticalToTheSequentialOne(t *testing.T) {
+	for seed := uint64(1); seed <= 60; seed++ {
+		inputs, order := randomInputs(seed, 2+int(seed%7), 8+int(seed%40))
+
+		var seq, par Index
+		withShardThreshold(t, 1<<30, func() { seq = BuildIndex(order, inputs) })
+		withShardThreshold(t, 0, func() { par = BuildIndex(order, inputs) })
+
+		if len(seq.shards) != 1 {
+			t.Fatalf("seed %d: expected the sequential index to use one shard, got %d", seed, len(seq.shards))
+		}
+		if seed == 1 && runtime.NumCPU() > 1 && len(par.shards) < 2 {
+			t.Fatalf("expected the forced parallel index to use several shards, got %d", len(par.shards))
+		}
+		if seq.size() != par.size() {
+			t.Fatalf("seed %d: %d keys sequentially, %d sharded", seed, seq.size(), par.size())
+		}
+		seq.each(func(k Key, want []definition.Definition) {
+			got, ok := par.At(k)
+			if !ok || !reflect.DeepEqual(got, want) {
+				t.Fatalf("seed %d: key %v differs\nsequential: %+v\nsharded:    %+v", seed, k, want, got)
+			}
+		})
+		if _, ok := par.At(Key{Type: "no/such", ID: "key"}); ok {
+			t.Fatalf("seed %d: a key nobody defines was found", seed)
+		}
+	}
+}
+
+func TestResolveGivesTheSameResultShardedOrNot(t *testing.T) {
+	for seed := uint64(100); seed < 160; seed++ {
+		inputs, order := randomInputs(seed, 3+int(seed%5), 10+int(seed%30))
+		var seq, par Result
+		var seqFast, parFast Result
+		withShardThreshold(t, 1<<30, func() {
+			seq = Resolve(order, inputs, Options{})
+			seqFast = Resolve(order, inputs, Options{ConflictsOnly: true})
+		})
+		withShardThreshold(t, 0, func() {
+			par = Resolve(order, inputs, Options{})
+			parFast = Resolve(order, inputs, Options{ConflictsOnly: true})
+		})
+		if !reflect.DeepEqual(seq.Conflicts, par.Conflicts) || !reflect.DeepEqual(seq.Resolutions, par.Resolutions) {
+			t.Fatalf("seed %d: the full resolve differs when the index is sharded", seed)
+		}
+		if !reflect.DeepEqual(seqFast.Conflicts, parFast.Conflicts) || !reflect.DeepEqual(seq.Conflicts, parFast.Conflicts) {
+			t.Fatalf("seed %d: the conflicts-only resolve differs when the index is sharded", seed)
+		}
+	}
+}
+
+func TestIndexKeysAreSortedAndCompleteAcrossShards(t *testing.T) {
+	inputs, order := randomInputs(9, 6, 30)
+	var par Index
+	withShardThreshold(t, 0, func() { par = BuildIndex(order, inputs) })
+	all := par.allKeys()
+	if len(all) != par.size() {
+		t.Errorf("allKeys returned %d keys, index has %d", len(all), par.size())
+	}
+	for i := 1; i < len(all); i++ {
+		if !keyLess(all[i-1], all[i]) {
+			t.Fatalf("allKeys isn't strictly sorted at %d: %v then %v", i, all[i-1], all[i])
+		}
+	}
+	for _, k := range par.Keys() {
+		defs, _ := par.At(k)
+		if distinctModCount(defs) < 2 {
+			t.Errorf("Keys returned %v, which only one mod defines", k)
+		}
+	}
+}
+
+func TestShardAssignmentIsDeterministicAndSpreadsKeys(t *testing.T) {
+	const n = 8
+	counts := make([]int, n)
+	for i := 0; i < 8000; i++ {
+		k := Key{Type: definition.Type("common/thing_" + string(rune('a'+i%5))), ID: "key_" + string(rune('a'+i%26)) + string(rune('a'+(i/26)%26)) + string(rune('a'+(i/676)%26))}
+		s := shardOf(k, n)
+		if s < 0 || s >= n || s != shardOf(k, n) {
+			t.Fatalf("shardOf(%v) = %d, want a stable value in [0,%d)", k, s, n)
+		}
+		counts[s]++
+	}
+	for shard, c := range counts {
+		if c < 500 || c > 1500 {
+			t.Errorf("shard %d got %d of 8000 keys - the split is badly lopsided: %v", shard, c, counts)
+		}
+	}
+	if shardOf(Key{Type: "ab", ID: "c"}, 1000003) == shardOf(Key{Type: "a", ID: "bc"}, 1000003) {
+		t.Error("the Type/ID boundary must be part of the hash")
 	}
 }

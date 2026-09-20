@@ -1,7 +1,7 @@
 import './App.css'
 import {h} from 'preact';
-import {useEffect, useState} from 'preact/hooks';
-import {GameVersion, GetPreferences, ListGames, SetPreferences, StartupNotice} from '../wailsjs/go/main/App';
+import {useEffect, useRef, useState} from 'preact/hooks';
+import {CheckGameUpdates, GameVersion, GetPreferences, ListGames, SetPreferences, StartupNotice} from '../wailsjs/go/main/App';
 import type {library, preferences} from '../wailsjs/go/models';
 import {TopBar} from './components/TopBar';
 import type {ViewKey} from './components/TopBar';
@@ -9,11 +9,11 @@ import {NotificationStack} from './components/NotificationStack';
 import {ContextMenu} from './components/ContextMenu';
 import {AppBackground} from './components/AppBackground';
 import {notify} from './data/notifications';
+import {displayVersion} from './data/versionCompat';
 import {Workspace} from './views/Workspace';
 import {Library} from './views/Library';
 import {Dlc} from './views/Dlc';
 import {Settings} from './views/Settings';
-import {About} from './views/About';
 import {UpdatesModal} from './views/UpdatesModal';
 import {FirstRunWizard} from './views/FirstRunWizard';
 import {getLegacyManagedGames} from './data/managedGames';
@@ -35,6 +35,15 @@ function markOnboarded() {
     } catch {
         // Private browsing / blocked storage - just skip persisting the flag.
     }
+}
+
+// How soon after one game-update check another may run - see checkForGameUpdates.
+const GAME_UPDATE_CHECK_MIN_MS = 30_000;
+
+// Every game's installed version, keyed by game ID ("" when unknown).
+function fetchGameVersions(list: library.GameInfo[]): Promise<Record<string, string>> {
+    return Promise.all(list.map((g) => GameVersion(g.ID).then((v) => [g.ID, v] as const).catch(() => [g.ID, ''] as const)))
+        .then((pairs) => Object.fromEntries(pairs));
 }
 
 export function App() {
@@ -173,10 +182,47 @@ export function App() {
             return;
         }
         let cancelled = false;
-        Promise.all(games.map((g) => GameVersion(g.ID).then((v) => [g.ID, v] as const).catch(() => [g.ID, ''] as const)))
-            .then((pairs) => { if (!cancelled) setGameVersions(Object.fromEntries(pairs)); });
+        fetchGameVersions(games).then((versions) => { if (!cancelled) setGameVersions(versions); });
         return () => { cancelled = true; };
     }, [games]);
+
+    // Tell the user when a game has updated - at startup, and again whenever
+    // the window regains focus, since Steam may well have updated the game while
+    // this app was in the background. The backend remembers the last version it
+    // saw per game, so each update is reported once; the throttle only keeps a
+    // burst of focus events (alt-tabbing back and forth) from asking every time.
+    const gameUpdateCheck = useRef({lastAt: 0, running: false});
+    const gamesRef = useRef(games);
+    gamesRef.current = games;
+    async function checkForGameUpdates() {
+        const state = gameUpdateCheck.current;
+        if (state.running || Date.now() - state.lastAt < GAME_UPDATE_CHECK_MIN_MS) return;
+        state.running = true;
+        try {
+            const updates = await CheckGameUpdates();
+            state.lastAt = Date.now();
+            for (const u of updates) {
+                notify('warning', `${u.GameName} is now ${displayVersion(u.To)} (was ${displayVersion(u.From)}). Mods made for the old version may need updates.`, {
+                    action: {label: 'Review mods', onClick: () => setView('workspace')},
+                });
+            }
+            if (updates.length > 0) {
+                // The top bar's version pill should show the new version now.
+                fetchGameVersions(gamesRef.current).then(setGameVersions);
+            }
+        } catch {
+            // Best effort: not being able to check must never get in the way.
+        } finally {
+            state.running = false;
+        }
+    }
+    useEffect(() => {
+        if (!onboarded || games.length === 0) return;
+        checkForGameUpdates();
+        window.addEventListener('focus', checkForGameUpdates);
+        return () => window.removeEventListener('focus', checkForGameUpdates);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [onboarded, games.length > 0]);
 
     function selectGame(id: string) {
         setSelectedGame(id);
@@ -308,14 +354,6 @@ export function App() {
                         // Settings would only take effect after a restart.
                         onPreferencesChanged={loadGames}
                     />
-                </div>
-            )}
-
-            {/* Like Settings, About needs nothing from the games list, so it
-                stays reachable even while the "no games" error is showing. */}
-            {visitedViews.has('about') && (
-                <div style={{display: view === 'about' ? 'contents' : 'none'}}>
-                    <About/>
                 </div>
             )}
 

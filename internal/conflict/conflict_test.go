@@ -217,3 +217,81 @@ func TestResolveEmptyInputs(t *testing.T) {
 		t.Errorf("expected an empty Result, got %+v", result)
 	}
 }
+
+// randomInputs builds a reproducible pile of mods whose definitions overlap
+// heavily: same-mod duplicates, identical-hash duplicates across mods, real
+// conflicts, and declared dependencies that suppress some of them - every
+// branch detectKey has.
+func randomInputs(seed uint64, mods, keys int) ([]Input, LoadOrder) {
+	next := func() uint64 {
+		seed = seed*6364136223846793005 + 1442695040888963407
+		return seed >> 33
+	}
+	inputs := make([]Input, mods)
+	order := make(LoadOrder, mods)
+	for i := range inputs {
+		id := "mod_" + string(rune('a'+i))
+		order[i] = id
+		var deps []string
+		for j := 0; j < mods; j++ {
+			if j != i && next()%6 == 0 {
+				deps = append(deps, "Mod "+string(rune('a'+j)))
+			}
+		}
+		inputs[i].Mod = mod.Mod{ID: id, Descriptor: mod.Descriptor{Name: "Mod " + string(rune('a'+i)), Dependencies: deps}}
+		for n := uint64(0); n < uint64(keys); n++ {
+			if next()%3 == 0 {
+				continue
+			}
+			key := "key_" + string(rune('a'+next()%uint64(keys)%26)) + string(rune('a'+next()%7))
+			typ := definition.Type("common/thing_" + string(rune('a'+next()%3)))
+			// A small hash alphabet makes identical-content duplicates common.
+			inputs[i].Defs = append(inputs[i].Defs, definition.Definition{
+				Type: typ, ID: key, ModID: id, FilePath: "f" + string(rune('a'+next()%3)) + ".txt", Hash: next() % 3, Order: int(n),
+			})
+		}
+	}
+	return inputs, order
+}
+
+func TestConflictsOnlyGivesTheSameConflictsAsTheFullResolve(t *testing.T) {
+	checked, withConflicts := 0, 0
+	for seed := uint64(1); seed <= 200; seed++ {
+		inputs, order := randomInputs(seed, 2+int(seed%7), 5+int(seed%30))
+		full := Resolve(order, inputs, Options{})
+		fast := Resolve(order, inputs, Options{ConflictsOnly: true})
+		checked++
+		if len(full.Conflicts) > 0 {
+			withConflicts++
+		}
+		if !reflect.DeepEqual(full.Conflicts, fast.Conflicts) {
+			t.Fatalf("seed %d: conflicts differ\nfull: %+v\nfast: %+v", seed, full.Conflicts, fast.Conflicts)
+		}
+		if fast.Resolutions != nil {
+			t.Fatalf("seed %d: ConflictsOnly must not build Resolutions", seed)
+		}
+	}
+	if withConflicts < 50 {
+		t.Errorf("only %d of %d random cases had a conflict - the generator isn't exercising the interesting branches", withConflicts, checked)
+	}
+}
+
+func TestConflictsOnlyHonoursPriorityRules(t *testing.T) {
+	inputs, order := randomInputs(7, 5, 25)
+	rules := PriorityRules{"common/thing_a": FIOS, "common/thing_b": FIOS}
+	full := Resolve(order, inputs, Options{Rules: rules})
+	fast := Resolve(order, inputs, Options{Rules: rules, ConflictsOnly: true})
+	if !reflect.DeepEqual(full.Conflicts, fast.Conflicts) {
+		t.Errorf("first-in-wins types produced different conflicts")
+	}
+}
+
+func TestSingleModDetection(t *testing.T) {
+	d := func(mod string) definition.Definition { return definition.Definition{ModID: mod} }
+	if !singleMod(nil) || !singleMod([]definition.Definition{d("a")}) || !singleMod([]definition.Definition{d("a"), d("a")}) {
+		t.Error("zero, one, or repeated same-mod definitions can't conflict")
+	}
+	if singleMod([]definition.Definition{d("a"), d("b")}) || singleMod([]definition.Definition{d("a"), d("a"), d("b")}) {
+		t.Error("two different mods can conflict")
+	}
+}

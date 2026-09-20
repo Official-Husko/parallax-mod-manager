@@ -27,6 +27,7 @@ export namespace about {
 	    Arch: string;
 	    ConfigDir: string;
 	    CacheDir: string;
+	    LogDir: string;
 	    Games: number;
 	    Author: string;
 	    Links: Link[];
@@ -47,6 +48,7 @@ export namespace about {
 	        this.Arch = source["Arch"];
 	        this.ConfigDir = source["ConfigDir"];
 	        this.CacheDir = source["CacheDir"];
+	        this.LogDir = source["LogDir"];
 	        this.Games = source["Games"];
 	        this.Author = source["Author"];
 	        this.Links = this.convertValues(source["Links"], Link);
@@ -69,6 +71,35 @@ export namespace about {
 		    }
 		    return a;
 		}
+	}
+
+}
+
+export namespace applog {
+	
+	export class Entry {
+	    Seq: number;
+	    Time: number;
+	    Level: string;
+	    Component: string;
+	    Message: string;
+	    Timed: boolean;
+	    DurationMs: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Entry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Seq = source["Seq"];
+	        this.Time = source["Time"];
+	        this.Level = source["Level"];
+	        this.Component = source["Component"];
+	        this.Message = source["Message"];
+	        this.Timed = source["Timed"];
+	        this.DurationMs = source["DurationMs"];
+	    }
 	}
 
 }
@@ -175,6 +206,78 @@ export namespace dlcstore {
 	        this.ReleaseDate = source["ReleaseDate"];
 	        this.ComingSoon = source["ComingSoon"];
 	        this.Screenshots = source["Screenshots"];
+	    }
+	}
+
+}
+
+export namespace gamelog {
+	
+	export class File {
+	    Name: string;
+	    Size: number;
+	    Modified: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new File(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Name = source["Name"];
+	        this.Size = source["Size"];
+	        this.Modified = source["Modified"];
+	    }
+	}
+	export class Listing {
+	    Dir: string;
+	    Files: File[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Listing(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Dir = source["Dir"];
+	        this.Files = this.convertValues(source["Files"], File);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
+export namespace gameproc {
+	
+	export class Status {
+	    Running: boolean;
+	    PIDs: number[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Status(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Running = source["Running"];
+	        this.PIDs = source["PIDs"];
 	    }
 	}
 
@@ -399,6 +502,24 @@ export namespace library {
 	        this.DisplayName = source["DisplayName"];
 	    }
 	}
+	export class GameUpdate {
+	    GameID: string;
+	    GameName: string;
+	    From: string;
+	    To: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new GameUpdate(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.GameID = source["GameID"];
+	        this.GameName = source["GameName"];
+	        this.From = source["From"];
+	        this.To = source["To"];
+	    }
+	}
 	export class ModFileContent {
 	    Content: string;
 	    ModifiedAt: number;
@@ -509,6 +630,9 @@ export namespace library {
 	    Changed: number;
 	    New: number;
 	    Obsolete: number;
+	    GeneratedForVersion: string;
+	    GameVersion: string;
+	    GameChanged: boolean;
 	    ChangedMods: string[];
 	
 	    static createFrom(source: any = {}) {
@@ -524,6 +648,9 @@ export namespace library {
 	        this.Changed = source["Changed"];
 	        this.New = source["New"];
 	        this.Obsolete = source["Obsolete"];
+	        this.GeneratedForVersion = source["GeneratedForVersion"];
+	        this.GameVersion = source["GameVersion"];
+	        this.GameChanged = source["GameChanged"];
 	        this.ChangedMods = source["ChangedMods"];
 	    }
 	}
@@ -625,6 +752,7 @@ export namespace preferences {
 	    lastActivePlaysets: Record<string, string>;
 	    playsetAutoloadModes: Record<string, string>;
 	    playsetAutoloadCustom: Record<string, string>;
+	    lastSeenGameVersions: Record<string, string>;
 	
 	    static createFrom(source: any = {}) {
 	        return new Preferences(source);
@@ -649,6 +777,7 @@ export namespace preferences {
 	        this.lastActivePlaysets = source["lastActivePlaysets"];
 	        this.playsetAutoloadModes = source["playsetAutoloadModes"];
 	        this.playsetAutoloadCustom = source["playsetAutoloadCustom"];
+	        this.lastSeenGameVersions = source["lastSeenGameVersions"];
 	    }
 	}
 

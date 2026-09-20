@@ -21,6 +21,7 @@ export const settingsNav = [
     {label: 'Updates', key: 'updates'},
     {label: 'Appearance', key: 'appearance'},
     {label: 'Advanced', key: 'advanced'},
+    {label: 'About', key: 'about'},
 ];
 
 export const domains = ['C', 'E', 'G', 'I', 'L', 'M'];

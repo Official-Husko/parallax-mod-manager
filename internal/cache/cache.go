@@ -32,10 +32,25 @@ import (
 )
 
 // FormatVersion guards the on-disk cache file shape. Bump it whenever
-// FileRecord or ModCache's structure changes incompatibly; Load fails closed
+// FileRecord or ModCache's structure changes incompatibly (3: FileRecord got
+// its own compact encoding, see record_codec.go); Load fails closed
 // (treats the file as absent) on a mismatch rather than risk decoding a
 // record in a shape it no longer understands.
-const FormatVersion = 2
+const FormatVersion = 3
+
+// ParserVersion identifies what the parsers produced when a mod's cache was
+// written. Bump it whenever internal/script, internal/locale or
+// internal/definition (including how a definition is normalized and hashed)
+// change what they return for the same file - a fix that lets a file parse
+// that used to fail, say. A cached file is remembered by its size and mtime
+// alone, so without this a fixed parser would never get a second look at a
+// file it once rejected: its "failed" verdict would sit in the cache until the
+// file itself changed. A cache written under a different version is treated as
+// absent, and everything in that mod is parsed again once.
+//
+// 1: locale values may be followed by a "#" comment; repeated BOMs are stripped.
+// 2: a malformed localisation line is skipped instead of failing the whole file.
+const ParserVersion = 2
 
 // cacheFileExt is the on-disk extension for FileStore's gob-encoded cache
 // files - deliberately distinct from the old JSON-format ".json" extension
@@ -60,13 +75,17 @@ type FileRecord struct {
 // ModCache is one mod's complete cached state.
 type ModCache struct {
 	Version int
-	ModID   string
-	GameKey string
-	Files   map[string]FileRecord
+	// ParserVersion is the ParserVersion this cache was written under. A file
+	// written before the field existed decodes it as 0, which never matches,
+	// so those are all rebuilt once.
+	ParserVersion int
+	ModID         string
+	GameKey       string
+	Files         map[string]FileRecord
 }
 
 func newModCache(gameKey, modID string) *ModCache {
-	return &ModCache{Version: FormatVersion, ModID: modID, GameKey: gameKey, Files: map[string]FileRecord{}}
+	return &ModCache{Version: FormatVersion, ParserVersion: ParserVersion, ModID: modID, GameKey: gameKey, Files: map[string]FileRecord{}}
 }
 
 // Lookup checks a file's cached record against its current stat info. It
@@ -127,7 +146,7 @@ func (s FileStore) Load(ctx context.Context, gameKey, modID string) (*ModCache, 
 	if err := gob.NewDecoder(bytes.NewReader(data)).Decode(&c); err != nil {
 		return newModCache(gameKey, modID), nil
 	}
-	if c.Version != FormatVersion {
+	if c.Version != FormatVersion || c.ParserVersion != ParserVersion {
 		return newModCache(gameKey, modID), nil
 	}
 	if c.Files == nil {

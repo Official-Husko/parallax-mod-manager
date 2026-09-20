@@ -307,3 +307,52 @@ func TestGeneratePatchNeverOverwritesUnrelatedFiles(t *testing.T) {
 		t.Error("mod_a's own descriptor was modified by GeneratePatch")
 	}
 }
+
+// A real modlist's localisation files carry trailing "# comments" after values
+// and the odd malformed line; before the parser handled both, every such file
+// was left out of conflict detection, and so out of the patch. This is the
+// whole path: detection sees the conflict, the patch carries the winner's
+// exact line (comment included), and the result parses back with nothing lost.
+func TestGeneratePatchHandlesLocaleLinesWithCommentsAndBadLines(t *testing.T) {
+	modDir := t.TempDir()
+	for _, m := range []struct{ id, key1, key2 string }{
+		{"mod_a", `KEY_COMMENTED:0 "Hello" # a note from mod A`, `KEY_BROKEN:0 "runs over`},
+		{"mod_b", `KEY_COMMENTED:0 "Goodbye" # a note from mod B`, `KEY_BROKEN:0 "runs over`},
+	} {
+		writeFile(t, modDir, m.id+".mod", "name = \""+m.id+"\"\npath = \""+m.id+"\"\nversion = \"1.0\"\n")
+		writeFile(t, modDir, filepath.Join(m.id, "common", "l_english.yml"),
+			"l_english:\n "+m.key1+"\n "+m.key2+"\nwrapped continuation of the broken one\" \n KEY_PLAIN:0 \"same in both\"\n")
+	}
+	opts := Options{CacheDir: t.TempDir(), ModDir: modDir, Order: conflict.LoadOrder{"mod_a", "mod_b"}}
+
+	summary, err := LoadGame(context.Background(), testGameConfig(), opts)
+	if err != nil {
+		t.Fatalf("LoadGame: %v", err)
+	}
+	if len(summary.Conflicts) != 1 || summary.Conflicts[0].ID != "KEY_COMMENTED" {
+		t.Fatalf("conflicts = %+v, want exactly the commented key: a file with a comment or a bad line must not be dropped, and identical entries are no conflict", summary.Conflicts)
+	}
+
+	result, err := GeneratePatch(context.Background(), testGameConfig(), opts)
+	if err != nil {
+		t.Fatalf("GeneratePatch: %v", err)
+	}
+	if result.PatchedKeys != 1 || result.SkippedKeys != 0 {
+		t.Fatalf("result = %+v, want the one conflict patched and none skipped", result)
+	}
+	data, err := os.ReadFile(filepath.Join(modDir, patchModID, "localisation", "english", patchModID+".yml"))
+	if err != nil {
+		// The fixture keeps the file under common/, so the Type is "common".
+		data, err = os.ReadFile(filepath.Join(modDir, patchModID, "common", patchModID+".yml"))
+		if err != nil {
+			t.Fatalf("ReadFile: %v", err)
+		}
+	}
+	if !bytes.Contains(data, []byte(`KEY_COMMENTED:0 "Goodbye" # a note from mod B`)) {
+		t.Errorf("patch = %q, want the winner's exact line, comment included", data)
+	}
+	cat, err := locale.Parse(data)
+	if err != nil || len(cat.Skipped) != 0 || len(cat.Entries) != 1 || cat.Entries[0].Value != "Goodbye" {
+		t.Errorf("the generated patch must parse back cleanly with one entry, got %+v, %v", cat, err)
+	}
+}

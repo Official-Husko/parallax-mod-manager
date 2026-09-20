@@ -8,15 +8,18 @@ import {
     ImportLauncherPlaysets,
     LaunchGame,
     ListModFiles,
+    DeletePlayset,
     ListPlaysets,
     LoadPlayset,
     ModChangelog,
     ModThumbnail,
     OpenModFolder,
+    RenamePlayset,
     SavePlayset,
     ScanGame,
     SetModIncompatibilityIgnored,
     SetPreferences,
+    StopGame,
     WatchMods,
     WorkshopDetails,
 } from '../../wailsjs/go/main/App';
@@ -25,6 +28,8 @@ import type {launcherdb, library, playset, preferences, steamapi} from '../../wa
 import {autosort, findMissingActiveDependencies, type MissingActiveDependencies} from '../data/autosort';
 import {dismiss, notify, updateNotification} from '../data/notifications';
 import {describePatchStatus, patchNeedsAttention} from '../data/patchStatus';
+import {logEvent} from '../data/appLog';
+import {useGameRunning} from '../data/gameStatus';
 import {type ContextMenuItem, openContextMenu} from '../data/contextMenu';
 import {useDragMultiSelect} from '../data/dragMultiSelect';
 import {type DropTarget, useListDragMove} from '../data/listDragMove';
@@ -40,6 +45,7 @@ import {FileTree} from '../components/FileTree';
 import {AutosortMissingDepsModal} from './AutosortMissingDepsModal';
 import {AutosortUnresolvedDepsModal} from './AutosortUnresolvedDepsModal';
 import {ConflictResolver} from './ConflictResolver';
+import {GameLogModal} from './GameLogModal';
 import {PlaysetsModal} from './PlaysetsModal';
 import {PreflightModal} from './PreflightModal';
 import {PurgeEmptyModal} from './PurgeEmptyModal';
@@ -121,6 +127,13 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
     // brand-new, unsaved playset; loaded from the real file otherwise.
     const [disabledDlc, setDisabledDlc] = useState<string[]>([]);
     const [showPreflight, setShowPreflight] = useState(false);
+    const [showGameLog, setShowGameLog] = useState(false);
+    // Whether the game is running - whoever started it - so Play can become Stop.
+    const game = useGameRunning(selectedGame);
+    // Stopping the game loses whatever it hadn't saved, so the first press only
+    // asks; a second, within a few seconds, does it.
+    const [stopStep, setStopStep] = useState<'idle' | 'confirm' | 'stopping'>('idle');
+    const stopConfirmTimer = useRef<number | undefined>(undefined);
     const [showConflictResolver, setShowConflictResolver] = useState(false);
     // The notification currently asking the user to review a stale generated
     // patch (see the effect below), and the situation it was raised for - so
@@ -166,6 +179,39 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
         setPlaysetNameState(name);
         playsetNameRef.current = name;
         onPlaysetNameChange(name);
+    }
+
+    // Renames a saved playset. The backend also repoints the settings that
+    // remember a playset by name, so this refetches them - otherwise this
+    // component's own copy, still holding the old name, would write it straight
+    // back the next time it saves a setting. If it's the playset currently
+    // loaded, the loaded name follows. Resolves to null, or a message for the
+    // playset's row.
+    async function renamePlayset(oldName: string, newName: string): Promise<string | null> {
+        try {
+            await RenamePlayset(selectedGame, oldName, newName);
+        } catch (err) {
+            return String(err);
+        }
+        ListPlaysets(selectedGame).then(setPlaysetList).catch(() => undefined);
+        GetPreferences().then(setPrefs).catch(() => undefined);
+        if (playsetNameRef.current === oldName) setPlaysetName(newName.trim());
+        return null;
+    }
+
+    // Deletes a saved playset. If it's the one currently loaded, the load order
+    // on screen stays as it is but becomes an unsaved draft again (no name) -
+    // deleting a playset never throws away what you're looking at.
+    async function deletePlayset(name: string): Promise<string | null> {
+        try {
+            await DeletePlayset(selectedGame, name);
+        } catch (err) {
+            return String(err);
+        }
+        ListPlaysets(selectedGame).then(setPlaysetList).catch(() => undefined);
+        GetPreferences().then(setPrefs).catch(() => undefined);
+        if (playsetNameRef.current === name) setPlaysetName('');
+        return null;
     }
 
     // Persists name as selectedGame's "last active playset" (see
@@ -329,7 +375,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
             }
             return;
         }
-        const signature = `${selectedGame}:${patch.Generation}:${patch.Changed}:${patch.New}:${patch.Obsolete}:${(patch.ChangedMods ?? []).join('|')}`;
+        const signature = `${selectedGame}:${patch.Generation}:${patch.Changed}:${patch.New}:${patch.Obsolete}:${patch.GameChanged}:${(patch.ChangedMods ?? []).join('|')}`;
         if (current?.signature === signature) {
             return;
         }
@@ -800,8 +846,10 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
             patchLast: prefs.autosortPatchLast,
         });
         setOrder(result.order);
+        logEvent('info', 'Autosort', `sorted ${withOrder.length} mods: ${result.moves.length} moved (dependencies ${prefs.autosortDependencies ? 'on' : 'off'}, fixes last ${prefs.autosortFixesLast ? 'on' : 'off'}, patch last ${prefs.autosortPatchLast ? 'on' : 'off'})`);
         if (result.cycleMods.length > 0) {
             const names = result.cycleMods.map((id) => modsById.get(id)?.Name ?? id).join(', ');
+            logEvent('warn', 'Autosort', `circular dependency involving ${names} - these couldn't be fully ordered`);
             setStatus({kind: 'error', message: `Autosort: circular dependency involving ${names} - these couldn't be fully ordered.`});
         }
     }
@@ -954,12 +1002,46 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                 await LaunchGame(selectedGame, '');
             }
             setStatus({kind: 'idle'});
+            // The game appears a moment after this returns: look often for a while.
+            game.checkSoon();
         } catch (err) {
             setStatus({kind: 'error', message: String(err)});
         }
     }
 
     const gameName = games.find((g) => g.ID === selectedGame)?.DisplayName ?? selectedGame;
+
+    // A closed game (or a different one selected) leaves nothing to confirm.
+    useEffect(() => {
+        if (!game.running) {
+            window.clearTimeout(stopConfirmTimer.current);
+            setStopStep('idle');
+        }
+    }, [game.running, selectedGame]);
+    useEffect(() => () => window.clearTimeout(stopConfirmTimer.current), []);
+
+    async function handleStopGame() {
+        if (stopStep === 'stopping') {
+            return;
+        }
+        if (stopStep === 'idle') {
+            setStopStep('confirm');
+            window.clearTimeout(stopConfirmTimer.current);
+            stopConfirmTimer.current = window.setTimeout(() => setStopStep('idle'), 4000);
+            return;
+        }
+        window.clearTimeout(stopConfirmTimer.current);
+        setStopStep('stopping');
+        logEvent('info', 'Launch', `stop requested for '${gameName}'`);
+        try {
+            await StopGame(selectedGame);
+        } catch (err) {
+            notify('error', String(err));
+        } finally {
+            setStopStep('idle');
+            game.checkSoon();
+        }
+    }
 
     return (
         <div className="workspace">
@@ -1110,9 +1192,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                             <span className="column-header-position">NR</span>
                             <span className="column-header-spacer"/>
                             <span className="column-header-name">NAME</span>
-                            <span className="column-header-domains" title={DOMAIN_LEGEND}>
-                                {domains.map((d) => <span key={d}>{d}</span>)}
-                            </span>
+                            <span className="column-header-domains" title={DOMAIN_LEGEND}>DOMAINS</span>
                             <span className="column-header-warnings" title="Version mismatch, hard conflicts, dependency issues">FLAGS</span>
                         </div>
                         <div className={`list-rows ${dragMove.dropTarget?.list === 'active' && dragMove.dropTarget.kind === 'end' ? 'drop-at-end' : ''}`} ref={dragMove.activeRowsRef}>
@@ -1147,7 +1227,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                                         <span className="domain-segments">
                                             {domains.map((d) => {
                                                 const state = domainOverlap.get(m.ID)?.[d] ?? 'clean';
-                                                return <span key={d} className={`segment ${state}`} title={`${DOMAIN_NAMES[d]}: ${state}`}/>;
+                                                return <span key={d} className={`segment l-${d} ${state}`} title={`${DOMAIN_NAMES[d]}: ${state}`}/>;
                                             })}
                                         </span>
                                         <span className="row-warnings">
@@ -1230,20 +1310,46 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                         <div className="rail-spacer"/>
 
                         <div className="play-block">
-                            <button
-                                className="play-button"
-                                onClick={() => setShowPreflight(true)}
-                            >
-                                <div className="play-title">PLAY {gameName.toUpperCase()}</div>
-                                <div className="play-subtitle mono">
-                                    {playsetName.trim()
-                                        ? `${active.length} mods · launch via Steam`
-                                        : 'No playset selected · launches as-is'}
-                                </div>
-                            </button>
+                            {game.running ? (
+                                <button
+                                    className={`play-button stop ${stopStep}`}
+                                    disabled={stopStep === 'stopping'}
+                                    title="Ends the running game. Anything it hasn't saved is lost."
+                                    onClick={handleStopGame}
+                                >
+                                    <div className="play-title">
+                                        {stopStep === 'confirm' ? 'CLICK AGAIN TO STOP'
+                                            : stopStep === 'stopping' ? 'STOPPING...'
+                                                : `STOP PLAYING ${gameName.toUpperCase()}`}
+                                    </div>
+                                    <div className="play-subtitle mono">
+                                        {stopStep === 'confirm'
+                                            ? 'unsaved progress is lost'
+                                            : game.pids.length === 1 ? `running · pid ${game.pids[0]}` : `running · ${game.pids.length} processes`}
+                                    </div>
+                                </button>
+                            ) : (
+                                <button
+                                    className="play-button"
+                                    onClick={() => setShowPreflight(true)}
+                                >
+                                    <div className="play-title">PLAY {gameName.toUpperCase()}</div>
+                                    <div className="play-subtitle mono">
+                                        {playsetName.trim()
+                                            ? `${active.length} mods · launch via Steam`
+                                            : 'No playset selected · launches as-is'}
+                                    </div>
+                                </button>
+                            )}
                             <div className="play-secondary">
                                 <span className="btn-ghost inert">Vanilla</span>
-                                <span className="btn-ghost inert">Export log</span>
+                                <span
+                                    className="btn-ghost"
+                                    title={`Watch ${gameName}'s own log files as it writes them`}
+                                    onClick={() => setShowGameLog(true)}
+                                >
+                                    {game.running && <i className="fa-solid fa-circle live-dot"/>}View log
+                                </span>
                             </div>
                         </div>
                     </aside>
@@ -1297,7 +1403,18 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                     onActivate={handleLoadPlayset}
                     onNew={() => { setOrder([]); setPlaysetName(''); setDisabledDlc([]); setShowPlaysets(false); }}
                     onImport={handleImportLauncherPlayset}
+                    onRename={renamePlayset}
+                    onDelete={deletePlayset}
                     onClose={() => setShowPlaysets(false)}
+                />
+            )}
+
+            {showGameLog && (
+                <GameLogModal
+                    gameId={selectedGame}
+                    gameName={gameName}
+                    running={game.running}
+                    onClose={() => setShowGameLog(false)}
                 />
             )}
 

@@ -42,6 +42,11 @@ var (
 	ErrDirRequired = errors.New("playset: Store dir must be set explicitly")
 	// ErrNotFound means the named playset doesn't exist.
 	ErrNotFound = errors.New("playset: not found")
+	// ErrExists means a playset already has the name (or, on disk, a file name
+	// that sanitizes to the same one) a rename was asked to give another.
+	ErrExists = errors.New("playset: a playset with that name already exists")
+	// ErrInvalidName means a name was empty once trimmed.
+	ErrInvalidName = errors.New("playset: the name can't be empty")
 )
 
 // Store persists playsets.
@@ -57,6 +62,11 @@ type Store interface {
 	Load(ctx context.Context, gameKey, name string) (Playset, error)
 	Save(ctx context.Context, p Playset) error
 	Delete(ctx context.Context, gameKey, name string) error
+	// Rename gives a playset a new name, keeping its mods, order and DLC
+	// choices exactly. It fails with ErrNotFound if oldName doesn't exist,
+	// ErrExists if newName is already taken, ErrInvalidName for an empty
+	// newName - and in every failure case leaves the original untouched.
+	Rename(ctx context.Context, gameKey, oldName, newName string) error
 }
 
 // FileStore is the on-disk Store: one JSON file per playset, at
@@ -178,6 +188,47 @@ func (s FileStore) Delete(ctx context.Context, gameKey, name string) error {
 	}
 	if err != nil {
 		return fmt.Errorf("playset: deleting %q: %w", name, err)
+	}
+	return nil
+}
+
+// Rename implements Store. A playset is a file named after a *sanitized* form
+// of its name, so two different names can want the same file ("A/B" and "A_B");
+// "already exists" is therefore judged on the file, not the name. A rename that
+// only changes what sanitizing would erase anyway (case on a case-insensitive
+// disk, say) keeps the same file and just rewrites the name inside it.
+//
+// The new playset is written before the old one is removed, so a failure part
+// way through can never lose the playset: at worst both exist, and if removing
+// the old one fails the new one is taken back out again.
+func (s FileStore) Rename(ctx context.Context, gameKey, oldName, newName string) error {
+	newName = strings.TrimSpace(newName)
+	if newName == "" {
+		return ErrInvalidName
+	}
+	p, err := s.Load(ctx, gameKey, oldName)
+	if err != nil {
+		return err
+	}
+	if p.Name == newName {
+		return nil
+	}
+	samePath := s.path(gameKey, oldName) == s.path(gameKey, newName)
+	if !samePath {
+		if _, err := os.Stat(s.path(gameKey, newName)); err == nil {
+			return ErrExists
+		}
+	}
+	p.Name = newName
+	if err := s.Save(ctx, p); err != nil {
+		return err
+	}
+	if samePath {
+		return nil
+	}
+	if err := s.Delete(ctx, gameKey, oldName); err != nil {
+		_ = s.Delete(ctx, gameKey, newName)
+		return err
 	}
 	return nil
 }

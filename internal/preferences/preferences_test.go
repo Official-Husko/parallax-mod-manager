@@ -103,3 +103,125 @@ func TestDefaultsKeepTheGeneratedPatchLast(t *testing.T) {
 		t.Error("keeping the generated patch last must be on by default")
 	}
 }
+
+func TestChangedKeysNamesWhatDiffersByItsJSONName(t *testing.T) {
+	before := Defaults()
+	after := before
+	after.AutosortPatchLast = false
+	after.BackgroundIntervalSeconds = 600
+	after.ManagedGames = []string{"a"}
+	after.GamePaths = map[string]string{"g": "/x"}
+	got := ChangedKeys(before, after)
+	want := []string{"autosortPatchLast", "managedGames", "gamePaths", "backgroundIntervalSeconds"}
+	// Field order, not the order they were changed in above.
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("ChangedKeys = %v, want %v", got, want)
+	}
+	if got := ChangedKeys(before, before); len(got) != 0 {
+		t.Errorf("identical preferences reported changes: %v", got)
+	}
+	// A nil map or list and an empty one are the same to the user.
+	a, b := before, before
+	a.GamePaths, b.GamePaths = nil, map[string]string{}
+	a.ManagedGames, b.ManagedGames = nil, []string{}
+	if got := ChangedKeys(a, b); len(got) != 0 {
+		t.Errorf("swapping nil for an empty collection was reported as a change: %v", got)
+	}
+}
+
+func TestWithPlaysetRenamedFollowsTheNameInSettings(t *testing.T) {
+	p := Defaults()
+	p.LastActivePlaysets = map[string]string{"g1": "Old", "g2": "Old"}
+	p.PlaysetAutoloadCustom = map[string]string{"g1": "Old"}
+	orig := p.LastActivePlaysets
+
+	got := p.WithPlaysetRenamed("g1", "Old", "New")
+	if got.LastActivePlaysets["g1"] != "New" || got.PlaysetAutoloadCustom["g1"] != "New" {
+		t.Errorf("references to the renamed playset weren't updated: %+v %+v", got.LastActivePlaysets, got.PlaysetAutoloadCustom)
+	}
+	if got.LastActivePlaysets["g2"] != "Old" {
+		t.Error("another game's playset that happens to share the name must not be touched")
+	}
+	if orig["g1"] != "Old" {
+		t.Error("the original preferences' map was modified - it may be shared")
+	}
+	if same := p.WithPlaysetRenamed("g1", "Unrelated", "X"); !reflect.DeepEqual(same, p) {
+		t.Error("renaming a playset nothing refers to must change nothing")
+	}
+}
+
+func TestWithoutPlaysetForgetsADeletedPlayset(t *testing.T) {
+	p := Defaults()
+	p.LastActivePlaysets = map[string]string{"g": "Gone", "h": "Gone"}
+	p.PlaysetAutoloadCustom = map[string]string{"g": "Gone"}
+	got := p.WithoutPlayset("g", "Gone")
+	if _, ok := got.LastActivePlaysets["g"]; ok {
+		t.Error("the deleted playset is still remembered as last active")
+	}
+	if _, ok := got.PlaysetAutoloadCustom["g"]; ok {
+		t.Error("the deleted playset is still pinned for auto-loading")
+	}
+	if got.LastActivePlaysets["h"] != "Gone" {
+		t.Error("another game's entry was removed")
+	}
+	if p.LastActivePlaysets["g"] != "Gone" {
+		t.Error("the original preferences' map was modified")
+	}
+	if same := p.WithoutPlayset("g", ""); !reflect.DeepEqual(same, p) {
+		t.Error("an empty name must never match (an unset entry is not a playset)")
+	}
+}
+
+func TestObserveGameVersionsReportsOnlyRealChanges(t *testing.T) {
+	p := Defaults()
+
+	// First sight: recorded, nothing to report.
+	p, changes := p.ObserveGameVersions(map[string]string{"stellaris": "v4.4.5", "hoi4": "v1.14"})
+	if len(changes) != 0 {
+		t.Fatalf("a game seen for the first time can't have updated: %v", changes)
+	}
+	if p.LastSeenGameVersions["stellaris"] != "v4.4.5" {
+		t.Fatalf("the first version wasn't recorded: %v", p.LastSeenGameVersions)
+	}
+
+	// Unchanged: nothing.
+	if _, changes := p.ObserveGameVersions(map[string]string{"stellaris": "v4.4.5"}); len(changes) != 0 {
+		t.Errorf("an unchanged version reported as a change: %v", changes)
+	}
+
+	// Changed, in game ID order, and the new version is remembered.
+	next, changes := p.ObserveGameVersions(map[string]string{"stellaris": "v4.4.6", "hoi4": "v1.15"})
+	want := []VersionChange{{GameID: "hoi4", From: "v1.14", To: "v1.15"}, {GameID: "stellaris", From: "v4.4.5", To: "v4.4.6"}}
+	if !reflect.DeepEqual(changes, want) {
+		t.Errorf("changes = %+v, want %+v", changes, want)
+	}
+	if next.LastSeenGameVersions["stellaris"] != "v4.4.6" {
+		t.Error("the new version must be recorded so the same update isn't announced twice")
+	}
+	if p.LastSeenGameVersions["stellaris"] != "v4.4.5" {
+		t.Error("the original preferences' map was modified")
+	}
+	if _, again := next.ObserveGameVersions(map[string]string{"stellaris": "v4.4.6"}); len(again) != 0 {
+		t.Errorf("the same update was announced a second time: %v", again)
+	}
+}
+
+func TestObserveGameVersionsIgnoresAnUnknownVersion(t *testing.T) {
+	p := Defaults()
+	p.LastSeenGameVersions = map[string]string{"stellaris": "v4.4.5"}
+
+	got, changes := p.ObserveGameVersions(map[string]string{"stellaris": "", "newgame": ""})
+	if len(changes) != 0 {
+		t.Errorf("a game that can't report its version isn't an update: %v", changes)
+	}
+	if got.LastSeenGameVersions["stellaris"] != "v4.4.5" {
+		t.Error("an unknown version must not overwrite the remembered one - the game coming back at the same version would look like an update")
+	}
+	if _, ok := got.LastSeenGameVersions["newgame"]; ok {
+		t.Error("an empty version must never be recorded")
+	}
+	// ...and when it returns at the same version: still no change.
+	if _, changes := got.ObserveGameVersions(map[string]string{"stellaris": "v4.4.5"}); len(changes) != 0 {
+		t.Errorf("returning at the same version reported a change: %v", changes)
+	}
+}

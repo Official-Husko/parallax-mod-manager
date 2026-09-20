@@ -210,6 +210,40 @@ func TestPatchedKeyThatStopsConflictingIsObsoleteNotChanged(t *testing.T) {
 	}
 }
 
+func TestPatchIsNotJudgedWhenNoModsWereLoaded(t *testing.T) {
+	f := newPatchFixture(t)
+
+	// The app's first scan of a game has no playset yet, so nothing is
+	// enabled and nothing is read. Every key the patch covers then "stops
+	// conflicting" - which says nothing about the patch.
+	opts := f.opts
+	opts.Order = nil
+	s, err := LoadGame(context.Background(), testGameConfig(), opts)
+	if err != nil {
+		t.Fatalf("LoadGame: %v", err)
+	}
+	if !s.Patch.Exists || s.Patch.Generation != 1 {
+		t.Fatalf("the patch should still be reported as existing, got %+v", s.Patch)
+	}
+	if s.Patch.Obsolete != 0 || s.Patch.Changed != 0 || s.Patch.New != 0 || s.Patch.NeedsAttention() {
+		t.Errorf("with nothing loaded the patch must not be called out of date, got %+v", s.Patch)
+	}
+	if s.Patch.ChangedMods == nil {
+		t.Error("ChangedMods must be a real empty slice, not nil (marshals as null)")
+	}
+
+	// Only the patch itself in the load order is the same situation: it is
+	// never read as one of the mods it patches.
+	opts.Order = conflict.LoadOrder{patchModID}
+	s, err = LoadGame(context.Background(), testGameConfig(), opts)
+	if err != nil {
+		t.Fatalf("LoadGame: %v", err)
+	}
+	if s.Patch.NeedsAttention() {
+		t.Errorf("a load order of just the patch must not be called out of date, got %+v", s.Patch)
+	}
+}
+
 func TestPatchGoesStaleWhenTheChosenWinnerChanges(t *testing.T) {
 	f := newPatchFixture(t)
 	// The user picks mod_a to win after the patch pinned mod_b.
@@ -475,5 +509,59 @@ func TestLoadGameMarksOnlyTheGeneratedPatchAsThePatch(t *testing.T) {
 	}
 	if patches != 1 {
 		t.Errorf("flagged patches = %d, want exactly 1", patches)
+	}
+}
+
+func TestPatchIsFlaggedWhenTheGameMovesToANewMinorVersion(t *testing.T) {
+	modDir := t.TempDir()
+	writeMod(t, modDir, "mod_a", "Mod A", `shared_thing = { cost = 1 }`)
+	writeMod(t, modDir, "mod_b", "Mod B", `shared_thing = { cost = 2 }`)
+	base := Options{CacheDir: t.TempDir(), ModDir: modDir, Order: abOrder, GameVersion: "v4.4.6"}
+	if _, err := GeneratePatch(context.Background(), testGameConfig(), base); err != nil {
+		t.Fatal(err)
+	}
+	load := func(version string) PatchSummary {
+		o := base
+		o.Order = append(append(conflict.LoadOrder{}, abOrder...), patchModID)
+		o.GameVersion = version
+		s, err := LoadGame(context.Background(), testGameConfig(), o)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return s.Patch
+	}
+
+	if p := load("v4.4.6"); p.GameChanged || p.NeedsAttention() || p.GeneratedForVersion != "v4.4.6" {
+		t.Errorf("the version the patch was made for must be fine: %+v", p)
+	}
+	if p := load("v4.4.9"); p.GameChanged || p.NeedsAttention() {
+		t.Errorf("a patch-level update stays inside the patch's v4.4.* wildcard and must not flag it: %+v", p)
+	}
+	p := load("v4.5.0")
+	if !p.GameChanged || !p.NeedsAttention() {
+		t.Fatalf("a new minor version must flag the patch: %+v", p)
+	}
+	if p.GeneratedForVersion != "v4.4.6" || p.GameVersion != "v4.5.0" {
+		t.Errorf("the summary must say which versions: %+v", p)
+	}
+	if p.Changed != 0 || p.New != 0 || p.Patched != 1 {
+		t.Errorf("only the version changed - no key's content did: %+v", p)
+	}
+	if p := load(""); p.GameChanged || p.NeedsAttention() {
+		t.Errorf("an unknown game version is 'can't tell', not a change: %+v", p)
+	}
+}
+
+func TestPatchWithNoRecordedGameVersionIsNeverFlaggedForIt(t *testing.T) {
+	f := newPatchFixture(t) // generated with no GameVersion at all
+	o := f.opts
+	o.Order = append(append(conflict.LoadOrder{}, abOrder...), patchModID)
+	o.GameVersion = "v9.9.9"
+	s, err := LoadGame(context.Background(), testGameConfig(), o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Patch.GameChanged || s.Patch.NeedsAttention() {
+		t.Errorf("a patch that never recorded a version can't be compared: %+v", s.Patch)
 	}
 }

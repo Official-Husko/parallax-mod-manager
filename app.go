@@ -8,6 +8,9 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
+	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,6 +18,7 @@ import (
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/Official-Husko/parallax-mod-manager/internal/about"
+	"github.com/Official-Husko/parallax-mod-manager/internal/applog"
 	"github.com/Official-Husko/parallax-mod-manager/internal/collection"
 	"github.com/Official-Husko/parallax-mod-manager/internal/conflict"
 	"github.com/Official-Husko/parallax-mod-manager/internal/dlc"
@@ -39,6 +43,11 @@ import (
 // modWatchDebounce absorbs a burst of filesystem events from one logical
 // change (a bulk copy, an archive extract) into a single refresh.
 const modWatchDebounce = 400 * time.Millisecond
+
+// modWatchMuteGrace is how long the mod folder watcher stays muted after the
+// app finishes writing into that folder itself: the debounce, plus slack for the
+// operating system to deliver the last events of the burst.
+const modWatchMuteGrace = modWatchDebounce + time.Second
 
 // App is the Wails-bound backend: a thin adapter that resolves real OS
 // paths (the one place this project's "never resolve a real path inside a
@@ -82,14 +91,38 @@ type App struct {
 	// patchThumbnailPath is where a user-supplied patch_thumbnail.png would
 	// live (empty when configDir couldn't be resolved) - see patchThumbnail.
 	patchThumbnailPath string
-	// configAppDir is this app's own folder under the user's config dir,
-	// and aboutPath where a user-edited About page content file would live
-	// in it (both empty when configDir couldn't be resolved).
-	configAppDir  string
-	aboutPath     string
+	// configAppDir is this app's own folder under the user's config dir
+	// (empty when configDir couldn't be resolved) - shown on the About page.
+	configAppDir string
+	// logDir is the folder the activity log file lives in (empty when file
+	// logging couldn't start) - see initLogging.
+	logDir        string
 	steamRoots    []string
 	modWatcher    *watch.FolderWatcher
 	watchedGameID string
+	// watchMute silences modWatcher while the app is itself writing into the
+	// mod folder (generating the patch, purging mods): those operations
+	// refresh the mod list on their own. Zero-value usable.
+	watchMute watch.Mute
+	// eventSink, when set, receives the events emit would send to the frontend -
+	// how tests see them. nil in the real app.
+	eventSink func(name string, data ...any)
+	// gameProcMu guards gameExes and gameRunning: what is known about each game's
+	// process (see gameplay.go). gameProcWarned remembers which games have had a
+	// "can't list processes" warning, so it is said once.
+	gameProcMu     sync.Mutex
+	gameExes       map[string]cachedGameExe
+	gameRunning    map[string]bool
+	gameProcWarned sync.Map
+	// gameLog is the game log file currently being followed (WatchGameLog), and
+	// gameLogLast the newest session number handed out, so a session number is
+	// never reused. Guarded by gameLogMu.
+	gameLogMu   sync.Mutex
+	gameLog     *gameLogFollow
+	gameLogLast int
+	// patchLogged remembers the last patch status line written per game, so a
+	// state that hasn't changed isn't repeated on every scan. Zero-value usable.
+	patchLogged sync.Map
 	// workshopDetails holds real Steam Workshop metadata in memory for the
 	// app's runtime - see library.WorkshopDetailsCache. Zero-value usable.
 	workshopDetails library.WorkshopDetailsCache
@@ -145,6 +178,13 @@ func (a *App) startup(ctx context.Context) {
 	if dir, err := os.UserCacheDir(); err == nil {
 		a.cacheDir = filepath.Join(dir, "parallax-mod-manager")
 	}
+	a.initLogging(ctx)
+	build := about.Collect(AppName, AppVersion)
+	applog.For("App").Infof("%s %s starting (go %s, %s/%s, %d CPUs)", AppName, AppVersion, build.GoVersion, build.OS, build.Arch, runtime.NumCPU())
+	if notice != "" {
+		applog.For("Games").Warnf("%s", notice)
+	}
+	applog.For("Games").Infof("games list loaded: %d games", len(registry.List()))
 	if configErr == nil {
 		a.playsets = playset.FileStore{Dir: filepath.Join(configDir, "parallax-mod-manager", "playsets")}
 		a.collections = collection.FileStore{Dir: filepath.Join(configDir, "parallax-mod-manager", "collections")}
@@ -153,7 +193,6 @@ func (a *App) startup(ctx context.Context) {
 		a.resolvedConflicts = resolvedconflicts.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "resolved_conflicts")}
 		a.patchThumbnailPath = filepath.Join(configDir, "parallax-mod-manager", "patch_thumbnail.png")
 		a.configAppDir = filepath.Join(configDir, "parallax-mod-manager")
-		a.aboutPath = filepath.Join(configDir, "parallax-mod-manager", "about.jsonc")
 	}
 
 	mediaFS, err := fs.Sub(embeddedGameMedia, "data/game_media")
@@ -175,6 +214,86 @@ func (a *App) startup(ctx context.Context) {
 // shutdown is called when the app is closing, before the runtime exits.
 func (a *App) shutdown(ctx context.Context) {
 	a.modWatcher.Close()
+	a.StopWatchingGameLog()
+	applog.For("App").Infof("shutting down")
+	applog.Default().Close()
+}
+
+// initLogging points the activity log (internal/applog) at a rotating file in
+// the cache folder and starts streaming new lines to the frontend as "log-batch"
+// events. Lines are handed over in small batches on a timer rather than one
+// event each, so a burst (a scan logging a dozen steps) is one message across
+// the JS boundary, not a dozen. If the file can't be opened the log still works
+// in memory and in the UI - it just isn't kept on disk.
+func (a *App) initLogging(ctx context.Context) {
+	hub := applog.Default()
+	if a.cacheDir != "" {
+		if err := hub.SetFile(filepath.Join(a.cacheDir, "logs", "app.log"), 2<<20); err != nil {
+			applog.For("App").Warnf("the log file couldn't be opened, so this session's log is memory-only: %v", err)
+		}
+	}
+	if path := hub.FilePath(); path != "" {
+		a.logDir = filepath.Dir(path)
+	}
+
+	lines := make(chan applog.Entry, 4096)
+	cancel := hub.Subscribe(func(e applog.Entry) {
+		select {
+		case lines <- e:
+		default:
+			// The UI can't keep up: drop the live copy. The line is still in
+			// the ring and the file, and the frontend re-reads the ring
+			// whenever it opens the log view.
+		}
+	})
+	go func() {
+		defer cancel()
+		tick := time.NewTicker(150 * time.Millisecond)
+		defer tick.Stop()
+		var batch []applog.Entry
+		for {
+			select {
+			case e := <-lines:
+				batch = append(batch, e)
+			case <-tick.C:
+				if len(batch) > 0 {
+					wailsruntime.EventsEmit(ctx, "log-batch", batch)
+					batch = nil
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+}
+
+// LogEntries returns the activity log lines currently in memory, oldest first,
+// for the About page's log view to start from before it follows live lines.
+func (a *App) LogEntries() []applog.Entry {
+	return applog.Default().Entries()
+}
+
+// ClearLog empties the in-memory log the About page shows. The log file on disk
+// is kept.
+func (a *App) ClearLog() {
+	applog.Default().Clear()
+}
+
+// LogEvent lets the frontend add a line to the activity log - for things that
+// only the UI knows happened (an autosort run, a prompt being shown). level is
+// "debug", "info", "warn" or "error" (anything else is info); component is the
+// tag shown in brackets.
+func (a *App) LogEvent(level, component, message string) {
+	applog.Default().Log(applog.ParseLevel(level), component, message, false, 0)
+}
+
+// gameLabel is gameID's display name for log lines, or the ID itself when it
+// isn't a registered game.
+func (a *App) gameLabel(gameID string) string {
+	if cfg, ok := a.registry.Get(gameID); ok {
+		return cfg.DisplayName
+	}
+	return gameID
 }
 
 // StartupNotice returns a user-facing message when something noteworthy
@@ -221,6 +340,13 @@ func clonePreferences(p preferences.Preferences) preferences.Preferences {
 		}
 		p.ExtraModFolders = folders
 	}
+	if p.LastSeenGameVersions != nil {
+		versions := make(map[string]string, len(p.LastSeenGameVersions))
+		for k, v := range p.LastSeenGameVersions {
+			versions[k] = v
+		}
+		p.LastSeenGameVersions = versions
+	}
 	return p
 }
 
@@ -235,18 +361,40 @@ func (a *App) GetPreferences() preferences.Preferences {
 // new mods was just turned on or off, the live watcher for whichever game
 // is currently being watched (see WatchMods) is started or stopped right
 // away rather than waiting for the next game switch.
+//
+// Whatever p carries for LastSeenGameVersions is ignored: that field is the
+// backend's own record (see CheckGameUpdates), and the frontend's copy of the
+// preferences may be older than it.
 func (a *App) SetPreferences(p preferences.Preferences) error {
+	return a.savePreferences(p, true)
+}
+
+// savePreferences is SetPreferences' body. keepBackendOwned says whether to
+// hold on to the current values of the fields only the backend changes; code
+// that changes one of them itself passes false.
+func (a *App) savePreferences(p preferences.Preferences, keepBackendOwned bool) error {
 	a.preferencesMu.Lock()
+	if keepBackendOwned {
+		p.LastSeenGameVersions = a.preferences.LastSeenGameVersions
+	}
 	if a.preferencesPath != "" {
 		if err := preferences.Save(a.preferencesPath, p); err != nil {
 			a.preferencesMu.Unlock()
 			return err
 		}
 	}
+	changed := preferences.ChangedKeys(a.preferences, p)
+	watchingChanged := a.preferences.ScanForNewMods != p.ScanForNewMods
 	a.preferences = clonePreferences(p)
 	a.preferencesMu.Unlock()
+	if len(changed) > 0 {
+		applog.For("Settings").Infof("preferences saved (%s)", strings.Join(changed, ", "))
+	}
 
-	if a.watchedGameID != "" {
+	// Only turning "scan for new mods" on or off changes what the watcher
+	// should be doing - every other save (the last playset, the selected
+	// game...) would otherwise tear down and rebuild an identical watch.
+	if watchingChanged && a.watchedGameID != "" {
 		return a.WatchMods(a.watchedGameID)
 	}
 	return nil
@@ -281,12 +429,21 @@ func (a *App) WatchMods(gameID string) error {
 	}
 
 	w, err := watch.New(modDir, modWatchDebounce, func() {
+		if a.watchMute.Muted() {
+			applog.For("Watch").Debugf("'%s' mod folder changed by the app itself - not refreshing again", cfg.DisplayName)
+			return
+		}
+		applog.For("Watch").Infof("'%s' mod folder changed - refreshing", cfg.DisplayName)
 		wailsruntime.EventsEmit(a.ctx, "mods-changed", gameID)
+	}, func(err error) {
+		applog.For("Watch").Warnf("watching '%s' reported: %v", modDir, err)
 	})
 	if err != nil {
+		applog.For("Watch").Errorf("couldn't watch '%s': %v", modDir, err)
 		return err
 	}
 	a.modWatcher = w
+	applog.For("Watch").Infof("watching '%s' for changes", modDir)
 	return nil
 }
 
@@ -313,6 +470,13 @@ func (a *App) DetectGames() ([]library.DetectedGame, error) {
 		}
 		result = append(result, d)
 	}
+	installed := 0
+	for _, d := range result {
+		if d.Installed {
+			installed++
+		}
+	}
+	applog.For("Games").Infof("detected %d of %d supported games installed", installed, len(result))
 	return result, nil
 }
 
@@ -454,11 +618,14 @@ func (a *App) BrowseForGameInstall(gameID string) (library.DetectedGame, error) 
 		return a.detectGameConsideringOverride(cfg)
 	}
 	if !cfg.VerifyInstallDir(dir) {
+		applog.For("Games").Warnf("'%s' doesn't look like a '%s' install, so it was not used", dir, cfg.DisplayName)
 		return library.DetectedGame{}, fmt.Errorf("app: %s does not look like a %s install", dir, cfg.DisplayName)
 	}
 	if err := a.setGamePathOverride(gameID, dir); err != nil {
+		applog.For("Games").Errorf("couldn't save the install folder for '%s': %v", cfg.DisplayName, err)
 		return library.DetectedGame{}, err
 	}
+	applog.For("Games").Infof("install folder for '%s' set to '%s'", cfg.DisplayName, dir)
 	d, err := library.DetectGameAt(a.ctx, cfg, dir, a.steamRoots, a.extraModFolders(gameID))
 	if err != nil {
 		return library.DetectedGame{}, err
@@ -522,6 +689,7 @@ func (a *App) ClearGamePath(gameID string) (library.DetectedGame, error) {
 		}
 	}
 	a.preferencesMu.Unlock()
+	applog.For("Games").Infof("install folder override for '%s' cleared - using automatic detection", cfg.DisplayName)
 
 	return library.DetectGame(a.ctx, cfg, a.steamRoots, a.extraModFolders(gameID))
 }
@@ -557,6 +725,11 @@ func (a *App) SetGameManaged(gameID string, managed bool) error {
 	next.ManagedGames = ids
 	a.preferencesMu.Unlock()
 
+	if managed {
+		applog.For("Games").Infof("now managing '%s'", a.gameLabel(gameID))
+	} else {
+		applog.For("Games").Infof("stopped managing '%s'", a.gameLabel(gameID))
+	}
 	return a.SetPreferences(next)
 }
 
@@ -598,8 +771,10 @@ func (a *App) BrowseForExtraModFolder(gameID string) (string, error) {
 	a.preferencesMu.Unlock()
 
 	if err := a.SetPreferences(next); err != nil {
+		applog.For("Games").Errorf("couldn't add the extra mod folder '%s': %v", dir, err)
 		return "", err
 	}
+	applog.For("Games").Infof("added extra mod folder '%s' for '%s'", dir, a.gameLabel(gameID))
 	return dir, nil
 }
 
@@ -626,6 +801,7 @@ func (a *App) RemoveExtraModFolder(gameID, path string) error {
 	next.ExtraModFolders = folders
 	a.preferencesMu.Unlock()
 
+	applog.For("Games").Infof("removed extra mod folder '%s' for '%s'", path, a.gameLabel(gameID))
 	return a.SetPreferences(next)
 }
 
@@ -636,7 +812,11 @@ func (a *App) OpenPath(path string) error {
 	if path == "" {
 		return fmt.Errorf("app: no path to open")
 	}
-	return browser.OpenFile(path)
+	if err := browser.OpenFile(path); err != nil {
+		applog.For("Files").Warnf("couldn't open '%s': %v", path, err)
+		return err
+	}
+	return nil
 }
 
 // ScanGame scans, parses, and resolves conflicts for one supported game.
@@ -648,29 +828,106 @@ func (a *App) ScanGame(gameID, playsetName string) (library.Summary, error) {
 		return library.Summary{}, fmt.Errorf("app: unknown game %q", gameID)
 	}
 
+	log := applog.For("Scan")
+	timer := log.Begin()
+	// Known only when the game is installed; the patch check treats an
+	// unknown version as "can't tell", not as a change.
+	gameVersion, _ := a.GameVersion(gameID)
+	if playsetName != "" {
+		log.Infof("scanning '%s' with playset '%s'", cfg.DisplayName, playsetName)
+	} else {
+		log.Infof("scanning '%s' (no playset selected)", cfg.DisplayName)
+	}
+
 	opts := library.Options{
 		CacheDir:     a.cacheDir,
 		SteamRoots:   a.steamRoots,
 		ExtraFolders: a.extraModFolders(gameID),
 		Overrides:    a.patchOverrides.Load(gameID),
 		ContentPaths: &a.contentPaths,
+		GameVersion:  gameVersion,
 		// The mod list itself (names/versions/sources) is known the moment
 		// scanning finishes, well before conflict detection's slower
 		// per-mod content parsing completes - emit it immediately so the
 		// frontend can show the list right away instead of blocking on a
 		// full "Scanning..." page.
 		OnQuickSummary: func(s library.Summary) {
+			timer.Infof("mod list ready: %d mods found", len(s.Mods))
 			wailsruntime.EventsEmit(a.ctx, "scan-quick", gameID, s)
 		},
 	}
 	if playsetName != "" {
 		p, err := a.playsets.Load(a.ctx, gameID, playsetName)
 		if err != nil {
+			timer.Errorf("couldn't load playset '%s': %v", playsetName, err)
 			return library.Summary{}, err
 		}
 		opts.Order = conflict.LoadOrder(p.ModIDs)
 	}
-	return library.LoadGame(a.ctx, cfg, opts)
+	summary, err := library.LoadGame(a.ctx, cfg, opts)
+	if err != nil {
+		timer.Errorf("scan of '%s' failed: %v", cfg.DisplayName, err)
+		return summary, err
+	}
+	enabled := 0
+	for _, m := range summary.Mods {
+		if m.Enabled {
+			enabled++
+		}
+	}
+	timer.Infof("'%s': %d mods (%d enabled), %d conflicts, %d issues", cfg.DisplayName, len(summary.Mods), enabled, len(summary.Conflicts), len(summary.Errors))
+	// A few issues are worth a line each; the rest would only bury them.
+	for i, e := range summary.Errors {
+		if i == 5 {
+			log.Warnf("... and %d more scan issues", len(summary.Errors)-5)
+			break
+		}
+		log.Warnf("%s", e)
+	}
+	// With no mods loaded there is nothing to judge the patch against.
+	if enabled > 0 {
+		a.logPatchState(gameID, summary.Patch)
+	}
+	return summary, nil
+}
+
+// logPatchState writes gameID's generated-patch status to the log - but only
+// when it differs from the last line written for that game. Every scan
+// recomputes it, and the same "out of date" warning repeated on each one is
+// noise that buries everything else.
+func (a *App) logPatchState(gameID string, patch library.PatchSummary) {
+	if !patch.Exists {
+		a.patchLogged.Delete(gameID)
+		return
+	}
+	log := applog.For("Patch")
+	var level applog.Level
+	var line string
+	if patch.NeedsAttention() {
+		level = applog.Warn
+		line = fmt.Sprintf("the generated patch is out of date: %d changed, %d new, %d no longer conflicting%s", patch.Changed, patch.New, patch.Obsolete, patchVersionNote(patch))
+	} else {
+		level = applog.Info
+		line = fmt.Sprintf("the generated patch (generation %d) is up to date: %d keys covered", patch.Generation, patch.Patched)
+	}
+	if prev, ok := a.patchLogged.Load(gameID); ok && prev == line {
+		return
+	}
+	a.patchLogged.Store(gameID, line)
+	if level == applog.Warn {
+		log.Warnf("%s", line)
+	} else {
+		log.Infof("%s", line)
+	}
+}
+
+// patchVersionNote is a log-line suffix saying the game has moved on since the
+// patch was made, or "" when it hasn't.
+func patchVersionNote(p library.PatchSummary) string {
+	if !p.GameChanged {
+		return ""
+	}
+	return fmt.Sprintf("; made for '%s', the game is now '%s'", p.GeneratedForVersion, p.GameVersion)
 }
 
 // ListModFiles returns modID's real on-disk file tree, for the Workspace
@@ -680,7 +937,11 @@ func (a *App) ListModFiles(gameID, modID string) (library.ModFiles, error) {
 	if !ok {
 		return library.ModFiles{}, fmt.Errorf("app: unknown game %q", gameID)
 	}
-	return library.ListModFiles(a.ctx, cfg, library.Options{SteamRoots: a.steamRoots, ExtraFolders: a.extraModFolders(gameID)}, modID)
+	files, err := library.ListModFiles(a.ctx, cfg, library.Options{SteamRoots: a.steamRoots, ExtraFolders: a.extraModFolders(gameID)}, modID)
+	if err != nil {
+		applog.For("Library").Warnf("couldn't list the files of mod '%s' in '%s': %v", modID, cfg.DisplayName, err)
+	}
+	return files, err
 }
 
 // ModThumbnail returns modID's real thumbnail image, if it has a usable
@@ -701,7 +962,11 @@ func (a *App) ModSizes(gameID string) (map[string]int64, error) {
 	if !ok {
 		return nil, fmt.Errorf("app: unknown game %q", gameID)
 	}
-	return library.ModSizes(a.ctx, cfg, library.Options{SteamRoots: a.steamRoots, ExtraFolders: a.extraModFolders(gameID)})
+	sizes, err := library.ModSizes(a.ctx, cfg, library.Options{SteamRoots: a.steamRoots, ExtraFolders: a.extraModFolders(gameID)})
+	if err != nil {
+		applog.For("Library").Warnf("couldn't measure the mods of '%s': %v", cfg.DisplayName, err)
+	}
+	return sizes, err
 }
 
 // ReadModFile returns one real file's text content from inside modID's
@@ -711,11 +976,15 @@ func (a *App) ReadModFile(gameID, modID, relPath string) (library.ModFileContent
 	if !ok {
 		return library.ModFileContent{}, fmt.Errorf("app: unknown game %q", gameID)
 	}
-	return library.ReadModFile(a.ctx, cfg, library.Options{
+	content, err := library.ReadModFile(a.ctx, cfg, library.Options{
 		SteamRoots:   a.steamRoots,
 		ExtraFolders: a.extraModFolders(gameID),
 		ContentPaths: &a.contentPaths,
 	}, modID, relPath)
+	if err != nil {
+		applog.For("Files").Warnf("couldn't read '%s' from mod '%s': %v", relPath, modID, err)
+	}
+	return content, err
 }
 
 // FindEmptyMods lists gameID's real local mods with no usable content, for
@@ -736,7 +1005,15 @@ func (a *App) PurgeMods(gameID string, modIDs []string) (library.PurgeResult, er
 	if !ok {
 		return library.PurgeResult{}, fmt.Errorf("app: unknown game %q", gameID)
 	}
-	return library.PurgeMods(a.ctx, cfg, library.Options{SteamRoots: a.steamRoots, ExtraFolders: a.extraModFolders(gameID)}, modIDs)
+	// The frontend refreshes the mod list itself once this returns.
+	defer a.watchMute.Begin(modWatchMuteGrace)()
+	result, err := library.PurgeMods(a.ctx, cfg, library.Options{SteamRoots: a.steamRoots, ExtraFolders: a.extraModFolders(gameID)}, modIDs)
+	if err != nil {
+		applog.For("Library").Errorf("purging empty mods in '%s' failed: %v", cfg.DisplayName, err)
+	} else {
+		applog.For("Library").Infof("purged %d empty mods from '%s' (%d couldn't be deleted)", len(result.Deleted), cfg.DisplayName, len(result.Errors))
+	}
+	return result, err
 }
 
 // GeneratePatch resolves every genuine conflict in gameID's current mod
@@ -751,10 +1028,16 @@ func (a *App) GeneratePatch(gameID string, order []string) (library.PatchResult,
 	if !ok {
 		return library.PatchResult{}, fmt.Errorf("app: unknown game %q", gameID)
 	}
+	// The frontend rescans on its own when this returns, so the watcher
+	// noticing the patch appear in the mod folder would only repeat that scan.
+	defer a.watchMute.Begin(modWatchMuteGrace)()
+	log := applog.For("Patch")
+	timer := log.Begin()
+	log.Infof("generating a patch for '%s' from %d loaded mods", cfg.DisplayName, len(order))
 	// An unknown version isn't fatal: the patch just declares itself
 	// compatible with any game version instead of a specific one.
 	gameVersion, _ := a.GameVersion(gameID)
-	return library.GeneratePatch(a.ctx, cfg, library.Options{
+	result, err := library.GeneratePatch(a.ctx, cfg, library.Options{
 		SteamRoots:     a.steamRoots,
 		ExtraFolders:   a.extraModFolders(gameID),
 		Order:          conflict.LoadOrder(order),
@@ -762,20 +1045,30 @@ func (a *App) GeneratePatch(gameID string, order []string) (library.PatchResult,
 		GameVersion:    gameVersion,
 		PatchThumbnail: a.patchThumbnail(),
 	})
+	switch {
+	case err != nil:
+		timer.Errorf("patch generation failed: %v", err)
+	case !result.Written:
+		timer.Infof("nothing to patch: %d conflicts skipped, none patchable", result.SkippedKeys)
+	default:
+		timer.Infof("generation %d written: %d keys patched, %d skipped", result.Generation, result.PatchedKeys, result.SkippedKeys)
+		if result.SkippedKeys > 0 {
+			log.Warnf("%d conflicts couldn't be written into the patch", result.SkippedKeys)
+		}
+	}
+	return result, err
 }
 
 // AboutInfo returns everything the About page shows: this build's real
-// version, commit, toolchain and platform, where this app keeps its settings
-// and cache, how many games are registered, and the author line and links
-// from data/about.jsonc (or the user's replacement for it). No network access.
+// version, commit, toolchain and platform, where this app keeps its settings,
+// cache and log, how many games are registered, and the project's own links
+// and credit. No network access.
 func (a *App) AboutInfo() about.Info {
 	info := about.Collect(AppName, AppVersion)
 	info.ConfigDir = a.configAppDir
 	info.CacheDir = a.cacheDir
+	info.LogDir = a.logDir
 	info.Games = len(a.registry.List())
-	content := about.LoadData(embeddedAboutData, a.aboutPath)
-	info.Author = content.Author
-	info.Links = content.Links
 	return info
 }
 
@@ -807,7 +1100,16 @@ func (a *App) SetPatchOverride(gameID, conflictType, conflictID, modID string) e
 	} else {
 		overrides[key] = modID
 	}
-	return a.patchOverrides.Save(gameID, overrides)
+	if err := a.patchOverrides.Save(gameID, overrides); err != nil {
+		applog.For("Patch").Errorf("couldn't save the pick for '%s': %v", key, err)
+		return err
+	}
+	if modID == "" {
+		applog.For("Patch").Infof("'%s' goes back to its load-order winner", key)
+	} else {
+		applog.For("Patch").Infof("manual pick saved: mod '%s' wins '%s'", modID, key)
+	}
+	return nil
 }
 
 // ClearPatchOverrides removes every manual patch-override winner choice
@@ -816,7 +1118,12 @@ func (a *App) SetPatchOverride(gameID, conflictType, conflictID, modID string) e
 // A bulk version of SetPatchOverride(gameID, type, id, "") that writes the
 // overrides file once instead of once per override.
 func (a *App) ClearPatchOverrides(gameID string) error {
-	return a.patchOverrides.Save(gameID, map[string]string{})
+	if err := a.patchOverrides.Save(gameID, map[string]string{}); err != nil {
+		applog.For("Patch").Errorf("couldn't clear the manual picks for '%s': %v", a.gameLabel(gameID), err)
+		return err
+	}
+	applog.For("Patch").Infof("cleared every manual pick for '%s'", a.gameLabel(gameID))
+	return nil
 }
 
 // IgnoredIncompatibleMods returns gameID's set of mod IDs whose
@@ -844,7 +1151,16 @@ func (a *App) SetModIncompatibilityIgnored(gameID, modID string, ignored bool) e
 	for id := range set {
 		ids = append(ids, id)
 	}
-	return a.versionIgnore.Save(gameID, ids)
+	if err := a.versionIgnore.Save(gameID, ids); err != nil {
+		applog.For("Library").Errorf("couldn't save the ignored version warnings for '%s': %v", a.gameLabel(gameID), err)
+		return err
+	}
+	if ignored {
+		applog.For("Library").Infof("ignoring the game version warning for mod '%s' in '%s'", modID, a.gameLabel(gameID))
+	} else {
+		applog.For("Library").Infof("no longer ignoring the game version warning for mod '%s' in '%s'", modID, a.gameLabel(gameID))
+	}
+	return nil
 }
 
 // ResolvedConflicts returns gameID's real, currently-marked-resolved
@@ -877,7 +1193,16 @@ func (a *App) SetConflictResolved(gameID, conflictType, conflictID string, resol
 	for k := range set {
 		keys = append(keys, k)
 	}
-	return a.resolvedConflicts.Save(gameID, keys)
+	if err := a.resolvedConflicts.Save(gameID, keys); err != nil {
+		applog.For("Conflicts").Errorf("couldn't save the reviewed flag for '%s': %v", key, err)
+		return err
+	}
+	if resolved {
+		applog.For("Conflicts").Infof("'%s' marked as reviewed", key)
+	} else {
+		applog.For("Conflicts").Infof("'%s' marked as not reviewed", key)
+	}
+	return nil
 }
 
 // OpenModFolder opens modID's real content folder in the OS file manager.
@@ -888,9 +1213,14 @@ func (a *App) OpenModFolder(gameID, modID string) error {
 	}
 	path, err := library.ModFolderPath(a.ctx, cfg, library.Options{SteamRoots: a.steamRoots, ExtraFolders: a.extraModFolders(gameID)}, modID)
 	if err != nil {
+		applog.For("Files").Warnf("couldn't find the folder of mod '%s': %v", modID, err)
 		return err
 	}
-	return browser.OpenFile(path)
+	if err := browser.OpenFile(path); err != nil {
+		applog.For("Files").Warnf("couldn't open '%s': %v", path, err)
+		return err
+	}
+	return nil
 }
 
 // ListPlaysets returns every saved playset's name for gameID.
@@ -924,11 +1254,14 @@ func (a *App) ImportLauncherPlaysets(gameID string) ([]launcherdb.Playset, error
 	}
 	playsets, err := launcherdb.ListPlaysets(dir)
 	if errors.Is(err, launcherdb.ErrNotFound) {
+		applog.For("Playsets").Infof("no Paradox Launcher database found for '%s'", cfg.DisplayName)
 		return []launcherdb.Playset{}, nil
 	}
 	if err != nil {
+		applog.For("Playsets").Warnf("couldn't read the Paradox Launcher database for '%s': %v", cfg.DisplayName, err)
 		return nil, err
 	}
+	applog.For("Playsets").Infof("found %d playsets in the Paradox Launcher database for '%s'", len(playsets), cfg.DisplayName)
 	return playsets, nil
 }
 
@@ -941,12 +1274,22 @@ func (a *App) ListCollections() ([]collection.Collection, error) {
 
 // SaveCollection creates or overwrites one named collection.
 func (a *App) SaveCollection(c collection.Collection) error {
-	return a.collections.Save(a.ctx, c)
+	if err := a.collections.Save(a.ctx, c); err != nil {
+		applog.For("Collections").Errorf("couldn't save '%s': %v", c.Name, err)
+		return err
+	}
+	applog.For("Collections").Infof("saved '%s'", c.Name)
+	return nil
 }
 
 // DeleteCollection removes one named collection.
 func (a *App) DeleteCollection(name string) error {
-	return a.collections.Delete(a.ctx, name)
+	if err := a.collections.Delete(a.ctx, name); err != nil {
+		applog.For("Collections").Errorf("couldn't delete '%s': %v", name, err)
+		return err
+	}
+	applog.For("Collections").Infof("deleted '%s'", name)
+	return nil
 }
 
 // ListDLC lists gameID's real DLC, for the DLC screen's per-playset toggle
@@ -990,10 +1333,13 @@ func (a *App) WorkshopDetails(gameID string) ([]steamapi.PublishedFileDetails, e
 	if !ok {
 		return nil, fmt.Errorf("app: unknown game %q", gameID)
 	}
+	timer := applog.For("Steam").Begin()
 	byID, err := a.workshopDetails.Get(a.ctx, cfg, library.Options{SteamRoots: a.steamRoots, ExtraFolders: a.extraModFolders(gameID)})
 	if err != nil {
+		timer.Warnf("couldn't get Workshop details for '%s': %v", cfg.DisplayName, err)
 		return nil, err
 	}
+	timer.Infof("Workshop details for '%s': %d mods", cfg.DisplayName, len(byID))
 	result := make([]steamapi.PublishedFileDetails, 0, len(byID))
 	for _, d := range byID {
 		result = append(result, d)
@@ -1017,8 +1363,10 @@ func (a *App) AuthorProfiles(gameID string) ([]library.AuthorProfile, error) {
 	if !ok {
 		return nil, fmt.Errorf("app: unknown game %q", gameID)
 	}
+	timer := applog.For("Steam").Begin()
 	byID, err := a.workshopDetails.Get(a.ctx, cfg, library.Options{SteamRoots: a.steamRoots, ExtraFolders: a.extraModFolders(gameID)})
 	if err != nil {
+		timer.Warnf("couldn't get Workshop details to find authors for '%s': %v", cfg.DisplayName, err)
 		return nil, err
 	}
 	seen := make(map[string]bool, len(byID))
@@ -1031,8 +1379,10 @@ func (a *App) AuthorProfiles(gameID string) ([]library.AuthorProfile, error) {
 	}
 	profiles, err := a.authorProfiles.Get(a.ctx, steamIDs)
 	if err != nil {
+		timer.Warnf("couldn't get author profiles for '%s': %v", cfg.DisplayName, err)
 		return nil, err
 	}
+	timer.Infof("author profiles for '%s': %d of %d creators", cfg.DisplayName, len(profiles), len(steamIDs))
 	result := make([]library.AuthorProfile, 0, len(profiles))
 	for id, p := range profiles {
 		result = append(result, library.AuthorProfile{SteamID: id, Profile: p})
@@ -1050,7 +1400,14 @@ func (a *App) ModChangelog(publishedFileID string) ([]steamapi.ChangelogEntry, e
 	if publishedFileID == "" {
 		return nil, fmt.Errorf("app: empty published file id")
 	}
-	return a.changelogs.Get(a.ctx, publishedFileID)
+	timer := applog.For("Steam").Begin()
+	entries, err := a.changelogs.Get(a.ctx, publishedFileID)
+	if err != nil {
+		timer.Warnf("couldn't get the update notes for Workshop item '%s': %v", publishedFileID, err)
+		return nil, err
+	}
+	timer.Infof("update notes for Workshop item '%s': %d entries", publishedFileID, len(entries))
+	return entries, nil
 }
 
 // DLCStoreData returns gameID's cached real Steam Store data for its
@@ -1107,32 +1464,150 @@ func (a *App) startDLCStoreRefresh(cfg game.GameConfig, gameID string, store dlc
 			a.dlcRefreshingMu.Unlock()
 		}()
 
+		timer := applog.For("Steam").Begin()
+		applog.For("Steam").Infof("refreshing the DLC store data for '%s'", cfg.DisplayName)
 		entries, err := library.ListDLC(cfg)
 		if err != nil {
+			timer.Warnf("couldn't list the DLC for '%s': %v", cfg.DisplayName, err)
 			return
 		}
 		cf := dlcstore.Refresh(a.ctx, cfg.SteamAppID, entries)
 		saved, err := store.SaveRefreshed(cf)
-		if err != nil || !saved {
+		if err != nil {
+			timer.Warnf("couldn't save the DLC store data for '%s': %v", cfg.DisplayName, err)
 			return
 		}
+		if !saved {
+			// SaveRefreshed keeps the old data when a refresh comes back empty
+			// (Steam unreachable, say) rather than overwriting it with nothing.
+			timer.Warnf("the DLC store refresh for '%s' returned nothing, so the existing data was kept", cfg.DisplayName)
+			return
+		}
+		timer.Infof("DLC store data for '%s' refreshed (%d entries)", cfg.DisplayName, len(cf.ByAppID))
 		wailsruntime.EventsEmit(a.ctx, "dlc-store-refreshed", gameID)
 	}()
 }
 
 // LoadPlayset returns one saved playset.
 func (a *App) LoadPlayset(gameID, name string) (playset.Playset, error) {
-	return a.playsets.Load(a.ctx, gameID, name)
+	p, err := a.playsets.Load(a.ctx, gameID, name)
+	if err != nil {
+		applog.For("Playsets").Errorf("couldn't load '%s' for '%s': %v", name, a.gameLabel(gameID), err)
+		return p, err
+	}
+	applog.For("Playsets").Infof("loaded '%s' for '%s' (%d mods)", name, a.gameLabel(gameID), len(p.ModIDs))
+	return p, nil
 }
 
 // SavePlayset persists a playset (creating or overwriting by name).
 func (a *App) SavePlayset(p playset.Playset) error {
-	return a.playsets.Save(a.ctx, p)
+	if err := a.playsets.Save(a.ctx, p); err != nil {
+		applog.For("Playsets").Errorf("couldn't save '%s': %v", p.Name, err)
+		return err
+	}
+	applog.For("Playsets").Infof("saved '%s' for '%s' (%d mods)", p.Name, a.gameLabel(p.GameKey), len(p.ModIDs))
+	return nil
 }
 
-// DeletePlayset removes a saved playset.
+// DeletePlayset removes a saved playset, and forgets it in settings: a game
+// whose last-active or pinned auto-load playset was this one falls back to
+// starting blank, instead of trying to load a playset that's gone.
 func (a *App) DeletePlayset(gameID, name string) error {
-	return a.playsets.Delete(a.ctx, gameID, name)
+	if err := a.playsets.Delete(a.ctx, gameID, name); err != nil {
+		applog.For("Playsets").Errorf("couldn't delete '%s': %v", name, err)
+		return err
+	}
+	applog.For("Playsets").Infof("deleted '%s' for '%s'", name, a.gameLabel(gameID))
+	if err := a.mutatePreferences(func(p preferences.Preferences) preferences.Preferences {
+		return p.WithoutPlayset(gameID, name)
+	}); err != nil {
+		// The playset is gone; only the settings that mention it couldn't be
+		// tidied, which the app already treats as "unset" when it loads.
+		applog.For("Playsets").Warnf("deleted '%s' but couldn't update the settings that referred to it: %v", name, err)
+	}
+	return nil
+}
+
+// RenamePlayset gives a saved playset a new name, keeping its mods, load order
+// and DLC choices, and points the settings that refer to it by name (the last
+// active playset, the one pinned for auto-loading) at the new name. Refuses an
+// empty name, and a name another playset already has. The errors are written to
+// be shown to the person.
+func (a *App) RenamePlayset(gameID, oldName, newName string) error {
+	newName = strings.TrimSpace(newName)
+	err := a.playsets.Rename(a.ctx, gameID, oldName, newName)
+	switch {
+	case errors.Is(err, playset.ErrInvalidName):
+		return fmt.Errorf("give the playset a name")
+	case errors.Is(err, playset.ErrExists):
+		applog.For("Playsets").Warnf("can't rename '%s' to '%s': a playset with that name already exists", oldName, newName)
+		return fmt.Errorf("a playset named %q already exists", newName)
+	case errors.Is(err, playset.ErrNotFound):
+		return fmt.Errorf("that playset no longer exists")
+	case err != nil:
+		applog.For("Playsets").Errorf("couldn't rename '%s' to '%s': %v", oldName, newName, err)
+		return err
+	}
+	applog.For("Playsets").Infof("renamed '%s' to '%s' for '%s'", oldName, newName, a.gameLabel(gameID))
+	if err := a.mutatePreferences(func(p preferences.Preferences) preferences.Preferences {
+		return p.WithPlaysetRenamed(gameID, oldName, newName)
+	}); err != nil {
+		applog.For("Playsets").Warnf("renamed '%s' but couldn't update the settings that referred to it: %v", oldName, err)
+	}
+	return nil
+}
+
+// mutatePreferences applies change to the current preferences and saves the
+// result (through SetPreferences, so it's logged and the watcher refreshed).
+func (a *App) mutatePreferences(change func(preferences.Preferences) preferences.Preferences) error {
+	a.preferencesMu.Lock()
+	next := change(a.preferences)
+	a.preferencesMu.Unlock()
+	return a.savePreferences(next, false)
+}
+
+// CheckGameUpdates compares each managed game's installed version with the one
+// last seen and returns the games that changed - a game update, or a rollback -
+// remembering the new versions so each is reported once. A game seen for the
+// first time is recorded quietly (there was nothing to update from), and one
+// whose version can't be read is skipped rather than treated as a change. The
+// frontend calls it at startup and when the window regains focus, since Steam
+// may well have updated the game while this app was open.
+func (a *App) CheckGameUpdates() ([]library.GameUpdate, error) {
+	a.preferencesMu.Lock()
+	managed := make(map[string]bool, len(a.preferences.ManagedGames))
+	for _, id := range a.preferences.ManagedGames {
+		managed[id] = true
+	}
+	a.preferencesMu.Unlock()
+
+	current := map[string]string{}
+	names := map[string]string{}
+	for _, cfg := range a.registry.List() {
+		if len(managed) > 0 && !managed[cfg.ID] {
+			continue
+		}
+		version, _ := a.GameVersion(cfg.ID)
+		current[cfg.ID] = version
+		names[cfg.ID] = cfg.DisplayName
+	}
+
+	a.preferencesMu.Lock()
+	next, changes := a.preferences.ObserveGameVersions(current)
+	same := reflect.DeepEqual(next.LastSeenGameVersions, a.preferences.LastSeenGameVersions)
+	a.preferencesMu.Unlock()
+
+	if !same {
+		if err := a.savePreferences(next, false); err != nil {
+			applog.For("Games").Warnf("couldn't record the installed game versions: %v", err)
+		}
+	}
+	updates := make([]library.GameUpdate, 0, len(changes))
+	for _, c := range changes {
+		applog.For("Games").Infof("'%s' changed from '%s' to '%s'", names[c.GameID], c.From, c.To)
+		updates = append(updates, library.GameUpdate{GameID: c.GameID, GameName: names[c.GameID], From: c.From, To: c.To})
+	}
+	return updates, nil
 }
 
 // LaunchGame writes the named playset's dlc_load.json and launches the game
@@ -1149,6 +1624,23 @@ func (a *App) DeletePlayset(gameID, name string) error {
 // whatever Steam/the Paradox Launcher last wrote before this app ever
 // touched the game - never a state this function invents itself.
 func (a *App) LaunchGame(gameID, playsetName string) error {
+	log := applog.For("Launch")
+	timer := log.Begin()
+	if playsetName != "" {
+		log.Infof("launching '%s' with playset '%s'", a.gameLabel(gameID), playsetName)
+	} else {
+		log.Infof("launching '%s' with whatever is already on disk", a.gameLabel(gameID))
+	}
+	if err := a.launchGame(gameID, playsetName); err != nil {
+		timer.Errorf("launching '%s' failed: %v", a.gameLabel(gameID), err)
+		return err
+	}
+	timer.Infof("'%s' launched", a.gameLabel(gameID))
+	return nil
+}
+
+// launchGame is LaunchGame without the logging around it.
+func (a *App) launchGame(gameID, playsetName string) error {
 	cfg, ok := a.registry.Get(gameID)
 	if !ok {
 		return fmt.Errorf("app: unknown game %q", gameID)
@@ -1191,17 +1683,24 @@ func (a *App) LaunchGame(gameID, playsetName string) error {
 		}
 
 		order := conflict.LoadOrder(p.ModIDs)
-		if _, err := launch.WriteState(order, scanResult.Mods, cfg, launch.Options{
+		written, err := launch.WriteState(order, scanResult.Mods, cfg, launch.Options{
 			StateDir:    stateDir,
 			DisabledDLC: p.DisabledDLC,
-		}); err != nil {
+		})
+		if err != nil {
 			return err
 		}
+		applog.For("Launch").Infof("wrote the launcher state for '%s': %d mods in the load order, %d DLC disabled, %d files", cfg.DisplayName, len(order), len(p.DisabledDLC), len(written.Written))
 	}
 
 	opts, err := a.launchOptionsFor(cfg)
 	if err != nil {
 		return err
+	}
+	if opts.Direct {
+		applog.For("Launch").Infof("starting the game executable directly, without the Paradox Launcher")
+	} else {
+		applog.For("Launch").Infof("starting through Steam")
 	}
 	if err := launch.Launch(launch.OSLauncher{}, cfg, opts); err != nil {
 		return err

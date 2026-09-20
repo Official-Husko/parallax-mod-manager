@@ -191,3 +191,142 @@ func TestParseEntryOffsetsOnFinalLineWithNoTrailingNewline(t *testing.T) {
 		t.Errorf("raw slice = %q, want %q", got, want)
 	}
 }
+
+func TestParseValueMayBeFollowedByAComment(t *testing.T) {
+	src := "l_english:\n" +
+		" A:0 \"Tion Hegemony\" # Player\n" +
+		" B:0 \"No space\"#tight\n" +
+		" C:1 \"tabbed\"\t# note\n" +
+		" D:0 \"plain, no comment\"\n" +
+		" E:0 \"Number #1 is part of the text\" # but this is a comment\n" +
+		" F:0 \"has an \\\"escaped\\\" quote\" # and a comment\n" +
+		" G:0 \"quote \"inside\" then more\" # comment\n" +
+		" H:0 \"comment holds quotes\" # said \"hello\" to \"it\"\n"
+	cat, err := Parse([]byte(src))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	want := map[string]string{
+		"A": "Tion Hegemony",
+		"B": "No space",
+		"C": "tabbed",
+		"D": "plain, no comment",
+		"E": "Number #1 is part of the text",
+		"F": `has an "escaped" quote`,
+		"G": `quote "inside" then more`,
+		"H": "comment holds quotes",
+	}
+	if len(cat.Entries) != len(want) {
+		t.Fatalf("got %d entries, want %d: %+v", len(cat.Entries), len(want), cat.Entries)
+	}
+	for _, e := range cat.Entries {
+		if e.Value != want[e.Key] {
+			t.Errorf("%s = %q, want %q", e.Key, e.Value, want[e.Key])
+		}
+	}
+}
+
+func TestParseCommentDoesNotChangeTheValueOrTheEntryRange(t *testing.T) {
+	plain := " KEY:0 \"Same text\"\n"
+	commented := " KEY:0 \"Same text\" # a note\n"
+	a, err := Parse([]byte("l_english:\n" + plain))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := Parse([]byte("l_english:\n" + commented))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a.Entries[0].Value != b.Entries[0].Value {
+		t.Errorf("a trailing comment changed the value: %q vs %q - it would make two mods with the same text look like a conflict", a.Entries[0].Value, b.Entries[0].Value)
+	}
+	src := []byte("l_english:\n" + commented)
+	e := b.Entries[0]
+	if got := string(src[e.StartOffset:e.EndOffset]); got != strings.TrimSuffix(commented, "\n") {
+		t.Errorf("the entry's byte range = %q, want the whole raw line including its comment", got)
+	}
+}
+
+func TestParseStillRejectsAValueWithJunkAfterTheQuote(t *testing.T) {
+	for _, line := range []string{
+		` KEY:0 "text" junk`,
+		` KEY:0 "text" and more "quoted"  x`,
+		` KEY:0 "never closed`,
+		` KEY:0 unquoted`,
+	} {
+		if _, err := Parse([]byte("l_english:\n" + line + "\n")); err == nil {
+			t.Errorf("%q should not parse", line)
+		}
+	}
+}
+
+func TestParseKeepsAcceptingWhatItAlwaysAccepted(t *testing.T) {
+	// A value ending in a backslash right before the closing quote: read
+	// literally, as it always was.
+	cat, err := Parse([]byte("l_english:\n KEY:0 \"ends with a slash\\\"\n"))
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if cat.Entries[0].Value != `ends with a slash\` {
+		t.Errorf("Value = %q", cat.Entries[0].Value)
+	}
+}
+
+func TestParseStripsRepeatedBOMs(t *testing.T) {
+	src := append([]byte{0xEF, 0xBB, 0xBF, 0xEF, 0xBB, 0xBF}, []byte("l_french:\n KEY:0 \"valeur\"\n")...)
+	cat, err := Parse(src)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if cat.Language != "french" || len(cat.Entries) != 1 {
+		t.Fatalf("catalog = %+v", cat)
+	}
+	e := cat.Entries[0]
+	if got := string(src[e.StartOffset:e.EndOffset]); got != ` KEY:0 "valeur"` {
+		t.Errorf("with two BOMs the entry's range must still index the original bytes, got %q", got)
+	}
+}
+
+func TestParseSkipsABadLineAndKeepsTheRestOfTheFile(t *testing.T) {
+	src := []byte("l_english:\n" +
+		" GOOD_ONE:0 \"first\"\n" +
+		" RUNS_OVER:0 \"a value that continues\n" +
+		"onto a second line\"\n" +
+		" STRAY:0 \"closed\".\n" +
+		" GOOD_TWO:0 \"second\"\n")
+	cat, err := Parse(src)
+	if err != nil {
+		t.Fatalf("a file with a few bad lines must still parse: %v", err)
+	}
+	var keys []string
+	for _, e := range cat.Entries {
+		keys = append(keys, e.Key)
+	}
+	if strings.Join(keys, ",") != "GOOD_ONE,GOOD_TWO" {
+		t.Errorf("entries = %v, want the two good ones", keys)
+	}
+	if len(cat.Skipped) != 3 {
+		t.Fatalf("skipped = %+v, want the three unreadable lines (the wrapped value's two lines and the stray one)", cat.Skipped)
+	}
+	if cat.Skipped[0].Line != 3 || cat.Skipped[1].Line != 4 || cat.Skipped[2].Line != 5 {
+		t.Errorf("skipped lines = %+v, want 3, 4 and 5", cat.Skipped)
+	}
+	// The entries after a bad line still point at their own bytes.
+	for _, e := range cat.Entries {
+		if line := string(src[e.StartOffset:e.EndOffset]); !strings.Contains(line, e.Key+":0") {
+			t.Errorf("entry %s has the wrong byte range %q", e.Key, line)
+		}
+	}
+}
+
+func TestParseWithNothingReadableIsStillAnError(t *testing.T) {
+	if _, err := Parse([]byte("l_english:\n just some prose\n and more prose\n")); err == nil {
+		t.Error("a file where no line is an entry isn't a localisation file with a typo - it must still fail")
+	}
+}
+
+func TestParseHeaderProblemsStayFatal(t *testing.T) {
+	if _, err := Parse([]byte(" KEY:0 \"v\"\n")); err == nil {
+		t.Error("a missing header must still be an error")
+	}
+}

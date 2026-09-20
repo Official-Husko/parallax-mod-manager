@@ -63,7 +63,15 @@ func (OSLauncher) RunExecutable(info game.ExecutableInfo) error {
 	// one that resolves a relative path (a bundled library, its own data
 	// files) against its working directory.
 	cmd.Dir = info.WorkingDir
-	return cmd.Start()
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	// Nothing here waits on the game, but the OS keeps an exited child around
+	// (a zombie on Unix) until its parent has collected it - which would make a
+	// game that has closed still look like a running process. Collecting it is
+	// all this does; the game itself is not tied to this app's lifetime.
+	go func() { _ = cmd.Wait() }()
+	return nil
 }
 
 // FakeLauncher is a Launcher test double: records calls, never opens a URL

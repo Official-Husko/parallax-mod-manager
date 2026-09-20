@@ -4,41 +4,7 @@ import {useEffect, useState} from 'preact/hooks';
 import {AboutInfo, OpenPath} from '../../wailsjs/go/main/App';
 import {BrowserOpenURL} from '../../wailsjs/runtime/runtime';
 import type {about} from '../../wailsjs/go/models';
-
-// What the app is good at, in a line each - kept to things that are really
-// built (see the README's "Done" list), never aspirations.
-const FEATURES: { icon: string; title: string; text: string }[] = [
-    {
-        icon: 'fa-bolt',
-        title: 'Incremental scanning',
-        text: "A stat, hash, parse cache means a mod that hasn't changed is never parsed again - big modlists reopen fast.",
-    },
-    {
-        icon: 'fa-code-compare',
-        title: 'Real conflict detection',
-        text: 'Finds where mods genuinely define the same object - per definition, not per file - with a side-by-side diff to compare them.',
-    },
-    {
-        icon: 'fa-bandage',
-        title: 'Patches that stay honest',
-        text: 'Writes your resolutions into a patch mod, then tells you when a mod update makes it out of date.',
-    },
-    {
-        icon: 'fa-arrow-down-arrow-up',
-        title: 'Autosort',
-        text: 'Orders by declared dependencies and Fixes/Patch tags, and keeps the generated patch at the very end.',
-    },
-    {
-        icon: 'fa-layer-group',
-        title: 'Playsets and DLC',
-        text: 'Named load orders with per-playset DLC, and a way to bring in the playsets you already have in the Paradox Launcher.',
-    },
-    {
-        icon: 'fa-rocket',
-        title: 'Your choice of launch',
-        text: 'Start the game through Steam, or straight from its own executable without opening the launcher.',
-    },
-];
+import {LogView} from '../components/LogView';
 
 // The stack, shown as plain chips.
 const BUILT_WITH = ['Go', 'Wails', 'Preact', 'TypeScript', 'Vite'];
@@ -69,7 +35,9 @@ function DetailRow({label, value, onOpen}: { label: string; value: string; onOpe
     );
 }
 
-export function About() {
+// The About panel in Settings: what this build is, where it keeps its files, and
+// a live view of everything the app is doing.
+export function AboutPanel() {
     const [info, setInfo] = useState<about.Info | null>(null);
     const [failed, setFailed] = useState(false);
 
@@ -78,17 +46,17 @@ export function About() {
     }, []);
 
     if (failed) {
-        return <div className="about"><p className="status-page error">Couldn't read this build's details.</p></div>;
+        return <div className="settings-content wide"><p className="status-page error">Couldn't read this build's details.</p></div>;
     }
     if (!info) {
-        return <div className="about"/>;
+        return <div className="settings-content wide"/>;
     }
 
     const platform = `${info.OS}/${info.Arch}`;
     const build = info.Commit ? `${info.Commit}${info.Dirty ? '-dirty' : ''}` : '';
 
     return (
-        <div className="about">
+        <div className="settings-content wide">
             <div className="about-inner">
                 <section className="about-hero">
                     <img className="about-logo" src="/favicon.png" alt=""/>
@@ -120,16 +88,8 @@ export function About() {
                 )}
 
                 <section>
-                    <div className="about-section-label">WHAT IT DOES</div>
-                    <div className="about-features">
-                        {FEATURES.map((f) => (
-                            <div key={f.title} className="about-feature">
-                                <i className={`fa-duotone fa-solid ${f.icon} about-feature-icon`}/>
-                                <div className="about-feature-title">{f.title}</div>
-                                <div className="about-feature-text">{f.text}</div>
-                            </div>
-                        ))}
-                    </div>
+                    <div className="about-section-label">ACTIVITY LOG</div>
+                    <LogView onOpenFolder={info.LogDir ? () => OpenPath(info.LogDir).catch(() => undefined) : undefined}/>
                 </section>
 
                 <section className="about-columns">
@@ -142,6 +102,7 @@ export function About() {
                         <DetailRow label="Platform" value={platform}/>
                         <DetailRow label="Settings folder" value={info.ConfigDir} onOpen={() => OpenPath(info.ConfigDir).catch(() => undefined)}/>
                         <DetailRow label="Cache folder" value={info.CacheDir} onOpen={() => OpenPath(info.CacheDir).catch(() => undefined)}/>
+                        <DetailRow label="Log folder" value={info.LogDir} onOpen={() => OpenPath(info.LogDir).catch(() => undefined)}/>
                     </div>
                     <div className="about-card">
                         <div className="about-section-label">BUILT WITH</div>

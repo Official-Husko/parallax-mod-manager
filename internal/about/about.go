@@ -1,7 +1,8 @@
 // Package about gathers what the About page shows: the running build's real
 // details (version, commit, toolchain, platform) read from the binary itself,
-// and the project's links, read from a small JSONC file that is embedded in
-// the build and can be replaced by one in the user's config folder.
+// and the project's own links and credit line, which are fixed in the code
+// below - they describe the project, not a user preference, so there is
+// nothing to configure or override.
 //
 // Nothing here makes a network call. In particular the page's badges are
 // drawn locally from these values rather than fetched as images from a badge
@@ -10,31 +11,36 @@
 package about
 
 import (
-	"net/url"
-	"os"
-	"regexp"
 	"runtime"
 	"runtime/debug"
 	"strings"
-
-	"github.com/Official-Husko/parallax-mod-manager/internal/jsonc"
 )
 
 // Link is one button on the About page.
 type Link struct {
-	// Icon is Font Awesome class names, e.g. "fa-brands fa-github". Only
-	// well-formed ones are accepted (see validIcon).
+	// Icon is Font Awesome class names, e.g. "fa-brands fa-github".
 	Icon  string
 	Label string
-	// URL is always an absolute http(s) URL - see ParseData.
+	// URL is an absolute https URL.
 	URL string
 }
 
-// Data is the About page's editable content, as read from the JSONC file.
-type Data struct {
-	// Author is the name shown in the "made by" line. Empty hides the line.
-	Author string
-	Links  []Link
+// Author is the name shown in the "made by" line.
+const Author = "Official-Husko"
+
+// repoURL is the project's home. The other links hang off it.
+const repoURL = "https://github.com/Official-Husko/parallax-mod-manager"
+
+// links returns the About page's buttons, in the order they're shown. To add
+// one, add a line here (icon is Font Awesome class names: brand logos are
+// "fa-brands fa-<name>", everything else "fa-solid fa-<name>"); a test checks
+// every entry is well-formed.
+func links() []Link {
+	return []Link{
+		{Icon: "fa-brands fa-github", Label: "GitHub", URL: repoURL},
+		{Icon: "fa-solid fa-bug", Label: "Report an issue", URL: repoURL + "/issues"},
+		{Icon: "fa-solid fa-tag", Label: "Releases", URL: repoURL + "/releases"},
+	}
 }
 
 // Info is everything the About page displays.
@@ -56,6 +62,9 @@ type Info struct {
 	// paths) - empty if they couldn't be.
 	ConfigDir string
 	CacheDir  string
+	// LogDir is where the activity log file is kept, empty if file logging
+	// couldn't start.
+	LogDir string
 	// Games is how many games are registered.
 	Games  int
 	Author string
@@ -64,8 +73,14 @@ type Info struct {
 	Links []Link
 }
 
-// Collect fills Info's build-derived fields. The caller adds the paths, the
-// game count and the content from LoadData.
+// A note for later: sharing the activity log (see docs/log-sharing.md) is meant to
+// offer, as an opt-in, a set of computer details - CPU, GPU, OS, mod counts,
+// whether a patch was generated - for statistics and for investigating bugs
+// faster. None of that is collected anywhere yet, on purpose; when it is, it
+// belongs beside Collect, gathered only when the user asks for it.
+
+// Collect fills Info: the build-derived fields, the author and the links. The
+// caller adds the paths and the game count, which only it knows.
 func Collect(name, version string) Info {
 	info := Info{
 		Name:      name,
@@ -73,7 +88,8 @@ func Collect(name, version string) Info {
 		GoVersion: strings.TrimPrefix(runtime.Version(), "go"),
 		OS:        runtime.GOOS,
 		Arch:      runtime.GOARCH,
-		Links:     []Link{},
+		Author:    Author,
+		Links:     links(),
 	}
 	bi, ok := debug.ReadBuildInfo()
 	if !ok {
@@ -100,65 +116,4 @@ func Collect(name, version string) Info {
 		}
 	}
 	return info
-}
-
-// A Font Awesome class list: "fa-" tokens only, so the file can't smuggle
-// arbitrary class names (or anything else) into the page.
-var validIcon = regexp.MustCompile(`^fa-[a-z0-9]+(?: fa-[a-z0-9]+(?:-[a-z0-9]+)*)*$`)
-
-type dataFile struct {
-	Author string `json:"author"`
-	Links  []struct {
-		Icon  string `json:"icon"`
-		Label string `json:"label"`
-		URL   string `json:"url"`
-	} `json:"links"`
-}
-
-// ParseData parses the JSONC content file. An entry with no URL is skipped
-// silently (that's how a link that hasn't been set up yet is written); an
-// entry with a URL that isn't an absolute http(s) address, no label, or an
-// icon that isn't a plain Font Awesome class list is skipped too, so a
-// hand-edited file can never put a "javascript:" link or stray markup on the
-// page. The valid entries keep their file order.
-func ParseData(data []byte) (Data, error) {
-	var f dataFile
-	if err := jsonc.Unmarshal(data, &f); err != nil {
-		return Data{}, err
-	}
-	out := Data{Author: strings.TrimSpace(f.Author), Links: []Link{}}
-	for _, l := range f.Links {
-		raw := strings.TrimSpace(l.URL)
-		label := strings.TrimSpace(l.Label)
-		icon := strings.TrimSpace(l.Icon)
-		if raw == "" || label == "" || !validIcon.MatchString(icon) {
-			continue
-		}
-		u, err := url.Parse(raw)
-		if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
-			continue
-		}
-		out.Links = append(out.Links, Link{Icon: icon, Label: label, URL: u.String()})
-	}
-	return out, nil
-}
-
-// LoadData returns the About content: overridePath's file if it exists and
-// parses, otherwise the embedded default. A corrupt or unreadable override
-// falls back to the embedded one rather than leaving the page empty, the
-// same way internal/game.LoadRegistry treats its own override. overridePath
-// may be empty.
-func LoadData(embedded []byte, overridePath string) Data {
-	if overridePath != "" {
-		if data, err := os.ReadFile(overridePath); err == nil {
-			if parsed, err := ParseData(data); err == nil {
-				return parsed
-			}
-		}
-	}
-	parsed, err := ParseData(embedded)
-	if err != nil {
-		return Data{Links: []Link{}}
-	}
-	return parsed
 }

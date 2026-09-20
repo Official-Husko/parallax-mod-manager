@@ -142,13 +142,23 @@ type Options struct {
 	// Rules governs LIOS/FIOS selection. The zero value (nil map) falls
 	// back to DefaultPriorityRules.
 	Rules PriorityRules
+	// ConflictsOnly skips building Result.Resolutions (it stays nil) and
+	// only examines keys that more than one mod defines. A caller that only
+	// needs Result.Conflicts - which is every caller in the app - saves
+	// sorting and resolving every key of every mod, which on a large modlist
+	// is several hundred thousand keys, nearly all of them defined by exactly
+	// one mod and so never able to conflict. Result.Conflicts is identical
+	// either way.
+	ConflictsOnly bool
 }
 
 // Result is everything one Resolve run produces.
 type Result struct {
-	Index       Index
-	Conflicts   []Conflict         // sorted by Key; needs user attention
-	Resolutions map[Key]Resolution // every Key touched by any input mod
+	Index     Index
+	Conflicts []Conflict // sorted by Key; needs user attention
+	// Resolutions has every Key touched by any input mod, unless
+	// Options.ConflictsOnly was set, in which case it is nil.
+	Resolutions map[Key]Resolution
 }
 
 // Resolve builds the cross-mod index, detects duplicates/conflicts
@@ -163,6 +173,10 @@ func Resolve(order LoadOrder, inputs []Input, opts Options) Result {
 
 	index := BuildIndex(order, inputs)
 	deps := buildDependencyGraph(inputs)
+
+	if opts.ConflictsOnly {
+		return Result{Index: index, Conflicts: contestedConflicts(index, deps, order, rules)}
+	}
 
 	keys := index.allKeys()
 	resolutions := make(map[Key]Resolution, len(keys))
@@ -180,4 +194,23 @@ func Resolve(order LoadOrder, inputs []Input, opts Options) Result {
 	sort.Slice(conflicts, func(i, j int) bool { return keyLess(conflicts[i].Key, conflicts[j].Key) })
 
 	return Result{Index: index, Conflicts: conflicts, Resolutions: resolutions}
+}
+
+// contestedConflicts is Resolve's ConflictsOnly path: examine only the keys
+// more than one mod defines, run each through the same detectKey the full path
+// uses, and return the genuine conflicts sorted by Key. Map iteration order is
+// random, so the sort at the end is what makes the result deterministic - and
+// equal to the full path's.
+func contestedConflicts(index Index, deps dependencyGraph, order LoadOrder, rules PriorityRules) []Conflict {
+	var conflicts []Conflict
+	index.each(func(k Key, raw []definition.Definition) {
+		if singleMod(raw) {
+			return
+		}
+		if _, c := detectKey(k, raw, deps, order, rules); c != nil {
+			conflicts = append(conflicts, *c)
+		}
+	})
+	sort.Slice(conflicts, func(i, j int) bool { return keyLess(conflicts[i].Key, conflicts[j].Key) })
+	return conflicts
 }

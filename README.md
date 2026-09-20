@@ -94,6 +94,30 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   a second on every call, undermining the whole point of a 100%-cache-hit relaunch. Gob measured
   roughly half the file size and 3-5x faster to encode/decode on that same real data; see
   [docs/performance-strategy.md](docs/performance-strategy.md) for the full before/after.
+- **Fast warm rescans** (`internal/pipeline`, `internal/conflict`, `internal/library`) - a rescan
+  (every scan, manual pick, patch generation or mod-folder change) with every cache file warm went
+  from about 2.3 s to about 0.3 s on this project's real 86-mod install (now 1.27 million definitions
+  from 81 mods): unchanged mod caches are no longer rewritten on every run, conflict detection only
+  examines keys more than one mod defines instead of resolving all of them, the index is built in
+  parallel shards, mods are read several at a time (results still merged in load order), and the cache
+  uses a compact binary record that stores each file's repeated strings once (bounds-checked, so a
+  corrupt cache is simply rebuilt). Each change has a test proving the result is identical to the slow
+  path. See
+  [docs/performance-strategy.md](docs/performance-strategy.md) for the profile and what's left.
+- **Localisation parsing fixes** (`internal/locale`, `internal/cache`) - the activity log's new cache
+  line showed 645 files on the real install being silently skipped as unparseable. 629 had a `#`
+  comment after a value (valid in the game's own files), one had a doubled BOM, and a few dozen had one
+  malformed line that cost the whole file; all three are fixed (a bad line is now skipped and noted, the
+  rest of the file is kept, as the game does). About a thousand localisation conflicts had been hidden:
+  contested keys on that install went from 4,788 to 5,841. Every mod cache is stamped with a parser
+  version (`cache.ParserVersion`), so a fixed parser gets a fresh look at files it once rejected instead
+  of trusting a stale "failed" verdict.
+- **Patch status no longer cries wolf at startup** (`internal/library`) - the first scan of every
+  launch has no playset yet, so nothing is loaded and nothing conflicts; every key the generated
+  patch covers then looked "no longer conflicting", and a persistent "patch is out of date" warning
+  was raised until the real scan replaced it. With no mods loaded there is nothing to compare the
+  patch to, so it is now reported as present and left unjudged. (The activity log's own repeated
+  status line is what exposed it: the same warning appeared on 86 of 771 lines.)
 - **Parsing pipeline** (`internal/pipeline`) - wires the cache and parsers together behind a
   bounded worker pool; parses one mod's files in parallel, merges results in deterministic
   order (parse in parallel, merge sequentially - load-order correctness, not just speed), and
@@ -127,6 +151,31 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   Writing state requires an explicit target directory with **no fallback to a real path** -
   stricter than `internal/scan`'s override, because this package writes rather than reads. See
   [docs/game-launching.md](docs/game-launching.md).
+- **Stop playing, and the game's own logs live** (`internal/gameproc`, `internal/gamelog`,
+  `Workspace.tsx`, `GameLogModal.tsx`) - while the game is running the **Play** button
+  becomes a red **Stop playing** button, however the game was started (from here, from Steam, from the
+  Paradox Launcher), and it turns back the moment the game closes. A first press only asks ("click
+  again to stop", it lapses after a few seconds), since ending a game loses whatever it hadn't
+  saved; the second asks the game to close and forces it if it hasn't after five seconds. The game
+  is recognised by its own executable's name, never by a substring of a command line (a file
+  manager with the game's mod folder open is not the game, and would otherwise have been killed);
+  a launcher script such as Hearts of Iron IV's `run_hoi4` is followed to the real program it starts,
+  so stopping ends both. Under Proton the same names with `.exe` are matched too. The button under
+  Play, formerly a disabled "Export log", is now **View log**: a live window on the game's own log
+  files (`error.log` first, since that is where broken mods show up), with the last lines at once and
+  new ones as the game writes them, filterable by warnings or errors and by text, with a dot showing
+  whether the game is running. The follower copes with what these files actually do: the game
+  truncates them on every start (the view resets), can append megabytes in a second (only the newest
+  is read, and the skip is noted), and writes a line in pieces (a line appears only once complete).
+  Process listing and stopping is written for Linux (`/proc`), Windows and macOS; it has been run
+  against real processes on Linux only. See [docs/game-launching.md](docs/game-launching.md).
+- **Domain bars with the letter cut out** (`Workspace.tsx`, `Workspace.css`) - each row of the Active
+  load order shows six bars, one per content folder (C common, E events, G gfx, I interface,
+  L localisation, M map), coloured by what really happens to that mod there: red when everything it
+  contests is lost, amber for a mix, quiet grey when it wins or isn't contested. The letter is stenciled
+  into the bar itself instead of being printed separately in the column header: each bar is a CSS mask
+  with the letter as a hole, so the row's own background (hover, selected) shows through it. The glyphs
+  are drawn as SVG shapes rather than font text, so they look the same on every platform.
 - **Launcher bypass, opt-in per game** (Settings' Launch Options panel, `launch.LaunchMode`) -
   since mod/playset activation already happens entirely through this project's own state writes
   above, the Paradox Launcher has nothing left to do; "Parallax Direct" mode resolves and starts
@@ -190,7 +239,16 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   playset file errors on load rather than silently resetting to empty. A mod left out of a
   playset's order is skipped by `internal/library` before parsing even starts, not just
   filtered out afterward - disabling mods is a real scan-time performance win, not just a
-  smaller conflict set. The Workspace UI (available/active load-order lists, a mod detail
+  smaller conflict set. Saved playsets can be **renamed and deleted** from the Playsets dialog:
+  a rename keeps the mods, order and DLC choices exactly, refuses a name that's empty or already taken
+  (judged on the file the name would land in, since names are sanitized into file names, so it can
+  never overwrite another playset), writes the new one before removing the old so a failure can't lose
+  it, and repoints the settings that remember a playset by name (last active, pinned for auto-load);
+  deleting one clears those settings, and never throws away the load order on screen. The app also
+  **notices when a game updates**: it remembers each game's last-seen version, checks at startup and
+  whenever the window regains focus (Steam may have updated it in the background), and raises a
+  persistent notification once per update - and a generated patch made for another game major.minor
+  is flagged as out of date. The Workspace UI (available/active load-order lists, a mod detail
   panel, and an actions rail with the playset picker and the launch button) adopts the visual
   design and terminology from `mockup/Mod Manager.dc.html`, a local design reference kept out
   of version control; that mockup also sketches a larger product (a cross-game library, DLC
@@ -231,7 +289,10 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   into one refresh instead of several) and updates the moment a mod is added or removed,
   without discarding the load order you've already built or Available-list selections you
   haven't added yet - a refresh only prunes mods that no longer exist, via Wails' event bridge
-  (`EventsEmit`/`EventsOn`) rather than polling. Three real preferences persist across restarts
+  (`EventsEmit`/`EventsOn`) rather than polling. The app's own writes (generating the patch,
+  purging mods) are muted, since it already refreshes the list itself when they finish; a watcher
+  restarts only when the scanning setting is toggled, not on every settings save; and if the
+  operating system's event queue overflows (so changes were lost) that counts as a change. Three real preferences persist across restarts
   (JSONC, `internal/preferences`): scanning for new mods (gates the watcher above), closing the
   manager after a successful launch, and remembering the last game you managed so it's
   preselected next time. "Warn on patch mismatch" is stored alongside them but stays an
@@ -307,8 +368,9 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   under this project's control. Localization conflicts are patched too, not just classic script
   ones - a localisation `Type` gets a real `.yml` file with its own language header and UTF-8
   BOM, matching what real Paradox locale files carry. Confirmed on this project's own real
-  ~4,800-conflict Stellaris install: every conflict patched with byte-exact content, zero
-  skipped, including 542 localization entries spanning 10 real languages. Classic-descriptor
+  86-mod Stellaris install: all 5,841 conflicts patched with byte-exact content, zero skipped,
+  including 1,595 localization entries across 10 real languages (209 of them carrying a trailing
+  `# comment`, kept verbatim), and every generated file parses back with nothing lost. Classic-descriptor
   games only; regenerated from a clean slate on every call so a resolved-then-later-removed
   conflict never leaves a stale override behind.
   The patch is a **proper mod**: a `descriptor.mod` inside its folder plus the registering stub in
@@ -322,7 +384,7 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   appeared. Stale keys get an **orange line** in the Conflict Resolver with the reasons spelled out,
   a banner offers **Regenerate patch**, and the Workspace raises a persistent notification. The
   comparison is on content, not version numbers or file times, so an update that never touched a
-  patched key doesn't flag anything. Checked against this project's real 86-mod install: 4,788
+  patched key doesn't flag anything. Checked against this project's real 86-mod install: 5,841
   conflicts patched and then all reported current. The generated patch is no longer counted as a
   competitor in the conflicts it resolves. Its descriptor also lists every loaded mod as a
   dependency (by name, in load order), so the launcher loads it after all of them, and Autosort
@@ -339,15 +401,29 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   same safe fallback a missing override already has. Both the Conflict Resolver's own display and
   `GeneratePatch`'s actual byte-copying read the exact same computed winner, so what a user sees
   win is always what gets patched - never two separate calculations that could drift apart.
-- **About page** (`frontend/src/views/About.tsx`, `internal/about`) - the app's version, the
-  commit it was built from, Go and Wails versions, platform, and where its settings and cache
-  live (with buttons to open them), plus what it does, drawn as GitHub-style badges and Font
-  Awesome Pro icons (brand logos for the link buttons, duotone for the feature cards). The badges
-  are drawn locally from the real build details rather than fetched from a badge service, so the
-  page makes no network requests. The link buttons come from `data/about.jsonc`, embedded and
-  replaceable by `~/.config/parallax-mod-manager/about.jsonc`: an entry with no URL is hidden, and
-  anything that isn't an absolute http(s) address is dropped, so adding a Discord invite is one
-  line and a hand-edited file can't put a bad link on the page.
+- **About page and activity log** (`Settings > About`, `frontend/src/views/About.tsx`,
+  `internal/about`, `internal/applog`) - the app's version, the commit it was built from, Go and
+  Wails versions, platform and where its settings, cache and log live (with buttons to open them),
+  drawn as GitHub-style badges and Font Awesome Pro icons for the link buttons. The badges come from
+  the real build details rather than a badge service, so the page makes no network requests, and the
+  links and credit line are fixed in the code, not a configurable file. Below them is a live,
+  colored **activity log** of what the app is doing - one line per notable step in the same shape as
+  Go's own logger (`2026/07/06 00:09:37 [Scan] 'Stellaris': 86 mods, 4788 conflicts (2261ms)`),
+  tagged by the part of the app that did it, with quoted names and numbers highlighted and each
+  step's duration colored from quiet green through amber to red. It follows new lines as they
+  happen, stops following the moment you scroll up, and can be filtered by level, component or text,
+  copied out as text, or cleared (the file keeps its lines). Scans (with how well the cache worked
+  and how long conflict detection took), patch generation, launches (state written, Steam or
+  direct), playsets and collections, game detection and install or extra mod folders, the
+  mod-folder watcher, every Steam lookup and background DLC refresh (whose failures used to be
+  swallowed silently), Autosort, which settings each save changed, and any uncaught error in the UI
+  itself all log to it. A mod file the parsers couldn't fully read is named with its mod and the
+  reason (once, when it is first seen or changes - not on every scan), and the generated patch's
+  status is logged when it changes rather than on every rescan. Every line is also
+  appended to a rotating file (`app.log`, at most about 4 MB across the current and previous file)
+  in the cache folder, so there's something to attach to a bug report. The logger is a small
+  reusable package - see [docs/logging.md](docs/logging.md) - meant to be used more and more as the
+  project grows.
 - **Real autosort** (`frontend/src/data/autosort.ts`, Workspace's Autosort button, Settings'
   "Sort rules" panel) - two real, derivable rules, adapted from a proven design (a working
   sibling Stellaris mod-sorting tool on this machine, cross-checked against its own real-world
@@ -659,6 +735,11 @@ that legitimately does rewrite the file's `modsOrder`).
   can't be edited. No code yet, and the intent behind the label was never written down;
   [docs/exclude-file.md](docs/exclude-file.md) works through the mechanisms and the open
   questions to settle before building.
+- **Uploading the activity log** - the log view's **Upload** button is shown disabled. When built it
+  opens a review dialog (the redacted log, exactly as it would be sent) with an opt-in "include
+  computer details" option (CPU, GPU, OS, mod counts, whether a patch has been generated, and so on)
+  to help with statistics and investigating bugs. Never uploads without a confirmation, never sends mod
+  names or account IDs. No code behind the button yet; see [docs/log-sharing.md](docs/log-sharing.md).
 - **Playset sharing via codes** - the Library screen's collections and bulk actions are now real
   (see [Progress](#progress) above); encoding/decoding a playset as a shareable local code
   ("Import code"/"Share"/"Join a friend's playset" in the Playsets modal) is still a static

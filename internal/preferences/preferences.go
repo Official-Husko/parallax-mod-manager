@@ -8,6 +8,9 @@ package preferences
 import (
 	"os"
 	"path/filepath"
+	"reflect"
+	"sort"
+	"strings"
 
 	"github.com/Official-Husko/parallax-mod-manager/internal/atomicfile"
 	"github.com/Official-Husko/parallax-mod-manager/internal/jsonc"
@@ -127,6 +130,53 @@ type Preferences struct {
 	// unset by its one reader (Workspace's own mount effect) rather than
 	// erroring, the same as LastActivePlaysets above.
 	PlaysetAutoloadCustom map[string]string `json:"playsetAutoloadCustom"`
+	// LastSeenGameVersions records, per game ID, the installed version the app
+	// last saw - what "the game updated" is judged against (see
+	// ObserveGameVersions). It belongs to the backend: the frontend holds
+	// copies of the preferences and writes them back whole, so App.SetPreferences
+	// ignores whatever it sends for this field.
+	LastSeenGameVersions map[string]string `json:"lastSeenGameVersions"`
+}
+
+// VersionChange is one game whose installed version differs from the last one
+// seen.
+type VersionChange struct {
+	GameID string
+	From   string
+	To     string
+}
+
+// ObserveGameVersions records current (game ID -> installed version) as the
+// versions last seen, and reports which games changed from a version seen
+// before. A game seen for the first time is only recorded - there was nothing
+// to update from - and an empty version (the game isn't installed, or reports
+// none) is ignored entirely: never a change, never recorded, so a game that
+// briefly can't be found doesn't turn into a false "updated" when it returns.
+// Changes are in game ID order. p itself isn't modified.
+func (p Preferences) ObserveGameVersions(current map[string]string) (Preferences, []VersionChange) {
+	seen := make(map[string]string, len(p.LastSeenGameVersions)+len(current))
+	for k, v := range p.LastSeenGameVersions {
+		seen[k] = v
+	}
+	ids := make([]string, 0, len(current))
+	for id := range current {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+
+	var changes []VersionChange
+	for _, id := range ids {
+		version := current[id]
+		if version == "" {
+			continue
+		}
+		if was := seen[id]; was != "" && was != version {
+			changes = append(changes, VersionChange{GameID: id, From: was, To: version})
+		}
+		seen[id] = version
+	}
+	p.LastSeenGameVersions = seen
+	return p, changes
 }
 
 // Defaults returns the preferences a fresh install starts with.
@@ -167,4 +217,79 @@ func Save(path string, p Preferences) error {
 	dir, filename := filepath.Split(path)
 	_, err := atomicfile.WriteJSON(dir, filename, p)
 	return err
+}
+
+// WithPlaysetRenamed returns p with every reference to gameID's playset oldName
+// pointing at newName instead: the playset remembered as last active, and the
+// one pinned for auto-loading. Playsets are referred to by name in settings, so
+// a rename that didn't do this would leave them pointing at nothing. p itself
+// isn't modified - its maps may be shared with other copies.
+func (p Preferences) WithPlaysetRenamed(gameID, oldName, newName string) Preferences {
+	p.LastActivePlaysets = replacedEntry(p.LastActivePlaysets, gameID, oldName, newName, false)
+	p.PlaysetAutoloadCustom = replacedEntry(p.PlaysetAutoloadCustom, gameID, oldName, newName, false)
+	return p
+}
+
+// WithoutPlayset returns p with every reference to gameID's playset name
+// removed - what a deleted playset should leave behind. (A game with no last
+// active or pinned playset just falls back to its default, "start blank".)
+func (p Preferences) WithoutPlayset(gameID, name string) Preferences {
+	p.LastActivePlaysets = replacedEntry(p.LastActivePlaysets, gameID, name, "", true)
+	p.PlaysetAutoloadCustom = replacedEntry(p.PlaysetAutoloadCustom, gameID, name, "", true)
+	return p
+}
+
+// replacedEntry returns m with m[key] changed from old to new (or deleted, if
+// remove) when it currently equals old, as a copy - m is returned as-is when
+// there's nothing to change.
+func replacedEntry(m map[string]string, key, old, new string, remove bool) map[string]string {
+	if m[key] != old || old == "" {
+		return m
+	}
+	out := make(map[string]string, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	if remove {
+		delete(out, key)
+	} else {
+		out[key] = new
+	}
+	return out
+}
+
+// ChangedKeys names the settings that differ between two Preferences, using
+// their JSON names (the ones a person sees in preferences.jsonc), in field
+// order - what the activity log records when settings are saved, so "preferences
+// saved" says which ones. Settings that are maps or lists count as one setting
+// each, changed if any entry is.
+func ChangedKeys(before, after Preferences) []string {
+	var keys []string
+	bv, av := reflect.ValueOf(before), reflect.ValueOf(after)
+	t := bv.Type()
+	for i := 0; i < t.NumField(); i++ {
+		if sameSetting(bv.Field(i), av.Field(i)) {
+			continue
+		}
+		name, _, _ := strings.Cut(t.Field(i).Tag.Get("json"), ",")
+		if name == "" {
+			name = t.Field(i).Name
+		}
+		keys = append(keys, name)
+	}
+	return keys
+}
+
+// sameSetting compares one setting's old and new value. An empty map or list
+// equals a nil one: preferences travel through JSON, where "nothing set" turns
+// up as either depending on which side last touched it, and that isn't a change
+// anyone made.
+func sameSetting(a, b reflect.Value) bool {
+	switch a.Kind() {
+	case reflect.Map, reflect.Slice:
+		if a.Len() == 0 && b.Len() == 0 {
+			return true
+		}
+	}
+	return reflect.DeepEqual(a.Interface(), b.Interface())
 }

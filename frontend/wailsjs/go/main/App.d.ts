@@ -3,11 +3,14 @@
 import {about} from '../models';
 import {library} from '../models';
 import {dlcstore} from '../models';
+import {gamelog} from '../models';
+import {gameproc} from '../models';
 import {preferences} from '../models';
 import {launcherdb} from '../models';
 import {collection} from '../models';
 import {dlc} from '../models';
 import {playset} from '../models';
+import {applog} from '../models';
 import {steamapi} from '../models';
 
 export function AboutInfo():Promise<about.Info>;
@@ -20,7 +23,11 @@ export function BrowseForExtraModFolder(arg1:string):Promise<string>;
 
 export function BrowseForGameInstall(arg1:string):Promise<library.DetectedGame>;
 
+export function CheckGameUpdates():Promise<Array<library.GameUpdate>>;
+
 export function ClearGamePath(arg1:string):Promise<library.DetectedGame>;
+
+export function ClearLog():Promise<void>;
 
 export function ClearPatchOverrides(arg1:string):Promise<void>;
 
@@ -34,7 +41,11 @@ export function DetectGames():Promise<Array<library.DetectedGame>>;
 
 export function FindEmptyMods(arg1:string):Promise<Array<library.EmptyModCandidate>>;
 
+export function GameLogFiles(arg1:string):Promise<gamelog.Listing>;
+
 export function GameMedia(arg1:string,arg2:string):Promise<string>;
+
+export function GameStatus(arg1:string):Promise<gameproc.Status>;
 
 export function GameVersion(arg1:string):Promise<string>;
 
@@ -60,6 +71,10 @@ export function ListPlaysets(arg1:string):Promise<Array<string>>;
 
 export function LoadPlayset(arg1:string,arg2:string):Promise<playset.Playset>;
 
+export function LogEntries():Promise<Array<applog.Entry>>;
+
+export function LogEvent(arg1:string,arg2:string,arg3:string):Promise<void>;
+
 export function ModChangelog(arg1:string):Promise<Array<steamapi.ChangelogEntry>>;
 
 export function ModSizes(arg1:string):Promise<Record<string, number>>;
@@ -75,6 +90,8 @@ export function PurgeMods(arg1:string,arg2:Array<string>):Promise<library.PurgeR
 export function ReadModFile(arg1:string,arg2:string,arg3:string):Promise<library.ModFileContent>;
 
 export function RemoveExtraModFolder(arg1:string,arg2:string):Promise<void>;
+
+export function RenamePlayset(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function ResolvedConflicts(arg1:string):Promise<Array<string>>;
 
@@ -95,6 +112,12 @@ export function SetPatchOverride(arg1:string,arg2:string,arg3:string,arg4:string
 export function SetPreferences(arg1:preferences.Preferences):Promise<void>;
 
 export function StartupNotice():Promise<string>;
+
+export function StopGame(arg1:string):Promise<number>;
+
+export function StopWatchingGameLog():Promise<void>;
+
+export function WatchGameLog(arg1:string,arg2:string):Promise<number>;
 
 export function WatchMods(arg1:string):Promise<void>;
 

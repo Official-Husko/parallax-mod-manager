@@ -1,0 +1,252 @@
+.log-view {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    background: rgba(8, 11, 15, .82);
+    overflow: hidden;
+    min-width: 0;
+}
+
+.log-toolbar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-header);
+    font: 500 11px Barlow, sans-serif;
+    color: var(--text-muted);
+}
+
+.log-levels {
+    display: inline-flex;
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.log-level-btn {
+    padding: 4px 10px;
+    cursor: pointer;
+    color: var(--text-muted);
+    border-right: 1px solid var(--border-light);
+}
+
+.log-level-btn:last-child {
+    border-right: none;
+}
+
+.log-level-btn:hover {
+    color: var(--text-bright);
+}
+
+.log-level-btn.active {
+    background: #1e2734;
+    color: var(--text-bright);
+}
+
+.log-select,
+.log-search {
+    height: 26px;
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    background: #10151c;
+    color: var(--text-mid);
+    font: 500 11px Barlow, sans-serif;
+}
+
+.log-select {
+    padding: 0 6px;
+    max-width: 150px;
+}
+
+.log-search {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 8px;
+}
+
+.log-search i {
+    font-size: 10px;
+    color: var(--text-dim);
+}
+
+.log-search input {
+    width: 130px;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--text-bright);
+    font: 500 11px Barlow, sans-serif;
+}
+
+.log-spacer {
+    flex: 1;
+}
+
+.log-count {
+    color: var(--text-dim);
+    font-family: "Azeret Mono", monospace;
+    font-size: 10.5px;
+}
+
+.log-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 9px;
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    background: #161d27;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+.log-btn:hover {
+    color: var(--text-bright);
+}
+
+.log-btn.inert {
+    opacity: .45;
+    cursor: not-allowed;
+}
+
+.log-btn.inert:hover {
+    color: var(--text-muted);
+}
+
+.log-btn.on {
+    color: var(--green);
+    border-color: rgba(95, 174, 126, .5);
+}
+
+.log-btn i {
+    font-size: 10.5px;
+}
+
+/* --- The lines. Exactly LINE_HEIGHT (19px) tall each, in LogView.tsx - the
+   windowing maths depends on it - and never wrapped: a long message is cut
+   with an ellipsis, and the full line is in its tooltip. --- */
+
+.log-body {
+    height: 400px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 6px 0;
+    font: 400 11.5px "Azeret Mono", monospace;
+}
+
+.log-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 19px;
+    padding: 0 12px;
+    white-space: pre;
+    overflow: hidden;
+    color: #c3cad4;
+}
+
+.log-line:hover {
+    background: rgba(255, 255, 255, .035);
+}
+
+.log-time {
+    flex: none;
+    color: #5c6773;
+}
+
+.log-comp {
+    flex: none;
+    font-weight: 600;
+}
+
+.log-level {
+    flex: none;
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    padding: 1px 5px;
+    border-radius: 3px;
+}
+
+.log-msg {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Quoted names and numbers - the same colours as the file viewer's syntax
+   highlighting, so the app reads as one system. */
+.log-string {
+    color: #b8cc7a;
+}
+
+.log-number {
+    color: #d19a66;
+}
+
+.log-duration {
+    flex: none;
+    margin-left: auto;
+    padding-left: 12px;
+}
+
+.log-duration.dur-quick {
+    color: #4f7a62;
+}
+
+.log-duration.dur-slow {
+    color: var(--amber);
+}
+
+.log-duration.dur-very-slow {
+    color: var(--red);
+    font-weight: 600;
+}
+
+.log-line.debug .log-msg {
+    color: #6b7686;
+}
+
+.log-line.debug .log-level {
+    color: #6b7686;
+    background: rgba(107, 118, 134, .18);
+}
+
+.log-line.warn .log-msg,
+.log-line.warn .log-string,
+.log-line.warn .log-number {
+    color: #e6bd72;
+}
+
+.log-line.warn .log-level {
+    color: #1a1208;
+    background: var(--amber);
+}
+
+.log-line.error {
+    background: rgba(212, 87, 78, .07);
+}
+
+.log-line.error .log-msg,
+.log-line.error .log-string,
+.log-line.error .log-number {
+    color: #f0a39d;
+}
+
+.log-line.error .log-level {
+    color: #180a09;
+    background: var(--red);
+}
+
+.log-empty {
+    padding: 28px 16px;
+    text-align: center;
+    color: var(--text-dim);
+    font: 400 12px Barlow, sans-serif;
+}

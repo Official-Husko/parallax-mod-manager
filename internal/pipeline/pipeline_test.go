@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -247,5 +248,222 @@ func TestLoadModEmptyModProducesNoDefinitions(t *testing.T) {
 	}
 	if len(defs) != 0 {
 		t.Errorf("expected no definitions, got %+v", defs)
+	}
+}
+
+// countingStore wraps a real store and counts how often each mod cache is
+// written back.
+type countingStore struct {
+	cache.FileStore
+	mu    sync.Mutex
+	saves int
+}
+
+func (s *countingStore) Save(ctx context.Context, c *cache.ModCache) error {
+	s.mu.Lock()
+	s.saves++
+	s.mu.Unlock()
+	return s.FileStore.Save(ctx, c)
+}
+
+func TestLoadModOnlyWritesTheCacheWhenSomethingChanged(t *testing.T) {
+	contentDir := t.TempDir()
+	writeFile(t, contentDir, "common/buildings/a.txt", `thing_a = { cost = 1 }`)
+	writeFile(t, contentDir, "common/buildings/b.txt", `thing_b = { cost = 2 }`)
+	m := mod.Mod{ID: "m", ContentPath: contentDir}
+	store := &countingStore{FileStore: cache.FileStore{Dir: t.TempDir()}}
+	stats := &Stats{}
+	opts := Options{Store: store, Stats: stats}
+	ctx := context.Background()
+
+	first, err := LoadMod(ctx, m, testGame("g"), opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if store.saves != 1 || stats.Parsed.Load() != 2 || stats.Saved.Load() != 1 {
+		t.Fatalf("first run: saves=%d parsed=%d, want 1 and 2 (everything is new)", store.saves, stats.Parsed.Load())
+	}
+
+	second, err := LoadMod(ctx, m, testGame("g"), opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if store.saves != 1 {
+		t.Errorf("an unchanged second run wrote the cache again (saves=%d) - it has nothing new to write", store.saves)
+	}
+	if !reflect.DeepEqual(first, second) {
+		t.Error("skipping the save must not change what LoadMod returns")
+	}
+	if stats.Cached.Load() != 2 {
+		t.Errorf("cached = %d, want both files reused on stat alone", stats.Cached.Load())
+	}
+
+	// A real edit (different size, so the stat check can't miss it) is written.
+	writeFile(t, contentDir, "common/buildings/a.txt", `thing_a = { cost = 100 extra = yes }`)
+	third, err := LoadMod(ctx, m, testGame("g"), opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if store.saves != 2 {
+		t.Errorf("saves = %d after an edit, want 2", store.saves)
+	}
+	if len(third) != 2 || stats.Parsed.Load() != 3 {
+		t.Errorf("after the edit: defs=%d parsed=%d, want 2 and 3", len(third), stats.Parsed.Load())
+	}
+	if stats.Files.Load() != 6 || stats.Cached.Load() != 3 {
+		t.Errorf("files=%d cached=%d, want 6 examined and 3 cached in total", stats.Files.Load(), stats.Cached.Load())
+	}
+
+	// And the edit really reached the disk: a fresh run after it saves nothing.
+	if _, err := LoadMod(ctx, m, testGame("g"), opts); err != nil {
+		t.Fatal(err)
+	}
+	if store.saves != 2 {
+		t.Errorf("saves = %d, want the edited cache to have been persisted (no fourth write)", store.saves)
+	}
+}
+
+func TestLoadModTouchedFileRefreshesTheCacheOnce(t *testing.T) {
+	contentDir := t.TempDir()
+	writeFile(t, contentDir, "common/buildings/a.txt", `thing_a = { cost = 1 }`)
+	m := mod.Mod{ID: "m", ContentPath: contentDir}
+	store := &countingStore{FileStore: cache.FileStore{Dir: t.TempDir()}}
+	stats := &Stats{}
+	opts := Options{Store: store, Stats: stats}
+	ctx := context.Background()
+	if _, err := LoadMod(ctx, m, testGame("g"), opts); err != nil {
+		t.Fatal(err)
+	}
+
+	later := time.Now().Add(time.Hour)
+	if err := os.Chtimes(filepath.Join(contentDir, "common/buildings/a.txt"), later, later); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 2; i++ {
+		if _, err := LoadMod(ctx, m, testGame("g"), opts); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if stats.Touched.Load() != 1 {
+		t.Errorf("touched = %d, want 1 (same content, new mtime, seen once)", stats.Touched.Load())
+	}
+	if store.saves != 2 {
+		t.Errorf("saves = %d, want 2: the first parse, and one to record the new mtime - after which it's a plain hit", store.saves)
+	}
+}
+
+func TestStatsKeepCountingAFileThatFailsToParseOnWarmRuns(t *testing.T) {
+	contentDir := t.TempDir()
+	writeFile(t, contentDir, "common/buildings/good.txt", `thing = { cost = 1 }`)
+	writeFile(t, contentDir, "common/buildings/bad.txt", `thing = { cost = `)
+	m := mod.Mod{ID: "m", ContentPath: contentDir}
+	opts := Options{Store: cache.FileStore{Dir: t.TempDir()}}
+	for run := 1; run <= 2; run++ {
+		stats := &Stats{}
+		opts.Stats = stats
+		if _, err := LoadMod(context.Background(), m, testGame("g"), opts); err != nil {
+			t.Fatal(err)
+		}
+		if stats.ParseErrors.Load() != 1 {
+			t.Errorf("run %d: ParseErrors = %d, want 1 - the broken file is still broken on a warm run", run, stats.ParseErrors.Load())
+		}
+	}
+}
+
+func TestStatsNameAFileThatFailsToParseOnlyOnTheRunThatFirstHitIt(t *testing.T) {
+	contentDir := t.TempDir()
+	writeFile(t, contentDir, "common/buildings/good.txt", `thing = { cost = 1 }`)
+	writeFile(t, contentDir, "common/buildings/bad.txt", `thing = { cost = `)
+	m := mod.Mod{ID: "m", ContentPath: contentDir}
+	opts := Options{Store: cache.FileStore{Dir: t.TempDir()}}
+
+	first := &Stats{}
+	opts.Stats = first
+	if _, err := LoadMod(context.Background(), m, testGame("g"), opts); err != nil {
+		t.Fatal(err)
+	}
+	problems, more := first.Problems()
+	if more != 0 || len(problems) != 1 {
+		t.Fatalf("first run: problems = %+v (+%d more), want exactly the broken file", problems, more)
+	}
+	if p := problems[0]; p.ModID != "m" || p.Path != "common/buildings/bad.txt" || p.Err == "" {
+		t.Errorf("first run: problem = %+v, want the mod, the file's relative path and a reason", p)
+	}
+
+	// Warm: still counted, but not named again - it isn't news.
+	second := &Stats{}
+	opts.Stats = second
+	if _, err := LoadMod(context.Background(), m, testGame("g"), opts); err != nil {
+		t.Fatal(err)
+	}
+	if problems, _ := second.Problems(); len(problems) != 0 {
+		t.Errorf("warm run named %+v again, want nothing new", problems)
+	}
+	if second.ParseErrors.Load() != 1 {
+		t.Errorf("warm run ParseErrors = %d, want it still counted", second.ParseErrors.Load())
+	}
+
+	// Editing the file makes it a new parse - and a new report if still broken.
+	writeFile(t, contentDir, "common/buildings/bad.txt", `thing = { cost = 2 `)
+	third := &Stats{}
+	opts.Stats = third
+	if _, err := LoadMod(context.Background(), m, testGame("g"), opts); err != nil {
+		t.Fatal(err)
+	}
+	if problems, _ := third.Problems(); len(problems) != 1 {
+		t.Errorf("a changed, still-broken file should be named again, got %+v", problems)
+	}
+}
+
+func TestStatsKeepOnlyTheFirstFewProblemsAndCountTheRest(t *testing.T) {
+	contentDir := t.TempDir()
+	total := maxProblems + 7
+	for i := 0; i < total; i++ {
+		writeFile(t, contentDir, fmt.Sprintf("common/buildings/bad%03d.txt", i), `thing = { cost = `)
+	}
+	m := mod.Mod{ID: "m", ContentPath: contentDir}
+	stats := &Stats{}
+	if _, err := LoadMod(context.Background(), m, testGame("g"), Options{Store: cache.FileStore{Dir: t.TempDir()}, Stats: stats}); err != nil {
+		t.Fatal(err)
+	}
+	problems, more := stats.Problems()
+	if len(problems) != maxProblems || more != total-maxProblems {
+		t.Errorf("kept %d (+%d more), want %d (+%d more)", len(problems), more, maxProblems, total-maxProblems)
+	}
+	if got := stats.ParseErrors.Load(); got != int64(total) {
+		t.Errorf("ParseErrors = %d, want every one of the %d counted", got, total)
+	}
+}
+
+func TestLoadModKeepsTheGoodEntriesOfALocaleFileWithABadLine(t *testing.T) {
+	contentDir := t.TempDir()
+	writeFile(t, contentDir, "localisation/english/l_test.yml",
+		"l_english:\n KEY_A:0 \"one\"\n BROKEN:0 \"runs over\nonto another line\"\n KEY_B:0 \"two\" # with a comment\n")
+	writeFile(t, contentDir, "localisation/english/l_clean.yml", "l_english:\n KEY_C:0 \"three\"\n")
+	m := mod.Mod{ID: "m", ContentPath: contentDir}
+	opts := Options{Store: cache.FileStore{Dir: t.TempDir()}}
+
+	for run := 1; run <= 2; run++ {
+		stats := &Stats{}
+		opts.Stats = stats
+		defs, err := LoadMod(context.Background(), m, testGame("g"), opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids := map[string]bool{}
+		for _, d := range defs {
+			ids[d.ID] = true
+		}
+		for _, want := range []string{"KEY_A", "KEY_B", "KEY_C"} {
+			if !ids[want] {
+				t.Errorf("run %d: %s missing from %v - one bad line must not cost the file", run, want, ids)
+			}
+		}
+		if ids["BROKEN"] {
+			t.Errorf("run %d: the unreadable line must not become a definition", run)
+		}
+		if stats.ParseErrors.Load() != 1 {
+			t.Errorf("run %d: files with problems = %d, want 1 (also on the warm run)", run, stats.ParseErrors.Load())
+		}
 	}
 }

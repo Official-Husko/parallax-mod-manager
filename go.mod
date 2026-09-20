@@ -11,6 +11,7 @@ require (
 	github.com/wailsapp/wails/v2 v2.15.0
 	golang.org/x/net v0.59.0
 	golang.org/x/sync v0.23.0
+	golang.org/x/sys v0.48.0
 	modernc.org/sqlite v1.59.0
 )
 
@@ -40,7 +41,6 @@ require (
 	github.com/wailsapp/go-webview2 v1.0.23 // indirect
 	github.com/wailsapp/mimetype v1.4.1 // indirect
 	golang.org/x/crypto v0.57.0 // indirect
-	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.42.0 // indirect
 	modernc.org/libc v1.75.7 // indirect
 	modernc.org/mathutil v1.7.1 // indirect

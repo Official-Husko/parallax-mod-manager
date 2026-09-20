@@ -25,10 +25,22 @@ type Entry struct {
 	StartOffset, EndOffset int
 }
 
+// SkippedLine is a line of an entry section that couldn't be read as an entry
+// and was left out - see Parse.
+type SkippedLine struct {
+	Line   int
+	Reason string
+}
+
 // Catalog is one parsed .yml file.
 type Catalog struct {
 	Language string // e.g. "english", from the "l_english:" header
 	Entries  []Entry
+	// Skipped lists the lines that weren't valid entries. A modder's typo - a
+	// value that runs over onto a second line, a stray character after the
+	// closing quote - costs that line, not the whole file: the game reports the
+	// bad line and carries on with the rest, and so does Parse.
+	Skipped []SkippedLine
 }
 
 var headerPrefix = []byte("l_")
@@ -43,7 +55,14 @@ var utf8BOM = []byte{0xEF, 0xBB, 0xBF}
 // A trailing "\r" before "\n" is stripped from the line's content, same as
 // bufio.ScanLines already did before this was written by hand.
 func Parse(src []byte) (*Catalog, error) {
-	trimmedSrc := bytes.TrimPrefix(src, utf8BOM)
+	// More than one BOM in a row does occur in the wild (a file saved by a tool
+	// that adds its own to one that already had it) - strip them all, not just
+	// the first, or the header line comes out with a stray "\ufeff" in front
+	// and the whole file is rejected.
+	trimmedSrc := src
+	for bytes.HasPrefix(trimmedSrc, utf8BOM) {
+		trimmedSrc = trimmedSrc[len(utf8BOM):]
+	}
 	// baseOffset corrects StartOffset/EndOffset back to be relative to the
 	// original src the caller passed in (3 when a BOM was present, else
 	// 0) - a real bug once shipped: without this, every offset was
@@ -58,6 +77,7 @@ func Parse(src []byte) (*Catalog, error) {
 	cat := &Catalog{}
 	lineNo := 0
 	sawHeader := false
+	var firstErr error
 	for pos := 0; pos < len(src); {
 		lineNo++
 		start := pos
@@ -93,7 +113,11 @@ func Parse(src []byte) (*Catalog, error) {
 
 		entry, err := parseEntryLine(trimmed, lineNo)
 		if err != nil {
-			return nil, err
+			if len(cat.Skipped) == 0 {
+				firstErr = err
+			}
+			cat.Skipped = append(cat.Skipped, SkippedLine{Line: lineNo, Reason: err.Error()})
+			continue
 		}
 		entry.StartOffset = start + baseOffset
 		entry.EndOffset = contentEnd + baseOffset
@@ -101,6 +125,12 @@ func Parse(src []byte) (*Catalog, error) {
 	}
 	if !sawHeader {
 		return nil, fmt.Errorf("locale: empty file, expected a language header")
+	}
+	// Skipping bad lines is for a file that is mostly fine. One where nothing
+	// at all was readable isn't a localisation file with a typo in it - it's
+	// something else - so that is still reported as a failure.
+	if len(cat.Entries) == 0 && len(cat.Skipped) > 0 {
+		return nil, firstErr
 	}
 	return cat, nil
 }
@@ -152,10 +182,27 @@ func parseEntryLine(line string, lineNo int) (Entry, error) {
 	return Entry{Key: key, Version: version, Value: value, Line: lineNo}, nil
 }
 
+// parseQuoted extracts the quoted value from the rest of an entry line. The
+// game allows a comment after the closing quote (KEY:0 "text" # note), so the
+// closing quote is the first unescaped one followed by nothing but whitespace
+// or a "#" comment - not simply the last character on the line. A '#' inside
+// the quotes is part of the text, and so is a quote that has more text after
+// it. A line that has no such closing quote falls back to the older rule (the
+// line ends in a quote), so nothing that parsed before parses differently now.
 func parseQuoted(s string) (string, error) {
-	if len(s) < 2 || s[0] != '"' || s[len(s)-1] != '"' {
+	if len(s) < 2 || s[0] != '"' {
 		return "", fmt.Errorf("expected a quoted value, got %q", s)
 	}
-	inner := s[1 : len(s)-1]
-	return strings.ReplaceAll(inner, `\"`, `"`), nil
+	for i := 1; i < len(s); i++ {
+		if s[i] != '"' || s[i-1] == '\\' {
+			continue
+		}
+		if rest := strings.TrimLeft(s[i+1:], " \t"); rest == "" || rest[0] == '#' {
+			return strings.ReplaceAll(s[1:i], `\"`, `"`), nil
+		}
+	}
+	if s[len(s)-1] == '"' {
+		return strings.ReplaceAll(s[1:len(s)-1], `\"`, `"`), nil
+	}
+	return "", fmt.Errorf("expected a quoted value, got %q", s)
 }

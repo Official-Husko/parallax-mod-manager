@@ -1,0 +1,101 @@
+/* The game log window: the app log's own look (components/LogView.css supplies
+   the lines, toolbar and buttons - GameLogModal.tsx imports it), sized as a
+   window of its own. */
+
+.game-log-modal {
+    width: min(1120px, 94vw);
+    height: min(760px, 88vh);
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.game-log-header {
+    display: flex;
+    align-items: center;
+    height: 42px;
+    padding: 0 16px;
+    background: var(--bg-header);
+    border-bottom: 1px solid var(--border);
+    gap: 11px;
+    flex: none;
+}
+
+.game-log-header .title {
+    font: 600 13px Barlow, sans-serif;
+    color: var(--text-bright);
+}
+
+.game-log-header .meta {
+    font-size: 11px;
+    color: var(--text-dim);
+}
+
+.game-log-header .spacer {
+    flex: 1;
+}
+
+.game-log-header .close-btn {
+    cursor: pointer;
+    color: var(--text-muted);
+}
+
+.game-log-header .close-btn:hover {
+    color: var(--text-bright);
+}
+
+/* Whether the game is running, at a glance. */
+.game-log-live {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font: 500 11px Barlow, sans-serif;
+    color: var(--text-dim);
+}
+
+.game-log-live i {
+    font-size: 7px;
+}
+
+.game-log-live.on {
+    color: var(--green);
+}
+
+/* The log fills the window below the header, instead of the fixed height the
+   app log has. */
+.game-log-modal .log-view {
+    flex: 1;
+    min-height: 0;
+    border: none;
+    border-radius: 0;
+}
+
+.game-log-modal .log-body {
+    flex: 1;
+    height: auto;
+    min-height: 0;
+}
+
+.game-log-file {
+    max-width: 230px;
+}
+
+/* A note this app added (some output was skipped), not a line the game wrote. */
+.game-log-line.note .log-msg {
+    color: var(--text-dim);
+    font-style: italic;
+}
+
+/* Lines without the game's "[time][source]" header are continuations of the line
+   before - shader source and the like - so they sit flush left, dimmer. */
+.game-log-line .log-msg:first-child {
+    color: #8a94a1;
+}
+
+.game-log-line.warn .log-msg:first-child,
+.game-log-line.error .log-msg:first-child {
+    color: inherit;
+}

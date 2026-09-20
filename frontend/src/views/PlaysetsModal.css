@@ -105,6 +105,45 @@
     border-color: var(--amber);
 }
 
+.playset-row-actions .btn-ghost.icon {
+    padding: 4px 8px;
+}
+
+.playset-row-actions .btn-ghost.icon:hover {
+    color: var(--text-bright);
+}
+
+.playset-row-actions .btn-ghost.danger {
+    color: var(--red);
+    border-color: var(--red);
+}
+
+.playset-delete-ask {
+    align-self: center;
+    font: 500 11px Barlow, sans-serif;
+    color: var(--text-muted);
+    margin-right: 2px;
+}
+
+.playset-rename-input {
+    min-width: 0;
+    width: 100%;
+    max-width: 320px;
+    padding: 3px 8px;
+    border: 1px solid var(--amber);
+    border-radius: 4px;
+    background: #10151c;
+    color: var(--text-bright);
+    font: 600 14px Barlow, sans-serif;
+    outline: none;
+}
+
+.playset-row-error {
+    margin-top: 5px;
+    font: 500 11.5px Barlow, sans-serif;
+    color: var(--red);
+}
+
 .playsets-import-section {
     display: flex;
     flex-direction: column;

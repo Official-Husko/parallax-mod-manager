@@ -22,8 +22,16 @@ export function BrowseForGameInstall(arg1) {
   return window['go']['main']['App']['BrowseForGameInstall'](arg1);
 }
 
+export function CheckGameUpdates() {
+  return window['go']['main']['App']['CheckGameUpdates']();
+}
+
 export function ClearGamePath(arg1) {
   return window['go']['main']['App']['ClearGamePath'](arg1);
+}
+
+export function ClearLog() {
+  return window['go']['main']['App']['ClearLog']();
 }
 
 export function ClearPatchOverrides(arg1) {
@@ -50,8 +58,16 @@ export function FindEmptyMods(arg1) {
   return window['go']['main']['App']['FindEmptyMods'](arg1);
 }
 
+export function GameLogFiles(arg1) {
+  return window['go']['main']['App']['GameLogFiles'](arg1);
+}
+
 export function GameMedia(arg1, arg2) {
   return window['go']['main']['App']['GameMedia'](arg1, arg2);
+}
+
+export function GameStatus(arg1) {
+  return window['go']['main']['App']['GameStatus'](arg1);
 }
 
 export function GameVersion(arg1) {
@@ -102,6 +118,14 @@ export function LoadPlayset(arg1, arg2) {
   return window['go']['main']['App']['LoadPlayset'](arg1, arg2);
 }
 
+export function LogEntries() {
+  return window['go']['main']['App']['LogEntries']();
+}
+
+export function LogEvent(arg1, arg2, arg3) {
+  return window['go']['main']['App']['LogEvent'](arg1, arg2, arg3);
+}
+
 export function ModChangelog(arg1) {
   return window['go']['main']['App']['ModChangelog'](arg1);
 }
@@ -132,6 +156,10 @@ export function ReadModFile(arg1, arg2, arg3) {
 
 export function RemoveExtraModFolder(arg1, arg2) {
   return window['go']['main']['App']['RemoveExtraModFolder'](arg1, arg2);
+}
+
+export function RenamePlayset(arg1, arg2, arg3) {
+  return window['go']['main']['App']['RenamePlayset'](arg1, arg2, arg3);
 }
 
 export function ResolvedConflicts(arg1) {
@@ -172,6 +200,18 @@ export function SetPreferences(arg1) {
 
 export function StartupNotice() {
   return window['go']['main']['App']['StartupNotice']();
+}
+
+export function StopGame(arg1) {
+  return window['go']['main']['App']['StopGame'](arg1);
+}
+
+export function StopWatchingGameLog() {
+  return window['go']['main']['App']['StopWatchingGameLog']();
+}
+
+export function WatchGameLog(arg1, arg2) {
+  return window['go']['main']['App']['WatchGameLog'](arg1, arg2);
 }
 
 export function WatchMods(arg1) {

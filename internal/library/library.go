@@ -23,10 +23,14 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"runtime"
 	"sort"
+	"sync"
 
+	"github.com/Official-Husko/parallax-mod-manager/internal/applog"
 	"github.com/Official-Husko/parallax-mod-manager/internal/cache"
 	"github.com/Official-Husko/parallax-mod-manager/internal/conflict"
+	"github.com/Official-Husko/parallax-mod-manager/internal/definition"
 	"github.com/Official-Husko/parallax-mod-manager/internal/game"
 	"github.com/Official-Husko/parallax-mod-manager/internal/mod"
 	"github.com/Official-Husko/parallax-mod-manager/internal/patchmanifest"
@@ -131,6 +135,16 @@ type ModSummary struct {
 	// (Autosort keeps it last, dependency checks leave it alone) without
 	// knowing its ID.
 	GeneratedPatch bool
+}
+
+// GameUpdate is a game whose installed version changed since the app last saw
+// it - see App.CheckGameUpdates. From and To are the versions as the game
+// reports them (e.g. "v4.4.5").
+type GameUpdate struct {
+	GameID   string
+	GameName string
+	From     string
+	To       string
 }
 
 // ConflictCandidate is one mod competing for a contested Type+ID pair,
@@ -240,6 +254,11 @@ type Options struct {
 	PatchThumbnail []byte
 }
 
+// maxModWorkers caps how many mods are read at once. More than this stops
+// helping (the work per mod is small once its cache is warm) and only raises
+// how much is in memory at the same moment on a cold run.
+const maxModWorkers = 8
+
 // resolvedGame is the raw, unsummarized output of scanning, parsing, and
 // resolving conflicts for one game - shared by LoadGame (which summarizes
 // it for the frontend) and GeneratePatch (which needs each conflict
@@ -252,6 +271,9 @@ type resolvedGame struct {
 	names        map[string]string
 	result       conflict.Result
 	errs         []string
+	// modsRead is how many enabled mods were actually read for conflict
+	// detection. Zero means "no load order to judge", not "no conflicts".
+	modsRead int
 }
 
 // resolveConflicts scans cfg's mod folder, parses every *enabled* mod
@@ -313,7 +335,8 @@ func resolveConflicts(ctx context.Context, cfg game.GameConfig, opts Options) (r
 		})
 	}
 
-	var inputs []conflict.Input
+	// Decide which mods actually get parsed.
+	var toLoad []mod.Mod
 	for _, m := range mods {
 		if m.ID == patchModID {
 			// The generated patch is an *output* of conflict resolution, not
@@ -340,18 +363,105 @@ func resolveConflicts(ctx context.Context, cfg game.GameConfig, opts Options) (r
 			// (a raw filesystem error) for the exact same problem.
 			continue
 		}
-
-		defs, err := pipeline.LoadMod(ctx, m, cfg, pipeline.Options{Store: cache.FileStore{Dir: opts.CacheDir}})
-		if err != nil {
-			errs = append(errs, fmt.Sprintf("%s: %v", m.ID, err))
-			continue
-		}
-		inputs = append(inputs, conflict.Input{Mod: m, Defs: defs})
+		toLoad = append(toLoad, m)
 	}
 
-	result := conflict.Resolve(order, inputs, conflict.Options{})
+	// Parse them, several mods at a time. Each mod's own files are already
+	// parsed in parallel inside pipeline.LoadMod, but a warm run is dominated
+	// by something that isn't per-file: reading and decoding each mod's cache
+	// file, one after another. Loading a few mods at once overlaps those, and
+	// lets a run of small mods proceed while one huge mod is still working.
+	// Results land in a slot per mod and are merged below in the original
+	// order, so what the conflict logic sees - and so which mod wins - is
+	// exactly what a sequential load would have produced (see
+	// docs/performance-strategy.md: parse in parallel, merge sequentially).
+	type loaded struct {
+		defs []definition.Definition
+		err  error
+	}
+	results := make([]loaded, len(toLoad))
+	stats := &pipeline.Stats{}
+	loadTimer := applog.For("Cache").Begin()
+	modWorkers := min(runtime.NumCPU(), maxModWorkers)
+	fileWorkers := max(1, runtime.NumCPU()/modWorkers) // keep the total near the core count
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, modWorkers)
+	for i, m := range toLoad {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func() {
+			defer wg.Done()
+			defer func() { <-sem }()
+			defs, err := pipeline.LoadMod(ctx, m, cfg, pipeline.Options{
+				Store:   cache.FileStore{Dir: opts.CacheDir},
+				Workers: fileWorkers,
+				Stats:   stats,
+			})
+			results[i] = loaded{defs: defs, err: err}
+		}()
+	}
+	wg.Wait()
+	if err := ctx.Err(); err != nil {
+		return resolvedGame{}, err
+	}
 
-	return resolvedGame{mods: mods, modSummaries: modSummaries, names: names, result: result, errs: errs}, nil
+	var inputs []conflict.Input
+	totalDefs := 0
+	for i, m := range toLoad {
+		if results[i].err != nil {
+			errs = append(errs, fmt.Sprintf("%s: %v", m.ID, results[i].err))
+			continue
+		}
+		inputs = append(inputs, conflict.Input{Mod: m, Defs: results[i].defs})
+		totalDefs += len(results[i].defs)
+	}
+	if len(toLoad) > 0 {
+		loadTimer.Infof("read %d mods: %d files (%d cached, %d re-checked, %d parsed, %d with parse problems), %d cache files rewritten",
+			len(toLoad), stats.Files.Load(), stats.Cached.Load(), stats.Touched.Load(), stats.Parsed.Load(), stats.ParseErrors.Load(), stats.Saved.Load())
+		logParseProblems(applog.For("Cache"), stats, names)
+	}
+
+	resolveTimer := applog.For("Conflicts").Begin()
+	// Only the conflicts are used from here on, so the per-key resolution of
+	// every uncontested definition is skipped - see conflict.Options.
+	result := conflict.Resolve(order, inputs, conflict.Options{ConflictsOnly: true})
+	resolveTimer.Infof("%d contested keys among %d definitions from %d mods", len(result.Conflicts), totalDefs, len(inputs))
+
+	return resolvedGame{mods: mods, modSummaries: modSummaries, names: names, result: result, errs: errs, modsRead: len(inputs)}, nil
+}
+
+// logParseProblems names the files stats found a problem with, so the one-line
+// "N with parse problems" summary above it can be acted on: which mod, which
+// file, what was wrong. Only files that were parsed by this very run are named
+// (see pipeline.Stats.Problems), so a mod's broken file is reported when it is
+// first seen or changes, not on every scan.
+func logParseProblems(log applog.Logger, stats *pipeline.Stats, names map[string]string) {
+	problems, more := stats.Problems()
+	for _, p := range problems {
+		name := names[p.ModID]
+		if name == "" {
+			name = p.ModID
+		}
+		log.Warnf("couldn't fully read '%s' in mod '%s': %s", p.Path, name, clipText(p.Err, maxProblemText))
+	}
+	if more > 0 {
+		log.Warnf("... and %d more files with problems", more)
+	}
+}
+
+// maxProblemText is the longest reason logParseProblems writes in full. A
+// localisation error quotes the whole offending line, which can run to
+// hundreds of characters.
+const maxProblemText = 160
+
+// clipText shortens s to at most limit characters (not bytes - it never cuts a
+// multi-byte character in half), marking the cut with an ellipsis.
+func clipText(s string, limit int) string {
+	runes := []rune(s)
+	if len(runes) <= limit {
+		return s
+	}
+	return string(runes[:limit]) + "..."
 }
 
 // LoadGame scans cfg's mod folder, parses every *enabled* mod through the
@@ -366,7 +476,15 @@ func LoadGame(ctx context.Context, cfg game.GameConfig, opts Options) (Summary, 
 	patch := PatchSummary{ChangedMods: []string{}}
 	if dir, ok := patchContentDir(cfg, opts); ok {
 		if manifest, ok := patchmanifest.Load(dir); ok {
-			patch = applyPatchState(conflicts, rg.result.Conflicts, manifest, rg.names)
+			if rg.modsRead == 0 {
+				// Nothing was read (no playset chosen yet, or none of its mods
+				// could be), so there are no conflicts to compare the patch
+				// with - and "every key it covers has stopped conflicting" would
+				// be a false alarm about a load order that simply isn't loaded.
+				patch = describePatch(manifest, opts.GameVersion)
+			} else {
+				patch = applyPatchState(conflicts, rg.result.Conflicts, manifest, rg.names, opts.GameVersion)
+			}
 		}
 	}
 	return Summary{

@@ -207,3 +207,36 @@ func TestFileStoreLoadRespectsContextCancellation(t *testing.T) {
 		t.Fatal("expected Load to report the cancelled context")
 	}
 }
+
+func TestLoadDiscardsACacheWrittenByAnOlderParser(t *testing.T) {
+	store := FileStore{Dir: t.TempDir()}
+	ctx := context.Background()
+
+	// A record the old parser rejected, remembered against its stat.
+	stale := &ModCache{Version: FormatVersion, ParserVersion: ParserVersion - 1, ModID: "m", GameKey: "g", Files: map[string]FileRecord{
+		"localisation/english/x.yml": {Path: "localisation/english/x.yml", Size: 10, ModTimeUnixNano: 5, ParseError: "locale: expected a quoted value"},
+	}}
+	if err := store.Save(ctx, stale); err != nil {
+		t.Fatal(err)
+	}
+	got, err := store.Load(ctx, "g", "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Files) != 0 {
+		t.Errorf("a cache from an older parser must be dropped so its failed files get another try, got %+v", got.Files)
+	}
+	if got.ParserVersion != ParserVersion {
+		t.Errorf("a fresh cache should carry the current parser version, got %d", got.ParserVersion)
+	}
+
+	// The current version round-trips untouched.
+	fresh := &ModCache{Version: FormatVersion, ParserVersion: ParserVersion, ModID: "m2", GameKey: "g", Files: map[string]FileRecord{"a.txt": {Path: "a.txt", Size: 1}}}
+	if err := store.Save(ctx, fresh); err != nil {
+		t.Fatal(err)
+	}
+	back, _ := store.Load(ctx, "g", "m2")
+	if len(back.Files) != 1 {
+		t.Errorf("a cache written under the current parser was thrown away: %+v", back.Files)
+	}
+}

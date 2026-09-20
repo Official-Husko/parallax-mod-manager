@@ -1,9 +1,10 @@
 import './PlaysetsModal.css';
 import {h} from 'preact';
+import {useState} from 'preact/hooks';
 import {colorFromName} from '../data/nameColor';
 import type {launcherdb} from '../../wailsjs/go/models';
 
-export function PlaysetsModal({gameName, names, launcherPlaysets, onActivate, onNew, onImport, onClose}: {
+export function PlaysetsModal({gameName, names, launcherPlaysets, onActivate, onNew, onImport, onRename, onDelete, onClose}: {
     gameName: string;
     names: string[];
     // Real playsets found in the Paradox Launcher's own database
@@ -16,8 +17,57 @@ export function PlaysetsModal({gameName, names, launcherPlaysets, onActivate, on
     onActivate: (name: string) => void;
     onNew: () => void;
     onImport: (playset: launcherdb.Playset) => void;
+    // Rename / delete a saved playset. Each resolves to null on success, or a
+    // message to show on that playset's row (a name already taken, say) -
+    // this modal never has to know how either is done.
+    onRename: (oldName: string, newName: string) => Promise<string | null>;
+    onDelete: (name: string) => Promise<string | null>;
     onClose: () => void;
 }) {
+    // At most one row is being edited or confirmed at a time, so one piece of
+    // state each rather than one per row.
+    const [renaming, setRenaming] = useState<string | null>(null);
+    const [draft, setDraft] = useState('');
+    const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
+    const [busy, setBusy] = useState(false);
+    const [rowError, setRowError] = useState<{ name: string; text: string } | null>(null);
+
+    function startRename(name: string) {
+        setConfirmingDelete(null);
+        setRowError(null);
+        setRenaming(name);
+        setDraft(name);
+    }
+
+    async function commitRename(name: string) {
+        const next = draft.trim();
+        if (next === name) {
+            setRenaming(null);
+            return;
+        }
+        setBusy(true);
+        const problem = await onRename(name, next);
+        setBusy(false);
+        if (problem) {
+            setRowError({name, text: problem});
+        } else {
+            setRenaming(null);
+            setRowError(null);
+        }
+    }
+
+    async function commitDelete(name: string) {
+        setBusy(true);
+        const problem = await onDelete(name);
+        setBusy(false);
+        if (problem) {
+            setRowError({name, text: problem});
+        } else {
+            setConfirmingDelete(null);
+            setRowError(null);
+        }
+    }
+
     return (
         <div className="overlay" onClick={onClose}>
             <div className="playsets-modal" onClick={(e) => e.stopPropagation()}>
@@ -35,15 +85,51 @@ export function PlaysetsModal({gameName, names, launcherPlaysets, onActivate, on
                             <div className="playset-row-edge" style={{background: colorFromName(name)}}/>
                             <div className="playset-row-main">
                                 <div className="playset-row-head">
-                                    <span className="name">{name}</span>
-                                    <span className="mono state">SAVED</span>
+                                    {renaming === name ? (
+                                        <input
+                                            className="playset-rename-input"
+                                            value={draft}
+                                            autoFocus
+                                            disabled={busy}
+                                            onInput={(e) => { setDraft((e.target as HTMLInputElement).value); setRowError(null); }}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') commitRename(name);
+                                                if (e.key === 'Escape') { setRenaming(null); setRowError(null); }
+                                            }}
+                                        />
+                                    ) : (
+                                        <span className="name">{name}</span>
+                                    )}
+                                    {renaming !== name && <span className="mono state">SAVED</span>}
                                 </div>
+                                {rowError?.name === name && <div className="playset-row-error">{rowError.text}</div>}
                             </div>
-                            <div className="playset-row-actions">
-                                <span className="btn-ghost inert">Duplicate</span>
-                                <span className="btn-ghost inert">Share <i className="fa-solid fa-arrow-up-right-from-square"/></span>
-                                <span className="btn-ghost activate" onClick={() => onActivate(name)}>Activate</span>
-                            </div>
+                            {renaming === name && (
+                                <div className="playset-row-actions">
+                                    <span className={`btn-ghost activate ${busy ? 'inert' : ''}`} onClick={busy ? undefined : () => commitRename(name)}>Save name</span>
+                                    <span className="btn-ghost" onClick={() => { setRenaming(null); setRowError(null); }}>Cancel</span>
+                                </div>
+                            )}
+                            {confirmingDelete === name && (
+                                <div className="playset-row-actions">
+                                    <span className="playset-delete-ask">Delete this playset?</span>
+                                    <span className={`btn-ghost danger ${busy ? 'inert' : ''}`} onClick={busy ? undefined : () => commitDelete(name)}>Delete</span>
+                                    <span className="btn-ghost" onClick={() => { setConfirmingDelete(null); setRowError(null); }}>Keep</span>
+                                </div>
+                            )}
+                            {renaming !== name && confirmingDelete !== name && (
+                                <div className="playset-row-actions">
+                                    <span className="btn-ghost icon" title="Rename this playset" onClick={() => startRename(name)}>
+                                        <i className="fa-solid fa-pen"/>
+                                    </span>
+                                    <span className="btn-ghost icon" title="Delete this playset" onClick={() => { setRenaming(null); setRowError(null); setConfirmingDelete(name); }}>
+                                        <i className="fa-regular fa-trash-can"/>
+                                    </span>
+                                    <span className="btn-ghost inert">Duplicate</span>
+                                    <span className="btn-ghost inert">Share <i className="fa-solid fa-arrow-up-right-from-square"/></span>
+                                    <span className="btn-ghost activate" onClick={() => onActivate(name)}>Activate</span>
+                                </div>
+                            )}
                         </div>
                     ))}
                     {launcherPlaysets.length > 0 && (
