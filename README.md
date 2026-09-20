@@ -412,7 +412,8 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   tagged by the part of the app that did it, with quoted names and numbers highlighted and each
   step's duration colored from quiet green through amber to red. It follows new lines as they
   happen, stops following the moment you scroll up, and can be filtered by level, component or text,
-  copied out as text, or cleared (the file keeps its lines). Scans (with how well the cache worked
+  copied out as text, or cleared (the file keeps its lines); its dropdowns are the app's own themed
+  `Select` component (`components/Select.tsx`), not the webview's unstylable white native popup. Scans (with how well the cache worked
   and how long conflict detection took), patch generation, launches (state written, Steam or
   direct), playsets and collections, game detection and install or extra mod folders, the
   mod-folder watcher, every Steam lookup and background DLC refresh (whose failures used to be

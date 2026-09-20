@@ -2,6 +2,7 @@ import './LogView.css';
 import {h} from 'preact';
 import {useEffect, useMemo, useRef, useState} from 'preact/hooks';
 import {colorFromName} from '../data/nameColor';
+import {Select} from './Select';
 import {
     durationTone,
     entryText,
@@ -64,6 +65,11 @@ export function LogView({onOpenFolder}: {
 
     const components = useMemo(() => [...new Set(entries.map((e) => e.Component))].sort(), [entries]);
 
+    const componentOptions = useMemo(
+        () => [{value: '', label: 'All components'}, ...components.map((c) => ({value: c, label: c}))],
+        [components],
+    );
+
     const visible = useMemo(() => {
         const min = LEVEL_FILTERS.find((f) => f.key === level)?.min ?? 0;
         const q = search.trim().toLowerCase();
@@ -112,10 +118,12 @@ export function LogView({onOpenFolder}: {
                         </span>
                     ))}
                 </span>
-                <select className="log-select" value={component} onChange={(e) => setComponent((e.target as HTMLSelectElement).value)}>
-                    <option value="">All components</option>
-                    {components.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
+                <Select
+                    className="log-select"
+                    value={component}
+                    options={componentOptions}
+                    onChange={setComponent}
+                />
                 <span className="log-search">
                     <i className="fa-solid fa-magnifying-glass"/>
                     <input

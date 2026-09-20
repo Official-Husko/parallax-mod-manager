@@ -20,6 +20,7 @@ import {
     sourceFile,
 } from '../data/gameLog';
 import {useVirtualWindow} from '../data/useVirtualWindow';
+import {Select} from '../components/Select';
 
 // Every line is exactly this tall (the same .log-line as the app's own log),
 // which is what lets only the visible ones be in the DOM.
@@ -198,15 +199,14 @@ export function GameLogModal({gameId, gameName, running, onClose}: {
                 </div>
                 <div className="log-view">
                     <div className="log-toolbar">
-                        <select
-                            className="log-select game-log-file"
+                        <Select
+                            className="game-log-file"
                             value={file}
+                            options={files.map((f) => ({value: f.Name, label: f.Name, hint: formatBytes(f.Size)}))}
+                            placeholder="No logs yet"
                             disabled={files.length === 0}
-                            onChange={(e) => { setFile((e.target as HTMLSelectElement).value); setFollowing(true); }}
-                        >
-                            {files.length === 0 && <option value="">No logs yet</option>}
-                            {files.map((f) => <option key={f.Name} value={f.Name}>{f.Name} ({formatBytes(f.Size)})</option>)}
-                        </select>
+                            onChange={(name) => { setFile(name); setFollowing(true); }}
+                        />
                         <span className="log-levels">
                             {LEVEL_FILTERS.map((f) => (
                                 <span key={f.key} className={`log-level-btn ${level === f.key ? 'active' : ''}`} onClick={() => setLevel(f.key)}>
