@@ -88,7 +88,18 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
     setShowPlaysets: (show: boolean) => void;
 }) {
     const [summary, setSummary] = useState<library.Summary | null>(null);
-    const [order, setOrder] = useState<string[]>([]);
+    const [order, setOrderState] = useState<string[]>([]);
+    // Every deliberate change to the load order (a playset loaded, a mod added,
+    // dragged, removed, the list cleared...) goes through setOrder, which counts
+    // it. A scan that finishes later must not put its own idea of the order over
+    // one of these - see the scan-result refs below. What a scan itself derives
+    // (its enabled mods, pruning what no longer exists) uses setOrderState and is
+    // not counted.
+    const orderEditsRef = useRef(0);
+    const setOrder: typeof setOrderState = (value) => {
+        orderEditsRef.current++;
+        setOrderState(value);
+    };
     const [selectedId, setSelectedId] = useState('');
     const [selectedAvailable, setSelectedAvailable] = useState<Set<string>>(new Set());
     // Active gets the exact same real multi-select gesture as Available -
@@ -164,6 +175,34 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
     // order/selection the way a fresh load's first paint is supposed to.
     const expectingFreshQuickRef = useRef(false);
     const quickAppliedRef = useRef(false);
+    // Scans run concurrently and finish in any order: the full scan a game switch
+    // starts (no playset yet), the scan that loading the remembered playset starts
+    // right after it, background refreshes. Applying each result the moment it
+    // lands let a late one from an older scan overwrite a newer one - most visibly
+    // the playset's name showing with none of its mods, and conflicts from the
+    // wrong scan. So: every scan takes a number (latestScanRef), only the newest
+    // is applied (applyScan), and a scan's own order only lands if the order was
+    // not edited since its fresh load began (editsAtFreshScanRef).
+    const latestScanRef = useRef(0);
+    const freshScanRef = useRef(0);
+    const editsAtFreshScanRef = useRef(0);
+    const summaryRef = useRef<library.Summary | null>(null);
+    summaryRef.current = summary;
+    const selectedGameRef = useRef(selectedGame);
+    selectedGameRef.current = selectedGame;
+
+    // applyScan shows a scan's result unless it is stale: for a game that is no
+    // longer selected, or older than a scan started since - unless nothing is held
+    // for this game yet, when something beats a blank list (the newer scan
+    // replaces it when it lands). Says whether it was applied.
+    function applyScan(seq: number, result: library.Summary): boolean {
+        if (result.Game.ID !== selectedGameRef.current) return false;
+        const holdsThisGame = summaryRef.current?.Game.ID === result.Game.ID;
+        if (seq !== latestScanRef.current && holdsThisGame) return false;
+        summaryRef.current = result;
+        setSummary(result);
+        return true;
+    }
     // Mirrors playsetName for refreshMods' background-refresh path below,
     // which is also called from the 'mods-changed' watcher subscription -
     // a useEffect closure that only re-subscribes on [selectedGame], so a
@@ -242,6 +281,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
         // game was switched mid-scan) replaces the ref, and this one must
         // still settle its own notification, not the newer scan's.
         let scanId = '';
+        let freshToken = 0;
         if (!preserveSelection) {
             if (scanNoticeRef.current) dismiss(scanNoticeRef.current);
             setPlaysetName('');
@@ -250,7 +290,10 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
             scanNoticeRef.current = scanId = notify('progress', 'Scanning mods...');
             expectingFreshQuickRef.current = true;
             quickAppliedRef.current = false;
+            freshToken = ++freshScanRef.current;
+            editsAtFreshScanRef.current = orderEditsRef.current;
         }
+        const seq = ++latestScanRef.current;
         try {
             // A background refresh (preserveSelection=true) must re-scan
             // against whichever playset is actually currently loaded, not
@@ -262,20 +305,23 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
             // a patch generation, or a manual conflict override) even
             // though nothing about the user's actual selection changed.
             const result = await ScanGame(selectedGame, preserveSelection ? playsetNameRef.current : '');
-            expectingFreshQuickRef.current = false;
-            setSummary(result);
-            if (preserveSelection || quickAppliedRef.current) {
-                const freshIds = new Set(result.Mods.map((m) => m.ID));
-                setOrder((prev) => prev.filter((id) => freshIds.has(id)));
-                setSelectedAvailable((prev) => new Set([...prev].filter((id) => freshIds.has(id))));
-            } else {
-                setOrder(result.Mods.filter((m) => m.Enabled).map((m) => m.ID));
+            // Only the fresh scan that armed it may disarm the early preview.
+            if (freshToken !== 0 && freshToken === freshScanRef.current) expectingFreshQuickRef.current = false;
+            if (applyScan(seq, result)) {
+                const untouched = orderEditsRef.current === editsAtFreshScanRef.current;
+                if (preserveSelection || quickAppliedRef.current || !untouched) {
+                    const freshIds = new Set(result.Mods.map((m) => m.ID));
+                    setOrderState((prev) => prev.filter((id) => freshIds.has(id)));
+                    setSelectedAvailable((prev) => new Set([...prev].filter((id) => freshIds.has(id))));
+                } else {
+                    setOrderState(result.Mods.filter((m) => m.Enabled).map((m) => m.ID));
+                }
             }
             if (!preserveSelection) {
                 dismiss(scanId);
             }
         } catch (err) {
-            expectingFreshQuickRef.current = false;
+            if (freshToken !== 0 && freshToken === freshScanRef.current) expectingFreshQuickRef.current = false;
             if (!preserveSelection) {
                 updateNotification(scanId, {kind: 'error', message: `Scan failed: ${String(err)}`});
             }
@@ -407,8 +453,17 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
             if (gameId !== selectedGame || !expectingFreshQuickRef.current) {
                 return;
             }
-            setSummary(quick);
-            setOrder(quick.Mods.filter((m) => m.Enabled).map((m) => m.ID));
+            // Only the first paint for a game: once anything is held for it, a later
+            // scan's early preview (no conflicts yet) is never newer than that.
+            if (summaryRef.current?.Game.ID !== gameId) {
+                summaryRef.current = quick;
+                setSummary(quick);
+            }
+            // And only over an order nobody has set since this fresh load began - a
+            // playset loaded in the meantime is not this preview's to replace.
+            if (orderEditsRef.current === editsAtFreshScanRef.current) {
+                setOrderState(quick.Mods.filter((m) => m.Enabled).map((m) => m.ID));
+            }
             if (scanNoticeRef.current) updateNotification(scanNoticeRef.current, {message: 'Resolving conflicts...'});
             quickAppliedRef.current = true;
         });
@@ -928,8 +983,9 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
     async function refreshAfterSave(name: string) {
         const names = await ListPlaysets(selectedGame);
         setPlaysetList(names);
+        const seq = ++latestScanRef.current;
         const result = await ScanGame(selectedGame, name);
-        setSummary(result);
+        applyScan(seq, result);
     }
 
     async function handleSave() {
@@ -954,8 +1010,9 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
             setPlaysetName(p.name);
             setDisabledDlc(p.disabledDlc ?? []);
             rememberActivePlayset(p.name);
+            const seq = ++latestScanRef.current;
             const result = await ScanGame(selectedGame, p.name);
-            setSummary(result);
+            applyScan(seq, result);
             setShowPlaysets(false);
         }, {failure: `Couldn't load "${name}"`});
     }

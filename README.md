@@ -480,6 +480,16 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   excluded; the first run has nothing to compare and says tracking starts now. Covered by unit
   tests for the diff, snapshot building, fingerprints, the store and the tracker, and an
   end-to-end test that changes real mod folders between two simulated startups.
+- **The last-used playset restores reliably at startup** (`Workspace.tsx`) - opening the app could show
+  the playset's name with none of its mods. Selecting a game starts a full scan (no playset yet, so
+  nothing enabled) and, alongside it, loads the remembered playset and scans again with it; the scans
+  finish in any order, and with a warm cache the first one's result or early "mod list ready" preview
+  landed after the playset was applied and put its empty selection over it (and its conflict-free
+  summary over the playset's). Now every scan takes a number and only the newest is applied, an early
+  preview only paints a game that has nothing shown yet, and a scan's own order only lands if nobody
+  has set the load order since it began. Reproduced with the real Workspace against a fake backend
+  with controllable timings (fast warm-cache scans failed; they now restore, along with the slow, the
+  missing-preview and the watcher-refresh orderings).
 - **Conflicts follow the load order you are editing** (`frontend/src/data/liveConflicts.ts`,
   `Workspace.tsx`) - the "N mods in hard conflicts" line no longer sits above the Active list and no
   longer sticks around after you clear the list or start a new one. It is a message card in the
