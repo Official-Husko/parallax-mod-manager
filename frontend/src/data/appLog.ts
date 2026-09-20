@@ -165,19 +165,56 @@ export function durationTone(ms: number): DurationTone {
 
 export interface MessagePart {
     text: string;
-    kind: 'plain' | 'string' | 'number';
+    kind: 'plain' | 'string' | 'number' | 'path' | 'version' | 'id';
 }
 
-// Splits a message into runs to colour: quoted names ('Stellaris', "x") and
+// What a message is cut into, tried left to right at each position (so a
+// quoted name wins over whatever is inside it). One capture group per kind:
+//   1 a quoted name          'Stellaris', "tech_lasers_5", "/home/x/y.mod"
+//   2 an absolute path       /home/user/.steam/steamapps/common/Stellaris
+//   3 a relative path        common/technology/00_tech.txt
+//   4 a version              4.4.6, v4.2.1, v4.4
+//   5 a hash or long id      a1b2c3d4, 1466534100 (a Workshop id)
+//   6 a bare number          3.42, 412
+const TOKEN = new RegExp(
+    String.raw`('[^']*'|"[^"]*")`
+    + String.raw`|((?:~|\.{1,2})?(?:/[\w.@+\-]+)+/?)`
+    + String.raw`|([\w.@+\-]+(?:/[\w.@+\-]+)+/?)`
+    + String.raw`|(\bv?\d+(?:\.\d+){2,}\b|\bv\d+\.\d+\b)`
+    + String.raw`|(\b(?=[0-9a-f]*[a-f])(?=[0-9a-f]*\d)[0-9a-f]{7,40}\b|\b\d{8,}\b)`
+    + String.raw`|(\b\d+(?:\.\d+)?\b)`,
+    'g',
+);
+
+// A relative "a/b" is only a path when it has more than one slash or ends in a
+// file name with an extension - "and/or", "n/a" and "1/2" are just words.
+function isRelativePath(text: string): boolean {
+    return (text.match(/\//g)?.length ?? 0) >= 2 || /\.\w{1,8}\/?$/.test(text);
+}
+
+// A quoted name that is really a path (it may contain spaces, unlike a bare one).
+function isQuotedPath(inner: string): boolean {
+    return inner.includes('/') && (/^(?:~|\.{0,2})\//.test(inner) || isRelativePath(inner));
+}
+
+// Splits a message into runs to colour: quoted names, paths, versions, ids and
 // bare numbers. Purely cosmetic - the text is never changed, only cut up, so
 // joining the parts always gives back the original message.
 export function tokenizeMessage(message: string): MessagePart[] {
     const parts: MessagePart[] = [];
-    const re = /'[^']*'|"[^"]*"|\b\d+(?:\.\d+)?\b/g;
     let last = 0;
-    for (let m = re.exec(message); m !== null; m = re.exec(message)) {
+    TOKEN.lastIndex = 0;
+    for (let m = TOKEN.exec(message); m !== null; m = TOKEN.exec(message)) {
+        let kind: MessagePart['kind'];
+        if (m[1] !== undefined) kind = isQuotedPath(m[1].slice(1, -1)) ? 'path' : 'string';
+        else if (m[2] !== undefined) kind = 'path';
+        else if (m[3] !== undefined) kind = isRelativePath(m[3]) ? 'path' : 'plain';
+        else if (m[4] !== undefined) kind = 'version';
+        else if (m[5] !== undefined) kind = 'id';
+        else kind = 'number';
+        if (kind === 'plain') continue;
         if (m.index > last) parts.push({text: message.slice(last, m.index), kind: 'plain'});
-        parts.push({text: m[0], kind: m[0][0] === "'" || m[0][0] === '"' ? 'string' : 'number'});
+        parts.push({text: m[0], kind});
         last = m.index + m[0].length;
     }
     if (last < message.length) parts.push({text: message.slice(last), kind: 'plain'});

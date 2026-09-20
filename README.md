@@ -164,7 +164,10 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   Play, formerly a disabled "Export log", is now **View log**: a live window on the game's own log
   files (`error.log` first, since that is where broken mods show up), with the last lines at once and
   new ones as the game writes them, filterable by warnings or errors and by text, with a dot showing
-  whether the game is running. The follower copes with what these files actually do: the game
+  whether the game is running. Both logs are colored to be read at a glance: the game's name is
+  drawn in its own accent color, each level filter carries its level's color (blue, amber, red),
+  warning and error lines get a colored edge, and inside a message file paths (blue), versions
+  (violet), ids and hashes (teal), quoted names and numbers each have their own hue. The follower copes with what these files actually do: the game
   truncates them on every start (the view resets), can append megabytes in a second (only the newest
   is read, and the skip is noted), and writes a line in pieces (a line appears only once complete).
   Process listing and stopping is written for Linux (`/proc`), Windows and macOS; it has been run
@@ -409,7 +412,7 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   links and credit line are fixed in the code, not a configurable file. Below them is a live,
   colored **activity log** of what the app is doing - one line per notable step in the same shape as
   Go's own logger (`2026/07/06 00:09:37 [Scan] 'Stellaris': 86 mods, 4788 conflicts (2261ms)`),
-  tagged by the part of the app that did it, with quoted names and numbers highlighted and each
+  tagged by the part of the app that did it, with quoted names, paths, versions, ids and numbers highlighted and each
   step's duration colored from quiet green through amber to red. It follows new lines as they
   happen, stops following the moment you scroll up, and can be filtered by level, component or text,
   copied out as text, or cleared (the file keeps its lines); its dropdowns are the app's own themed

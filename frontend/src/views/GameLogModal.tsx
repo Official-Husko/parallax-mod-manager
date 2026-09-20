@@ -7,6 +7,7 @@ import {EventsOn} from '../../wailsjs/runtime/runtime';
 import type {gamelog} from '../../wailsjs/go/models';
 import {colorFromName} from '../data/nameColor';
 import {formatBytes} from '../data/format';
+import {tokenizeMessage} from '../data/appLog';
 import {
     applyGameLogBatch,
     EMPTY_GAME_LOG,
@@ -52,7 +53,11 @@ function GameLogLineRow({line}: { line: GameLogLine }) {
                     <span className="log-comp" style={{color: colorFromName(sourceFile(parsed.source))}}>[{parsed.source}]</span>
                     {line.level === 'warn' && <span className="log-level">WARN</span>}
                     {line.level === 'error' && <span className="log-level">ERROR</span>}
-                    <span className="log-msg">{parsed.message}</span>
+                    <span className="log-msg">
+                        {tokenizeMessage(parsed.message).map((part, i) => (
+                            <span key={i} className={part.kind === 'plain' ? undefined : `log-${part.kind}`}>{part.text}</span>
+                        ))}
+                    </span>
                 </>
             ) : (
                 <span className="log-msg">{line.text}</span>
@@ -191,7 +196,7 @@ export function GameLogModal({gameId, gameName, running, onClose}: {
             <div className="game-log-modal" onClick={(e) => e.stopPropagation()}>
                 <div className="game-log-header">
                     <span className="title">Game log</span>
-                    <span className="mono meta">{gameName}</span>
+                    <span className="game-log-game">{gameName}</span>
                     <span className={`game-log-live ${running ? 'on' : ''}`} title={running ? 'The game is running - new lines appear as it writes them' : 'The game is not running - new lines appear if it starts'}>
                         <i className="fa-solid fa-circle"/> {running ? 'Game running' : 'Game not running'}
                     </span>
@@ -210,7 +215,7 @@ export function GameLogModal({gameId, gameName, running, onClose}: {
                         />
                         <span className="log-levels">
                             {LEVEL_FILTERS.map((f) => (
-                                <span key={f.key} className={`log-level-btn ${level === f.key ? 'active' : ''}`} onClick={() => setLevel(f.key)}>
+                                <span key={f.key} className={`log-level-btn ${f.key} ${level === f.key ? 'active' : ''}`} onClick={() => setLevel(f.key)}>
                                     {f.label}
                                 </span>
                             ))}

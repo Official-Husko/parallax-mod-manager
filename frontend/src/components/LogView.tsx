@@ -114,7 +114,7 @@ export function LogView({onOpenFolder}: {
             <div className="log-toolbar">
                 <span className="log-levels">
                     {LEVEL_FILTERS.map((f) => (
-                        <span key={f.key} className={`log-level-btn ${level === f.key ? 'active' : ''}`} onClick={() => setLevel(f.key)}>
+                        <span key={f.key} className={`log-level-btn ${f.key} ${level === f.key ? 'active' : ''}`} onClick={() => setLevel(f.key)}>
                             {f.label}
                         </span>
                     ))}

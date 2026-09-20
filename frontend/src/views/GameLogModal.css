@@ -29,9 +29,17 @@
     color: var(--text-bright);
 }
 
-.game-log-header .meta {
-    font-size: 11px;
-    color: var(--text-dim);
+/* The game's name in the game's own accent colour (--rust is set per game, see
+   data/useGameAccent.ts), as a pill, so the window says at a glance which
+   game's log this is. */
+.game-log-header .game-log-game {
+    padding: 2px 9px;
+    border: 1px solid var(--rust);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, .03);
+    color: var(--rust);
+    font: 600 11px Barlow, sans-serif;
+    letter-spacing: .02em;
 }
 
 .game-log-header .spacer {

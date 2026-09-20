@@ -47,6 +47,41 @@
     color: var(--text-bright);
 }
 
+/* Each level is drawn in its own colour, so the filter reads as a key to the
+   lines below it: a dot always, and the whole button tinted when it is on. */
+.log-level-btn.info::before,
+.log-level-btn.warn::before,
+.log-level-btn.error::before {
+    content: "";
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-right: 6px;
+    border-radius: 50%;
+    vertical-align: 1px;
+    background: var(--level-color);
+}
+
+.log-level-btn.info {
+    --level-color: var(--blue);
+}
+
+.log-level-btn.warn {
+    --level-color: var(--amber);
+}
+
+.log-level-btn.error {
+    --level-color: var(--red);
+}
+
+.log-level-btn.info.active,
+.log-level-btn.warn.active,
+.log-level-btn.error.active {
+    color: var(--level-color);
+    background: rgba(255, 255, 255, .04);
+    box-shadow: inset 0 -2px 0 var(--level-color);
+}
+
 .log-search {
     height: 26px;
     border: 1px solid var(--border-light);
@@ -189,6 +224,22 @@
     color: #d19a66;
 }
 
+/* File paths, versions and ids, each its own hue so a line can be read at a
+   glance: where (blue), which version (violet), which mod or build (teal).
+   Kept on warning and error lines too - the path in an error is the useful
+   part, and it stays findable against the red. */
+.log-path {
+    color: #79b8e8;
+}
+
+.log-version {
+    color: #c39be0;
+}
+
+.log-id {
+    color: #74cbb8;
+}
+
 .log-duration {
     flex: none;
     margin-left: auto;
@@ -217,6 +268,11 @@
     background: rgba(107, 118, 134, .18);
 }
 
+.log-line.warn {
+    background: rgba(224, 163, 64, .05);
+    box-shadow: inset 2px 0 0 var(--amber);
+}
+
 .log-line.warn .log-msg,
 .log-line.warn .log-string,
 .log-line.warn .log-number {
@@ -230,6 +286,7 @@
 
 .log-line.error {
     background: rgba(212, 87, 78, .07);
+    box-shadow: inset 2px 0 0 var(--red);
 }
 
 .log-line.error .log-msg,
