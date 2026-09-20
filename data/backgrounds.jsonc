@@ -1,0 +1,18 @@
+// Where the rotating background images are published. The images are not part of
+// the app: online mode streams them from here, offline mode downloads the games
+// you choose into the app's settings folder (game_media/backgrounds/<game id>/).
+//
+// To use different hosting, put a file called backgrounds.jsonc with the same
+// three fields in the app's settings folder; it replaces this one on the next
+// start (a file that cannot be read or is not valid is ignored).
+{
+    // The GitHub repository holding the images, as "owner/name".
+    "repo": "Official-Husko/parallax-mod-manager",
+
+    // The branch (or tag) they are read from.
+    "branch": "main",
+
+    // The folder in that repository with one subfolder per game, named by the game's
+    // id (the UUID in games.jsonc), each holding that game's images (jpg, png, webp).
+    "path": "game_media/backgrounds",
+}

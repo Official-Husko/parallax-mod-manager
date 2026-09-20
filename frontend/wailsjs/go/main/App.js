@@ -10,6 +10,14 @@ export function AuthorProfiles(arg1) {
   return window['go']['main']['App']['AuthorProfiles'](arg1);
 }
 
+export function BackgroundCatalog(arg1) {
+  return window['go']['main']['App']['BackgroundCatalog'](arg1);
+}
+
+export function BackgroundImages(arg1) {
+  return window['go']['main']['App']['BackgroundImages'](arg1);
+}
+
 export function BrowseForAnyGameInstall() {
   return window['go']['main']['App']['BrowseForAnyGameInstall']();
 }
@@ -20,6 +28,10 @@ export function BrowseForExtraModFolder(arg1) {
 
 export function BrowseForGameInstall(arg1) {
   return window['go']['main']['App']['BrowseForGameInstall'](arg1);
+}
+
+export function CancelBackgroundDownload() {
+  return window['go']['main']['App']['CancelBackgroundDownload']();
 }
 
 export function CheckGameUpdates() {
@@ -166,6 +178,10 @@ export function ReadModFile(arg1, arg2, arg3) {
   return window['go']['main']['App']['ReadModFile'](arg1, arg2, arg3);
 }
 
+export function RemoveBackgroundPack(arg1) {
+  return window['go']['main']['App']['RemoveBackgroundPack'](arg1);
+}
+
 export function RemoveExtraModFolder(arg1, arg2) {
   return window['go']['main']['App']['RemoveExtraModFolder'](arg1, arg2);
 }
@@ -208,6 +224,10 @@ export function SetPatchOverride(arg1, arg2, arg3, arg4) {
 
 export function SetPreferences(arg1) {
   return window['go']['main']['App']['SetPreferences'](arg1);
+}
+
+export function StartBackgroundDownload(arg1) {
+  return window['go']['main']['App']['StartBackgroundDownload'](arg1);
 }
 
 export function StartupNotice() {

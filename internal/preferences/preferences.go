@@ -88,6 +88,11 @@ type Preferences struct {
 	// package's Load only falls back to Defaults() for a missing/corrupt
 	// file, not a merely-older one missing just this field.
 	BackgroundIntervalSeconds int `json:"backgroundIntervalSeconds"`
+	// BackgroundSource is where the background images come from: "online"
+	// streams them from the project's GitHub repository as they are needed, and
+	// "offline" uses only the copies downloaded into the config folder (see
+	// internal/backgrounds). Anything else reads as online.
+	BackgroundSource string `json:"backgroundSource"`
 	// LaunchModes persists, per game ID, which of launch.LaunchMode's
 	// values LaunchGame should use for that game - kept as a plain string
 	// here rather than importing internal/launch's named type, the same
@@ -179,6 +184,21 @@ func (p Preferences) ObserveGameVersions(current map[string]string) (Preferences
 	return p, changes
 }
 
+// The two values of Preferences.BackgroundSource.
+const (
+	BackgroundSourceOnline  = "online"
+	BackgroundSourceOffline = "offline"
+)
+
+// NormalizedBackgroundSource returns "offline" for exactly that and "online" for
+// anything else, so a hand-edited or missing value can never mean neither.
+func NormalizedBackgroundSource(v string) string {
+	if v == BackgroundSourceOffline {
+		return BackgroundSourceOffline
+	}
+	return BackgroundSourceOnline
+}
+
 // Defaults returns the preferences a fresh install starts with.
 func Defaults() Preferences {
 	return Preferences{
@@ -187,6 +207,7 @@ func Defaults() Preferences {
 		AutosortDependencies: true,
 		AutosortFixesLast:    true,
 		AutosortPatchLast:    true,
+		BackgroundSource:     BackgroundSourceOnline,
 	}
 }
 

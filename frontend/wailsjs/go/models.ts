@@ -713,6 +713,71 @@ export namespace library {
 
 }
 
+export namespace main {
+	
+	export class BackgroundPack {
+	    GameID: string;
+	    Files: number;
+	    Bytes: number;
+	    LocalFiles: number;
+	    LocalBytes: number;
+	    MissingFiles: number;
+	    MissingBytes: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new BackgroundPack(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.GameID = source["GameID"];
+	        this.Files = source["Files"];
+	        this.Bytes = source["Bytes"];
+	        this.LocalFiles = source["LocalFiles"];
+	        this.LocalBytes = source["LocalBytes"];
+	        this.MissingFiles = source["MissingFiles"];
+	        this.MissingBytes = source["MissingBytes"];
+	    }
+	}
+	export class BackgroundCatalog {
+	    Packs: BackgroundPack[];
+	    RemoteError: string;
+	    Folder: string;
+	    Source: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new BackgroundCatalog(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Packs = this.convertValues(source["Packs"], BackgroundPack);
+	        this.RemoteError = source["RemoteError"];
+	        this.Folder = source["Folder"];
+	        this.Source = source["Source"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
 export namespace modupdates {
 	
 	export class Change {
@@ -837,6 +902,7 @@ export namespace preferences {
 	    backgroundDisabled: boolean;
 	    backgroundRotationPaused: boolean;
 	    backgroundIntervalSeconds: number;
+	    backgroundSource: string;
 	    launchModes: Record<string, string>;
 	    lastActivePlaysets: Record<string, string>;
 	    playsetAutoloadModes: Record<string, string>;
@@ -862,6 +928,7 @@ export namespace preferences {
 	        this.backgroundDisabled = source["backgroundDisabled"];
 	        this.backgroundRotationPaused = source["backgroundRotationPaused"];
 	        this.backgroundIntervalSeconds = source["backgroundIntervalSeconds"];
+	        this.backgroundSource = source["backgroundSource"];
 	        this.launchModes = source["launchModes"];
 	        this.lastActivePlaysets = source["lastActivePlaysets"];
 	        this.playsetAutoloadModes = source["playsetAutoloadModes"];

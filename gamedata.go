@@ -16,6 +16,12 @@ var embeddedGamesList []byte
 //go:embed LICENCE.md
 var embeddedLicence string
 
+// embeddedBackgroundSource says where the background images are published (see
+// internal/backgrounds) - overridable by a backgrounds.jsonc in the config folder.
+//
+//go:embed data/backgrounds.jsonc
+var embeddedBackgroundSource []byte
+
 // embeddedGameMedia is this build's built-in per-game art (logos,
 // backgrounds) - see internal/gamemedia.Store for how an on-disk override
 // directory can take precedence over it.

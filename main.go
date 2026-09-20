@@ -22,6 +22,9 @@ func main() {
 		Height: 768,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
+			// Answers /backgrounds/... itself (the offline background images, which
+			// live in the config folder, not in the build) before anything else.
+			Middleware: app.backgroundMiddleware,
 		},
 		// Matches --bg-app in frontend/src/App.css, and must stay fully
 		// opaque (A: 255): this is the native window's own background,

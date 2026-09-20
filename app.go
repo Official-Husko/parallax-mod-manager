@@ -93,6 +93,10 @@ type App struct {
 	// and reports what changed since - see internal/modupdates and
 	// CheckModUpdates. Its Store is set in startup; zero-value usable.
 	modUpdates modupdates.Tracker
+	// backgrounds is the rotating background art's state: where it is published,
+	// the offline copy on disk, the listing cache and the running download - see
+	// backgrounds.go.
+	backgrounds backgroundState
 	// patchThumbnailPath is where a user-supplied patch_thumbnail.png would
 	// live (empty when configDir couldn't be resolved) - see patchThumbnail.
 	patchThumbnailPath string
@@ -197,6 +201,7 @@ func (a *App) startup(ctx context.Context) {
 		a.versionIgnore = versionignore.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "version_ignore")}
 		a.resolvedConflicts = resolvedconflicts.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "resolved_conflicts")}
 		a.modUpdates.Store = modupdates.Store{Dir: modUpdatesDir(filepath.Join(configDir, "parallax-mod-manager"))}
+		a.initBackgrounds(filepath.Join(configDir, "parallax-mod-manager"))
 		a.patchThumbnailPath = filepath.Join(configDir, "parallax-mod-manager", "patch_thumbnail.png")
 		a.configAppDir = filepath.Join(configDir, "parallax-mod-manager")
 	}
@@ -380,6 +385,7 @@ func (a *App) SetPreferences(p preferences.Preferences) error {
 // that changes one of them itself passes false.
 func (a *App) savePreferences(p preferences.Preferences, keepBackendOwned bool) error {
 	a.preferencesMu.Lock()
+	p.BackgroundSource = preferences.NormalizedBackgroundSource(p.BackgroundSource)
 	if keepBackendOwned {
 		p.LastSeenGameVersions = a.preferences.LastSeenGameVersions
 	}
