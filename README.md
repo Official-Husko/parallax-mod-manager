@@ -771,8 +771,7 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   since its own first load kicks off a real scan across every managed game at once and
   shouldn't run on every app launch for a session that never opens it.
 - **A rotating, per-game background image behind the whole app** - drawn from whichever
-  game is currently selected (`frontend/src/assets/game_media/background/<gameID>/`; only
-  Stellaris ships any art so far, a game with none just shows the plain flat color it always
+  game is currently selected (a game with no art just shows the plain flat color it always
   had), picking a random image and cross-fading to a new random one on a timer, slightly
   darkened so foreground text stays legible. Every major panel/header/sidebar surface now
   reads its background through a semi-transparent CSS variable instead of a flat opaque
@@ -780,6 +779,36 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   panels. Settings' own "Appearance" panel lets you turn it off entirely, freeze it on
   whichever image is currently showing instead of rotating, or change how often it rotates
   (default every 5 minutes).
+- **Background images are no longer part of the app; choose where they come from** (`internal/backgrounds`,
+  `backgrounds.go`, `frontend/src/data/backgroundRotation.ts`, `components/AppBackground.tsx`,
+  `views/BackgroundDownloadModal.tsx`) - the art used to be compiled into the binary (359 MB of
+  Stellaris images made a ~400 MB executable; the frontend bundle is now 2.5 MB). Settings >
+  Appearance > **Background source** picks between:
+  - **Online** (the default): the app lists the published images with one small GitHub request at
+    startup (cached in memory and on disk, and revalidated with an ETag so it stays far below GitHub's
+    60-per-hour limit), picks a random one, and streams it. The rotation keeps an in-memory list and
+    **prefetches and decodes the next image 30 seconds before it is due** (immediately, for intervals
+    under 30 seconds), so the swap never waits on the network; a broken image is skipped for another and
+    logged. With no connection it falls back to whatever is on disk.
+  - **Offline**: choosing it opens a window listing every game that has published images with its image
+    count and **approximate size (read straight from GitHub's own file listing, so there is no manifest to
+    maintain)**, how much of each is already on disk, and a checkbox per game. **Download** shows a real
+    progress bar (images done, MB done of total, speed, time left), the game and file being fetched, and
+    counts of what was skipped or failed, with **Stop**. Only when the download finishes does the app
+    switch to offline; **declining ("Stay online") or stopping leaves it online**, and what was already
+    downloaded is kept so running it again resumes. Images live in `game_media/backgrounds/<game id>/` in
+    the settings folder - anything you drop there by hand counts too - and can be removed per game.
+    Offline never touches the network.
+
+  Downloads are written to a temporary file and renamed only when complete and the size matches the
+  listing, three at a time with retries; one failed image does not stop the rest. The offline files are
+  served to the webview by a small asset route inside the app that only serves valid image names from valid
+  game folders. Where the images are published (a repository folder with one subfolder per game id) is
+  `data/backgrounds.jsonc`, replaceable by a `backgrounds.jsonc` in the settings folder; see
+  [docs/backgrounds.md](docs/backgrounds.md) for how to publish. The About page and this README now name
+  GitHub as a second outside service (online mode only) alongside Steam. Tested with the race detector
+  (listing, ETag, cache, resume, cancel, path safety, the asset route), a virtual-clock test of the
+  30-second prefetch timing, the real components against a fake backend, and against real GitHub.
 
 All of the above has unit test coverage (table-driven, fixture-based, `go test -race`
 clean), including tests that prove behavior rather than just assert on it - e.g.

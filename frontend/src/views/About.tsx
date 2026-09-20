@@ -124,8 +124,9 @@ export function AboutPanel() {
                             {BUILT_WITH.map((name) => <span key={name} className="about-chip">{name}</span>)}
                         </div>
                         <p className="about-note">
-                            Icons by Font Awesome Pro. Workshop details come from Steam's public web API - the
-                            only outside service the app talks to.
+                            Icons by Font Awesome Pro. Workshop details come from Steam's public web API and, in
+                            online mode, background images from this project's GitHub repository - the only outside
+                            services the app talks to. Set backgrounds to Offline and only Steam is used.
                         </p>
                     </div>
                 </section>

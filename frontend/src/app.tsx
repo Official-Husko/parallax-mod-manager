@@ -311,6 +311,7 @@ export function App() {
                 disabled={prefs?.backgroundDisabled ?? false}
                 rotationPaused={prefs?.backgroundRotationPaused ?? false}
                 intervalSeconds={prefs?.backgroundIntervalSeconds ?? 0}
+                source={prefs?.backgroundSource ?? 'online'}
             />
             <TopBar view={view} onNavigate={setView} gamePicker={gamePicker}/>
             <NotificationStack/>

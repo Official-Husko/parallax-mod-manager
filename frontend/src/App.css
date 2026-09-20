@@ -17,7 +17,7 @@
        opaque on purpose: it's #app's own base color, painted behind
        AppBackground's image layer in stacking order, so it only ever
        shows for a game with no background art yet (see
-       data/gameBackgrounds.ts) - the plain, art-free look this app has
+       data/backgroundRotation.ts) - the plain, art-free look this app has
        always had. --bg-panel-solid keeps the original opaque value, for
        the handful of places that need a genuinely solid dark color
        (text sitting on a bright accent fill, a toggle knob) rather than a

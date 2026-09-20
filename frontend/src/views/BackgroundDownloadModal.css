@@ -1,0 +1,340 @@
+.bgdl-modal {
+    width: min(620px, 94%);
+    max-height: 88%;
+    background: var(--bg-panel-solid);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.bgdl-header {
+    display: flex;
+    align-items: center;
+    height: 44px;
+    padding: 0 16px;
+    background: var(--bg-header);
+    border-bottom: 1px solid var(--border);
+    gap: 11px;
+    flex: none;
+}
+
+.bgdl-header > i:first-child {
+    width: auto;
+    color: var(--blue);
+    font-size: 14px;
+}
+
+.bgdl-header .title {
+    font: 600 13px Barlow, sans-serif;
+    color: var(--text-bright);
+}
+
+.bgdl-header .spacer {
+    flex: 1;
+}
+
+.bgdl-header .close-btn {
+    cursor: pointer;
+    color: var(--text-muted);
+}
+
+.bgdl-intro {
+    margin: 0;
+    padding: 12px 16px 0;
+    font: 400 12px/1.55 Barlow, sans-serif;
+    color: var(--text-muted);
+}
+
+.bgdl-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 12px 16px;
+}
+
+.bgdl-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    flex: none;
+}
+
+.bgdl-footer .bgdl-total {
+    flex: 1;
+    font-size: 11px;
+    color: var(--text-dim);
+}
+
+.bgdl-footer .btn-ghost i {
+    width: auto;
+    font-size: 10px;
+}
+
+/* --- Choosing games --- */
+
+.bgdl-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    margin-bottom: 12px;
+    padding: 9px 11px;
+    border-radius: 5px;
+    font: 500 11.5px/1.5 Barlow, sans-serif;
+}
+
+.bgdl-note.warn {
+    background: #1e1a12;
+    border: 1px solid #4a3a1e;
+    color: #e8d3a6;
+}
+
+.bgdl-note i {
+    width: auto;
+    margin-top: 2px;
+    color: var(--amber);
+}
+
+.bgdl-note span:nth-child(2) {
+    flex: 1;
+}
+
+.bgdl-packs {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.bgdl-pack {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-rail);
+}
+
+.bgdl-pack input[type="checkbox"] {
+    accent-color: var(--rust);
+    width: 14px;
+    height: 14px;
+    flex: none;
+}
+
+.bgdl-pack.own {
+    border-style: dashed;
+}
+
+.bgdl-pack-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.bgdl-pack-name {
+    font: 600 12.5px Barlow, sans-serif;
+    color: var(--text-bright);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.bgdl-pack-meta {
+    margin-top: 2px;
+    font-size: 10.5px;
+    color: var(--text-dim);
+}
+
+.bgdl-pack-state {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 3px;
+}
+
+.bgdl-pack-todo {
+    font-size: 10.5px;
+    color: var(--text-muted);
+}
+
+.bgdl-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 1px 8px 1px 6px;
+    border: 1px solid var(--border-light);
+    border-radius: 9px;
+    font: 500 10.5px "Azeret Mono", monospace;
+}
+
+.bgdl-chip i {
+    width: auto;
+    font-size: 10px;
+}
+
+.bgdl-chip.ok {
+    color: var(--green);
+    border-color: rgba(95, 174, 126, .5);
+}
+
+.bgdl-chip.part {
+    color: var(--amber);
+    border-color: rgba(224, 163, 64, .5);
+}
+
+.bgdl-remove {
+    font: 500 10.5px Barlow, sans-serif;
+    color: var(--text-dim);
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-color: var(--border-light);
+    text-underline-offset: 3px;
+}
+
+.bgdl-remove:hover {
+    color: var(--text-bright);
+}
+
+.bgdl-confirm {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font: 500 10.5px Barlow, sans-serif;
+    color: var(--text-muted);
+}
+
+.bgdl-folder {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 14px;
+    font: 500 11px Barlow, sans-serif;
+    color: var(--text-dim);
+}
+
+.bgdl-folder-path {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 10.5px;
+    color: var(--text-muted);
+}
+
+.bgdl-hint {
+    margin-top: 6px;
+    font: 400 11px/1.5 Barlow, sans-serif;
+    color: var(--text-dim);
+}
+
+/* --- Downloading --- */
+
+.bgdl-progress {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 0 4px;
+}
+
+.bgdl-bar {
+    height: 10px;
+    border-radius: 5px;
+    background: #161d27;
+    border: 1px solid var(--border-light);
+    overflow: hidden;
+}
+
+.bgdl-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--rust), var(--amber));
+    border-radius: 5px;
+    transition: width .2s ease;
+}
+
+.bgdl-progress-line {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    font: 500 12px Barlow, sans-serif;
+    color: var(--text-mid);
+}
+
+.bgdl-progress-line .mono {
+    font-size: 11.5px;
+}
+
+.bgdl-now {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    font: 500 12px Barlow, sans-serif;
+    color: var(--text-muted);
+}
+
+.bgdl-now i {
+    width: auto;
+    color: var(--text-dim);
+}
+
+.bgdl-now-file {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
+    color: var(--text-dim);
+}
+
+.bgdl-counts {
+    display: flex;
+    gap: 14px;
+    min-height: 16px;
+    font: 500 11px Barlow, sans-serif;
+    color: var(--text-dim);
+}
+
+.bgdl-counts .bad {
+    color: var(--amber);
+}
+
+/* --- Result --- */
+
+.bgdl-result {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 26px 20px;
+    text-align: center;
+}
+
+.bgdl-result > i {
+    width: auto;
+    font-size: 28px;
+}
+
+.bgdl-result > i.ok {
+    color: var(--green);
+}
+
+.bgdl-result > i.warn {
+    color: var(--amber);
+}
+
+.bgdl-result-title {
+    font: 600 14px Barlow, sans-serif;
+    color: var(--text-bright);
+}
+
+.bgdl-result-detail {
+    max-width: 420px;
+    font: 400 12px/1.55 Barlow, sans-serif;
+    color: var(--text-muted);
+}

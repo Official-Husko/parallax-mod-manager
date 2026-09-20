@@ -292,6 +292,54 @@
     opacity: .5;
 }
 
+/* The Online / Offline switch for where background images come from. */
+.source-toggle {
+    display: flex;
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.source-toggle span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    font: 500 11.5px Barlow, sans-serif;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+.source-toggle span i {
+    width: auto;
+    font-size: 10.5px;
+}
+
+.source-toggle span.active {
+    background: #1b232e;
+    color: var(--text-bright);
+    cursor: default;
+}
+
+/* The one-line explanation of the current source, under its switch. */
+.appearance-source-note {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 14px;
+    margin: -4px 0 2px;
+    font: 400 11.5px/1.55 Barlow, sans-serif;
+    color: var(--text-dim);
+}
+
+.appearance-source-note.disabled {
+    opacity: .5;
+}
+
+.appearance-source-note .link-btn {
+    flex: none;
+}
+
 .appearance-interval {
     display: flex;
     align-items: center;

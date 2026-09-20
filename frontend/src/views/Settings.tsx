@@ -2,6 +2,7 @@ import './Settings.css';
 import {h} from 'preact';
 import {useEffect, useState} from 'preact/hooks';
 import {
+    BackgroundCatalog,
     BrowseForExtraModFolder,
     BrowseForGameInstall,
     ClearGamePath,
@@ -17,9 +18,11 @@ import type {library, preferences} from '../../wailsjs/go/models';
 import {GameLogo} from '../components/GameLogo';
 import {Toggle} from '../components/Toggle';
 import {settingsNav} from '../data/mockData';
+import {formatBytes} from '../data/format';
 import {DEFAULT_BACKGROUND_INTERVAL_SECONDS} from '../components/AppBackground';
 import {type PlaysetAutoloadMode, playsetAutoloadModeFor} from '../data/playsetAutoload';
 import {AboutPanel} from './About';
+import {BackgroundDownloadModal} from './BackgroundDownloadModal';
 
 type Section = 'manage' | 'paths' | 'launch' | 'playsets' | 'sort' | 'appearance' | 'advanced' | 'about';
 
@@ -811,13 +814,46 @@ function AppearancePanel({onPreferencesChanged}: { onPreferencesChanged?: () => 
     // row. Only committed (parsed, clamped, and actually saved) on blur -
     // see commitInterval.
     const [intervalInput, setIntervalInput] = useState('');
+    // The download window (see BackgroundDownloadModal): opened by choosing Offline,
+    // and again from "Manage downloads" once offline.
+    const [downloadMode, setDownloadMode] = useState<'switch' | 'manage' | null>(null);
+    // What is on this computer, for the line under the source switch.
+    const [onDisk, setOnDisk] = useState<{files: number; bytes: number; repo: string} | null>(null);
+
+    function refreshOnDisk() {
+        BackgroundCatalog(false)
+            .then((c) => setOnDisk({
+                files: c.Packs.reduce((n, p) => n + p.LocalFiles, 0),
+                bytes: c.Packs.reduce((n, p) => n + p.LocalBytes, 0),
+                repo: c.Source,
+            }))
+            .catch(() => undefined);
+    }
 
     useEffect(() => {
         GetPreferences().then((p) => {
             setPrefs(p);
             setIntervalInput(String(p.backgroundIntervalSeconds || DEFAULT_BACKGROUND_INTERVAL_SECONDS));
         }).catch(() => undefined);
+        refreshOnDisk();
     }, []);
+
+    // Online is a plain switch. Offline first asks which games to download (the
+    // window below) and only takes effect once that is done - declining it leaves
+    // the source as it was, online.
+    function setSource(source: 'online' | 'offline') {
+        if (!prefs) return;
+        const next = {...prefs, backgroundSource: source};
+        setPrefs(next);
+        SetPreferences(next).then(onPreferencesChanged).catch(() => setPrefs(prefs));
+    }
+
+    function closeDownloadModal(result: { useOffline: boolean }) {
+        const mode = downloadMode;
+        setDownloadMode(null);
+        refreshOnDisk();
+        if (mode === 'switch' && result.useOffline) setSource('offline');
+    }
 
     function togglePref(key: 'backgroundDisabled' | 'backgroundRotationPaused') {
         if (!prefs) return;
@@ -856,6 +892,7 @@ function AppearancePanel({onPreferencesChanged}: { onPreferencesChanged?: () => 
 
     const backgroundOn = !prefs.backgroundDisabled;
     const rotationOn = !prefs.backgroundRotationPaused;
+    const offline = prefs.backgroundSource === 'offline';
 
     return (
         <div className="settings-content single">
@@ -870,6 +907,36 @@ function AppearancePanel({onPreferencesChanged}: { onPreferencesChanged?: () => 
                 <div className="profile-toggle-row">
                     <span>Rotating background</span>
                     <Toggle on={backgroundOn} onClick={() => togglePref('backgroundDisabled')}/>
+                </div>
+                <div className={`profile-toggle-row ${backgroundOn ? '' : 'disabled'}`}>
+                    <span>Background source</span>
+                    <span className="source-toggle">
+                        <span className={offline ? '' : 'active'} onClick={backgroundOn && offline ? () => setSource('online') : undefined}>
+                            <i className="fa-solid fa-cloud"/> Online
+                        </span>
+                        <span className={offline ? 'active' : ''} onClick={backgroundOn && !offline ? () => setDownloadMode('switch') : undefined}>
+                            <i className="fa-solid fa-hard-drive"/> Offline
+                        </span>
+                    </span>
+                </div>
+                <div className={`appearance-source-note ${backgroundOn ? '' : 'disabled'}`}>
+                    {offline ? (
+                        <>
+                            <span>
+                                Only images downloaded to this computer are used - nothing is fetched.{' '}
+                                {onDisk && onDisk.files > 0
+                                    ? `${onDisk.files} images (${formatBytes(onDisk.bytes)}) on disk.`
+                                    : 'None downloaded yet, so no background will show.'}
+                            </span>
+                            <span className="link-btn amber" onClick={() => setDownloadMode('manage')}>Manage downloads</span>
+                        </>
+                    ) : (
+                        <span>
+                            Images are streamed from {onDisk?.repo ? `GitHub (${onDisk.repo})` : 'GitHub'} as they are needed: a small
+                            listing is fetched at startup and each image loads about 30 seconds before it appears. Nothing is
+                            stored. Choose Offline to download them instead.
+                        </span>
+                    )}
                 </div>
                 <div className={`profile-toggle-row ${backgroundOn ? '' : 'disabled'}`}>
                     <span>Change automatically</span>
@@ -915,6 +982,7 @@ function AppearancePanel({onPreferencesChanged}: { onPreferencesChanged?: () => 
                     </span>
                 </div>
             </div>
+            {downloadMode && <BackgroundDownloadModal mode={downloadMode} onClose={closeDownloadModal}/>}
         </div>
     );
 }

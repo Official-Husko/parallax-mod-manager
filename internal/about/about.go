@@ -6,8 +6,9 @@
 //
 // Nothing here makes a network call. In particular the page's badges are
 // drawn locally from these values rather than fetched as images from a badge
-// service: this app's only third-party network traffic is Steam (see
-// docs/steam-web-api.md), and an About page isn't a reason to add another.
+// service: this app's third-party network traffic is Steam (see
+// docs/steam-web-api.md) and, for the online background images, GitHub (see
+// internal/backgrounds), and an About page isn't a reason to add another.
 package about
 
 import (
