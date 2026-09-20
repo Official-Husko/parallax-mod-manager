@@ -4,7 +4,7 @@
 
 .game-log-modal {
     width: min(1120px, 94vw);
-    height: min(760px, 88vh);
+    height: min(760px, 88%);
     background: var(--bg-panel);
     border: 1px solid var(--border);
     border-radius: 8px;

@@ -492,6 +492,12 @@
     align-items: center;
     justify-content: center;
     z-index: 50;
+    /* Start below the notification stack, which is drawn above this - see
+       components/NotificationStack.tsx. 0 when there is none. The dialogs
+       inside are sized in % (of what is left below the stack), not vh, so they
+       shrink to fit instead of running up under it. */
+    padding-top: var(--notification-bottom, 0px);
+    transition: padding-top .2s ease;
 }
 
 .status-page {

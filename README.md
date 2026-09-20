@@ -667,7 +667,9 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   scans, DLC saves, patch generation, conflict overrides, purging, the first-run wizard) via a
   small `trackTask()` helper that shows a progress toast and settles it into a success or error in
   place; the old per-view status lines and banners are gone. The stack draws above modal dialogs, so
-  a result raised from inside one is never hidden behind its backdrop.
+  a result raised from inside one is never hidden behind its backdrop, and the dialogs are laid
+  out below it (they start under its bottom edge and are sized as a share of what is left, easing
+  down and back as messages come and go) so it never covers a dialog's own header or buttons.
 - **A real custom right-click menu, app-wide** (`frontend/src/data/contextMenu.ts`,
   `ContextMenu.tsx`) - the webview's own native context menu (reload, inspect element, and the
   like - not meaningful chrome for a packaged desktop app) is suppressed everywhere via a single

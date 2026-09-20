@@ -1,6 +1,6 @@
 .autosort-modal {
     width: 460px;
-    max-height: 80vh;
+    max-height: 80%;
     background: var(--bg-panel);
     border: 1px solid var(--border);
     border-radius: 8px;

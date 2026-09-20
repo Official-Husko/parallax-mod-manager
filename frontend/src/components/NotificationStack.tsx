@@ -72,11 +72,34 @@ export function NotificationStack() {
         for (const timer of timersRef.current.values()) clearTimeout(timer);
     }, []);
 
+    // Publishes where the bottom edge of the stack is (--notification-bottom, 0
+    // when there is none), which the full-window overlays (.overlay and the
+    // first-run wizard) use as their top padding: the stack is drawn above a
+    // dialog's backdrop so a message raised from inside one is never hidden, and
+    // this keeps the dialog laid out below it instead of underneath it. Followed
+    // through a ResizeObserver so the dialog eases down and back up with the
+    // messages' own enter and exit animations.
+    const stackRef = useRef<HTMLDivElement>(null);
+    const showing = items.length > 0;
+    useEffect(() => {
+        const root = document.documentElement.style;
+        const el = stackRef.current;
+        if (!showing || !el) {
+            root.setProperty('--notification-bottom', '0px');
+            return;
+        }
+        const publish = () => root.setProperty('--notification-bottom', `${el.getBoundingClientRect().bottom}px`);
+        publish();
+        const observer = new ResizeObserver(publish);
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, [showing]);
+
     if (items.length === 0) {
         return null;
     }
     return (
-        <div className="notification-stack">
+        <div className="notification-stack" ref={stackRef}>
             {items.map((n) => (
                 <div key={n.id} className={`notification notification-${n.kind} ${n.exiting ? 'exiting' : ''}`}>
                     <i className={`fa-solid ${ICONS[n.kind]}`}/>

@@ -6,6 +6,9 @@
     align-items: center;
     justify-content: center;
     z-index: 50;
+    /* Below the notification stack, drawn above this - see App.css's .overlay. */
+    padding-top: var(--notification-bottom, 0px);
+    transition: padding-top .2s ease;
 }
 
 .wizard {
@@ -17,7 +20,7 @@
     overflow: hidden;
     display: flex;
     height: 460px;
-    max-height: 85vh;
+    max-height: 85%;
 }
 
 .wizard-sidebar {
