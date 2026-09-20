@@ -7,6 +7,7 @@ import {TopBar} from './components/TopBar';
 import type {ViewKey} from './components/TopBar';
 import {NotificationStack} from './components/NotificationStack';
 import {ContextMenu} from './components/ContextMenu';
+import {Tooltip} from './components/Tooltip';
 import {AppBackground} from './components/AppBackground';
 import {notify} from './data/notifications';
 import {displayVersion} from './data/versionCompat';
@@ -240,6 +241,7 @@ export function App() {
             <div id="app">
                 <FirstRunWizard onFinish={() => { markOnboarded(); setOnboarded(true); }}/>
                 <ContextMenu/>
+                <Tooltip/>
             </div>
         );
     }
@@ -359,6 +361,7 @@ export function App() {
 
             {showUpdates && <UpdatesModal onClose={() => setShowUpdates(false)}/>}
             <ContextMenu/>
+            <Tooltip/>
         </div>
     );
 }

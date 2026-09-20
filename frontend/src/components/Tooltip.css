@@ -1,0 +1,126 @@
+/* The rich hover tooltip - see components/Tooltip.tsx. Same border and shadow
+   as the context menu so the two read as one family, but an opaque surface:
+   --bg-header is translucent (the game background tints through panels), which
+   over a busy list would let the rows behind show through the text. */
+.tip {
+    position: fixed;
+    z-index: 1100;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    width: max-content;
+    max-width: 300px;
+    padding: 6px;
+    background: #121820;
+    border: 1px solid var(--border-light);
+    border-radius: 7px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .45);
+    pointer-events: none;
+    animation: tip-in .12s ease-out;
+}
+
+@keyframes tip-in {
+    from {
+        opacity: 0;
+        transform: translateY(2px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.tip-heading {
+    padding: 2px 4px 0;
+    font: 600 9.5px "Azeret Mono", monospace;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+}
+
+/* One list entry: the colored lead on the left, text on the right, over a
+   faint wash of the entry's own color and a matching left edge - so a flag
+   in a tooltip looks like the flag it explains. --tip-color is set inline. */
+.tip-item {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    padding: 6px 9px 6px 8px;
+    border-left: 2px solid var(--tip-color);
+    border-radius: 2px 5px 5px 2px;
+    overflow: hidden;
+}
+
+/* The wash sits on its own layer so the text on top stays fully opaque -
+   a semi-transparent background would need color-mix for the same look. */
+.tip-item::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--tip-color);
+    opacity: .1;
+}
+
+.tip-item-lead {
+    position: relative;
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 14px;
+    height: 17px;
+    color: var(--tip-color);
+    font-size: 12px;
+}
+
+.tip-item-body {
+    position: relative;
+    min-width: 0;
+}
+
+.tip-item-title {
+    font: 600 12px Barlow, sans-serif;
+    color: var(--text-bright);
+    line-height: 17px;
+}
+
+.tip-item-detail {
+    margin-top: 1px;
+    font: 400 11.5px Barlow, sans-serif;
+    line-height: 1.4;
+    color: var(--text-muted);
+}
+
+/* A short, mono-set run inside a detail line - a mod or key name. */
+.tip-name {
+    font: 500 11px "Azeret Mono", monospace;
+    color: var(--text-mid);
+}
+
+.tip-more {
+    color: var(--text-dim);
+}
+
+/* Stacked entries in one tooltip. */
+.tip-list {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+/* The CEGILM legend's letter -> folder key: two columns of bar + name. */
+.tip-domain-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 5px 14px;
+    padding: 2px 4px 4px;
+}
+
+.tip-domain {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font: 500 11.5px Barlow, sans-serif;
+    color: var(--text-mid);
+}

@@ -1,3 +1,5 @@
+import type {library} from '../../wailsjs/go/models';
+
 // The three per-mod problem flags (version mismatch, hard conflict,
 // dependency issue) and the one icon + color each is drawn with, everywhere
 // it shows up - Active row FLAGS column, detail panel, pre-flight list,
@@ -13,3 +15,30 @@ export const FLAG = {
     // A declared requirement isn't active, isn't installed, or loads too late.
     dependency: {icon: 'fa-link-slash', color: 'var(--flag-dependency)'},
 } as const;
+
+export interface ModConflictInfo {
+    // How many contested keys this mod is a candidate in.
+    keys: number;
+    // The other mods it contests them with, by name, in first-seen order.
+    others: string[];
+}
+
+// conflictsByMod turns the flat conflict list into what the conflict flag's
+// tooltip needs per mod: how many keys it contests and with whom.
+export function conflictsByMod(conflicts: library.ConflictSummary[]): Map<string, ModConflictInfo> {
+    const info = new Map<string, ModConflictInfo>();
+    for (const c of conflicts) {
+        for (const cand of c.Candidates) {
+            let entry = info.get(cand.ModID);
+            if (!entry) {
+                entry = {keys: 0, others: []};
+                info.set(cand.ModID, entry);
+            }
+            entry.keys++;
+            for (const other of c.Candidates) {
+                if (other.ModID !== cand.ModID && !entry.others.includes(other.ModName)) entry.others.push(other.ModName);
+            }
+        }
+    }
+    return info;
+}

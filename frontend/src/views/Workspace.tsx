@@ -35,12 +35,15 @@ import {useDragMultiSelect} from '../data/dragMultiSelect';
 import {type DropTarget, useListDragMove} from '../data/listDragMove';
 import {domains} from '../data/mockData';
 import {playsetAutoloadTarget} from '../data/playsetAutoload';
-import {computeDomainOverlap, DOMAIN_NAMES} from '../data/domainOverlap';
+import {computeDomainOverlap} from '../data/domainOverlap';
 import {buildPreflightItems, findDependencyIssues} from '../data/preflight';
 import {checkVersionCompatibility, displayVersion} from '../data/versionCompat';
 import {formatBytes, timeAgo, truncate} from '../data/format';
 import {SourceBadge} from '../components/SourceBadge';
-import {FLAG} from '../data/flags';
+import {FLAG, conflictsByMod} from '../data/flags';
+import {tip} from '../data/tooltip';
+import {domainLegendTip, domainTip, flagLegendTip, modFlagsTip} from '../components/FlagTips';
+import {TipItem} from '../components/Tooltip';
 import {EmptyState} from '../components/EmptyState';
 import {FileTree} from '../components/FileTree';
 import {AutosortMissingDepsModal} from './AutosortMissingDepsModal';
@@ -56,14 +59,6 @@ type Status =
     | { kind: 'busy'; message: string }
     | { kind: 'error'; message: string }
     | { kind: 'success'; message: string };
-
-// What each CEGILM letter stands for, derived from the one shared
-// DOMAIN_NAMES map - used as the CEGILM column header's own hover
-// tooltip (the standalone legend that used to sit at the bottom of the
-// Active list was removed as redundant with this, plus each segment's
-// own per-domain tooltip already naming its state - see the segment
-// rendering below).
-const DOMAIN_LEGEND = domains.map((d) => `${d} ${DOMAIN_NAMES[d]}`).join(' · ');
 
 type DetailTab = 'overview' | 'files' | 'conflicts' | 'changelog';
 
@@ -631,6 +626,8 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
         }
         return s;
     }, [summary]);
+    // Per mod: how many keys it contests and with whom - the conflict flag's tooltip.
+    const conflictInfo = useMemo(() => conflictsByMod(summary?.Conflicts ?? []), [summary]);
     // The Active list's own per-row domain segments - see data/domainOverlap.ts.
     const domainOverlap = useMemo(() => computeDomainOverlap(summary?.Conflicts ?? []), [summary]);
 
@@ -1140,7 +1137,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                                     <span className="name">{m.Name}</span>
                                     <span
                                         className={`ver mono ${compatible ? 'compatible' : incompatible && !ignored ? 'incompatible' : ''}`}
-                                        title={versionTitle(incompatible, ignored, m.SupportedVersion, gameVersion)}
+                                        {...tip(() => incompatible ? modFlagsTip({version: {supported: m.SupportedVersion, game: gameVersion, ignored}}) : null)}
                                     >
                                         <span className="ver-text">{m.SupportedVersion ? displayVersion(m.SupportedVersion) : '-'}</span>
                                         {incompatible && ignored && <i className={`fa-solid ${FLAG.version.icon} ver-ignored-icon`}/>}
@@ -1193,8 +1190,8 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                             <span className="column-header-position">NR</span>
                             <span className="column-header-spacer"/>
                             <span className="column-header-name">NAME</span>
-                            <span className="column-header-domains" title={DOMAIN_LEGEND}>DOMAINS</span>
-                            <span className="column-header-warnings" title="Version mismatch, hard conflict, dependency issue - hover a flag for details">FLAGS</span>
+                            <span className="column-header-domains" {...tip(domainLegendTip)}>DOMAINS</span>
+                            <span className="column-header-warnings" {...tip(flagLegendTip)}>FLAGS</span>
                         </div>
                         <div className={`list-rows ${dragMove.dropTarget?.list === 'active' && dragMove.dropTarget.kind === 'end' ? 'drop-at-end' : ''}`} ref={dragMove.activeRowsRef}>
                             {active.length === 0 && (
@@ -1228,27 +1225,25 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                                         <span className="domain-segments">
                                             {domains.map((d) => {
                                                 const state = domainOverlap.get(m.ID)?.[d] ?? 'clean';
-                                                return <span key={d} className={`segment l-${d} ${state}`} title={`${DOMAIN_NAMES[d]}: ${state}`}/>;
+                                                return <span key={d} className={`segment l-${d} ${state}`} {...tip(() => domainTip(d, state))}/>;
                                             })}
                                         </span>
-                                        <span className="row-warnings">
-                                            {incompatible && !ignored && (
-                                                <i
-                                                    className={`fa-solid ${FLAG.version.icon} warning-icon version`}
-                                                    title={versionTitle(incompatible, ignored, m.SupportedVersion, gameVersion)}
-                                                />
-                                            )}
-                                            {incompatible && ignored && (
-                                                <i
-                                                    className={`fa-solid ${FLAG.version.icon} warning-icon ignored`}
-                                                    title={versionTitle(incompatible, ignored, m.SupportedVersion, gameVersion)}
-                                                />
+                                        <span
+                                            className="row-warnings"
+                                            {...tip(() => modFlagsTip({
+                                                version: incompatible ? {supported: m.SupportedVersion, game: gameVersion, ignored} : undefined,
+                                                conflict: conflicted ? conflictInfo.get(m.ID) : undefined,
+                                                dependency: hasDependencyIssue ? dependencyIssues.byMod.get(m.ID) : undefined,
+                                            }))}
+                                        >
+                                            {incompatible && (
+                                                <i className={`fa-solid ${FLAG.version.icon} warning-icon ${ignored ? 'ignored' : 'version'}`}/>
                                             )}
                                             {conflicted && (
-                                                <i className={`fa-solid ${FLAG.conflict.icon} warning-icon conflict`} title="Hard conflict - see the Conflict Resolver"/>
+                                                <i className={`fa-solid ${FLAG.conflict.icon} warning-icon conflict`}/>
                                             )}
                                             {hasDependencyIssue && (
-                                                <i className={`fa-solid ${FLAG.dependency.icon} warning-icon dependency`} title="Dependency issue - see Pre-flight, or try Autosort"/>
+                                                <i className={`fa-solid ${FLAG.dependency.icon} warning-icon dependency`}/>
                                             )}
                                         </span>
                                         <span className="row-actions">
@@ -1292,7 +1287,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                             <div className="rail-label">PRE-FLIGHT</div>
                             <div className="preflight-mini">
                                 {preflightItems.map((p) => (
-                                    <div key={p.title} className="preflight-mini-row" title={p.detail}>
+                                    <div key={p.title} className="preflight-mini-row" {...tip(() => <TipItem icon={p.icon} color={p.color} title={p.title}>{p.detail}</TipItem>)}>
                                         <i className={`fa-solid ${p.icon}`} style={{color: p.color}}/>
                                         <span>{p.title}</span>
                                     </div>
@@ -1486,18 +1481,6 @@ function matchesSearch(m: library.ModSummary, search: string): boolean {
     return m.Name.toLowerCase().includes(q) || m.ID.toLowerCase().includes(q);
 }
 
-// versionTitle builds the Available/Active rows' own hover tooltip for a
-// version mismatch - undefined when there's nothing worth explaining
-// (compatible, or unknown). The browser renders an embedded newline as a
-// real line break in a native title tooltip, so an ignored mismatch gets
-// both the original "why" and the ignored note in one hover, rather than
-// needing a dedicated rich tooltip component just for this.
-function versionTitle(incompatible: boolean, ignored: boolean, supportedVersion: string, gameVersion: string): string | undefined {
-    if (!incompatible) return undefined;
-    const why = `Built for ${displayVersion(supportedVersion)} - you have ${displayVersion(gameVersion)}`;
-    return ignored ? `${why}\nIncompatibility warning ignored - right-click to restore it` : why;
-}
-
 // authorNameFor resolves a mod's real Steam Workshop author name, if it's
 // a Workshop mod and both its own Workshop metadata and that creator's
 // profile have been fetched - "" otherwise (a local mod, or data not
@@ -1675,7 +1658,7 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, gameVersion, allM
                                 {t[0].toUpperCase() + t.slice(1)}
                                 {t === 'conflicts' && (
                                     myConflicts.length > 0
-                                        ? <i className={`fa-solid ${FLAG.conflict.icon} detail-tab-icon warn`} title={`${myConflicts.length} contested ${myConflicts.length === 1 ? 'key' : 'keys'}`}/>
+                                        ? <i className={`fa-solid ${FLAG.conflict.icon} detail-tab-icon warn`} {...tip(() => modFlagsTip({conflict: conflictsByMod(myConflicts).get(mod.ID)}))}/>
                                         : <i className="fa-solid fa-circle-check detail-tab-icon ok" title="No genuine conflicts"/>
                                 )}
                             </span>

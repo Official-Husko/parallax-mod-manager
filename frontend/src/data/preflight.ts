@@ -28,6 +28,10 @@ export interface DependencyIssues {
     // needs - what the Active list's own per-row warning shield reflects,
     // so it never has to recompute this same matching itself.
     affectedIds: Set<string>;
+    // Per affected mod, which declared dependencies are the problem: names
+    // not in the active load order at all, and names that are active but
+    // load after this mod. What the flag's own hover tooltip lists.
+    byMod: Map<string, {missing: string[]; misordered: string[]}>;
 }
 
 // findDependencyIssues is the real dependency-matching both
@@ -41,6 +45,15 @@ export function findDependencyIssues(active: library.ModSummary[]): DependencyIs
     let missing = 0;
     let misordered = 0;
     const affectedIds = new Set<string>();
+    const byMod = new Map<string, {missing: string[]; misordered: string[]}>();
+    const issuesOf = (id: string) => {
+        let issues = byMod.get(id);
+        if (!issues) {
+            issues = {missing: [], misordered: []};
+            byMod.set(id, issues);
+        }
+        return issues;
+    };
     for (const m of active) {
         // The generated patch lists every mod it was built from as a
         // dependency, as a snapshot for the launcher. Whether it's still
@@ -52,16 +65,18 @@ export function findDependencyIssues(active: library.ModSummary[]): DependencyIs
             if (!activeNames.has(depName)) {
                 missing++;
                 affectedIds.add(m.ID);
+                issuesOf(m.ID).missing.push(depName);
                 continue;
             }
             const depMod = active.find((x) => x.Name === depName);
             if (depMod && (indexById.get(depMod.ID) ?? 0) > (indexById.get(m.ID) ?? 0)) {
                 misordered++;
                 affectedIds.add(m.ID);
+                issuesOf(m.ID).misordered.push(depName);
             }
         }
     }
-    return {missing, misordered, affectedIds};
+    return {missing, misordered, affectedIds, byMod};
 }
 
 export function buildPreflightItems(

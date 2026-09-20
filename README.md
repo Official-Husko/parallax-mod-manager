@@ -684,6 +684,11 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   is an amber code-compare, a hard conflict a red burst, and a dependency issue a violet broken
   link (it used to share amber with version warnings and a generic triangle). An ignored version
   warning drops to a quiet grey.
+  Hovering any of them opens a **rich tooltip** (`components/Tooltip.tsx`, `data/tooltip.ts`) instead
+  of a plain native one: every entry is drawn the way it looks in the list (its colored icon, or the
+  mask-cut domain bar, on a wash of its own color) with the explanation next to it - a mod's flags
+  list the exact contested-key count and the mods it clashes with, or the dependencies that are
+  missing or loading too late; the FLAGS and DOMAINS headers show a legend of every flag and color.
 - **Every top-level view stays mounted once visited, instead of unmounting on navigation** - a
   real bug found while chasing why the Workshop/author fetch above never seemed to finish:
   `app.tsx` used to fully unmount a view (`{view === 'x' && <X/>}`) the instant the user
