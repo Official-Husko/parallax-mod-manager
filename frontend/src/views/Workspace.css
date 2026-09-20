@@ -143,7 +143,7 @@
 }
 
 .detail-tab-icon.warn {
-    color: var(--red);
+    color: var(--flag-conflict);
 }
 
 .detail-tab-icon.ok {
@@ -185,14 +185,14 @@
 
 /* This mod's own declared supported_version is confirmed incompatible
    with the real, currently-installed game version - see
-   data/versionCompat.ts. Stays red here even once the user has ignored
+   data/versionCompat.ts. Stays amber here even once the user has ignored
    the warning (unlike the Available list's own .ver.incompatible, which
    withdraws its color for an ignored mod) - this is the detail panel for
    one specific mod someone is actively looking into, so the fact stays
    plainly visible; only the hover tooltip below it (.supports-notice)
    and its own small ignored-icon change to reflect the ignored state. */
 .overview-grid .value.warn {
-    color: var(--red);
+    color: var(--flag-version);
 }
 
 .section-label {
@@ -530,12 +530,12 @@
     display: flex;
     align-items: flex-start;
     gap: 9px;
-    background: #1e1714;
-    border: 1px solid #4a2f22;
+    background: #1e1a12;
+    border: 1px solid #4a3a1e;
     border-radius: 5px;
     padding: 8px 10px;
     font: 500 11.5px Barlow, sans-serif;
-    color: #e8b9b2;
+    color: #e8d3a6;
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
@@ -548,7 +548,7 @@
 }
 
 .supports-notice i {
-    color: var(--red);
+    color: var(--flag-version);
     margin-top: 1px;
 }
 
@@ -559,9 +559,9 @@
 }
 
 /* An incompatibility the user has explicitly chosen to ignore - the
-   alarming red/amber tone is withdrawn here (it's an acknowledged,
+   amber warning tone is withdrawn here (it's an acknowledged,
    dismissed warning now), leaving a quiet, neutral reminder instead -
-   the Supports value itself above stays red regardless (see
+   the Supports value itself above stays amber regardless (see
    .overview-grid .value.warn's own comment for why). */
 .supports-notice.ignored {
     background: var(--bg-panel);
@@ -930,7 +930,7 @@
    .ver-ignored-icon below) - only a live, unacknowledged mismatch gets
    this color here. */
 .mod-row .ver.incompatible {
-    color: var(--red);
+    color: var(--flag-version);
 }
 
 /* An incompatibility the user has explicitly chosen to ignore (see the
@@ -941,7 +941,7 @@
    mod's Supports value in red regardless of ignored state - see
    .overview-grid .value.warn. */
 .ver-ignored-icon {
-    color: var(--text-dim);
+    color: var(--flag-ignored);
     font-size: 9px;
 }
 
@@ -1051,29 +1051,30 @@
 }
 
 .warning-icon {
-    font-size: 10px;
+    font-size: 11px;
 }
 
 .warning-icon.version {
-    color: var(--red);
+    color: var(--flag-version);
 }
 
 /* An incompatibility the user has explicitly chosen to ignore - see
    .ver-ignored-icon's comment. */
 .warning-icon.ignored {
-    color: var(--text-dim);
+    color: var(--flag-ignored);
 }
 
 .warning-icon.conflict {
-    color: var(--red);
+    color: var(--flag-conflict);
 }
 
 /* One or more of this mod's own declared dependencies isn't active, or
    loads after it instead of before - see data/preflight.ts's own
-   findDependencyIssues. Amber/yellow, not red: a real problem worth
-   fixing (Autosort resolves it), but not a hard, game-breaking conflict. */
+   findDependencyIssues. Violet, not red or amber: a real problem worth
+   fixing (Autosort resolves it), but neither a hard conflict nor a mere
+   version warning, so it gets its own hue. */
 .warning-icon.dependency {
-    color: var(--amber);
+    color: var(--flag-dependency);
 }
 
 .row-actions {

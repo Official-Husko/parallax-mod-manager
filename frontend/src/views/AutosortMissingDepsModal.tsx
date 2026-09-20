@@ -1,5 +1,6 @@
 import './AutosortModals.css';
 import {h} from 'preact';
+import {FLAG} from '../data/flags';
 import type {MissingDependency} from '../data/autosort';
 
 // Shown when Workspace's own "Autosort" action finds at least one mod name
@@ -34,7 +35,7 @@ export function AutosortMissingDepsModal({missing, onClose, onLoadAndSort, onSor
                 <div className="autosort-modal-body">
                     {missing.map((m) => (
                         <div key={m.id} className="autosort-dep-row">
-                            <i className="fa-solid fa-shield-halved"/>
+                            <i className={`fa-solid ${FLAG.dependency.icon}`}/>
                             <span className="autosort-dep-name">{m.name}</span>
                         </div>
                     ))}

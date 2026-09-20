@@ -677,6 +677,13 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   reserves red for hard conflicts only) in both the Available/Active lists' version column and
   the detail panel's own "Supports" row, which used to always show a flat, meaningless green
   regardless of whether that was actually true.
+- **Distinct per-mod problem flags** (`frontend/src/data/flags.ts`, `--flag-*` tokens in `App.css`) -
+  the Active list's FLAGS column, the detail panel, the pre-flight list and the Autosort dialogs
+  now draw the three problems the same way everywhere, each with its own Font Awesome Pro icon
+  and hue so they read apart at a glance and without relying on color alone: a version mismatch
+  is an amber code-compare, a hard conflict a red burst, and a dependency issue a violet broken
+  link (it used to share amber with version warnings and a generic triangle). An ignored version
+  warning drops to a quiet grey.
 - **Every top-level view stays mounted once visited, instead of unmounting on navigation** - a
   real bug found while chasing why the Workshop/author fetch above never seemed to finish:
   `app.tsx` used to fully unmount a view (`{view === 'x' && <X/>}`) the instant the user

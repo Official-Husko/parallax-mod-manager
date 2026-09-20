@@ -1,3 +1,4 @@
+import {FLAG} from './flags';
 import type {library} from '../../wailsjs/go/models';
 
 // Real pre-flight checks for the Workspace's own actions rail and the
@@ -89,8 +90,8 @@ export function buildPreflightItems(
 
     if (conflicts.length > 0) {
         items.push({
-            icon: 'fa-xmark',
-            color: 'var(--red)',
+            icon: FLAG.conflict.icon,
+            color: FLAG.conflict.color,
             title: `${conflicts.length} hard conflict${conflicts.length === 1 ? '' : 's'} unresolved`,
             detail: 'Two or more active mods define the same key - see the Conflict Resolver.',
         });
@@ -110,8 +111,8 @@ export function buildPreflightItems(
         if (misordered > 0) parts.push(`${misordered} loading in the wrong order`);
         const total = missing + misordered;
         items.push({
-            icon: 'fa-triangle-exclamation',
-            color: 'var(--amber)',
+            icon: FLAG.dependency.icon,
+            color: FLAG.dependency.color,
             title: `${total} dependency issue${total === 1 ? '' : 's'} found`,
             detail: `${parts.join(', ')} - try Autosort.`,
         });

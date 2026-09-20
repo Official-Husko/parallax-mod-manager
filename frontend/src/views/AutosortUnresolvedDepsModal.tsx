@@ -1,5 +1,6 @@
 import './AutosortModals.css';
 import {h} from 'preact';
+import {FLAG} from '../data/flags';
 
 // Shown after Autosort actually runs (see Workspace's own handleAutosort),
 // when at least one currently-active mod declares a dependency that
@@ -31,7 +32,7 @@ export function AutosortUnresolvedDepsModal({names, onClose}: {
                 <div className="autosort-modal-body">
                     {names.map((name) => (
                         <div key={name} className="autosort-dep-row unresolved">
-                            <i className="fa-solid fa-triangle-exclamation"/>
+                            <i className={`fa-solid ${FLAG.dependency.icon}`}/>
                             <span className="autosort-dep-name">{name}</span>
                         </div>
                     ))}

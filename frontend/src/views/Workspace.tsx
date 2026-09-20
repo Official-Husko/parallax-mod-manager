@@ -40,6 +40,7 @@ import {buildPreflightItems, findDependencyIssues} from '../data/preflight';
 import {checkVersionCompatibility, displayVersion} from '../data/versionCompat';
 import {formatBytes, timeAgo, truncate} from '../data/format';
 import {SourceBadge} from '../components/SourceBadge';
+import {FLAG} from '../data/flags';
 import {EmptyState} from '../components/EmptyState';
 import {FileTree} from '../components/FileTree';
 import {AutosortMissingDepsModal} from './AutosortMissingDepsModal';
@@ -1142,7 +1143,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                                         title={versionTitle(incompatible, ignored, m.SupportedVersion, gameVersion)}
                                     >
                                         <span className="ver-text">{m.SupportedVersion ? displayVersion(m.SupportedVersion) : '-'}</span>
-                                        {incompatible && ignored && <i className="fa-solid fa-triangle-exclamation ver-ignored-icon"/>}
+                                        {incompatible && ignored && <i className={`fa-solid ${FLAG.version.icon} ver-ignored-icon`}/>}
                                     </span>
                                     <span className="author mono" title={author}>
                                         {authorLoading
@@ -1193,7 +1194,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                             <span className="column-header-spacer"/>
                             <span className="column-header-name">NAME</span>
                             <span className="column-header-domains" title={DOMAIN_LEGEND}>DOMAINS</span>
-                            <span className="column-header-warnings" title="Version mismatch, hard conflicts, dependency issues">FLAGS</span>
+                            <span className="column-header-warnings" title="Version mismatch, hard conflict, dependency issue - hover a flag for details">FLAGS</span>
                         </div>
                         <div className={`list-rows ${dragMove.dropTarget?.list === 'active' && dragMove.dropTarget.kind === 'end' ? 'drop-at-end' : ''}`} ref={dragMove.activeRowsRef}>
                             {active.length === 0 && (
@@ -1233,21 +1234,21 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                                         <span className="row-warnings">
                                             {incompatible && !ignored && (
                                                 <i
-                                                    className="fa-solid fa-triangle-exclamation warning-icon version"
+                                                    className={`fa-solid ${FLAG.version.icon} warning-icon version`}
                                                     title={versionTitle(incompatible, ignored, m.SupportedVersion, gameVersion)}
                                                 />
                                             )}
                                             {incompatible && ignored && (
                                                 <i
-                                                    className="fa-solid fa-triangle-exclamation warning-icon ignored"
+                                                    className={`fa-solid ${FLAG.version.icon} warning-icon ignored`}
                                                     title={versionTitle(incompatible, ignored, m.SupportedVersion, gameVersion)}
                                                 />
                                             )}
                                             {conflicted && (
-                                                <i className="fa-solid fa-bolt warning-icon conflict" title="Hard conflict - see the Conflict Resolver"/>
+                                                <i className={`fa-solid ${FLAG.conflict.icon} warning-icon conflict`} title="Hard conflict - see the Conflict Resolver"/>
                                             )}
                                             {hasDependencyIssue && (
-                                                <i className="fa-solid fa-shield-halved warning-icon dependency" title="Dependency issue - see Pre-flight, or try Autosort"/>
+                                                <i className={`fa-solid ${FLAG.dependency.icon} warning-icon dependency`} title="Dependency issue - see Pre-flight, or try Autosort"/>
                                             )}
                                         </span>
                                         <span className="row-actions">
@@ -1674,7 +1675,7 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, gameVersion, allM
                                 {t[0].toUpperCase() + t.slice(1)}
                                 {t === 'conflicts' && (
                                     myConflicts.length > 0
-                                        ? <i className="fa-solid fa-triangle-exclamation detail-tab-icon warn" title={`${myConflicts.length} contested ${myConflicts.length === 1 ? 'key' : 'keys'}`}/>
+                                        ? <i className={`fa-solid ${FLAG.conflict.icon} detail-tab-icon warn`} title={`${myConflicts.length} contested ${myConflicts.length === 1 ? 'key' : 'keys'}`}/>
                                         : <i className="fa-solid fa-circle-check detail-tab-icon ok" title="No genuine conflicts"/>
                                 )}
                             </span>
@@ -1963,11 +1964,11 @@ function OverviewTab({mod, files, filesLoading, allMods, conflicts, onOpenFolder
                 <span className="supports-cell">
                     <span className={`value mono ${supportsCompat.known ? (supportsCompat.compatible ? 'ok' : 'warn') : ''}`}>
                         {mod.SupportedVersion ? displayVersion(mod.SupportedVersion) : '-'}
-                        {supportsIncompatible && supportsIgnored && <i className="fa-solid fa-triangle-exclamation ver-ignored-icon"/>}
+                        {supportsIncompatible && supportsIgnored && <i className={`fa-solid ${FLAG.version.icon} ver-ignored-icon`}/>}
                     </span>
                     {supportsIncompatible && (
                         <div className={`supports-notice ${supportsIgnored ? 'ignored' : ''}`}>
-                            <i className="fa-solid fa-triangle-exclamation"/>
+                            <i className={`fa-solid ${FLAG.version.icon}`}/>
                             <div>
                                 <div>Built for {displayVersion(mod.SupportedVersion)} - you have {displayVersion(gameVersion)}</div>
                                 {supportsIgnored && <div className="supports-notice-subnote">Incompatibility warning ignored</div>}

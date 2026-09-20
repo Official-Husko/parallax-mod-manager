@@ -60,7 +60,7 @@
 }
 
 .autosort-dep-row i {
-    color: var(--amber);
+    color: var(--flag-dependency);
     font-size: 12px;
     flex: none;
 }

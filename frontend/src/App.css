@@ -44,6 +44,14 @@
     --red: #d4574e;
     --green: #5fae7e;
     --blue: #5b8fc9;
+    /* Per-mod problem flags (see data/flags.ts) - one hue each so version,
+       conflict and dependency problems read apart at a glance. Amber and red
+       keep their meanings above (warning / hard conflict); the dependency
+       violet is the one addition, since a broken requirement is neither. */
+    --flag-version: var(--amber);
+    --flag-conflict: var(--red);
+    --flag-dependency: #a98bdc;
+    --flag-ignored: var(--text-dim);
     /* File-tree icon colors (Workspace's Files tab) - a deliberately wider,
        richer set than the app's own narrow chrome accent palette above:
        distinguishing content types by color (script vs. localisation vs.
