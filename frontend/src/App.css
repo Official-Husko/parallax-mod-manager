@@ -340,6 +340,11 @@
     opacity: .8;
 }
 
+.btn-primary.inert {
+    cursor: default;
+    opacity: .7;
+}
+
 .btn-primary {
     font: 600 11.5px Barlow, sans-serif;
     color: var(--rust-text);

@@ -1,4 +1,9 @@
+/* Above the modal overlays (z-index 50) - a notification raised while a modal
+   is open (a patch result, a failed apply) has to be seen and dismissable, not
+   sit dimmed behind the backdrop. */
 .notification-stack {
+    position: relative;
+    z-index: 60;
     display: flex;
     flex-direction: column;
     gap: 1px;

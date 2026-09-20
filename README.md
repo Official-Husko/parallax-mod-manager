@@ -619,6 +619,11 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   happening at all. A plain module-level store, not a new state-management dependency - any
   component calls `notify()`/`updateNotification()`/`dismiss()` directly; one `<NotificationStack/>`
   in `app.tsx` renders whatever's currently active.
+  Every action outcome in the app now goes through it (saving, loading and launching a playset,
+  scans, DLC saves, patch generation, conflict overrides, purging, the first-run wizard) via a
+  small `trackTask()` helper that shows a progress toast and settles it into a success or error in
+  place; the old per-view status lines and banners are gone. The stack draws above modal dialogs, so
+  a result raised from inside one is never hidden behind its backdrop.
 - **A real custom right-click menu, app-wide** (`frontend/src/data/contextMenu.ts`,
   `ContextMenu.tsx`) - the webview's own native context menu (reload, inspect element, and the
   like - not meaningful chrome for a packaged desktop app) is suppressed everywhere via a single

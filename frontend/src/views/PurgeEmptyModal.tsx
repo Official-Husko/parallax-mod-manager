@@ -3,6 +3,7 @@ import {h} from 'preact';
 import {useEffect, useMemo, useState} from 'preact/hooks';
 import {FindEmptyMods, PurgeMods} from '../../wailsjs/go/main/App';
 import type {library} from '../../wailsjs/go/models';
+import {notify} from '../data/notifications';
 
 // PurgeEmptyModal reviews every local mod with no usable content (missing
 // or empty content folder - see library.FindEmptyMods) before deleting
@@ -49,7 +50,7 @@ export function PurgeEmptyModal({gameId, onClose, onPurged}: {
             onPurged(result);
             onClose();
         } catch (err) {
-            setLoadError(String(err));
+            notify('error', `Couldn't delete the selected mods: ${String(err)}`);
             setBusy(false);
         }
     }

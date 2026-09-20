@@ -26,7 +26,7 @@ import {
 import {BrowserOpenURL, EventsOn} from '../../wailsjs/runtime/runtime';
 import type {launcherdb, library, playset, preferences, steamapi} from '../../wailsjs/go/models';
 import {autosort, findMissingActiveDependencies, type MissingActiveDependencies} from '../data/autosort';
-import {dismiss, notify, updateNotification} from '../data/notifications';
+import {dismiss, notify, trackTask, updateNotification} from '../data/notifications';
 import {describePatchStatus, patchNeedsAttention} from '../data/patchStatus';
 import {logEvent} from '../data/appLog';
 import {useGameRunning} from '../data/gameStatus';
@@ -53,12 +53,6 @@ import {GameLogModal} from './GameLogModal';
 import {PlaysetsModal} from './PlaysetsModal';
 import {PreflightModal} from './PreflightModal';
 import {PurgeEmptyModal} from './PurgeEmptyModal';
-
-type Status =
-    | { kind: 'idle' }
-    | { kind: 'busy'; message: string }
-    | { kind: 'error'; message: string }
-    | { kind: 'success'; message: string };
 
 type DetailTab = 'overview' | 'files' | 'conflicts' | 'changelog';
 
@@ -149,7 +143,9 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
     const [unresolvedDeps, setUnresolvedDeps] = useState<string[] | null>(null);
     const [search, setSearch] = useState('');
     const [activeSearch, setActiveSearch] = useState('');
-    const [status, setStatus] = useState<Status>({kind: 'idle'});
+    // The 'Scanning...' / 'Resolving conflicts...' progress notification of the
+    // scan in flight, if any - see refreshMods and the scan-quick listener.
+    const scanNoticeRef = useRef<string | null>(null);
     const [prefs, setPrefs] = useState<preferences.Preferences | null>(null);
     // Mod IDs whose version-incompatibility warning the user has
     // explicitly chosen to suppress for this game (see the mod context
@@ -238,11 +234,16 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
     // exist from the current load order and Available selection, leaving
     // everything else exactly as the user left it.
     async function refreshMods(preserveSelection: boolean) {
+        // Held locally, not read back from the ref: a second full scan (the
+        // game was switched mid-scan) replaces the ref, and this one must
+        // still settle its own notification, not the newer scan's.
+        let scanId = '';
         if (!preserveSelection) {
+            if (scanNoticeRef.current) dismiss(scanNoticeRef.current);
             setPlaysetName('');
             setDisabledDlc([]);
             setSelectedAvailable(new Set());
-            setStatus({kind: 'busy', message: 'Scanning...'});
+            scanNoticeRef.current = scanId = notify('progress', 'Scanning mods...');
             expectingFreshQuickRef.current = true;
             quickAppliedRef.current = false;
         }
@@ -267,13 +268,15 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                 setOrder(result.Mods.filter((m) => m.Enabled).map((m) => m.ID));
             }
             if (!preserveSelection) {
-                setStatus({kind: 'idle'});
+                dismiss(scanId);
             }
         } catch (err) {
             expectingFreshQuickRef.current = false;
             if (!preserveSelection) {
-                setStatus({kind: 'error', message: String(err)});
+                updateNotification(scanId, {kind: 'error', message: `Scan failed: ${String(err)}`});
             }
+        } finally {
+            if (scanNoticeRef.current === scanId) scanNoticeRef.current = null;
         }
     }
 
@@ -303,7 +306,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                     handleLoadPlayset(wanted);
                 }
             })
-            .catch((err) => setStatus({kind: 'error', message: String(err)}));
+            .catch((err) => notify('error', `Couldn't load playsets: ${String(err)}`));
         ImportLauncherPlaysets(selectedGame)
             .then(setLauncherPlaysets)
             .catch(() => setLauncherPlaysets([]));
@@ -330,7 +333,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                 if (ignored) next.delete(modId); else next.add(modId);
                 return next;
             });
-            setStatus({kind: 'error', message: String(err)});
+            notify('error', `Couldn't save that setting: ${String(err)}`);
         }
     }
 
@@ -399,7 +402,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
             }
             setSummary(quick);
             setOrder(quick.Mods.filter((m) => m.Enabled).map((m) => m.ID));
-            setStatus({kind: 'busy', message: 'Resolving conflicts...'});
+            if (scanNoticeRef.current) updateNotification(scanNoticeRef.current, {message: 'Resolving conflicts...'});
             quickAppliedRef.current = true;
         });
         return () => unsubscribe();
@@ -794,7 +797,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
     }
 
     function openModFolder(id: string) {
-        OpenModFolder(selectedGame, id).catch((err) => setStatus({kind: 'error', message: String(err)}));
+        OpenModFolder(selectedGame, id).catch((err) => notify('error', `Couldn't open the mod folder: ${String(err)}`));
     }
 
     function copyModId(id: string) {
@@ -848,7 +851,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
         if (result.cycleMods.length > 0) {
             const names = result.cycleMods.map((id) => modsById.get(id)?.Name ?? id).join(', ');
             logEvent('warn', 'Autosort', `circular dependency involving ${names} - these couldn't be fully ordered`);
-            setStatus({kind: 'error', message: `Autosort: circular dependency involving ${names} - these couldn't be fully ordered.`});
+            notify('warning', `Autosort: circular dependency involving ${names} - these couldn't be fully ordered.`);
         }
     }
 
@@ -901,9 +904,9 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
             setOrder((prev) => prev.filter((id) => !deleted.includes(id)));
         }
         if (errors.length > 0) {
-            setStatus({kind: 'error', message: `Deleted ${deleted.length} mod${deleted.length === 1 ? '' : 's'}, but: ${errors.join('; ')}`});
+            notify('error', `Deleted ${deleted.length} mod${deleted.length === 1 ? '' : 's'}, but: ${errors.join('; ')}`);
         } else if (deleted.length > 0) {
-            setStatus({kind: 'success', message: `Deleted ${deleted.length} empty mod${deleted.length === 1 ? '' : 's'}.`});
+            notify('success', `Deleted ${deleted.length} empty mod${deleted.length === 1 ? '' : 's'}.`);
         }
         if (deleted.length > 0) {
             refreshMods(true);
@@ -918,26 +921,22 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
     }
 
     async function handleSave() {
-        if (!playsetName.trim()) return;
-        setStatus({kind: 'busy', message: 'Saving...'});
-        try {
+        const name = playsetName.trim();
+        if (!name) return;
+        await trackTask(`Saving "${name}"...`, async () => {
             // disabledDlc is preserved as loaded (see handleLoadPlayset),
             // not reset - Workspace edits the load order, not DLC toggles
             // (that's the DLC screen's job), so a save here must never
             // silently wipe whatever was really set there.
-            const p = {name: playsetName.trim(), gameKey: selectedGame, modIds: order, disabledDlc: disabledDlc} as playset.Playset;
+            const p = {name, gameKey: selectedGame, modIds: order, disabledDlc: disabledDlc} as playset.Playset;
             await SavePlayset(p);
             await refreshAfterSave(p.name);
             rememberActivePlayset(p.name);
-            setStatus({kind: 'idle'});
-        } catch (err) {
-            setStatus({kind: 'error', message: String(err)});
-        }
+        }, {success: `Saved "${name}".`, failure: `Couldn't save "${name}"`});
     }
 
     async function handleLoadPlayset(name: string) {
-        setStatus({kind: 'busy', message: 'Loading playset...'});
-        try {
+        await trackTask(`Loading "${name}"...`, async () => {
             const p = await LoadPlayset(selectedGame, name);
             setOrder(p.modIds ?? []);
             setPlaysetName(p.name);
@@ -946,10 +945,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
             const result = await ScanGame(selectedGame, p.name);
             setSummary(result);
             setShowPlaysets(false);
-            setStatus({kind: 'idle'});
-        } catch (err) {
-            setStatus({kind: 'error', message: String(err)});
-        }
+        }, {failure: `Couldn't load "${name}"`});
     }
 
     // Imports one of the Paradox Launcher's own real playsets (see
@@ -990,8 +986,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
     // before this app ever touched it.
     async function handleLaunchAnyway() {
         setShowPreflight(false);
-        setStatus({kind: 'busy', message: 'Launching...'});
-        try {
+        const launched = await trackTask('Launching...', async () => {
             if (playsetName.trim()) {
                 const p = {name: playsetName.trim(), gameKey: selectedGame, modIds: order, disabledDlc: disabledDlc} as playset.Playset;
                 await SavePlayset(p);
@@ -999,12 +994,9 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
             } else {
                 await LaunchGame(selectedGame, '');
             }
-            setStatus({kind: 'idle'});
-            // The game appears a moment after this returns: look often for a while.
-            game.checkSoon();
-        } catch (err) {
-            setStatus({kind: 'error', message: String(err)});
-        }
+        }, {failure: "Couldn't launch"});
+        // The game appears a moment after this returns: look often for a while.
+        if (launched) game.checkSoon();
     }
 
     const gameName = games.find((g) => g.ID === selectedGame)?.DisplayName ?? selectedGame;
@@ -1043,10 +1035,6 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
 
     return (
         <div className="workspace">
-            {status.kind === 'busy' && <p className="workspace-status">{status.message}</p>}
-            {status.kind === 'error' && <p className="workspace-status error">{status.message}</p>}
-            {status.kind === 'success' && <p className="workspace-status success">{status.message}</p>}
-
             {summary && (
                 <div className="workspace-body">
                     <DetailPanel
@@ -1058,7 +1046,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                         gameVersion={gameVersion}
                         allMods={allMods}
                         conflicts={summary?.Conflicts ?? []}
-                        onError={(message) => setStatus({kind: 'error', message})}
+                        onError={(message) => notify('error', message)}
                         onSelectMod={setSelectedId}
                         workshopDetails={workshopDetails}
                         workshopDetailsState={workshopDetailsState}

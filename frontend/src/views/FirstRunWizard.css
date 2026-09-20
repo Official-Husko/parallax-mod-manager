@@ -106,19 +106,6 @@
     flex-direction: column;
 }
 
-.wizard-notice {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    background: #1e1714;
-    border: 1px solid #4a2f22;
-    border-radius: 5px;
-    padding: 9px 11px;
-    margin-bottom: 14px;
-    font: 500 12px Barlow, sans-serif;
-    color: #e8c7b2;
-}
-
 .wizard-heading {
     font: 700 18px Barlow, sans-serif;
     color: var(--text-bright);

@@ -45,9 +45,8 @@
     max-width: 340px;
 }
 
-/* Base (no modifier) reads as informational/neutral - "no conflicts
-   needed patching," some keys skipped, etc. .success/.error below cover
-   the two outcomes that actually matter for whether the patch worked. */
+/* The banner under the resolver header. Only a stale generated patch still
+   uses it - patch results and errors go through the notification stack. */
 .patch-banner {
     display: flex;
     align-items: center;
@@ -58,18 +57,6 @@
     font: 500 12px Barlow, sans-serif;
     color: #e8c7b2;
     flex: none;
-}
-
-.patch-banner.success {
-    background: #13211a;
-    border-bottom: 1px solid #2f5a41;
-    color: #b7e5c9;
-}
-
-.patch-banner.error {
-    background: #241416;
-    border-bottom: 1px solid #5a2f34;
-    color: #f0b8bd;
 }
 
 .patch-banner span {

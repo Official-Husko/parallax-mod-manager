@@ -6,18 +6,13 @@ import {BrowserOpenURL, EventsOn} from '../../wailsjs/runtime/runtime';
 import type {dlc, dlcstore, library, playset} from '../../wailsjs/go/models';
 import {Toggle} from '../components/Toggle';
 import {formatBytes} from '../data/format';
+import {notify, trackTask} from '../data/notifications';
 import {type ContextMenuItem, openContextMenu} from '../data/contextMenu';
 
 type DLCState =
     | { kind: 'loading' }
     | { kind: 'error'; message: string }
     | { kind: 'ready'; entries: dlc.Entry[] };
-
-type Status =
-    | { kind: 'idle' }
-    | { kind: 'busy'; message: string }
-    | { kind: 'error'; message: string }
-    | { kind: 'success'; message: string };
 
 // formatCategory turns a real Steam-style category slug ("species_pack")
 // into a readable label ("Species Pack") - the raw value stays untouched
@@ -74,8 +69,8 @@ export function Dlc({games, selectedGame}: {
     const [selectedPlayset, setSelectedPlayset] = useState('');
     const [modIds, setModIds] = useState<string[]>([]);
     const [disabled, setDisabled] = useState<Set<string>>(new Set());
-    const [status, setStatus] = useState<Status>({kind: 'idle'});
     const [storeData, setStoreData] = useState<Map<string, dlcstore.StoreData>>(new Map());
+    const [saving, setSaving] = useState(false);
     const [selectedDLCId, setSelectedDLCId] = useState('');
     const [selectedType, setSelectedType] = useState('');
     const [search, setSearch] = useState('');
@@ -123,9 +118,8 @@ export function Dlc({games, selectedGame}: {
                 if (cancelled) return;
                 setModIds(p.modIds ?? []);
                 setDisabled(new Set(p.disabledDlc ?? []));
-                setStatus({kind: 'idle'});
             })
-            .catch((err) => { if (!cancelled) setStatus({kind: 'error', message: String(err)}); });
+            .catch((err) => { if (!cancelled) notify('error', `Couldn't load "${selectedPlayset}": ${String(err)}`); });
         return () => { cancelled = true; };
     }, [selectedGame, selectedPlayset]);
 
@@ -169,19 +163,18 @@ export function Dlc({games, selectedGame}: {
 
     async function handleSave() {
         if (!selectedGame || !selectedPlayset) return;
-        setStatus({kind: 'busy', message: 'Saving...'});
-        try {
-            const p = {
-                name: selectedPlayset,
-                gameKey: selectedGame,
-                modIds,
-                disabledDlc: [...disabled],
-            } as playset.Playset;
-            await SavePlayset(p);
-            setStatus({kind: 'success', message: `Saved ${selectedPlayset}.`});
-        } catch (err) {
-            setStatus({kind: 'error', message: String(err)});
-        }
+        setSaving(true);
+        const p = {
+            name: selectedPlayset,
+            gameKey: selectedGame,
+            modIds,
+            disabledDlc: [...disabled],
+        } as playset.Playset;
+        await trackTask(`Saving "${selectedPlayset}"...`, () => SavePlayset(p), {
+            success: `Saved "${selectedPlayset}".`,
+            failure: `Couldn't save "${selectedPlayset}"`,
+        });
+        setSaving(false);
     }
 
     const gameName = games.find((g) => g.ID === selectedGame)?.DisplayName ?? selectedGame;
@@ -287,10 +280,8 @@ export function Dlc({games, selectedGame}: {
                                 />
                             </div>
                             <div className="spacer"/>
-                            {status.kind === 'error' && <span className="mono" style={{color: 'var(--red)'}}>{status.message}</span>}
-                            {status.kind === 'success' && <span className="mono" style={{color: 'var(--green)'}}>{status.message}</span>}
-                            <span className="btn-primary" onClick={handleSave}>
-                                {status.kind === 'busy' ? 'Saving...' : `Save to ${selectedPlayset || '...'}`}
+                            <span className={`btn-primary ${saving ? 'inert' : ''}`} onClick={saving ? undefined : handleSave}>
+                                {saving ? 'Saving...' : `Save to ${selectedPlayset || '...'}`}
                             </span>
                         </div>
                         <div className="dlc-columns mono">

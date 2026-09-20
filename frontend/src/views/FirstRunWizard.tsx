@@ -14,6 +14,7 @@ import type {library, preferences} from '../../wailsjs/go/models';
 import {APP_NAME, wizardSteps} from '../data/mockData';
 import {accentTiers, extractAccent, type Accent} from '../data/accentColor';
 import {Toggle} from '../components/Toggle';
+import {notify} from '../data/notifications';
 
 // Installed games first (so what's actually usable is easy to find), then
 // alphabetically within each group - a stable sort keeps the registry's own
@@ -41,7 +42,6 @@ export function FirstRunWizard({onFinish}: { onFinish: () => void }) {
     const [browsing, setBrowsing] = useState<Set<string>>(new Set());
     const [browseErrors, setBrowseErrors] = useState<Record<string, string>>({});
     const [playsetCounts, setPlaysetCounts] = useState<Record<string, string[]>>({});
-    const [notice, setNotice] = useState('');
     const [browsingAny, setBrowsingAny] = useState(false);
     const [logos, setLogos] = useState<Record<string, string>>({});
     const [accents, setAccents] = useState<Record<string, Accent>>({});
@@ -116,7 +116,6 @@ export function FirstRunWizard({onFinish}: { onFinish: () => void }) {
 
     async function browseForAny() {
         setBrowsingAny(true);
-        setNotice('');
         try {
             const updated = await BrowseForAnyGameInstall();
             if (!updated.ID) {
@@ -129,7 +128,7 @@ export function FirstRunWizard({onFinish}: { onFinish: () => void }) {
                 setManaged((prev) => new Set(prev).add(updated.ID));
             }
         } catch (err) {
-            setNotice(String(err));
+            notify('error', String(err));
         } finally {
             setBrowsingAny(false);
         }
@@ -148,13 +147,12 @@ export function FirstRunWizard({onFinish}: { onFinish: () => void }) {
     }
 
     function goToStep(next: number) {
-        setNotice('');
         setStep(next);
     }
 
     function continueFromStep1() {
         if (managed.size === 0) {
-            setNotice('Select at least one game to continue.');
+            notify('warning', 'Select at least one game to continue.');
             return;
         }
         goToStep(2);
@@ -184,7 +182,6 @@ export function FirstRunWizard({onFinish}: { onFinish: () => void }) {
                     <div className="wizard-footnote">{FOOTNOTES[step]}</div>
                 </div>
                 <div className="wizard-main">
-                    {notice && <div className="wizard-notice">{notice}</div>}
                     {state.kind === 'error' && <p className="status-page error">{state.message}</p>}
                     {state.kind === 'loading' && <p className="status-page">Looking for installed games...</p>}
                     {state.kind === 'ready' && step === 1 && (

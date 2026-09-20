@@ -79,6 +79,29 @@ export function updateNotification(id: string, patch: Partial<Pick<Notification,
     if (changedKind) scheduleAutoDismiss(id, changedKind);
 }
 
+// trackTask runs task under one 'progress' notification and settles it in
+// place when the task ends: turned into a 'success' toast with `success`, or
+// dismissed quietly when there is nothing worth confirming; an error becomes
+// an 'error' notification carrying the failure (prefixed with `failure` when
+// given). Resolves true when the task succeeded and false when it failed -
+// the failure is already reported, so callers only branch on the result.
+export async function trackTask(
+    message: string,
+    task: () => Promise<unknown>,
+    outcome: {success?: string; failure?: string} = {},
+): Promise<boolean> {
+    const id = notify('progress', message);
+    try {
+        await task();
+    } catch (err) {
+        updateNotification(id, {kind: 'error', message: outcome.failure ? `${outcome.failure}: ${String(err)}` : String(err)});
+        return false;
+    }
+    if (outcome.success) updateNotification(id, {kind: 'success', message: outcome.success});
+    else dismiss(id);
+    return true;
+}
+
 export function dismiss(id: string) {
     if (!notifications.some((n) => n.id === id)) return;
     notifications = notifications.filter((n) => n.id !== id);

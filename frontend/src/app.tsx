@@ -9,7 +9,7 @@ import {NotificationStack} from './components/NotificationStack';
 import {ContextMenu} from './components/ContextMenu';
 import {Tooltip} from './components/Tooltip';
 import {AppBackground} from './components/AppBackground';
-import {notify} from './data/notifications';
+import {dismiss, notify} from './data/notifications';
 import {displayVersion} from './data/versionCompat';
 import {Workspace} from './views/Workspace';
 import {Library} from './views/Library';
@@ -61,7 +61,13 @@ export function App() {
     // playsets (the real saved-playset list, loading/saving one), only
     // this one boolean is controlled from outside it.
     const [showPlaysets, setShowPlaysets] = useState(false);
-    const [error, setError] = useState('');
+    // True while there are no usable games (none set up, or loading them
+    // failed) - the game-dependent views stay unmounted meanwhile, and the
+    // reason is reported through a notification, not on the page.
+    const [gamesUnavailable, setGamesUnavailable] = useState(false);
+    // The standing "no games are set up" notice, so it can be taken down again
+    // once a game does get set up (see loadGames).
+    const noGamesNoticeRef = useRef<string | null>(null);
     // The real, currently-installed version of every managed game (e.g.
     // "v4.4.6"), keyed by game ID, read from each one's own real Paradox
     // Launcher launcher-settings.json - see
@@ -153,10 +159,17 @@ export function App() {
                 setGames(visible);
                 if (visible.length === 0) {
                     setSelectedGame('');
-                    setError('No games are set up to manage yet - open Manage games to pick one.');
+                    setGamesUnavailable(true);
+                    if (!noGamesNoticeRef.current) {
+                        noGamesNoticeRef.current = notify('warning', 'No games are set up to manage yet - open Manage games to pick one.');
+                    }
                     return;
                 }
-                setError('');
+                setGamesUnavailable(false);
+                if (noGamesNoticeRef.current) {
+                    dismiss(noGamesNoticeRef.current);
+                    noGamesNoticeRef.current = null;
+                }
                 setSelectedGame((prev) => {
                     if (visible.some((g) => g.ID === prev)) {
                         return prev;
@@ -165,7 +178,10 @@ export function App() {
                     return visible.find((g) => g.ID === lastSelected)?.ID ?? visible[0].ID;
                 });
             })
-            .catch((err) => setError(String(err)));
+            .catch((err) => {
+                setGamesUnavailable(true);
+                notify('error', `Couldn't load your games: ${String(err)}`);
+            });
     }
 
     useEffect(() => {
@@ -239,6 +255,7 @@ export function App() {
     if (!onboarded) {
         return (
             <div id="app">
+                <NotificationStack/>
                 <FirstRunWizard onFinish={() => { markOnboarded(); setOnboarded(true); }}/>
                 <ContextMenu/>
                 <Tooltip/>
@@ -290,8 +307,6 @@ export function App() {
             <TopBar view={view} onNavigate={setView} gamePicker={gamePicker}/>
             <NotificationStack/>
 
-            {error && <p className="status-page error">{error}</p>}
-
             {/* Every view stays mounted once shown, switching only via
                 display:contents/none rather than a real conditional
                 render - a real conditional (view === 'x' && <X/>) used to
@@ -312,7 +327,7 @@ export function App() {
                 flex items, exactly as if there were no wrapper at all);
                 display:none removes it and its children from layout
                 entirely when inactive, without unmounting anything. */}
-            {!error && visitedViews.has('workspace') && (
+            {!gamesUnavailable && visitedViews.has('workspace') && (
                 <div style={{display: view === 'workspace' ? 'contents' : 'none'}}>
                     <Workspace
                         games={games}
@@ -325,17 +340,17 @@ export function App() {
                     />
                 </div>
             )}
-            {!error && visitedViews.has('library') && (
+            {!gamesUnavailable && visitedViews.has('library') && (
                 <div style={{display: view === 'library' ? 'contents' : 'none'}}>
                     <Library/>
                 </div>
             )}
-            {!error && visitedViews.has('dlc') && (
+            {!gamesUnavailable && visitedViews.has('dlc') && (
                 <div style={{display: view === 'dlc' ? 'contents' : 'none'}}>
                     <Dlc games={games} selectedGame={selectedGame}/>
                 </div>
             )}
-            {/* Settings isn't gated on !error like the views above - unlike
+            {/* Settings isn't gated on gamesUnavailable like the views above - unlike
                 them it doesn't depend on games/selectedGame, and it's the
                 only way to recover from the "no games managed" error (e.g.
                 after un-managing the last one from its own Manage Games

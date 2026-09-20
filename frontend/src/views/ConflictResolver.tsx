@@ -16,6 +16,7 @@ import {afterNextPaint} from '../data/deferred';
 import {describePatchStatus, patchNeedsAttention} from '../data/patchStatus';
 import {useVirtualWindow} from '../data/useVirtualWindow';
 import {timeAgo} from '../data/format';
+import {notify} from '../data/notifications';
 import {EmptyState} from '../components/EmptyState';
 import {MarqueeText} from '../components/MarqueeText';
 
@@ -75,10 +76,6 @@ export function ConflictResolver({gameId, conflicts, patch, order, onClose, onPa
     const [search, setSearch] = useState('');
     const [selectedKey, setSelectedKey] = useState('');
     const [patching, setPatching] = useState(false);
-    // kind drives both the banner's color (success/error/info - see
-    // .patch-banner's own CSS) and, while patching is true, doubles as
-    // the message shown on the full-window progress overlay below.
-    const [patchMessage, setPatchMessage] = useState<{ kind: 'success' | 'error' | 'info'; text: string } | null>(null);
     // What the full-window "Applying... please wait" overlay says is being
     // done, or null when nothing is. Applying a winner (or resetting every
     // manual pick) ends in a full rescan of the game, which takes a moment on
@@ -115,7 +112,7 @@ export function ConflictResolver({gameId, conflicts, patch, order, onClose, onPa
                 if (resolved) next.delete(key); else next.add(key);
                 return next;
             });
-            setPatchMessage({kind: 'error', text: `Failed to update: ${String(err)}`});
+            notify('error', `Failed to update: ${String(err)}`);
         }
     }
 
@@ -153,31 +150,30 @@ export function ConflictResolver({gameId, conflicts, patch, order, onClose, onPa
                 },
             );
         } catch (err) {
-            setPatchMessage({kind: 'error', text: `Failed to auto-resolve: ${String(err)}`});
+            notify('error', `Failed to auto-resolve: ${String(err)}`);
         }
     }
 
     async function handleGeneratePatch() {
         setPatching(true);
-        setPatchMessage(null);
         try {
             const result = await GeneratePatch(gameId, order);
             if (result.Written) {
                 let msg = `Generated a patch for ${result.PatchedKeys} conflict${result.PatchedKeys === 1 ? '' : 's'}.`;
                 if (result.SkippedKeys > 0) {
                     msg += ` ${result.SkippedKeys} skipped - localization patching isn't built yet.`;
-                    setPatchMessage({kind: 'info', text: msg});
+                    notify('info', msg);
                 } else {
-                    setPatchMessage({kind: 'success', text: msg});
+                    notify('success', msg);
                 }
                 onPatchGenerated(result.ModID);
             } else if (result.SkippedKeys > 0) {
-                setPatchMessage({kind: 'info', text: `No conflicts could be patched - all ${result.SkippedKeys} were localization, which isn't supported yet.`});
+                notify('info', `No conflicts could be patched - all ${result.SkippedKeys} were localization, which isn't supported yet.`);
             } else {
-                setPatchMessage({kind: 'info', text: 'No conflicts needed patching.'});
+                notify('info', 'No conflicts needed patching.');
             }
         } catch (err) {
-            setPatchMessage({kind: 'error', text: `Failed to generate patch: ${String(err)}`});
+            notify('error', `Failed to generate patch: ${String(err)}`);
         } finally {
             setPatching(false);
         }
@@ -215,13 +211,6 @@ export function ConflictResolver({gameId, conflicts, patch, order, onClose, onPa
                     )}
                     <i className="fa-solid fa-xmark close-btn" onClick={onClose}/>
                 </div>
-
-                {patchMessage && (
-                    <div className={`patch-banner ${patchMessage.kind}`}>
-                        <span>{patchMessage.text}</span>
-                        <i className="fa-solid fa-xmark" onClick={() => setPatchMessage(null)}/>
-                    </div>
-                )}
 
                 {patchNeedsAttention(patch) && (
                     <div className="patch-banner stale">
@@ -384,7 +373,6 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged, runApply, re
     const [leftModified, setLeftModified] = useState<number | null>(null);
     const [rightModified, setRightModified] = useState<number | null>(null);
     const [error, setError] = useState('');
-    const [overrideError, setOverrideError] = useState('');
     // What's actually saved for this key right now: a mod ID if the user has
     // manually forced that mod to win, '' if the load order decides.
     const applied = conflict.Overridden ? conflict.Winner : '';
@@ -428,12 +416,10 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged, runApply, re
     // goes back to viewing it against what it overwrites - there's nothing
     // to stage.
     function stageChoice(modId: string) {
-        setOverrideError('');
         setChoice(modId === conflict.Winner ? applied : modId);
     }
 
     async function applyChoice() {
-        setOverrideError('');
         try {
             await runApply(
                 "Saving your choice and re-checking every conflict against the load order. This window is locked until it's done.",
@@ -446,7 +432,7 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged, runApply, re
                 },
             );
         } catch (err) {
-            setOverrideError(String(err));
+            notify('error', `Couldn't apply your choice: ${String(err)}`);
         }
     }
 
@@ -618,7 +604,7 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged, runApply, re
 
                 <div className="resolution-card">
                     <div className="resolution-title">Resolution</div>
-                    <span className="resolution-option" onClick={() => { setOverrideError(''); setChoice(''); }}>
+                    <span className="resolution-option" onClick={() => setChoice('')}>
                         <span className={choice === '' ? 'radio-on' : 'radio-off'}>{choice === '' ? '●' : '○'}</span> Keep load-order winner
                     </span>
                     {conflict.Candidates.map((c) => {
@@ -627,7 +613,7 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged, runApply, re
                             <span
                                 key={c.ModID}
                                 className="resolution-option"
-                                onClick={() => { setOverrideError(''); setChoice(c.ModID); }}
+                                onClick={() => setChoice(c.ModID)}
                             >
                                 <span className={picked ? 'radio-on' : 'radio-off'}>{picked ? '●' : '○'}</span>
                                 <MarqueeText text={`Force ${c.ModName}`} className="resolution-option-label"/>
@@ -654,11 +640,10 @@ function ContendersAndContent({gameId, conflict, onOverrideChanged, runApply, re
                     {dirty && (
                         <div className="resolution-actions">
                             <div className="btn-primary" onClick={applyChoice}>Apply</div>
-                            <div className="btn-ghost" onClick={() => { setOverrideError(''); setChoice(applied); }}>Cancel</div>
+                            <div className="btn-ghost" onClick={() => setChoice(applied)}>Cancel</div>
                         </div>
                     )}
                 </div>
-                {overrideError && <p className="status-page error" style={{padding: '0 13px 10px'}}>{overrideError}</p>}
             </div>
 
             <div className="diff-col">

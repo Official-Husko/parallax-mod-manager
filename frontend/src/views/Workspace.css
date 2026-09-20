@@ -5,19 +5,6 @@
     flex-direction: column;
 }
 
-.workspace-status {
-    padding: 14px;
-    color: var(--text-muted);
-}
-
-.workspace-status.error {
-    color: var(--red);
-}
-
-.workspace-status.success {
-    color: var(--green);
-}
-
 .workspace-body {
     flex: 1;
     min-height: 0;
