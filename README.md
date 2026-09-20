@@ -448,6 +448,16 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   isn't just correct in theory, it does real, useful work on a real modlist. In-memory only
   (reorders the current load order; the user still has to Save the playset), so there's nothing
   destructive to undo it - close without saving.
+- **Conflicts follow the load order you are editing** (`frontend/src/data/liveConflicts.ts`,
+  `Workspace.tsx`) - the "N mods in hard conflicts" line no longer sits above the Active list and no
+  longer sticks around after you clear the list or start a new one. It is a message card in the
+  sidebar, with a **Resolve** button, and it counts only mods that are actually in the load order.
+  The cause: conflicts come from the last scan of a saved playset, and editing the list never
+  rescans, so removing every mod still reported the old count. The reported conflicts are now
+  narrowed to the active mods - one that loses candidates is trimmed, one whose scanned winner is
+  no longer active is left out rather than shown with a stale winner - and the same narrowed set
+  feeds the row flags, the domain bars, the pre-flight line and the Conflict Resolver. Mods added since
+  the last scan have no conflict data until a save re-checks them, and the card says so.
 - **The sidebar's playset name matches its color and reads as editable** (`Workspace.tsx`) - the
   name in the actions rail is drawn in the same per-playset color the Playsets window gives that
   playset's row, so it is recognisable in both places, and it has an always-visible underline that

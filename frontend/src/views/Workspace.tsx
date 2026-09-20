@@ -43,6 +43,7 @@ import {SourceBadge} from '../components/SourceBadge';
 import {FLAG, conflictsByMod} from '../data/flags';
 import {tip} from '../data/tooltip';
 import {colorFromName} from '../data/nameColor';
+import {listEditedSinceScan, liveConflicts} from '../data/liveConflicts';
 import {domainLegendTip, domainTip, flagLegendTip, modFlagsTip} from '../components/FlagTips';
 import {TipItem} from '../components/Tooltip';
 import {EmptyState} from '../components/EmptyState';
@@ -621,21 +622,26 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
         return m;
     }, [allMods]);
 
+    const orderSet = useMemo(() => new Set(order), [order]);
+    // The scan's conflicts, narrowed to the mods in the load order right now -
+    // see data/liveConflicts.ts. Everything conflict-related below reads these,
+    // not summary.Conflicts, so clearing or editing the list is reflected at once.
+    const conflicts = useMemo(() => liveConflicts(summary?.Conflicts ?? [], orderSet), [summary, orderSet]);
+    const listEdited = useMemo(() => listEditedSinceScan(order, summary?.Mods ?? []), [order, summary]);
     const conflictedIds = useMemo(() => {
         const s = new Set<string>();
-        for (const c of summary?.Conflicts ?? []) {
+        for (const c of conflicts) {
             for (const cand of c.Candidates) {
                 s.add(cand.ModID);
             }
         }
         return s;
-    }, [summary]);
+    }, [conflicts]);
     // Per mod: how many keys it contests and with whom - the conflict flag's tooltip.
-    const conflictInfo = useMemo(() => conflictsByMod(summary?.Conflicts ?? []), [summary]);
+    const conflictInfo = useMemo(() => conflictsByMod(conflicts), [conflicts]);
     // The Active list's own per-row domain segments - see data/domainOverlap.ts.
-    const domainOverlap = useMemo(() => computeDomainOverlap(summary?.Conflicts ?? []), [summary]);
+    const domainOverlap = useMemo(() => computeDomainOverlap(conflicts), [conflicts]);
 
-    const orderSet = useMemo(() => new Set(order), [order]);
     const available = useMemo(
         () => allMods.filter((m) => !orderSet.has(m.ID) && matchesSearch(m, search)),
         [allMods, orderSet, search],
@@ -678,8 +684,8 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
     const selectedMod = selectedId ? modsById.get(selectedId) ?? null : null;
     const dependencyIssues = useMemo(() => findDependencyIssues(active), [active]);
     const preflightItems = useMemo(
-        () => buildPreflightItems(active, summary?.Conflicts ?? [], summary?.Errors ?? [], dependencyIssues),
-        [active, summary, dependencyIssues],
+        () => buildPreflightItems(active, conflicts, summary?.Errors ?? [], dependencyIssues),
+        [active, summary, conflicts, dependencyIssues],
     );
 
     const workshopCount = allMods.filter((m) => m.Source === 'workshop').length;
@@ -1046,7 +1052,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                         gameId={selectedGame}
                         gameVersion={gameVersion}
                         allMods={allMods}
-                        conflicts={summary?.Conflicts ?? []}
+                        conflicts={conflicts}
                         onError={(message) => notify('error', message)}
                         onSelectMod={setSelectedId}
                         workshopDetails={workshopDetails}
@@ -1162,13 +1168,6 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                                     onInput={(e) => setActiveSearch((e.target as HTMLInputElement).value)}
                                 />
                             </div>
-                            {conflictedIds.size > 0 && (
-                                <div className="conflict-banner">
-                                    <span className="dot"/>
-                                    <span className="text">{conflictedIds.size} mods in hard conflicts</span>
-                                    <span className="link-btn amber" onClick={() => setShowConflictResolver(true)}>Resolve</span>
-                                </div>
-                            )}
                             <div className="active-actions">
                                 <span className="btn-amber" onClick={handleAutosort}><i className="fa-solid fa-arrow-down-arrow-up"/> Autosort</span>
                                 <span className="btn-ghost">Validate</span>
@@ -1279,6 +1278,23 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                                 </div>
                             </div>
                         </div>
+
+                        {conflictedIds.size > 0 && (
+                            <div className="rail-message conflict">
+                                <div className="rail-message-head">
+                                    <i className={`fa-solid ${FLAG.conflict.icon}`}/>
+                                    <span className="rail-message-title">
+                                        {conflictedIds.size} {conflictedIds.size === 1 ? 'mod' : 'mods'} in hard conflicts
+                                    </span>
+                                </div>
+                                <div className="rail-message-detail">
+                                    {listEdited
+                                        ? 'The list changed since the last check - save it to re-check.'
+                                        : 'Pick which mod wins each key, or generate a patch.'}
+                                </div>
+                                <span className="btn-ghost" onClick={() => setShowConflictResolver(true)}>Resolve</span>
+                            </div>
+                        )}
 
                         <div className="rail-section">
                             <div className="rail-label">PRE-FLIGHT</div>
@@ -1425,7 +1441,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
             {showConflictResolver && (
                 <ConflictResolver
                     gameId={selectedGame}
-                    conflicts={summary?.Conflicts ?? []}
+                    conflicts={conflicts}
                     patch={summary?.Patch}
                     order={order}
                     onClose={() => setShowConflictResolver(false)}
