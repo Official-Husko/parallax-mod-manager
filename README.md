@@ -448,6 +448,11 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   isn't just correct in theory, it does real, useful work on a real modlist. In-memory only
   (reorders the current load order; the user still has to Save the playset), so there's nothing
   destructive to undo it - close without saving.
+- **The sidebar's playset name matches its color and reads as editable** (`Workspace.tsx`) - the
+  name in the actions rail is drawn in the same per-playset color the Playsets window gives that
+  playset's row, so it is recognisable in both places, and it has an always-visible underline that
+  brightens on hover and takes the playset's color while typing, with a hover tip saying to Save to
+  keep a rename.
 - **Real pre-flight checks** (`frontend/src/data/preflight.ts`, the actions rail's PRE-FLIGHT
   section, and the "Ready to launch?" dialog) - both used to show the exact same five hardcoded
   mockup rows (fake mod names like "Road to 56", a fake checksum-matches-your-friends line)

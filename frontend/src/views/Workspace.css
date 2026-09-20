@@ -1236,15 +1236,31 @@
     padding: 10px 11px;
 }
 
+/* The current playset's name, editable in place. The underline is always there
+   so it reads as a field, not a label; it brightens on hover and takes the
+   playset's own colour (--playset-color, set inline from its name - the same
+   colour its row has in the Playsets window) while typing. The name itself is
+   drawn in that colour; an unnamed playset falls back to the neutral text. */
 .playset-name-input {
     width: 100%;
     background: none;
     border: none;
+    border-bottom: 1px solid #3f4b5c;
+    border-radius: 0;
     outline: none;
     font: 600 13.5px Barlow, sans-serif;
-    color: var(--text-bright);
-    margin-bottom: 3px;
-    padding: 0;
+    color: var(--playset-color, var(--text-bright));
+    margin-bottom: 6px;
+    padding: 0 0 4px;
+    transition: color .15s ease, border-color .15s ease;
+}
+
+.playset-name-input:hover {
+    border-bottom-color: var(--text-dim);
+}
+
+.playset-name-input:focus {
+    border-bottom-color: var(--playset-color, var(--rust));
 }
 
 .playset-name-input::placeholder {

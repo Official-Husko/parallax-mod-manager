@@ -42,6 +42,7 @@ import {formatBytes, timeAgo, truncate} from '../data/format';
 import {SourceBadge} from '../components/SourceBadge';
 import {FLAG, conflictsByMod} from '../data/flags';
 import {tip} from '../data/tooltip';
+import {colorFromName} from '../data/nameColor';
 import {domainLegendTip, domainTip, flagLegendTip, modFlagsTip} from '../components/FlagTips';
 import {TipItem} from '../components/Tooltip';
 import {EmptyState} from '../components/EmptyState';
@@ -1259,6 +1260,14 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                                 <input
                                     className="playset-name-input"
                                     placeholder="Playset name"
+                                    {...tip(() => (
+                                        <TipItem icon="fa-pen" color="var(--text-muted)" title={playsetName.trim() ? 'Rename this playset' : 'Name this playset'}>
+                                            Type here, then press Save to keep it.
+                                        </TipItem>
+                                    ))}
+                                    // The same color the Playsets window gives this playset's row (see
+                                    // PlaysetsModal), so the name is recognisable in both places.
+                                    style={playsetName.trim() ? `--playset-color: ${colorFromName(playsetName.trim())}` : undefined}
                                     value={playsetName}
                                     onInput={(e) => setPlaysetName((e.target as HTMLInputElement).value)}
                                 />
