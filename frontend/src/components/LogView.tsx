@@ -2,6 +2,7 @@ import './LogView.css';
 import {h} from 'preact';
 import {useEffect, useMemo, useRef, useState} from 'preact/hooks';
 import {colorFromName} from '../data/nameColor';
+import {EmptyState} from './EmptyState';
 import {Select} from './Select';
 import {UploadLogButton} from './UploadLogButton';
 import {
@@ -188,9 +189,11 @@ export function LogView({onOpenFolder}: {
                     <i className="fa-regular fa-trash-can"/> Clear
                 </span>
             </div>
-            <div className="log-body" ref={setRefs} onScroll={onScroll}>
+            <div className={`log-body ${visible.length === 0 ? 'empty' : ''}`} ref={setRefs} onScroll={onScroll}>
                 {visible.length === 0 ? (
-                    <div className="log-empty">{entries.length === 0 ? 'Nothing logged yet.' : 'No lines match these filters.'}</div>
+                    entries.length === 0
+                        ? <EmptyState icon="fa-file-lines" title="Nothing logged yet" subtitle="Activity appears here as the app does things."/>
+                        : <EmptyState icon="fa-filter-circle-xmark" title="No lines match these filters" subtitle="Try another level, component or search text."/>
                 ) : (
                     <div style={{height: visible.length * LINE_HEIGHT, paddingTop: first * LINE_HEIGHT, boxSizing: 'border-box'}}>
                         {visible.slice(first, last).map((e) => <LogLine key={e.Seq} entry={e}/>)}

@@ -28,6 +28,11 @@
     margin-bottom: 4px;
 }
 
+.empty-state.error .empty-state-icon {
+    color: var(--red);
+    opacity: .75;
+}
+
 .empty-state-title {
     font: 600 13px Barlow, sans-serif;
     color: var(--text-muted);

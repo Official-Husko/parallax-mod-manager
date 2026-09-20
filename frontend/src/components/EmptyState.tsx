@@ -6,13 +6,16 @@ import {h} from 'preact';
 // nothing selected. Deliberately quiet (dim icon, muted text) rather than
 // styled like an error or a call to action: an empty list is a normal,
 // expected state here, not a problem.
-export function EmptyState({icon, title, subtitle}: {
+export function EmptyState({icon, title, subtitle, tone}: {
     icon: string; // a Font Awesome solid glyph name, e.g. "fa-inbox"
     title: string;
     subtitle?: string;
+    // 'error' tints the icon red, for a placeholder that stands in for
+    // something that failed to load rather than something merely empty.
+    tone?: 'error';
 }) {
     return (
-        <div className="empty-state">
+        <div className={`empty-state ${tone ?? ''}`}>
             <i className={`fa-solid ${icon} empty-state-icon`}/>
             <div className="empty-state-title">{title}</div>
             {subtitle && <div className="empty-state-subtitle">{subtitle}</div>}

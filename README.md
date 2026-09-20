@@ -167,7 +167,9 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   whether the game is running. Both logs are colored to be read at a glance: the game's name is
   drawn in its own accent color, each level filter carries its level's color (blue, amber, red),
   warning and error lines get a colored edge, and inside a message file paths (blue), versions
-  (violet), ids and hashes (teal), quoted names and numbers each have their own hue. The follower copes with what these files actually do: the game
+  (violet), ids and hashes (teal), quoted names and numbers each have their own hue. When there is
+  nothing to list (no log yet, an empty file, a filter that matches nothing, a read failure) the
+  window shows an icon and a sentence saying which, centered in the log area. The follower copes with what these files actually do: the game
   truncates them on every start (the view resets), can append megabytes in a second (only the newest
   is read, and the skip is noted), and writes a line in pieces (a line appears only once complete).
   Process listing and stopping is written for Linux (`/proc`), Windows and macOS; it has been run

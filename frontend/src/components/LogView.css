@@ -300,9 +300,18 @@
     background: var(--red);
 }
 
-.log-empty {
-    padding: 28px 16px;
-    text-align: center;
-    color: var(--text-dim);
-    font: 400 12px Barlow, sans-serif;
+/* Nothing to list: the placeholder (components/EmptyState.tsx) fills the whole
+   area and centres itself in it, instead of sitting under the toolbar. */
+.log-body.empty {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+}
+
+.log-body .empty-state {
+    min-height: 0;
+}
+
+.log-body .empty-state-subtitle {
+    max-width: 420px;
 }

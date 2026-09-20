@@ -21,6 +21,7 @@ import {
     sourceFile,
 } from '../data/gameLog';
 import {useVirtualWindow} from '../data/useVirtualWindow';
+import {EmptyState} from '../components/EmptyState';
 import {Select} from '../components/Select';
 import {UploadLogButton} from '../components/UploadLogButton';
 
@@ -37,6 +38,8 @@ const LEVEL_FILTERS: { key: GameLogLevelFilter; label: string }[] = [
     {key: 'warn', label: 'Warnings'},
     {key: 'error', label: 'Errors'},
 ];
+
+type EmptyKind = {icon: string; title: string; subtitle?: string; tone?: 'error'};
 
 function sameListing(a: gamelog.Listing | null, b: gamelog.Listing): boolean {
     if (!a || a.Dir !== b.Dir || a.Files.length !== b.Files.length) return false;
@@ -182,13 +185,15 @@ export function GameLogModal({gameId, gameName, running, onClose}: {
     const files = listing?.Files ?? [];
     const filtered = visible.length !== log.lines.length;
 
-    let emptyText = '';
+    // What the log area says when there are no lines to show, or null when there are.
+    let empty: EmptyKind | null = null;
     if (visible.length === 0) {
-        if (problem) emptyText = problem;
-        else if (listing && files.length === 0) emptyText = `No game logs yet - ${gameName} writes them when it starts, and they appear here as it does.`;
-        else if (log.missing) emptyText = `${file} doesn't exist yet - the game creates it when it starts.`;
-        else if (log.lines.length > 0) emptyText = 'No lines match these filters.';
-        else emptyText = file ? 'This log is empty so far.' : 'Loading...';
+        if (problem) empty = {icon: 'fa-triangle-exclamation', title: "Couldn't read the game's logs", subtitle: problem, tone: 'error'};
+        else if (listing && files.length === 0) empty = {icon: 'fa-folder-open', title: 'No game logs yet', subtitle: `${gameName} writes them when it starts, and they appear here as it does.`};
+        else if (log.missing) empty = {icon: 'fa-file-circle-xmark', title: `${file} doesn't exist yet`, subtitle: 'The game creates it when it starts.'};
+        else if (log.lines.length > 0) empty = {icon: 'fa-filter-circle-xmark', title: 'No lines match these filters', subtitle: 'Try another level or different search text.'};
+        else if (file) empty = {icon: 'fa-file-lines', title: 'This log is empty so far', subtitle: 'New lines appear here as the game writes them.'};
+        else empty = {icon: 'fa-spinner fa-spin', title: 'Loading...'};
     }
 
     return (
@@ -264,9 +269,9 @@ export function GameLogModal({gameId, gameName, running, onClose}: {
                             <i className="fa-regular fa-trash-can"/> Clear
                         </span>
                     </div>
-                    <div className="log-body" ref={setRefs} onScroll={onScroll}>
-                        {visible.length === 0 ? (
-                            <div className="log-empty">{emptyText}</div>
+                    <div className={`log-body ${empty ? 'empty' : ''}`} ref={setRefs} onScroll={onScroll}>
+                        {empty ? (
+                            <EmptyState icon={empty.icon} title={empty.title} subtitle={empty.subtitle} tone={empty.tone}/>
                         ) : (
                             <div style={{height: visible.length * LINE_HEIGHT, paddingTop: first * LINE_HEIGHT, boxSizing: 'border-box'}}>
                                 {visible.slice(first, last).map((l) => <GameLogLineRow key={l.id} line={l}/>)}
