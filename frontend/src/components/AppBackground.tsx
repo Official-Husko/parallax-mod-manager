@@ -1,9 +1,10 @@
 import './AppBackground.css';
 import {h} from 'preact';
-import {useEffect, useState} from 'preact/hooks';
-import {BackgroundImages} from '../../wailsjs/go/main/App';
+import {useEffect, useRef, useState} from 'preact/hooks';
+import {BackgroundImages, SetStaticBackground} from '../../wailsjs/go/main/App';
 import {EventsOn} from '../../wailsjs/runtime/runtime';
 import {logEvent} from '../data/appLog';
+import {publishBackground, registerRandomBackground} from '../data/backgroundControl';
 import {blurPixels, DEFAULT_BACKGROUND_BLUR, DEFAULT_BACKGROUND_DARKEN, scrimAlphas, useBackgroundLookPreview} from '../data/backgroundLook';
 import {createRotator, imageNameFromUrl, imageOrigin} from '../data/backgroundRotation';
 
@@ -75,6 +76,12 @@ function release(keep: string) {
 // pick every intervalSeconds via two stacked, alternating layers (only one CSS
 // transition property - opacity - so the fade is a true cross-fade, not a pop).
 //
+// In Static mode (rotationPaused) it shows one picture and never changes it by itself:
+// the one saved for this game (staticImage), and whenever a picture goes on screen in
+// that mode - the first pick, or "Random" in Settings - it is saved (SetStaticBackground),
+// so the same picture loads every time. Changing a setting keeps the picture on screen
+// rather than jumping to another; switching to Static freezes the one being shown.
+//
 // The pool is not part of the app. The backend lists it when the game is selected
 // (see BackgroundImages): in online mode the images are streamed from GitHub, in
 // offline mode - or when GitHub cannot be reached - they are the copies on disk. The
@@ -82,7 +89,7 @@ function release(keep: string) {
 // data/backgroundRotation.ts), so the swap never waits on the network. A game with
 // no images renders nothing, same as disabled - #app's own plain --bg-app color
 // shows through instead.
-export function AppBackground({gameId, disabled, rotationPaused, intervalSeconds, source, blur = DEFAULT_BACKGROUND_BLUR, darken = DEFAULT_BACKGROUND_DARKEN}: {
+export function AppBackground({gameId, disabled, rotationPaused, intervalSeconds, source, blur = DEFAULT_BACKGROUND_BLUR, darken = DEFAULT_BACKGROUND_DARKEN, staticImage = '', onStaticSaved}: {
     gameId: string;
     disabled: boolean;
     rotationPaused: boolean;
@@ -93,8 +100,20 @@ export function AppBackground({gameId, disabled, rotationPaused, intervalSeconds
     // saved settings; a slider being dragged in Settings overrides them until it is let go.
     blur?: number;
     darken?: number;
+    // The file name Static mode has saved for this game, '' when there is none yet.
+    staticImage?: string;
+    // Called after the static picture was saved, so the settings the app holds catch up.
+    onStaticSaved?: () => void;
 }) {
     const preview = useBackgroundLookPreview();
+    // What is on screen (for which game), so a setting change or a switch of mode does not
+    // jump to another picture; and the latest saved static name and callback, read when the
+    // pool loads rather than restarting the rotation whenever they change.
+    const shownRef = useRef<{gameId: string; url: string} | null>(null);
+    const staticImageRef = useRef(staticImage);
+    staticImageRef.current = staticImage;
+    const onStaticSavedRef = useRef(onStaticSaved);
+    onStaticSavedRef.current = onStaticSaved;
     const blurPx = blurPixels(preview?.blur ?? blur);
     const scrim = scrimAlphas(preview?.darken ?? darken);
     const [state, setState] = useState<{layers: [string, string]; active: 0 | 1}>({layers: ['', ''], active: 0});
@@ -107,7 +126,14 @@ export function AppBackground({gameId, disabled, rotationPaused, intervalSeconds
     }, []);
 
     useEffect(() => {
-        const clear = () => setState({layers: ['', ''], active: 0});
+        const clear = () => {
+            // Nothing is on screen any more, so what comes back is a fresh pick (or the saved
+            // static one): remembering the old picture as "already showing" would leave it blank.
+            shownRef.current = null;
+            setState({layers: ['', ''], active: 0});
+            publishBackground(null);
+            registerRandomBackground(null);
+        };
         if (disabled || !gameId) {
             clear();
             return;
@@ -122,11 +148,31 @@ export function AppBackground({gameId, disabled, rotationPaused, intervalSeconds
                     return;
                 }
                 const seconds = intervalSeconds > 0 ? intervalSeconds : DEFAULT_BACKGROUND_INTERVAL_SECONDS;
+                // Start with the picture already on screen for this game (a setting changed, not
+                // the game), else - in Static mode - the saved one, else a random one. Matched by
+                // file name, which is the same online and on disk.
+                const shown = shownRef.current?.gameId === gameId ? imageNameFromUrl(shownRef.current.url) : '';
+                const wanted = shown || (rotationPaused ? staticImageRef.current : '');
+                const first = wanted ? pool.find((url) => imageNameFromUrl(url) === wanted) : undefined;
                 const rotator = createRotator({
                     pool,
                     intervalMs: rotationPaused ? 0 : seconds * 1000,
+                    first,
                     prefetch: prefetchImage,
                     show: (url) => {
+                        const name = imageNameFromUrl(url);
+                        const previous = shownRef.current;
+                        const alreadyOnScreen = previous?.gameId === gameId && previous.url === url;
+                        shownRef.current = {gameId, url};
+                        publishBackground({gameId, name, origin: imageOrigin(url)});
+                        // Static mode keeps whatever it shows, so the same picture comes back.
+                        if (rotationPaused && name !== staticImageRef.current) {
+                            SetStaticBackground(gameId, name)
+                                .then(() => onStaticSavedRef.current?.())
+                                .catch((err) => logEvent('warn', 'Backgrounds', `couldn't save the static background '${name}': ${String(err)}`));
+                        }
+                        // Already the picture on screen (a setting changed): nothing to swap.
+                        if (alreadyOnScreen) return;
                         logEvent('info', 'Backgrounds', describeShown(url));
                         release(url);
                         setState((prev) => {
@@ -139,7 +185,12 @@ export function AppBackground({gameId, disabled, rotationPaused, intervalSeconds
                     onLoadError: (url, err) => logEvent('warn', 'Backgrounds', `couldn't load background '${imageNameFromUrl(url)}' (${imageOrigin(url)}): ${err instanceof Error ? err.message : String(err)}`),
                 });
                 rotator.start();
-                stop = () => rotator.stop();
+                // "Random" in Settings: another picture now (and, when rotating, a fresh wait).
+                registerRandomBackground(pool.length > 1 ? () => rotator.next() : null);
+                stop = () => {
+                    rotator.stop();
+                    registerRandomBackground(null);
+                };
             })
             .catch((err) => {
                 if (cancelled) return;

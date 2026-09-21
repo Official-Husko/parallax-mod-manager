@@ -93,6 +93,13 @@ type Preferences struct {
 	// "offline" uses only the copies downloaded into the config folder (see
 	// internal/backgrounds). Anything else reads as online.
 	BackgroundSource string `json:"backgroundSource"`
+	// BackgroundStaticImages remembers, per game ID, the background image (its file name)
+	// that Static mode shows for that game, so the same one is loaded every time instead of
+	// a random one. It belongs to the backend (App.SetStaticBackground): the frontend holds
+	// copies of the preferences and writes them back whole, so App.SetPreferences ignores
+	// whatever it sends for this field. A name that is no longer among the game's images
+	// (removed, or not downloaded) is replaced by a fresh random pick.
+	BackgroundStaticImages map[string]string `json:"backgroundStaticImages"`
 	// BackgroundBlur is how strongly the background image is blurred, 0 (sharp, the
 	// default) to 100 (the frontend maps that to a blur of up to 24 px). See
 	// NormalizedPercent.

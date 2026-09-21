@@ -14,6 +14,7 @@ import (
 
 	"github.com/Official-Husko/parallax-mod-manager/internal/applog"
 	"github.com/Official-Husko/parallax-mod-manager/internal/backgrounds"
+	"github.com/Official-Husko/parallax-mod-manager/internal/game"
 	"github.com/Official-Husko/parallax-mod-manager/internal/preferences"
 )
 
@@ -673,5 +674,70 @@ func TestBackgroundDownloadWithNothingMissingSaysSo(t *testing.T) {
 	waitFor(t, "the run to end", func() bool { return events.count("background-packs-changed") == 1 })
 	if !logHas(backgroundLog(), "info", "background images for 'g1' are already on disk (1 image), nothing to download") {
 		t.Errorf("log:\n%s", strings.Join(backgroundLog(), "\n"))
+	}
+}
+
+func staticBackgroundApp(t *testing.T) (*App, string) {
+	t.Helper()
+	cfg := game.GameConfig{ID: "g1", DisplayName: "Game One"}
+	path := filepath.Join(t.TempDir(), "preferences.jsonc")
+	a := &App{ctx: context.Background(), registry: game.NewRegistry([]game.GameConfig{cfg}), preferences: preferences.Defaults(), preferencesPath: path}
+	return a, path
+}
+
+func TestSetStaticBackgroundIsRememberedAndSurvivesARestart(t *testing.T) {
+	a, path := staticBackgroundApp(t)
+	if err := a.SetStaticBackground("g1", "artwork_36.jpg"); err != nil {
+		t.Fatal(err)
+	}
+	if got := a.GetPreferences().BackgroundStaticImages["g1"]; got != "artwork_36.jpg" {
+		t.Errorf("remembered = %q", got)
+	}
+	if got := preferences.Load(path).BackgroundStaticImages["g1"]; got != "artwork_36.jpg" {
+		t.Errorf("after a restart = %q, want it read back from the file", got)
+	}
+	// Asking for the same one again writes nothing.
+	before, _ := os.Stat(path)
+	time.Sleep(20 * time.Millisecond)
+	if err := a.SetStaticBackground("g1", "artwork_36.jpg"); err != nil {
+		t.Fatal(err)
+	}
+	after, _ := os.Stat(path)
+	if !after.ModTime().Equal(before.ModTime()) {
+		t.Error("choosing the image already chosen rewrote the settings file")
+	}
+}
+
+func TestAnOldCopyOfThePreferencesCannotUndoTheStaticBackground(t *testing.T) {
+	a, _ := staticBackgroundApp(t)
+	stale := a.GetPreferences() // what a Settings panel holds while it is open
+	if err := a.SetStaticBackground("g1", "chosen.jpg"); err != nil {
+		t.Fatal(err)
+	}
+	stale.CloseAfterLaunch = true // the person changes something else in that panel
+	if err := a.SetPreferences(stale); err != nil {
+		t.Fatal(err)
+	}
+	got := a.GetPreferences()
+	if got.BackgroundStaticImages["g1"] != "chosen.jpg" {
+		t.Errorf("the static background was overwritten by an older copy: %v", got.BackgroundStaticImages)
+	}
+	if !got.CloseAfterLaunch {
+		t.Error("the other setting was not saved")
+	}
+}
+
+func TestSetStaticBackgroundRefusesUnsafeNamesAndUnknownGames(t *testing.T) {
+	a, _ := staticBackgroundApp(t)
+	for _, name := range []string{"", "..", ".", "../etc/passwd", `a\b`, "dir/file.jpg", strings.Repeat("x", 300)} {
+		if err := a.SetStaticBackground("g1", name); err == nil {
+			t.Errorf("accepted %q", name)
+		}
+	}
+	if err := a.SetStaticBackground("nope", "x.jpg"); err == nil {
+		t.Error("accepted an unknown game")
+	}
+	if len(a.GetPreferences().BackgroundStaticImages) != 0 {
+		t.Errorf("a refused name was stored: %v", a.GetPreferences().BackgroundStaticImages)
 	}
 }

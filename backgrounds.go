@@ -464,3 +464,34 @@ func (a *App) RemoveBackgroundPack(gameID string) error {
 	a.emit("background-packs-changed")
 	return nil
 }
+
+// SetStaticBackground remembers image (a file name, as the background list shows it)
+// as the picture Static mode shows for gameID, so that same one is loaded every time
+// the game is opened. Saved on its own rather than through SetPreferences, which writes
+// the whole settings object back from a copy the interface may have held for a while.
+func (a *App) SetStaticBackground(gameID, image string) error {
+	if _, ok := a.registry.Get(gameID); !ok {
+		return fmt.Errorf("app: unknown game %q", gameID)
+	}
+	if image == "" || len(image) > 255 || strings.ContainsAny(image, `/\`) || image == "." || image == ".." {
+		return fmt.Errorf("app: %q is not an image file name", image)
+	}
+
+	a.preferencesMu.Lock()
+	if a.preferences.BackgroundStaticImages[gameID] == image {
+		a.preferencesMu.Unlock()
+		return nil
+	}
+	next := clonePreferences(a.preferences)
+	if next.BackgroundStaticImages == nil {
+		next.BackgroundStaticImages = map[string]string{}
+	}
+	next.BackgroundStaticImages[gameID] = image
+	a.preferencesMu.Unlock()
+
+	if err := a.savePreferences(next, false); err != nil {
+		return err
+	}
+	applog.For("Backgrounds").Infof("static background for '%s' set to '%s'", a.gameLabel(gameID), image)
+	return nil
+}

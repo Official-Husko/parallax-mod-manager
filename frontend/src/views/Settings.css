@@ -769,3 +769,25 @@
 .look-reset.hidden {
     visibility: hidden;
 }
+
+/* The "Image" row: the picture on screen and the Random button. */
+.appearance-random {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.appearance-random .image-name {
+    max-width: 230px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.appearance-random .btn-ghost:disabled {
+    opacity: .5;
+    cursor: not-allowed;
+}

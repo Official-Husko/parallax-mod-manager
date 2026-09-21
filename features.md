@@ -123,8 +123,9 @@ for security, privacy, reliability or performance is called out (see the last tw
 
 ## Appearance and interface
 
-- **Rotating per-game backgrounds** - cross-fading art behind the whole UI, which you can turn off,
-  freeze, or slow down.
+- **Per-game backgrounds** - cross-fading art behind the whole UI: switch it off completely, let it Rotate (with your
+  own interval) or keep it Static, and press Random for another picture. In Static mode the picture is saved for each game,
+  so the same one loads every time.
 - **Blur and darken the background** - two sliders in Settings > Appearance: blur the art (off by default) and choose how
   dark the layer over it is (84% is how it has always looked), with a live preview while you drag.
 - **Online or offline backgrounds** - stream them from GitHub, or download the ones you want once and

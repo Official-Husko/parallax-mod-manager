@@ -369,6 +369,13 @@ func clonePreferences(p preferences.Preferences) preferences.Preferences {
 		}
 		p.ExtraModFolders = folders
 	}
+	if p.BackgroundStaticImages != nil {
+		images := make(map[string]string, len(p.BackgroundStaticImages))
+		for k, v := range p.BackgroundStaticImages {
+			images[k] = v
+		}
+		p.BackgroundStaticImages = images
+	}
 	if p.LastSeenGameVersions != nil {
 		versions := make(map[string]string, len(p.LastSeenGameVersions))
 		for k, v := range p.LastSeenGameVersions {
@@ -391,9 +398,10 @@ func (a *App) GetPreferences() preferences.Preferences {
 // is currently being watched (see WatchMods) is started or stopped right
 // away rather than waiting for the next game switch.
 //
-// Whatever p carries for LastSeenGameVersions is ignored: that field is the
-// backend's own record (see CheckGameUpdates), and the frontend's copy of the
-// preferences may be older than it.
+// Whatever p carries for LastSeenGameVersions and BackgroundStaticImages is ignored:
+// those fields are the backend's own records (see CheckGameUpdates and
+// SetStaticBackground), and the frontend's copy of the preferences may be older than
+// them.
 func (a *App) SetPreferences(p preferences.Preferences) error {
 	return a.savePreferences(p, true)
 }
@@ -408,6 +416,7 @@ func (a *App) savePreferences(p preferences.Preferences, keepBackendOwned bool) 
 	p.BackgroundDarken = preferences.NormalizedPercent(p.BackgroundDarken)
 	if keepBackendOwned {
 		p.LastSeenGameVersions = a.preferences.LastSeenGameVersions
+		p.BackgroundStaticImages = a.preferences.BackgroundStaticImages
 	}
 	if a.preferencesPath != "" {
 		if err := preferences.Save(a.preferencesPath, p); err != nil {

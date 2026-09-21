@@ -740,6 +740,24 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   steadily lit instead. Checked by a unit test of the comparison (15 cases) and the real Workspace in a headless browser
   (blinking and a really changing glow, tooltips, save and reorder and remove, a playset loaded at startup, clear, a mod
   vanishing from disk, reduced motion).
+- **Backgrounds, Rotating or Static, and a Random button** (`components/AppBackground.tsx`, `data/backgroundRotation.ts`,
+  `data/backgroundControl.ts`, Settings > Appearance, `backgrounds.go`'s `SetStaticBackground`) - the Appearance panel now reads
+  the way the background source does: a **Backgrounds** switch that turns them off completely or on, the **Online / Offline**
+  source, a **Rotating / Static** switch, the interval (Rotating only), and an **Image** row that names the picture on screen
+  with a **Random** button. **Rotating** shows a new random image every interval (Random shows another one now and starts the
+  wait over). **Static** shows one picture that never changes by itself: the one that was showing when Static was chosen, or the
+  last one picked with Random, and it is **saved for each game** (`backgroundStaticImages`, written by the backend on its own so
+  an older copy of the settings held by an open panel can never undo it), so the same picture loads every time. A saved picture
+  that is no longer among the game's images is replaced by a random one, which is saved in turn. Changing the interval, the mode
+  or the source keeps the picture on screen instead of jumping to another; switching back to Rotating carries on from it. With
+  the background off every control is disabled and the Image row is empty; turned on again it comes back (fixed along the way: it
+  used to stay blank until the next rotation). With only one image for a game Random is disabled and says why. Checked with a
+  virtual-clock test of the rotator (a starting image, one missing or failing to load, Static with a saved image, Random while
+  rotating and while static, its timing, presses before start or after stop, images that fail, quick double presses; the earlier
+  25 timing checks still pass), backend tests (saved and read back after a restart, no rewrite for the same picture, unsafe file
+  names refused, an older copy of the settings cannot overwrite it) and 29 checks of the real panel and background in a headless
+  browser (the layout, rotation by itself, Random, freezing and saving on Static, a restart, a vanished picture, each game's own
+  picture, off and on, one image only).
 - **Blur and Darken sliders for the background** (`frontend/src/data/backgroundLook.ts`, `components/AppBackground.tsx`,
   Settings > Appearance, `preferences.backgroundBlur` / `backgroundDarken`) - two sliders under the background settings.
   **Blur** goes from Off (the default: the art stays sharp) up to 24 px, and **Darken** sets how dark the layer over the image
@@ -919,7 +937,7 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   color, so the art actually shows through the whole UI rather than just the gaps between
   panels. Settings' own "Appearance" panel lets you turn it off entirely, freeze it on
   whichever image is currently showing instead of rotating, or change how often it rotates
-  (default every 5 minutes).
+  (default every 5 minutes) - see the next entries for how that is laid out now.
 - **Background images are no longer part of the app; choose where they come from** (`internal/backgrounds`,
   `backgrounds.go`, `frontend/src/data/backgroundRotation.ts`, `components/AppBackground.tsx`,
   `views/BackgroundDownloadModal.tsx`) - the art used to be compiled into the binary (359 MB of

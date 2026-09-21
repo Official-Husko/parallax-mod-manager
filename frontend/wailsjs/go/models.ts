@@ -1095,6 +1095,7 @@ export namespace preferences {
 	    backgroundRotationPaused: boolean;
 	    backgroundIntervalSeconds: number;
 	    backgroundSource: string;
+	    backgroundStaticImages: Record<string, string>;
 	    backgroundBlur: number;
 	    backgroundDarken: number;
 	    launchModes: Record<string, string>;
@@ -1123,6 +1124,7 @@ export namespace preferences {
 	        this.backgroundRotationPaused = source["backgroundRotationPaused"];
 	        this.backgroundIntervalSeconds = source["backgroundIntervalSeconds"];
 	        this.backgroundSource = source["backgroundSource"];
+	        this.backgroundStaticImages = source["backgroundStaticImages"];
 	        this.backgroundBlur = source["backgroundBlur"];
 	        this.backgroundDarken = source["backgroundDarken"];
 	        this.launchModes = source["launchModes"];

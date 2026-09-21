@@ -154,6 +154,8 @@ export function SetPatchOverride(arg1:string,arg2:string,arg3:string,arg4:string
 
 export function SetPreferences(arg1:preferences.Preferences):Promise<void>;
 
+export function SetStaticBackground(arg1:string,arg2:string):Promise<void>;
+
 export function SetSteamAPIMode(arg1:string):Promise<main.SteamAPIStatus>;
 
 export function StartBackgroundDownload(arg1:Array<string>):Promise<void>;

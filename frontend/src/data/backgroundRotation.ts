@@ -31,6 +31,10 @@ export interface RotatorOptions {
     prefetch: (url: string) => Promise<void>;
     // Puts a prefetched image on screen.
     show: (url: string) => void;
+    // The image to start with instead of a random one - Static mode's saved picture, or the
+    // one already on screen when a setting changed. Must be in the pool; if it is not, or
+    // fails to load, a random one is used.
+    first?: string;
     // Called when an image could not be loaded and another was tried instead.
     onLoadError?: (url: string, err: unknown) => void;
     leadMs?: number;
@@ -41,6 +45,10 @@ export interface RotatorOptions {
 export interface Rotator {
     start(): void;
     stop(): void;
+    // Shows another random image now (never the one on screen while there is any other) and,
+    // when rotating, starts the wait for the following swap over from here. Does nothing
+    // before start or after stop.
+    next(): void;
 }
 
 // pickRandom chooses from pool without repeating `not` (the image on screen) when
@@ -107,16 +115,49 @@ export function createRotator(opts: RotatorOptions): Rotator {
         void cycle(gen);
     }
 
+    // loadFirst loads the requested starting image, or a random one when there is none, it is
+    // not in the pool, or it cannot be loaded.
+    async function loadFirst(gen: number): Promise<string | undefined> {
+        if (opts.first !== undefined && opts.pool.includes(opts.first)) {
+            try {
+                await opts.prefetch(opts.first);
+                return gen === generation ? opts.first : undefined;
+            } catch (err) {
+                if (gen !== generation) return undefined;
+                opts.onLoadError?.(opts.first, err);
+            }
+        }
+        return load(gen, opts.first !== undefined ? [opts.first] : []);
+    }
+
     return {
         start() {
             if (running) return;
             running = true;
             const gen = ++generation;
             void (async () => {
-                const first = await load(gen, []);
+                const first = await loadFirst(gen);
                 if (gen !== generation || first === undefined) return;
                 opts.show(first);
                 current = first;
+                void cycle(gen);
+            })();
+        },
+        next() {
+            if (!running) return;
+            const gen = ++generation;
+            cancelTimer?.();
+            cancelTimer = null;
+            void (async () => {
+                const picked = await load(gen, current ? [current] : []);
+                if (gen !== generation) return;
+                // Only the picture already on screen was loadable (every other one failed): there
+                // is nothing new to show.
+                if (picked !== undefined && picked !== current) {
+                    opts.show(picked);
+                    current = picked;
+                }
+                // Carry on rotating, from now.
                 void cycle(gen);
             })();
         },

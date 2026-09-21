@@ -278,6 +278,10 @@ export function SetPreferences(arg1) {
   return window['go']['main']['App']['SetPreferences'](arg1);
 }
 
+export function SetStaticBackground(arg1, arg2) {
+  return window['go']['main']['App']['SetStaticBackground'](arg1, arg2);
+}
+
 export function SetSteamAPIMode(arg1) {
   return window['go']['main']['App']['SetSteamAPIMode'](arg1);
 }

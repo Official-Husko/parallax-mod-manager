@@ -328,6 +328,8 @@ export function App() {
                 source={prefs?.backgroundSource ?? 'online'}
                 blur={prefs?.backgroundBlur ?? DEFAULT_BACKGROUND_BLUR}
                 darken={prefs?.backgroundDarken ?? DEFAULT_BACKGROUND_DARKEN}
+                staticImage={prefs?.backgroundStaticImages?.[selectedGame] ?? ''}
+                onStaticSaved={loadGames}
             />
             <TopBar view={view} onNavigate={setView} gamePicker={gamePicker}/>
             <NotificationStack/>

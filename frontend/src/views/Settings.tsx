@@ -26,6 +26,7 @@ import {
     DEFAULT_BACKGROUND_DARKEN,
     previewBackgroundLook,
 } from '../data/backgroundLook';
+import {requestRandomBackground, useCurrentBackground} from '../data/backgroundControl';
 import {type PlaysetAutoloadMode, playsetAutoloadModeFor} from '../data/playsetAutoload';
 import {AboutPanel} from './About';
 import {GamePickerChips, type ManageGamesState, useManagedGamePicker} from './GamePicker';
@@ -776,6 +777,8 @@ function AppearancePanel({onPreferencesChanged}: { onPreferencesChanged?: () => 
     // follows at once (previewBackgroundLook) and the setting is saved when the thumb is let go,
     // not on every pixel of the drag.
     const [look, setLook] = useState({blur: DEFAULT_BACKGROUND_BLUR, darken: DEFAULT_BACKGROUND_DARKEN});
+    // The picture on screen, and whether the background can pick another one.
+    const {current: currentBackground, canRandom} = useCurrentBackground();
 
     function refreshOnDisk() {
         BackgroundCatalog(false)
@@ -839,6 +842,14 @@ function AppearancePanel({onPreferencesChanged}: { onPreferencesChanged?: () => 
         SetPreferences(next).then(onPreferencesChanged).catch(() => setPrefs(prefs));
     }
 
+    // Rotating or Static (backgroundRotationPaused is the stored form of "Static").
+    function setRotating(rotating: boolean) {
+        if (!prefs || prefs.backgroundRotationPaused === !rotating) return;
+        const next = {...prefs, backgroundRotationPaused: !rotating};
+        setPrefs(next);
+        SetPreferences(next).then(onPreferencesChanged).catch(() => setPrefs(prefs));
+    }
+
     function commitIntervalValue(rawValue: number) {
         if (!prefs) return;
         const clamped = Number.isFinite(rawValue)
@@ -876,13 +887,14 @@ function AppearancePanel({onPreferencesChanged}: { onPreferencesChanged?: () => 
             <div>
                 <div className="settings-title">Appearance</div>
                 <div className="settings-subtitle">
-                    A rotating background image behind the whole app, drawn from the currently
-                    selected game's own art - see Manage Games for which games have any.
+                    A background image behind the whole app, drawn from the currently selected
+                    game's own art - see Manage Games for which games have any. Let it rotate, or
+                    keep one picture.
                 </div>
             </div>
             <div className="profile-toggles">
                 <div className="profile-toggle-row">
-                    <span>Rotating background</span>
+                    <span>Backgrounds</span>
                     <Toggle on={backgroundOn} onClick={() => togglePref('backgroundDisabled')}/>
                 </div>
                 <div className={`profile-toggle-row ${backgroundOn ? '' : 'disabled'}`}>
@@ -916,8 +928,20 @@ function AppearancePanel({onPreferencesChanged}: { onPreferencesChanged?: () => 
                     )}
                 </div>
                 <div className={`profile-toggle-row ${backgroundOn ? '' : 'disabled'}`}>
-                    <span>Change automatically</span>
-                    <Toggle on={rotationOn} onClick={backgroundOn ? () => togglePref('backgroundRotationPaused') : undefined}/>
+                    <span>Background mode</span>
+                    <span className="source-toggle">
+                        <span className={rotationOn ? 'active' : ''} onClick={backgroundOn && !rotationOn ? () => setRotating(true) : undefined}>
+                            <i className="fa-solid fa-arrows-rotate"/> Rotating
+                        </span>
+                        <span className={rotationOn ? '' : 'active'} onClick={backgroundOn && rotationOn ? () => setRotating(false) : undefined}>
+                            <i className="fa-solid fa-image"/> Static
+                        </span>
+                    </span>
+                </div>
+                <div className={`appearance-source-note ${backgroundOn ? '' : 'disabled'}`}>
+                    {rotationOn
+                        ? <>A new random image every {formatIntervalDuration(Number(intervalInput))}. The next one is loaded a little before, so the swap is instant.</>
+                        : <>One picture that never changes by itself: the one showing when you chose Static, or the last one you picked with Random. It is saved, so the same one loads every time; each game keeps its own.</>}
                 </div>
                 <div className={`profile-toggle-row ${backgroundOn && rotationOn ? '' : 'disabled'}`}>
                     <span>Change every</span>
@@ -956,6 +980,23 @@ function AppearancePanel({onPreferencesChanged}: { onPreferencesChanged?: () => 
                             </span>
                         </span>
                         <span className="mono unit">{formatIntervalDuration(Number(intervalInput))}</span>
+                    </span>
+                </div>
+                <div className={`profile-toggle-row ${backgroundOn ? '' : 'disabled'}`}>
+                    <span>Image</span>
+                    <span className="appearance-random">
+                        <span className="mono image-name" title={currentBackground ? `${currentBackground.name} (${currentBackground.origin})` : ''}>
+                            {backgroundOn && currentBackground ? currentBackground.name : '-'}
+                        </span>
+                        <button
+                            type="button"
+                            className="btn-ghost"
+                            disabled={!backgroundOn || !canRandom}
+                            title={!backgroundOn ? '' : canRandom ? (rotationOn ? 'Show another random image now' : 'Pick another random image and keep it') : 'This game has only one image to choose from'}
+                            onClick={() => requestRandomBackground()}
+                        >
+                            <i className="fa-solid fa-shuffle"/> Random
+                        </button>
                     </span>
                 </div>
                 <div className={`profile-toggle-row ${backgroundOn ? '' : 'disabled'}`}>
