@@ -93,6 +93,15 @@ type Preferences struct {
 	// "offline" uses only the copies downloaded into the config folder (see
 	// internal/backgrounds). Anything else reads as online.
 	BackgroundSource string `json:"backgroundSource"`
+	// BackgroundBlur is how strongly the background image is blurred, 0 (sharp, the
+	// default) to 100 (the frontend maps that to a blur of up to 24 px). See
+	// NormalizedPercent.
+	BackgroundBlur int `json:"backgroundBlur"`
+	// BackgroundDarken is how strongly the dark layer over the image is drawn, 0 (none)
+	// to 100 (almost opaque). DefaultBackgroundDarken is what the app shipped with, so the
+	// background looks the same until it is changed - which is why Load decodes onto
+	// Defaults(): a file from before this setting keeps 84 instead of reading as 0.
+	BackgroundDarken int `json:"backgroundDarken"`
 	// LaunchModes persists, per game ID, which of launch.LaunchMode's
 	// values LaunchGame should use for that game - kept as a plain string
 	// here rather than importing internal/launch's named type, the same
@@ -199,6 +208,23 @@ func NormalizedBackgroundSource(v string) string {
 	return BackgroundSourceOnline
 }
 
+// DefaultBackgroundDarken is the darkening of the background image the app has always
+// had (a scrim fading from 80% to 88% black), as a strength out of 100.
+const DefaultBackgroundDarken = 84
+
+// NormalizedPercent clamps a 0-100 setting: a hand-edited value can never mean
+// something the sliders cannot show.
+func NormalizedPercent(v int) int {
+	return min(100, max(0, v))
+}
+
+// normalized returns p with its numeric settings brought into range.
+func (p Preferences) normalized() Preferences {
+	p.BackgroundBlur = NormalizedPercent(p.BackgroundBlur)
+	p.BackgroundDarken = NormalizedPercent(p.BackgroundDarken)
+	return p
+}
+
 // Defaults returns the preferences a fresh install starts with.
 func Defaults() Preferences {
 	return Preferences{
@@ -208,6 +234,7 @@ func Defaults() Preferences {
 		AutosortFixesLast:    true,
 		AutosortPatchLast:    true,
 		BackgroundSource:     BackgroundSourceOnline,
+		BackgroundDarken:     DefaultBackgroundDarken,
 	}
 }
 
@@ -230,7 +257,7 @@ func Load(path string) Preferences {
 	if err := jsonc.Unmarshal(data, &p); err != nil {
 		return Defaults()
 	}
-	return p
+	return p.normalized()
 }
 
 // Save writes p to path atomically.

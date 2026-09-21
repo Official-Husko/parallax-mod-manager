@@ -11,6 +11,7 @@ import {installBackupNotifications} from './data/backups';
 import {ensureModUpdates} from './data/modUpdates';
 import {Tooltip} from './components/Tooltip';
 import {AppBackground} from './components/AppBackground';
+import {DEFAULT_BACKGROUND_BLUR, DEFAULT_BACKGROUND_DARKEN} from './data/backgroundLook';
 import {dismiss, notify} from './data/notifications';
 import {displayVersion} from './data/versionCompat';
 import {Workspace} from './views/Workspace';
@@ -325,6 +326,8 @@ export function App() {
                 rotationPaused={prefs?.backgroundRotationPaused ?? false}
                 intervalSeconds={prefs?.backgroundIntervalSeconds ?? 0}
                 source={prefs?.backgroundSource ?? 'online'}
+                blur={prefs?.backgroundBlur ?? DEFAULT_BACKGROUND_BLUR}
+                darken={prefs?.backgroundDarken ?? DEFAULT_BACKGROUND_DARKEN}
             />
             <TopBar view={view} onNavigate={setView} gamePicker={gamePicker}/>
             <NotificationStack/>

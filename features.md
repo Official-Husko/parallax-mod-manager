@@ -125,6 +125,8 @@ for security, privacy, reliability or performance is called out (see the last tw
 
 - **Rotating per-game backgrounds** - cross-fading art behind the whole UI, which you can turn off,
   freeze, or slow down.
+- **Blur and darken the background** - two sliders in Settings > Appearance: blur the art (off by default) and choose how
+  dark the layer over it is (84% is how it has always looked), with a live preview while you drag.
 - **Online or offline backgrounds** - stream them from GitHub, or download the ones you want once and
   work offline, with a progress window that can be stopped and resumed.
 - **Notifications for slow work** - a stacking toast system with progress bars and retry actions.

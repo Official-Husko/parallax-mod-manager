@@ -404,6 +404,8 @@ func (a *App) SetPreferences(p preferences.Preferences) error {
 func (a *App) savePreferences(p preferences.Preferences, keepBackendOwned bool) error {
 	a.preferencesMu.Lock()
 	p.BackgroundSource = preferences.NormalizedBackgroundSource(p.BackgroundSource)
+	p.BackgroundBlur = preferences.NormalizedPercent(p.BackgroundBlur)
+	p.BackgroundDarken = preferences.NormalizedPercent(p.BackgroundDarken)
 	if keepBackendOwned {
 		p.LastSeenGameVersions = a.preferences.LastSeenGameVersions
 	}

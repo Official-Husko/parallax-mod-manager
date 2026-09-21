@@ -4,6 +4,7 @@ import {useEffect, useState} from 'preact/hooks';
 import {BackgroundImages} from '../../wailsjs/go/main/App';
 import {EventsOn} from '../../wailsjs/runtime/runtime';
 import {logEvent} from '../data/appLog';
+import {blurPixels, DEFAULT_BACKGROUND_BLUR, DEFAULT_BACKGROUND_DARKEN, scrimAlphas, useBackgroundLookPreview} from '../data/backgroundLook';
 import {createRotator, imageNameFromUrl, imageOrigin} from '../data/backgroundRotation';
 
 export const DEFAULT_BACKGROUND_INTERVAL_SECONDS = 300;
@@ -81,14 +82,21 @@ function release(keep: string) {
 // data/backgroundRotation.ts), so the swap never waits on the network. A game with
 // no images renders nothing, same as disabled - #app's own plain --bg-app color
 // shows through instead.
-export function AppBackground({gameId, disabled, rotationPaused, intervalSeconds, source}: {
+export function AppBackground({gameId, disabled, rotationPaused, intervalSeconds, source, blur = DEFAULT_BACKGROUND_BLUR, darken = DEFAULT_BACKGROUND_DARKEN}: {
     gameId: string;
     disabled: boolean;
     rotationPaused: boolean;
     intervalSeconds: number;
     // "online" or "offline" - only here so a change of source reloads the pool.
     source: string;
+    // How strongly the image is blurred and darkened, 0-100 (see data/backgroundLook.ts) - the
+    // saved settings; a slider being dragged in Settings overrides them until it is let go.
+    blur?: number;
+    darken?: number;
 }) {
+    const preview = useBackgroundLookPreview();
+    const blurPx = blurPixels(preview?.blur ?? blur);
+    const scrim = scrimAlphas(preview?.darken ?? darken);
     const [state, setState] = useState<{layers: [string, string]; active: 0 | 1}>({layers: ['', ''], active: 0});
     // Bumped when downloaded images are added or removed, so the pool is listed again.
     const [packsVersion, setPacksVersion] = useState(0);
@@ -149,9 +157,12 @@ export function AppBackground({gameId, disabled, rotationPaused, intervalSeconds
     }
 
     return (
-        <div className="app-background">
+        <div
+            className="app-background"
+            style={{'--bg-blur': `${blurPx}px`, '--scrim-top': String(scrim.top), '--scrim-bottom': String(scrim.bottom)} as h.JSX.CSSProperties}
+        >
             <div
-                className="app-background-layer"
+                className={`app-background-layer ${blurPx > 0 ? 'blurred' : ''}`}
                 style={{
                     // Quoted - many of these filenames contain literal
                     // spaces (Steam Workshop's own "NN - randomID.jpg"
@@ -161,7 +172,7 @@ export function AppBackground({gameId, disabled, rotationPaused, intervalSeconds
                 }}
             />
             <div
-                className="app-background-layer"
+                className={`app-background-layer ${blurPx > 0 ? 'blurred' : ''}`}
                 style={{
                     backgroundImage: state.layers[1] ? `url("${state.layers[1]}")` : undefined,
                     opacity: state.active === 1 ? 1 : 0,

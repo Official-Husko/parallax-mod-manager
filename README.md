@@ -740,6 +740,20 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   steadily lit instead. Checked by a unit test of the comparison (15 cases) and the real Workspace in a headless browser
   (blinking and a really changing glow, tooltips, save and reorder and remove, a playset loaded at startup, clear, a mod
   vanishing from disk, reduced motion).
+- **Blur and Darken sliders for the background** (`frontend/src/data/backgroundLook.ts`, `components/AppBackground.tsx`,
+  Settings > Appearance, `preferences.backgroundBlur` / `backgroundDarken`) - two sliders under the background settings.
+  **Blur** goes from Off (the default: the art stays sharp) up to 24 px, and **Darken** sets how dark the layer over the image
+  is, from 0% (all the art) to 100% (nearly black); its default, 84%, is exactly the 80% to 88% fade the background has always
+  had, so nothing changes until a slider is moved, and a settings file from before the setting existed keeps that look. Dragging
+  a slider changes the background at once as a preview and the setting is saved when it is let go (not on every pixel of the
+  drag); each has a Reset that appears once it is off its default, and both are disabled while the background is off. A
+  blurred image is drawn well past the window on every side (three times the blur radius) so its softened edge never shows
+  the plain background as a band along the border, and at no blur no filter is applied at all. Values are clamped to 0-100
+  in the settings file. Checked in a headless browser with the real background (defaults are exactly the old look, the
+  preview, save-on-release, both sliders' extremes, Reset, leaving mid-drag, disabled with the background off) and, for the
+  border, by rendering the same frame over a magenta and a black page and finding no pixel that differs at the strongest
+  blur (with a control that fails as it should when the overdraw is removed). Blur is a real per-frame cost on a 4K image in a
+  software-rendered webview; it is capped at 24 px and off by default for that reason.
 - **The rest of the design mockup's screens** (`frontend/src/views/Library.tsx`,
   `PlaysetsModal.tsx`) - a faithful, fully navigable visual preview of the
   mockup's cross-game library, built from the mockup's own example content.

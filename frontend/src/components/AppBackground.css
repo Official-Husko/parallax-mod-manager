@@ -41,5 +41,19 @@
 .app-background-scrim {
     position: absolute;
     inset: 0;
-    background: linear-gradient(rgba(8, 11, 16, .8), rgba(8, 11, 16, .88));
+    /* --scrim-top and --scrim-bottom are set by AppBackground from the Darken slider
+       (data/backgroundLook.ts): at its default they are exactly the .8 and .88 this used
+       to be written as. */
+    background: linear-gradient(rgba(8, 11, 16, var(--scrim-top, .8)), rgba(8, 11, 16, var(--scrim-bottom, .88)));
+}
+
+/* The Blur slider. A blur softens an image's edge into transparency, which would show a
+   ragged band of the plain background along the window's border, so a blurred layer is
+   drawn well past the window on every side (three times the blur radius, on top of the
+   overscan above) and the overflow is clipped by .app-background. --bg-blur is set by
+   AppBackground. Left off entirely at 0, since a filter of any kind makes the layer a
+   separate compositing surface for nothing. */
+.app-background-layer.blurred {
+    filter: blur(var(--bg-blur));
+    inset: calc(-3px - 3 * var(--bg-blur));
 }

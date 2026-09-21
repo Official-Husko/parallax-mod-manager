@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -223,5 +224,48 @@ func TestObserveGameVersionsIgnoresAnUnknownVersion(t *testing.T) {
 	// ...and when it returns at the same version: still no change.
 	if _, changes := got.ObserveGameVersions(map[string]string{"stellaris": "v4.4.5"}); len(changes) != 0 {
 		t.Errorf("returning at the same version reported a change: %v", changes)
+	}
+}
+
+func TestBackgroundLookDefaultsToTheOriginalDarkeningAndNoBlur(t *testing.T) {
+	d := Defaults()
+	if d.BackgroundBlur != 0 || d.BackgroundDarken != DefaultBackgroundDarken || DefaultBackgroundDarken != 84 {
+		t.Errorf("Defaults = blur %d, darken %d, want 0 and 84 (the look the app shipped with)", d.BackgroundBlur, d.BackgroundDarken)
+	}
+	// A file from before these settings existed keeps the shipped look instead of reading darken as 0.
+	path := filepath.Join(t.TempDir(), "preferences.jsonc")
+	if err := os.WriteFile(path, []byte(`{"scanForNewMods": false, "backgroundIntervalSeconds": 60}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got := Load(path)
+	if got.BackgroundDarken != 84 || got.BackgroundBlur != 0 || got.ScanForNewMods {
+		t.Errorf("older file: blur %d, darken %d, scan %v", got.BackgroundBlur, got.BackgroundDarken, got.ScanForNewMods)
+	}
+}
+
+func TestBackgroundLookExplicitZeroDarkenStaysZeroAndOutOfRangeIsClamped(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "preferences.jsonc")
+	_ = os.WriteFile(path, []byte(`{"backgroundDarken": 0, "backgroundBlur": 55}`), 0o644)
+	if got := Load(path); got.BackgroundDarken != 0 || got.BackgroundBlur != 55 {
+		t.Errorf("explicit values: blur %d, darken %d, want 55 and 0 (someone may want no darkening)", got.BackgroundBlur, got.BackgroundDarken)
+	}
+	_ = os.WriteFile(path, []byte(`{"backgroundDarken": 500, "backgroundBlur": -20}`), 0o644)
+	if got := Load(path); got.BackgroundDarken != 100 || got.BackgroundBlur != 0 {
+		t.Errorf("hand-edited values: blur %d, darken %d, want them clamped to 0 and 100", got.BackgroundBlur, got.BackgroundDarken)
+	}
+	for in, want := range map[int]int{-5: 0, 0: 0, 42: 42, 100: 100, 101: 100} {
+		if got := NormalizedPercent(in); got != want {
+			t.Errorf("NormalizedPercent(%d) = %d, want %d", in, got, want)
+		}
+	}
+}
+
+func TestChangedKeysNamesTheBackgroundLookSettings(t *testing.T) {
+	a := Defaults()
+	b := a
+	b.BackgroundBlur, b.BackgroundDarken = 30, 60
+	keys := ChangedKeys(a, b)
+	if strings.Join(keys, ",") != "backgroundBlur,backgroundDarken" {
+		t.Errorf("keys = %v", keys)
 	}
 }

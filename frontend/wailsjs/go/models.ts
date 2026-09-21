@@ -1095,6 +1095,8 @@ export namespace preferences {
 	    backgroundRotationPaused: boolean;
 	    backgroundIntervalSeconds: number;
 	    backgroundSource: string;
+	    backgroundBlur: number;
+	    backgroundDarken: number;
 	    launchModes: Record<string, string>;
 	    lastActivePlaysets: Record<string, string>;
 	    playsetAutoloadModes: Record<string, string>;
@@ -1121,6 +1123,8 @@ export namespace preferences {
 	        this.backgroundRotationPaused = source["backgroundRotationPaused"];
 	        this.backgroundIntervalSeconds = source["backgroundIntervalSeconds"];
 	        this.backgroundSource = source["backgroundSource"];
+	        this.backgroundBlur = source["backgroundBlur"];
+	        this.backgroundDarken = source["backgroundDarken"];
 	        this.launchModes = source["launchModes"];
 	        this.lastActivePlaysets = source["lastActivePlaysets"];
 	        this.playsetAutoloadModes = source["playsetAutoloadModes"];

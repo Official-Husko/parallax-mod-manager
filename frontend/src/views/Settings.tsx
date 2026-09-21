@@ -20,6 +20,12 @@ import {Toggle} from '../components/Toggle';
 import {settingsNav} from '../data/mockData';
 import {formatBytes} from '../data/format';
 import {DEFAULT_BACKGROUND_INTERVAL_SECONDS} from '../components/AppBackground';
+import {
+    blurPixels,
+    DEFAULT_BACKGROUND_BLUR,
+    DEFAULT_BACKGROUND_DARKEN,
+    previewBackgroundLook,
+} from '../data/backgroundLook';
 import {type PlaysetAutoloadMode, playsetAutoloadModeFor} from '../data/playsetAutoload';
 import {AboutPanel} from './About';
 import {GamePickerChips, type ManageGamesState, useManagedGamePicker} from './GamePicker';
@@ -766,6 +772,10 @@ function AppearancePanel({onPreferencesChanged}: { onPreferencesChanged?: () => 
     const [downloadMode, setDownloadMode] = useState<'switch' | 'manage' | null>(null);
     // What is on this computer, for the line under the source switch.
     const [onDisk, setOnDisk] = useState<{files: number; bytes: number; repo: string} | null>(null);
+    // The Blur and Darken sliders' own positions while they are being dragged: the background
+    // follows at once (previewBackgroundLook) and the setting is saved when the thumb is let go,
+    // not on every pixel of the drag.
+    const [look, setLook] = useState({blur: DEFAULT_BACKGROUND_BLUR, darken: DEFAULT_BACKGROUND_DARKEN});
 
     function refreshOnDisk() {
         BackgroundCatalog(false)
@@ -781,9 +791,29 @@ function AppearancePanel({onPreferencesChanged}: { onPreferencesChanged?: () => 
         GetPreferences().then((p) => {
             setPrefs(p);
             setIntervalInput(String(p.backgroundIntervalSeconds || DEFAULT_BACKGROUND_INTERVAL_SECONDS));
+            setLook({blur: p.backgroundBlur ?? DEFAULT_BACKGROUND_BLUR, darken: p.backgroundDarken ?? DEFAULT_BACKGROUND_DARKEN});
         }).catch(() => undefined);
         refreshOnDisk();
+        // Leaving the panel ends any preview; what was let go of is saved by then.
+        return () => previewBackgroundLook(null);
     }, []);
+
+    // Follows a slider as it moves.
+    function previewLook(next: {blur: number; darken: number}) {
+        setLook(next);
+        previewBackgroundLook(next);
+    }
+
+    // Saves the look once a slider is let go (or a key or the reset button changed it).
+    function commitLook(next: {blur: number; darken: number}) {
+        setLook(next);
+        previewBackgroundLook(next);
+        if (!prefs) return;
+        if (next.blur === prefs.backgroundBlur && next.darken === prefs.backgroundDarken) return;
+        const saved = {...prefs, backgroundBlur: next.blur, backgroundDarken: next.darken};
+        setPrefs(saved);
+        SetPreferences(saved).then(onPreferencesChanged).catch(() => setPrefs(prefs));
+    }
 
     // Online is a plain switch. Offline first asks which games to download (the
     // window below) and only takes effect once that is done - declining it leaves
@@ -927,6 +957,52 @@ function AppearancePanel({onPreferencesChanged}: { onPreferencesChanged?: () => 
                         </span>
                         <span className="mono unit">{formatIntervalDuration(Number(intervalInput))}</span>
                     </span>
+                </div>
+                <div className={`profile-toggle-row ${backgroundOn ? '' : 'disabled'}`}>
+                    <span>Blur</span>
+                    <span className="look-slider">
+                        <input
+                            type="range"
+                            min={0}
+                            max={100}
+                            step={1}
+                            value={look.blur}
+                            disabled={!backgroundOn}
+                            aria-label="Background blur"
+                            onInput={(e) => previewLook({...look, blur: Number((e.target as HTMLInputElement).value)})}
+                            onChange={(e) => commitLook({...look, blur: Number((e.target as HTMLInputElement).value)})}
+                        />
+                        <span className="mono unit">{look.blur === 0 ? 'Off' : `${blurPixels(look.blur)} px`}</span>
+                        <span
+                            className={`link-btn look-reset ${look.blur === DEFAULT_BACKGROUND_BLUR || !backgroundOn ? 'hidden' : ''}`}
+                            onClick={() => commitLook({...look, blur: DEFAULT_BACKGROUND_BLUR})}
+                        >Reset</span>
+                    </span>
+                </div>
+                <div className={`profile-toggle-row ${backgroundOn ? '' : 'disabled'}`}>
+                    <span>Darken</span>
+                    <span className="look-slider">
+                        <input
+                            type="range"
+                            min={0}
+                            max={100}
+                            step={1}
+                            value={look.darken}
+                            disabled={!backgroundOn}
+                            aria-label="Background darkening"
+                            onInput={(e) => previewLook({...look, darken: Number((e.target as HTMLInputElement).value)})}
+                            onChange={(e) => commitLook({...look, darken: Number((e.target as HTMLInputElement).value)})}
+                        />
+                        <span className="mono unit">{look.darken}%</span>
+                        <span
+                            className={`link-btn look-reset ${look.darken === DEFAULT_BACKGROUND_DARKEN || !backgroundOn ? 'hidden' : ''}`}
+                            onClick={() => commitLook({...look, darken: DEFAULT_BACKGROUND_DARKEN})}
+                        >Reset</span>
+                    </span>
+                </div>
+                <div className={`appearance-source-note ${backgroundOn ? '' : 'disabled'}`}>
+                    Blur softens the image. Darken is how dark the layer over it is; {DEFAULT_BACKGROUND_DARKEN}% is how the app
+                    has always looked, and less lets more of the art show through behind the text.
                 </div>
             </div>
             {downloadMode && <BackgroundDownloadModal mode={downloadMode} onClose={closeDownloadModal}/>}
