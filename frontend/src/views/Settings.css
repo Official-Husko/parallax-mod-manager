@@ -483,7 +483,7 @@
 
 .mode-option.active {
     border-color: var(--rust);
-    background: rgba(196, 98, 58, .08);
+    background: color-mix(in srgb, var(--rust) 8%, transparent);
 }
 
 .mode-option.disabled {

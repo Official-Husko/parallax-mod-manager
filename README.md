@@ -549,6 +549,24 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   the row says to save. When a mod in the playset has no files on disk or is not installed there is
   no honest number, so it says "unavailable" and why instead of leaving the mod out. DLC is not part
   of the checksum, so it is not shown on the DLC screen. Calculating only reads files.
+- **Accent colour: from the game's icon, custom, or default** (**Settings > Appearance**,
+  `frontend/src/views/AccentSettings.tsx`, `frontend/src/data/accentPick.ts`,
+  `frontend/src/data/accentColor.ts`) - the interface's main colour used to be taken from each game's
+  icon and could not be changed. There are now three modes: **Game** (the default, so nothing changes
+  for anyone who does not touch it) takes each game's colour from the main colours of its icon with
+  colorthief; **Custom** uses one colour of your choosing for every game; **Default** keeps the app's
+  own rust. In Custom mode pick a colour with the colour box or type a hex value (`#c4623a`, `c4623a`
+  or `#fa0`; a bad one is refused and the box goes back), and the whole interface follows the colour
+  box as you move it, before it is saved. Under the switch are the **main colours of the current
+  game's icon** (colorthief's vibrant, light, dark and muted swatches, without near-duplicates) as
+  round swatches: one click uses that colour for every game. The text drawn on the accent (the Play
+  button and the like) is picked by contrast, dark or light, so a dark blue gets light text; and a
+  custom colour too dark to see on the app's dark background gets a warning, since active tabs and
+  other accent-coloured text would fade into it. Saved as `accentMode` and `accentColor` in the
+  settings file (a hand-edited nonsense value reads as the game's colour, a bad colour as none), and
+  the two places that hard-coded the rust as a tint now follow whichever accent is in use. Checked
+  against the six real game logos in a headless browser (colorthief extraction, saving, live preview,
+  the three modes, bad input) and by unit tests of the colour rules.
 - **Minimum window size** (`main.go`, `Workspace.css`) - the window can no longer be dragged smaller
   than **1200 x 640** (it opens at 1280 x 700, where 1024 x 768 used to be the default). Those numbers
   are where the interface was checked and found right, not a guess: at 1024 x 768 the Workspace's mod

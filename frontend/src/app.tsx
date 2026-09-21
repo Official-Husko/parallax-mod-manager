@@ -25,6 +25,8 @@ import {UpdatesModal} from './views/UpdatesModal';
 import {FirstRunWizard} from './views/FirstRunWizard';
 import {getLegacyManagedGames} from './data/managedGames';
 import {useGameAccent} from './data/useGameAccent';
+import {useAccentPreview} from './data/accentPreview';
+import {normalizeAccentMode, resolveAccent} from './data/accentPick';
 
 const ONBOARDED_KEY = 'parallax-onboarded';
 
@@ -278,7 +280,9 @@ export function App() {
         patchPreferences({lastSelectedGame: id}).then(setPrefs).catch(() => undefined);
     }
 
-    const accent = useGameAccent(onboarded ? selectedGame : '');
+    const gameAccent = useGameAccent(onboarded ? selectedGame : '');
+    // A colour being picked in Settings shows at once, before it is saved.
+    const accentPreview = useAccentPreview();
 
     // Once per run for each game, work out what happened to its mods since the
     // app last started (see data/modUpdates.ts) - the sidebar card and the
@@ -332,6 +336,9 @@ export function App() {
             }
             : undefined;
 
+    // Which accent draws the interface: the game's own (from its icon), a custom colour, or the
+    // app's default - see data/accentPick.ts.
+    const accent = resolveAccent(normalizeAccentMode(prefs?.accentMode), prefs?.accentColor ?? '', gameAccent, accentPreview);
     const accentStyle = accent
         ? ({'--rust': accent.color, '--rust-text': accent.textColor} as unknown as h.JSX.CSSProperties)
         : undefined;

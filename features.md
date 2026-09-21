@@ -140,6 +140,9 @@ for security, privacy, reliability or performance is called out (see the last tw
 
 ## Appearance and interface
 
+- **Accent colour** - Settings > Appearance: each game's own colour taken from its icon (the default), one custom
+  colour for every game (colour box or hex, with a live preview), or the app's own. The current game's icon colours
+  are offered as one-click swatches, and a colour too dark to see gets a warning.
 - **Per-game backgrounds** - cross-fading art behind the whole UI: switch it off completely, let it Rotate (with your
   own interval) or keep it Static, and press Random for another picture. In Static mode the picture is saved for each game,
   so the same one loads every time.

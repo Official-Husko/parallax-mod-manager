@@ -1141,6 +1141,8 @@ export namespace preferences {
 	    playsetAutoloadModes: Record<string, string>;
 	    playsetAutoloadCustom: Record<string, string>;
 	    lastSeenGameVersions: Record<string, string>;
+	    accentMode: string;
+	    accentColor: string;
 	    developerTools: boolean;
 	
 	    static createFrom(source: any = {}) {
@@ -1171,6 +1173,8 @@ export namespace preferences {
 	        this.playsetAutoloadModes = source["playsetAutoloadModes"];
 	        this.playsetAutoloadCustom = source["playsetAutoloadCustom"];
 	        this.lastSeenGameVersions = source["lastSeenGameVersions"];
+	        this.accentMode = source["accentMode"];
+	        this.accentColor = source["accentColor"];
 	        this.developerTools = source["developerTools"];
 	    }
 	}

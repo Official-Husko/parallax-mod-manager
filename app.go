@@ -424,6 +424,8 @@ func (a *App) savePreferences(p preferences.Preferences, keepBackendOwned bool) 
 	p.BackgroundSource = preferences.NormalizedBackgroundSource(p.BackgroundSource)
 	p.BackgroundBlur = preferences.NormalizedPercent(p.BackgroundBlur)
 	p.BackgroundDarken = preferences.NormalizedPercent(p.BackgroundDarken)
+	p.AccentMode = preferences.NormalizedAccentMode(p.AccentMode)
+	p.AccentColor = preferences.NormalizedHexColor(p.AccentColor)
 	if keepBackendOwned {
 		p.LastSeenGameVersions = a.preferences.LastSeenGameVersions
 		p.BackgroundStaticImages = a.preferences.BackgroundStaticImages

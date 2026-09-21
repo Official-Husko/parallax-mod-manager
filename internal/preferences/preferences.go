@@ -157,6 +157,14 @@ type Preferences struct {
 	// copies of the preferences and writes them back whole, so App.SetPreferences
 	// ignores whatever it sends for this field.
 	LastSeenGameVersions map[string]string `json:"lastSeenGameVersions"`
+	// AccentMode says where the interface's main accent colour comes from: "game" (the
+	// default) takes each game's own colour from its icon, "custom" uses AccentColor for every
+	// game, and "default" keeps the app's own colour. Anything else reads as "game". See
+	// NormalizedAccentMode.
+	AccentMode string `json:"accentMode"`
+	// AccentColor is the custom accent colour as "#rrggbb" (lower case), or "" for none. It
+	// only counts while AccentMode is "custom". See NormalizedHexColor.
+	AccentColor string `json:"accentColor"`
 	// DeveloperTools lets Shift+right-click through to the browser's own menu (with
 	// Inspect Element), from Settings > Debug. Off by default, and only development
 	// builds (wails dev) have the Debug tab or honour it - a release build ignores
@@ -220,6 +228,42 @@ func NormalizedBackgroundSource(v string) string {
 	return BackgroundSourceOnline
 }
 
+// The values of Preferences.AccentMode.
+const (
+	AccentModeGame    = "game"
+	AccentModeCustom  = "custom"
+	AccentModeDefault = "default"
+)
+
+// NormalizedAccentMode returns v when it is one of the three modes and "game" for anything else
+// (a missing or hand-edited value can never mean none of them).
+func NormalizedAccentMode(v string) string {
+	switch v {
+	case AccentModeCustom, AccentModeDefault:
+		return v
+	}
+	return AccentModeGame
+}
+
+// NormalizedHexColor returns v as "#rrggbb" in lower case when it is a hex colour (#rgb or
+// #rrggbb, the # optional), and "" when it is not.
+func NormalizedHexColor(v string) string {
+	v = strings.TrimPrefix(strings.TrimSpace(v), "#")
+	if len(v) == 3 {
+		v = string([]byte{v[0], v[0], v[1], v[1], v[2], v[2]})
+	}
+	if len(v) != 6 {
+		return ""
+	}
+	for i := 0; i < len(v); i++ {
+		c := v[i]
+		if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F') {
+			return ""
+		}
+	}
+	return "#" + strings.ToLower(v)
+}
+
 // DefaultBackgroundDarken is the darkening of the background image the app has always
 // had (a scrim fading from 80% to 88% black), as a strength out of 100.
 const DefaultBackgroundDarken = 84
@@ -234,6 +278,8 @@ func NormalizedPercent(v int) int {
 func (p Preferences) normalized() Preferences {
 	p.BackgroundBlur = NormalizedPercent(p.BackgroundBlur)
 	p.BackgroundDarken = NormalizedPercent(p.BackgroundDarken)
+	p.AccentMode = NormalizedAccentMode(p.AccentMode)
+	p.AccentColor = NormalizedHexColor(p.AccentColor)
 	return p
 }
 
@@ -247,6 +293,7 @@ func Defaults() Preferences {
 		AutosortPatchLast:    true,
 		BackgroundSource:     BackgroundSourceOnline,
 		BackgroundDarken:     DefaultBackgroundDarken,
+		AccentMode:           AccentModeGame,
 	}
 }
 

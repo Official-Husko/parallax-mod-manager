@@ -1,15 +1,15 @@
 import {getSwatchesSync} from 'colorthief';
+import {distinctColors, hexToRgb} from './accentPick';
+import type {Accent, PaletteColor} from './accentPick';
 
 // An accent color pulled from a game's own logo art, plus the text color
 // that stays readable on top of it - colorthief's semantic swatches
 // already solve the "readable text on an arbitrary extracted color"
 // problem, so this is preferred over just taking the flat dominant color.
-export interface Accent {
-    color: string;
-    textColor: string;
-}
+export type {Accent} from './accentPick';
 
 const cache = new Map<string, Accent | null>();
+const paletteCache = new Map<string, PaletteColor[]>();
 
 function loadImage(src: string): Promise<HTMLImageElement> {
     return new Promise((resolve, reject) => {
@@ -48,10 +48,28 @@ export async function extractAccent(imageSrc: string): Promise<Accent | null> {
     return accent;
 }
 
-function hexToRgb(hex: string): [number, number, number] {
-    const clean = hex.replace('#', '');
-    const n = parseInt(clean, 16);
-    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+// The swatches colorthief names, best accent candidates first.
+const SWATCH_ORDER = ['Vibrant', 'LightVibrant', 'DarkVibrant', 'Muted', 'LightMuted', 'DarkMuted'] as const;
+
+// extractPalette lists the main colours of a game's logo - colorthief's named swatches, the vibrant
+// ones first, without near-duplicates - for picking one as a custom accent. Empty when the image
+// cannot be read.
+export async function extractPalette(imageSrc: string): Promise<PaletteColor[]> {
+    const cached = paletteCache.get(imageSrc);
+    if (cached) return cached;
+    let colors: PaletteColor[] = [];
+    try {
+        const img = await loadImage(imageSrc);
+        const swatches = getSwatchesSync(img);
+        colors = distinctColors(SWATCH_ORDER.flatMap((role) => {
+            const s = swatches[role];
+            return s ? [{hex: s.color.hex().toLowerCase(), role}] : [];
+        }));
+    } catch {
+        colors = [];
+    }
+    paletteCache.set(imageSrc, colors);
+    return colors;
 }
 
 function rgbToHex(r: number, g: number, b: number): string {

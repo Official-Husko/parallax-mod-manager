@@ -37,6 +37,7 @@ func TestSaveThenLoadRoundTrips(t *testing.T) {
 		CloseAfterLaunch:    true,
 		WarnOnPatchMismatch: true,
 		LastSelectedGame:    "01a0963a-c214-75a3-908d-1b76b91ea7bf",
+		AccentMode:          AccentModeGame, // a setting that is never empty once loaded
 	}
 	if err := Save(path, want); err != nil {
 		t.Fatalf("Save: %v", err)
@@ -292,5 +293,63 @@ func TestDeveloperToolsAreOffByDefaultAndSurviveASave(t *testing.T) {
 	}
 	if keys := ChangedKeys(Defaults(), p); len(keys) != 1 || keys[0] != "developerTools" {
 		t.Errorf("ChangedKeys = %v, want [developerTools]", keys)
+	}
+}
+
+func TestAccentDefaultsToTheGamesOwnColour(t *testing.T) {
+	if Defaults().AccentMode != AccentModeGame || Defaults().AccentColor != "" {
+		t.Errorf("defaults: mode %q colour %q, want the game's own colour and none custom", Defaults().AccentMode, Defaults().AccentColor)
+	}
+	// A file from before the setting existed keeps that default instead of reading as "".
+	path := filepath.Join(t.TempDir(), "preferences.jsonc")
+	if err := os.WriteFile(path, []byte(`{"scanForNewMods": false}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := Load(path); got.AccentMode != AccentModeGame {
+		t.Errorf("an older file loads with mode %q, want %q", got.AccentMode, AccentModeGame)
+	}
+}
+
+func TestAccentSurvivesASaveAndIsCleanedOnLoad(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "preferences.jsonc")
+	p := Defaults()
+	p.AccentMode = AccentModeCustom
+	p.AccentColor = "#3aa0c4"
+	if err := Save(path, p); err != nil {
+		t.Fatal(err)
+	}
+	if got := Load(path); got.AccentMode != AccentModeCustom || got.AccentColor != "#3aa0c4" {
+		t.Errorf("after a round trip: %q %q", got.AccentMode, got.AccentColor)
+	}
+
+	// Hand-edited nonsense reads as something usable.
+	if err := os.WriteFile(path, []byte(`{"accentMode": "rainbow", "accentColor": "not a colour"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := Load(path); got.AccentMode != AccentModeGame || got.AccentColor != "" {
+		t.Errorf("nonsense loaded as %q %q, want the game's colour and none", got.AccentMode, got.AccentColor)
+	}
+	if err := os.WriteFile(path, []byte(`{"accentMode": "custom", "accentColor": "ABC"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := Load(path); got.AccentMode != AccentModeCustom || got.AccentColor != "#aabbcc" {
+		t.Errorf("a short upper-case colour loaded as %q %q", got.AccentMode, got.AccentColor)
+	}
+}
+
+func TestNormalizedHexColor(t *testing.T) {
+	cases := map[string]string{
+		"#C4623A": "#c4623a", "c4623a": "#c4623a", "  #c4623a ": "#c4623a", "#fa0": "#ffaa00", "FA0": "#ffaa00",
+		"": "", "#": "", "#12345": "", "#1234567": "", "#gggggg": "", "red": "", "#c4623a; x": "", "rgb(1,2,3)": "",
+	}
+	for in, want := range cases {
+		if got := NormalizedHexColor(in); got != want {
+			t.Errorf("NormalizedHexColor(%q) = %q, want %q", in, got, want)
+		}
+	}
+	for in, want := range map[string]string{"": "game", "game": "game", "custom": "custom", "default": "default", "Custom": "game", "x": "game"} {
+		if got := NormalizedAccentMode(in); got != want {
+			t.Errorf("NormalizedAccentMode(%q) = %q, want %q", in, got, want)
+		}
 	}
 }

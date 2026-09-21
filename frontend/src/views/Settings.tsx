@@ -35,6 +35,7 @@ import {BackgroundDownloadModal} from './BackgroundDownloadModal';
 import {SteamApiPanel} from './SteamApiPanel';
 import {BackupPanel} from './BackupPanel';
 import {DebugPanel} from './DebugPanel';
+import {AccentSettings} from './AccentSettings';
 
 type Section = 'manage' | 'paths' | 'launch' | 'playsets' | 'sort' | 'steam' | 'backup' | 'appearance' | 'advanced' | 'debug' | 'about';
 
@@ -895,11 +896,12 @@ function AppearancePanel({onPreferencesChanged}: { onPreferencesChanged?: () => 
             <div>
                 <div className="settings-title">Appearance</div>
                 <div className="settings-subtitle">
-                    A background image behind the whole app, drawn from the currently selected
-                    game's own art - see Manage Games for which games have any. Let it rotate, or
-                    keep one picture.
+                    The interface's accent colour, and a background image behind the whole app,
+                    drawn from the currently selected game's own art - see Manage Games for which
+                    games have any. Let it rotate, or keep one picture.
                 </div>
             </div>
+            <AccentSettings onPreferencesChanged={onPreferencesChanged}/>
             <div className="profile-toggles">
                 <div className="profile-toggle-row">
                     <span>Backgrounds</span>

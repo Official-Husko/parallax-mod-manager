@@ -120,7 +120,7 @@
 
 .about-link:hover {
     border-color: var(--rust);
-    background: rgba(196, 98, 58, .12);
+    background: color-mix(in srgb, var(--rust) 12%, transparent);
     transform: translateY(-1px);
 }
 
