@@ -1079,6 +1079,13 @@
     color: var(--flag-deleted);
 }
 
+.row-note {
+    flex: none;
+    font-size: 11px;
+    margin: 0 8px 0 2px;
+    color: var(--note-color);
+}
+
 .row-workshop {
     flex: none;
     font-size: 11px;

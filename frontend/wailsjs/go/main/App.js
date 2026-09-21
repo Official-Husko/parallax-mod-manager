@@ -186,6 +186,10 @@ export function ModChangelog(arg1) {
   return window['go']['main']['App']['ModChangelog'](arg1);
 }
 
+export function ModNotes(arg1) {
+  return window['go']['main']['App']['ModNotes'](arg1);
+}
+
 export function ModSizes(arg1) {
   return window['go']['main']['App']['ModSizes'](arg1);
 }
@@ -276,6 +280,10 @@ export function SetGameManaged(arg1, arg2) {
 
 export function SetModIncompatibilityIgnored(arg1, arg2, arg3) {
   return window['go']['main']['App']['SetModIncompatibilityIgnored'](arg1, arg2, arg3);
+}
+
+export function SetModNote(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['SetModNote'](arg1, arg2, arg3, arg4);
 }
 
 export function SetPatchOverride(arg1, arg2, arg3, arg4) {

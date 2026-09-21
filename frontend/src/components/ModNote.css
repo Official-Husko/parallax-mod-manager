@@ -1,0 +1,70 @@
+/* The Notes box on a mod's Overview tab. */
+.note-section {
+    display: flex;
+    flex-direction: column;
+}
+
+.note-label {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+}
+
+.note-status {
+    font: 500 10px Barlow, sans-serif;
+    letter-spacing: 0;
+    color: var(--text-dim);
+}
+
+.note-status.failed {
+    color: var(--red);
+}
+
+.note-status.saved {
+    color: var(--green);
+}
+
+.note-input {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 72px;
+    resize: vertical;
+    background: rgba(255, 255, 255, .03);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 8px 10px;
+    font: 400 12.5px/1.5 Barlow, sans-serif;
+    color: var(--text);
+    outline: none;
+}
+
+.note-input::placeholder {
+    color: var(--text-dim);
+}
+
+.note-input:focus {
+    border-color: var(--note-color);
+}
+
+.note-error {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 8px 10px;
+    font: 400 11.5px/1.5 Barlow, sans-serif;
+    color: var(--text-muted);
+}
+
+.note-error i {
+    color: var(--amber);
+    margin-top: 2px;
+}
+
+/* A note in a tooltip keeps its line breaks and never runs wider than a paragraph. */
+.tip-note {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    max-width: 320px;
+}

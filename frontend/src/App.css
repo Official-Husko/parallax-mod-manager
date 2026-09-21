@@ -54,6 +54,9 @@
     --flag-ignored: var(--text-dim);
     /* Steam Workshop states of a mod - each its own hue, none of them the
        amber/red that mean a warning/hard conflict. */
+    /* The colour of a mod's personal note (the icon on its row, the Notes box). Not a
+       flag: it says nothing is wrong. */
+    --note-color: #6fa8dc;
     --flag-unlisted: #45b5c4;
     --flag-private: #d777b4;
     --flag-deleted: #e6874a;

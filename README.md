@@ -549,6 +549,19 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   the row says to save. When a mod in the playset has no files on disk or is not installed there is
   no honest number, so it says "unavailable" and why instead of leaving the mod out. DLC is not part
   of the checksum, so it is not shown on the DLC screen. Calculating only reads files.
+- **Personal notes per mod** (`internal/modnotes`, `modnotes.go`, `frontend/src/components/ModNote.tsx`,
+  `frontend/src/data/modNotes.ts`) - write your own notes about any mod ("crashes with X", "waiting for
+  an update", "needed for the co-op playset"). Select a mod and use the **Notes** box on its Overview
+  tab, or right-click it and choose **Add note** / **Edit note** (which puts the cursor in the box) or
+  **Delete note**. Notes save on their own when typing pauses, when the box loses focus and when you
+  switch to another mod, with a small Saved / Not saved marker; a mod with a note gets a **note icon**
+  on its row in both the Available and the Active lists, and hovering it shows the note. The search
+  boxes match note text as well as names. Notes are kept per game in the settings folder
+  (`mod_notes/<game>.jsonc`, JSONC with a comment saying what each part is, hand-editable, keyed by the
+  mod's ID so they survive a mod moving or updating), up to 10,000 characters each, saved through one
+  queue so a slow save can never land after a newer one. They are your own writing, so a notes file
+  that cannot be read switches notes off with the reason instead of being replaced by an empty one,
+  and note text is never written to the activity log or sent anywhere.
 - **Developer tools** (**Settings > Debug**, `devtools.go`, `frontend/src/views/DebugPanel.tsx`) -
   a new Debug tab whose first switch adds the browser's inspector to the app for debugging and for
   testing changes to the interface; off by default. What Wails v2 allows shapes it: whether a build

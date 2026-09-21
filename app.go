@@ -29,6 +29,7 @@ import (
 	"github.com/Official-Husko/parallax-mod-manager/internal/launcherdb"
 	"github.com/Official-Husko/parallax-mod-manager/internal/library"
 	"github.com/Official-Husko/parallax-mod-manager/internal/mod"
+	"github.com/Official-Husko/parallax-mod-manager/internal/modnotes"
 	"github.com/Official-Husko/parallax-mod-manager/internal/modupdates"
 	"github.com/Official-Husko/parallax-mod-manager/internal/patchoverride"
 	"github.com/Official-Husko/parallax-mod-manager/internal/playset"
@@ -113,10 +114,14 @@ type App struct {
 	// was created - what the native right-click menu was set up with, so a change made
 	// since needs a restart (see devtools.go).
 	developerToolsAtStart bool
-	checksumMu            sync.Mutex
-	checksumCancel        map[string]context.CancelFunc
-	modWatcher            *watch.FolderWatcher
-	watchedGameID         string
+	// modNotes keeps the person's own notes about individual mods, and modNotesMu
+	// serialises changing them (each change reads the file, edits it and writes it).
+	modNotes       modnotes.Store
+	modNotesMu     sync.Mutex
+	checksumMu     sync.Mutex
+	checksumCancel map[string]context.CancelFunc
+	modWatcher     *watch.FolderWatcher
+	watchedGameID  string
 	// watchMute silences modWatcher while the app is itself writing into the
 	// mod folder (generating the patch, purging mods): those operations
 	// refresh the mod list on their own. Zero-value usable.
@@ -218,6 +223,7 @@ func (a *App) startup(ctx context.Context) {
 		a.playsets = playset.FileStore{Dir: filepath.Join(configDir, "parallax-mod-manager", "playsets")}
 		a.collections = collection.FileStore{Dir: filepath.Join(configDir, "parallax-mod-manager", "collections")}
 		a.patchOverrides = patchoverride.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "patch_overrides")}
+		a.modNotes = modnotes.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "mod_notes")}
 		a.versionIgnore = versionignore.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "version_ignore")}
 		a.resolvedConflicts = resolvedconflicts.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "resolved_conflicts")}
 		a.modUpdates.Store = modupdates.Store{Dir: modUpdatesDir(filepath.Join(configDir, "parallax-mod-manager"))}

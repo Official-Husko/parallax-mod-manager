@@ -36,6 +36,8 @@ import {type ContextMenuItem, openContextMenu} from '../data/contextMenu';
 import {useDragMultiSelect} from '../data/dragMultiSelect';
 import {useListDragMove} from '../data/listDragMove';
 import {reorderInsert} from '../data/listReorder';
+import {noteMatches, useModNotes} from '../data/modNotes';
+import {ModNote, noteTip} from '../components/ModNote';
 import {domains} from '../data/mockData';
 import {playsetAutoloadTarget} from '../data/playsetAutoload';
 import {computeDomainOverlap} from '../data/domainOverlap';
@@ -763,9 +765,16 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
     // The Active list's own per-row domain segments - see data/domainOverlap.ts.
     const domainOverlap = useMemo(() => computeDomainOverlap(conflicts), [conflicts]);
 
+    // Personal notes about mods, by mod ID (Notes box on the Overview tab, note icon on rows).
+    const modNotes = useModNotes(selectedGame);
+    // Asked for by right-click > Edit note: which mod's Notes box should take focus, and a
+    // number that changes per request so asking again works.
+    const [noteFocus, setNoteFocus] = useState<{id: string; n: number} | null>(null);
+    const notes = modNotes.notes;
+
     const available = useMemo(
-        () => allMods.filter((m) => !orderSet.has(m.ID) && matchesSearch(m, search)),
-        [allMods, orderSet, search],
+        () => allMods.filter((m) => !orderSet.has(m.ID) && matchesSearch(m, search, notes)),
+        [allMods, orderSet, search, notes],
     );
     // Reconciles availableOrder against the real Available set whenever it
     // changes: ids that left (activated, purged) are dropped, newly
@@ -797,7 +806,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
     // display-only precedent (reordering/removal act on a mod id
     // directly, never a filtered index, so this never risks moving or
     // dropping the wrong mod).
-    const visibleActive = active.filter((m) => matchesSearch(m, activeSearch));
+    const visibleActive = active.filter((m) => matchesSearch(m, activeSearch, notes));
     // Real load-order position (1-based), independent of activeSearch
     // filtering - a filtered row must still show where it actually sits
     // in the real load order, not its index within the filtered results.
@@ -946,6 +955,13 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
             .catch((err) => notify('error', `Couldn't back up '${m.Name}': ${String(err).replace(/^Error:\s*/, '')}`));
     }
 
+    // Shows a mod's Notes box and puts the cursor in it.
+    function editNote(id: string) {
+        setSelectedId(id);
+        setDetailTab('overview');
+        setNoteFocus((prev) => ({id, n: (prev?.n ?? 0) + 1}));
+    }
+
     function modContextMenuItems(m: library.ModSummary): ContextMenuItem[] {
         const inOrder = order.includes(m.ID);
         const items: ContextMenuItem[] = inOrder
@@ -965,6 +981,10 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
             items.push({label: 'Back up now', onClick: () => backUpNow(m)});
         }
         items.push({label: 'Copy mod ID', onClick: () => copyModId(m.ID)});
+        items.push({label: notes.has(m.ID) ? 'Edit note' : 'Add note', onClick: () => editNote(m.ID), separatorBefore: true});
+        if (notes.has(m.ID)) {
+            items.push({label: 'Delete note', onClick: () => { void modNotes.save(m.ID, m.Name, ''); }, danger: true});
+        }
         const isIgnored = ignoredIncompatible.has(m.ID);
         const compat = checkVersionCompatibility(m.SupportedVersion, gameVersion);
         const isIncompatible = compat.known && !compat.compatible;
@@ -1208,6 +1228,11 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                         workshopFlagsById={workshopFlagsById}
                         authorProfiles={authorProfiles}
                         ignoredIncompatible={ignoredIncompatible}
+                        note={selectedMod ? notes.get(selectedMod.ID) ?? '' : ''}
+                        noteError={modNotes.error}
+                        noteFocusRequest={selectedMod && noteFocus?.id === selectedMod.ID ? noteFocus.n : 0}
+                        onNoteFocused={() => setNoteFocus(null)}
+                        onSaveNote={(text) => selectedMod ? modNotes.save(selectedMod.ID, selectedMod.Name, text) : Promise.resolve(false)}
                     />
 
                     <div className="list-pane">
@@ -1280,6 +1305,9 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                                 >
                                     <SourceBadge source={m.Source} name={m.Name}/>
                                     <span className="name">{m.Name}</span>
+                                    {notes.has(m.ID) && (
+                                        <i className="fa-solid fa-note-sticky row-note" {...tip(() => noteTip(notes.get(m.ID) ?? ''))}/>
+                                    )}
                                     {workshopFlag && (
                                         <i
                                             className={`fa-solid ${FLAG[workshopFlag.state].icon} row-workshop workshop-${workshopFlag.state}`}
@@ -1367,6 +1395,9 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                                         <span className="position mono">{positionById.get(m.ID)}</span>
                                         <SourceBadge source={m.Source} name={m.Name}/>
                                         <span className="name">{m.Name}</span>
+                                        {notes.has(m.ID) && (
+                                            <i className="fa-solid fa-note-sticky row-note" {...tip(() => noteTip(notes.get(m.ID) ?? ''))}/>
+                                        )}
                                         <span className="domain-segments">
                                             {domains.map((d) => {
                                                 const state = domainOverlap.get(m.ID)?.[d] ?? 'clean';
@@ -1658,10 +1689,10 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
     );
 }
 
-function matchesSearch(m: library.ModSummary, search: string): boolean {
+function matchesSearch(m: library.ModSummary, search: string, notes: Map<string, string>): boolean {
     if (!search.trim()) return true;
     const q = search.toLowerCase();
-    return m.Name.toLowerCase().includes(q) || m.ID.toLowerCase().includes(q);
+    return m.Name.toLowerCase().includes(q) || m.ID.toLowerCase().includes(q) || noteMatches(notes, m.ID, q);
 }
 
 // authorNameFor resolves a mod's real Steam Workshop author name, if it's
@@ -1679,7 +1710,7 @@ function authorNameFor(
     return authorProfiles.get(d.Creator)?.Name ?? '';
 }
 
-function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, gameVersion, allMods, conflicts, onError, onSelectMod, workshopDetails, workshopDetailsState, workshopFlagsById, authorProfiles, ignoredIncompatible}: {
+function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, gameVersion, allMods, conflicts, onError, onSelectMod, workshopDetails, workshopDetailsState, workshopFlagsById, authorProfiles, ignoredIncompatible, note, noteError, noteFocusRequest, onNoteFocused, onSaveNote}: {
     mod: library.ModSummary | null;
     tab: DetailTab;
     onTab: (t: DetailTab) => void;
@@ -1702,6 +1733,13 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, gameVersion, allM
     // below shows the same acknowledged-not-live warning treatment as the
     // row this mod was selected from, instead of contradicting it.
     ignoredIncompatible: Set<string>;
+    // The person's note about this mod ('' for none), whether notes are switched off (an
+    // unreadable file), a request to focus the box, and saving - see components/ModNote.tsx.
+    note: string;
+    noteError: string;
+    noteFocusRequest: number;
+    onNoteFocused: () => void;
+    onSaveNote: (text: string) => Promise<boolean>;
 }) {
     const [files, setFiles] = useState<library.ModFiles | null>(null);
     const [filesError, setFilesError] = useState('');
@@ -1863,6 +1901,11 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, gameVersion, allM
                                 author={author}
                                 gameVersion={gameVersion}
                                 ignoredIncompatible={ignoredIncompatible}
+                                note={note}
+                                noteError={noteError}
+                                noteFocusRequest={noteFocusRequest}
+                                onNoteFocused={onNoteFocused}
+                                onSaveNote={onSaveNote}
                             />
                         )}
                         {tab === 'files' && (
@@ -2065,7 +2108,7 @@ function stripBBCode(s: string): string {
     return s.replace(/\[[^\]]*\]/g, '').trim();
 }
 
-function OverviewTab({mod, files, filesLoading, allMods, conflicts, onOpenFolder, onSelectMod, steamDetails, workshopFlag, author, gameVersion, ignoredIncompatible}: {
+function OverviewTab({mod, files, filesLoading, allMods, conflicts, onOpenFolder, onSelectMod, steamDetails, workshopFlag, author, gameVersion, ignoredIncompatible, note, noteError, noteFocusRequest, onNoteFocused, onSaveNote}: {
     mod: library.ModSummary;
     files: library.ModFiles | null;
     filesLoading: boolean;
@@ -2093,6 +2136,13 @@ function OverviewTab({mod, files, filesLoading, allMods, conflicts, onOpenFolder
     // whether that was actually true.
     gameVersion: string;
     ignoredIncompatible: Set<string>;
+    // The person's note about this mod ('' for none), whether notes are switched off (an
+    // unreadable file), a request to focus the box, and saving - see components/ModNote.tsx.
+    note: string;
+    noteError: string;
+    noteFocusRequest: number;
+    onNoteFocused: () => void;
+    onSaveNote: (text: string) => Promise<boolean>;
 }) {
     // Maps a dependency's declared name to the real mod ID it resolves
     // to, when one of the currently-scanned mods actually has that name -
@@ -2177,6 +2227,14 @@ function OverviewTab({mod, files, filesLoading, allMods, conflicts, onOpenFolder
                     <span className="label">Views</span><span className="value mono">{steamDetails.Views.toLocaleString()}</span>
                 </div>
             )}
+            <ModNote
+                key={mod.ID}
+                note={note}
+                error={noteError}
+                focusRequest={noteFocusRequest}
+                onFocused={onNoteFocused}
+                onSave={onSaveNote}
+            />
             <div className="section">
                 <div className="section-label">DESCRIPTION</div>
                 <div className="section-body description-scroll">{mod.ShortDescription || steamDescription || 'No description provided.'}</div>

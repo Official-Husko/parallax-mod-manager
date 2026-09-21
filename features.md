@@ -31,6 +31,9 @@ for security, privacy, reliability or performance is called out (see the last tw
   can follow: a mod from an extra mod folder gets one, and a link still pointing at a moved or renamed
   folder is repaired (only its path line, nothing else in the file). You are told what was fixed and which
   enabled mods could not be found at all.
+- **Personal notes per mod** - write your own notes about any mod in the Notes box on its Overview tab (or
+  right-click > Add note); a note icon on the row shows them on hover in both lists, and search finds mods by
+  their notes. Kept per game on your computer, saved as you type.
 - **Live folder watching** - the mod list updates as mods are added or removed, without losing the
   load order you are building.
 - **Mod detail panel** - real description, declared game version and dependencies, file tree, the mods
@@ -185,6 +188,8 @@ for security, privacy, reliability or performance is called out (see the last tw
 
 - **No account, no telemetry** - the only outside services are Steam (Workshop and Store data) and, for
   online backgrounds only, GitHub. The About page itself makes no network requests.
+- **Notes stay private** - your mod notes live in the settings folder, are never sent anywhere or written to the
+  activity log, and an unreadable notes file is never overwritten with an empty one.
 - **Checksums only read** - calculating the multiplayer checksum reads game and mod files and writes nothing.
 - **Backups stay on your computer** - mod backups are plain folders in a location you choose and are never sent anywhere.
 - **Steam API key kept encrypted** - if you enter a Steam Web API key (optional), it is checked with

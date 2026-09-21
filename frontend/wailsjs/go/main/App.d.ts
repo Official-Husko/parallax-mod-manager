@@ -108,6 +108,8 @@ export function MarkModUpdatesSeen(arg1:string):Promise<modupdates.Report>;
 
 export function ModChangelog(arg1:string):Promise<Array<steamapi.ChangelogEntry>>;
 
+export function ModNotes(arg1:string):Promise<Record<string, string>>;
+
 export function ModSizes(arg1:string):Promise<Record<string, number>>;
 
 export function ModThumbnail(arg1:string,arg2:string):Promise<string>;
@@ -153,6 +155,8 @@ export function SetConflictResolved(arg1:string,arg2:string,arg3:string,arg4:boo
 export function SetGameManaged(arg1:string,arg2:boolean):Promise<void>;
 
 export function SetModIncompatibilityIgnored(arg1:string,arg2:string,arg3:boolean):Promise<void>;
+
+export function SetModNote(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
 
 export function SetPatchOverride(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
 
