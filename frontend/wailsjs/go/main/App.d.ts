@@ -54,6 +54,8 @@ export function ClearPatchOverrides(arg1:string):Promise<void>;
 
 export function DLCStoreData(arg1:string):Promise<Array<dlcstore.StoreData>>;
 
+export function DeleteBackups(arg1:string,arg2:string,arg3:Array<string>):Promise<main.BackupDeleteResult>;
+
 export function DeleteCollection(arg1:string):Promise<void>;
 
 export function DeletePlayset(arg1:string,arg2:string):Promise<void>;
@@ -114,6 +116,8 @@ export function OpenModFolder(arg1:string,arg2:string):Promise<void>;
 
 export function OpenPath(arg1:string):Promise<void>;
 
+export function PlanBackupCleanup(arg1:string,arg2:string):Promise<main.BackupCleanupPlan>;
+
 export function PurgeMods(arg1:string,arg2:Array<string>):Promise<library.PurgeResult>;
 
 export function ReadModFile(arg1:string,arg2:string,arg3:string):Promise<library.ModFileContent>;
@@ -135,6 +139,8 @@ export function SaveSteamAPIKey(arg1:string,arg2:string):Promise<main.SteamAPISt
 export function ScanGame(arg1:string,arg2:string):Promise<library.Summary>;
 
 export function SetBackupFolder(arg1:string):Promise<main.BackupStatus>;
+
+export function SetBackupLimits(arg1:boolean,arg2:number,arg3:boolean,arg4:number):Promise<main.BackupStatus>;
 
 export function SetBackupMode(arg1:string):Promise<main.BackupStatus>;
 

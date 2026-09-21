@@ -698,7 +698,14 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   followed. A copy that finishes, is incomplete or fails raises a notification; several at once show one progress
   toast. The flagged mod's notice and tooltip say where its backup stands (saved and when, partial, being made,
   Steam had already removed the files, failed, or backups are off), and the panel lists a game's backups with reason,
-  size and age. Nothing leaves your computer. Tested with the race detector (fidelity, permissions and times, skip and
+  size and age. Two limits, each changeable and switchable (sizes in MB, GB or TB): a **size cap** on everything the backups take (off
+  by default; once reached no more mods are backed up, deleted and private ones are always tried first, and a red
+  notification that stays until answered offers **OK** or **Review**, which opens Settings > Backup to raise the cap or
+  delete backups) and a **free-space guard** (on by default, 1 GB) that stops a backup which would leave the backup drive
+  with less free than that. **Free up space** offers two clean-ups with a preview and a confirmation: backups of mods
+  still installed and confirmed available on the Workshop, and (Not recommended, with a stronger warning) backups of
+  mods that are deleted or private, which may be the only copies left; single backups can be deleted from the list, and
+  freeing room starts whatever was waiting. Nothing leaves your computer. Tested with the race detector (fidelity, permissions and times, skip and
   replace, cancel, overlap and unsafe ids, full disk, files vanishing mid-copy, symlinks, the index, the settings), an
   App-level run over real mod folders (at-risk versus every-mod versus off, the background re-check finding a mod deleted
   while the app is open, a failing folder not retried at once, a descriptor trying to escape the folder), and the panel,
@@ -940,6 +947,10 @@ that legitimately does rewrite the file's `modsOrder`).
   compressed archive (7-Zip at maximum compression, or a built-in format) to save space. Backups are plain folders
   for now; [docs/backups.md](docs/backups.md) records the candidate formats, the open questions and a plan for
   measuring real mods before choosing.
+- **Uploading deleted mods to an archive** - Settings > Backup shows a disabled "Upload deleted mods to an archive"
+  option (coming soon): sending a copy of a mod that was deleted from the Workshop to a public archive so it is not
+  lost for everyone. Nothing is uploaded; [docs/backups.md](docs/backups.md) lists what has to be settled first (whose
+  rights the files are, consent, who runs the archive).
 - **Restoring a backup from the interface** - a backup is a plain 1:1 folder that can be copied back by hand; a
   one-click restore (copy into the mod folder and write the descriptor stub) is not built yet.
 - **Merge patch** - the Conflict Resolver's disabled "Generate merge patch" option: a resolution

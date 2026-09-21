@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/Official-Husko/parallax-mod-manager/internal/atomicfile"
@@ -43,10 +44,49 @@ type Settings struct {
 	Mode Mode `json:"mode"`
 	// Path is a backup folder the user picked; empty means the default (see DefaultRoot).
 	Path string `json:"path"`
+	// LimitEnabled caps everything the backups take together at LimitBytes: once that
+	// is reached no more mods are backed up until the limit is raised or backups are
+	// deleted.
+	LimitEnabled bool  `json:"limitEnabled"`
+	LimitBytes   int64 `json:"limitBytes"`
+	// KeepFreeEnabled stops a backup that would leave the drive holding the backup
+	// folder with less than KeepFreeBytes free.
+	KeepFreeEnabled bool  `json:"keepFreeEnabled"`
+	KeepFreeBytes   int64 `json:"keepFreeBytes"`
 }
 
-// Defaults is a fresh install: back up what is at risk, in the default folder.
-func Defaults() Settings { return Settings{Mode: ModeAtRisk} }
+// The values the limits start with.
+const (
+	// DefaultLimitBytes is the size cap offered when the limit is first switched on.
+	DefaultLimitBytes int64 = 50 << 30
+	// DefaultKeepFreeBytes is the free space that is left alone, on by default.
+	DefaultKeepFreeBytes int64 = 1 << 30
+	// MinLimitBytes is the smallest size cap that can be set.
+	MinLimitBytes int64 = 1 << 20
+)
+
+// Defaults is a fresh install: back up what is at risk, in the default folder, with
+// no size cap and 1 GB of free space left alone.
+func Defaults() Settings {
+	return Settings{
+		Mode:            ModeAtRisk,
+		LimitBytes:      DefaultLimitBytes,
+		KeepFreeEnabled: true,
+		KeepFreeBytes:   DefaultKeepFreeBytes,
+	}
+}
+
+// Limits is what Copy holds a backup to.
+func (s Settings) Limits() Limits {
+	var l Limits
+	if s.LimitEnabled && s.LimitBytes > 0 {
+		l.MaxTotal = s.LimitBytes
+	}
+	if s.KeepFreeEnabled && s.KeepFreeBytes > 0 {
+		l.MinFree = s.KeepFreeBytes
+	}
+	return l
+}
 
 // FolderName is the name of the default backup folder.
 const FolderName = "Parallax Mod Backups"
@@ -112,14 +152,48 @@ func (s Store) Load() (Settings, error) {
 	if err != nil {
 		return Defaults(), fmt.Errorf("backup: reading %s: %w", s.Path, err)
 	}
+	// Start from the defaults so a file written before a setting existed keeps that
+	// setting's default (the free-space guard is on unless the file says otherwise).
 	var raw struct {
-		Mode string `json:"mode"`
-		Path string `json:"path"`
+		Mode            string `json:"mode"`
+		Path            string `json:"path"`
+		LimitEnabled    *bool  `json:"limitEnabled"`
+		LimitBytes      *int64 `json:"limitBytes"`
+		KeepFreeEnabled *bool  `json:"keepFreeEnabled"`
+		KeepFreeBytes   *int64 `json:"keepFreeBytes"`
 	}
 	if err := jsonc.Unmarshal(data, &raw); err != nil {
 		return Defaults(), fmt.Errorf("backup: %s is not valid: %w", s.Path, err)
 	}
-	return Settings{Mode: ParseMode(raw.Mode), Path: strings.TrimSpace(raw.Path)}, nil
+	st := Defaults()
+	st.Mode = ParseMode(raw.Mode)
+	st.Path = strings.TrimSpace(raw.Path)
+	if raw.LimitEnabled != nil {
+		st.LimitEnabled = *raw.LimitEnabled
+	}
+	if raw.LimitBytes != nil {
+		st.LimitBytes = *raw.LimitBytes
+	}
+	if raw.KeepFreeEnabled != nil {
+		st.KeepFreeEnabled = *raw.KeepFreeEnabled
+	}
+	if raw.KeepFreeBytes != nil {
+		st.KeepFreeBytes = *raw.KeepFreeBytes
+	}
+	return normalise(st), nil
+}
+
+// normalise keeps the sizes sane: a size cap is at least MinLimitBytes and free space
+// to keep is not negative.
+func normalise(st Settings) Settings {
+	st.Mode = ParseMode(string(st.Mode))
+	if st.LimitBytes < MinLimitBytes {
+		st.LimitBytes = DefaultLimitBytes
+	}
+	if st.KeepFreeBytes < 0 {
+		st.KeepFreeBytes = 0
+	}
+	return st
 }
 
 // Save writes the settings atomically.
@@ -127,8 +201,14 @@ func (s Store) Save(st Settings) error {
 	if s.Path == "" {
 		return errors.New("backup: there is no settings folder to save into")
 	}
-	st.Mode = ParseMode(string(st.Mode))
+	st = normalise(st)
 	q := func(v string) string { b, _ := json.Marshal(v); return string(b) }
+	yn := func(v bool) string {
+		if v {
+			return "true"
+		}
+		return "false"
+	}
 	text := `// Parallax Mod Manager - mod backup settings.
 //
 // Steam removes a Workshop mod's files when the mod is deleted, and cannot be asked to
@@ -142,7 +222,16 @@ func (s Store) Save(st Settings) error {
 
   // Where backups are kept. Empty means the default, a "` + FolderName + `" folder inside this
   // settings folder. Each game gets its own folder inside, named by its id: <path>/<game id>/mods/<item id>.
-  "path": ` + q(st.Path) + `
+  "path": ` + q(st.Path) + `,
+
+  // A cap on everything the backups take together, in bytes. When it is reached no more mods
+  // are backed up until you raise it or delete backups, and the app tells you.
+  "limitEnabled": ` + yn(st.LimitEnabled) + `,
+  "limitBytes": ` + strconv.FormatInt(st.LimitBytes, 10) + `,
+
+  // Do not back up when that would leave the drive with less than this much free, in bytes.
+  "keepFreeEnabled": ` + yn(st.KeepFreeEnabled) + `,
+  "keepFreeBytes": ` + strconv.FormatInt(st.KeepFreeBytes, 10) + `
 }
 `
 	if err := os.MkdirAll(filepath.Dir(s.Path), 0o755); err != nil {

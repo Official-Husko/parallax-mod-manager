@@ -1,6 +1,6 @@
 import {EventsOn} from '../../wailsjs/runtime/runtime';
 import {formatBytes} from './format';
-import {dismiss, notify, updateNotification} from './notifications';
+import {dismiss, hasNotification, notify, updateNotification} from './notifications';
 
 // Mod preservation, the interface half: what the backend says as it copies a Workshop
 // mod that Steam is about to remove (see internal/backup and backups.go). Copies happen
@@ -39,10 +39,27 @@ interface BackupResult {
 }
 
 // installBackupNotifications turns the backend's backup events into notifications: one
-// per finished copy, and a single progress toast while several mods are being copied
-// (the first "every mod" run can be dozens). Returns the unsubscribe.
-export function installBackupNotifications(): () => void {
+// per finished copy, a single progress toast while several mods are being copied (the
+// first "every mod" run can be dozens), and a red notification that stays until it is
+// answered when a limit the person set (the size cap, the free space to keep) has
+// stopped backups: OK dismisses it, Review calls onReview (Settings > Backup, to raise
+// the limit or delete backups). Returns the unsubscribe.
+export function installBackupNotifications(onReview: () => void): () => void {
     let progressId: string | null = null;
+    let limitId: string | null = null;
+
+    const offLimit = EventsOn('backup-limit', (n: {Kind: string; Message: string; Waiting: number}) => {
+        // Already asking: say the newer thing in the same place rather than stacking a second.
+        if (hasNotification(limitId)) {
+            updateNotification(limitId!, {message: n.Message});
+            return;
+        }
+        const id = notify('error', n.Message, {
+            action: {label: 'Review', onClick: () => { dismiss(id); onReview(); }},
+            dismissLabel: 'OK',
+        });
+        limitId = id;
+    });
 
     const offDone = EventsOn('backup-done', (r: BackupResult) => {
         if (r.Status === 'ok') {
@@ -71,6 +88,7 @@ export function installBackupNotifications(): () => void {
     });
 
     return () => {
+        offLimit();
         offDone();
         offProgress();
         offChanged();

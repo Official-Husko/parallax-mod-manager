@@ -2,6 +2,8 @@ package backup
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -152,4 +154,83 @@ func FreeSpace(path string) (uint64, bool) {
 		}
 		p = parent
 	}
+}
+
+// TotalSize is what every game's backups under root take together, as recorded (a copy
+// whose folder was deleted by hand is not counted).
+func TotalSize(root string) int64 {
+	if root == "" {
+		return 0
+	}
+	dirs, err := os.ReadDir(root)
+	if err != nil {
+		return 0
+	}
+	var total int64
+	for _, d := range dirs {
+		if !d.IsDir() {
+			continue
+		}
+		for _, e := range List(root, d.Name()) {
+			total += e.Size
+		}
+	}
+	return total
+}
+
+// Deleted says what Delete removed.
+type Deleted struct {
+	// IDs are the Workshop items whose copies were removed.
+	IDs []string
+	// Bytes is the space they took, as recorded.
+	Bytes int64
+}
+
+// Delete removes the copies of the given Workshop items from a game's backups, and
+// their records. An id that is not a Workshop item id is refused (it names a folder, so
+// it must never point outside the backup folder); one that has no copy is skipped. The
+// first failure is returned after the rest were tried.
+func Delete(root, gameID string, itemIDs []string) (Deleted, error) {
+	var out Deleted
+	if root == "" || gameID == "" || strings.ContainsAny(gameID, `/\`) || gameID == "." || gameID == ".." {
+		return out, errors.New("backup: no such game folder")
+	}
+	gameDir := filepath.Join(root, gameID)
+	indexMu.Lock()
+	defer indexMu.Unlock()
+	idx := loadIndex(gameDir)
+	var firstErr error
+	for _, id := range itemIDs {
+		if !itemIDPattern.MatchString(id) {
+			if firstErr == nil {
+				firstErr = fmt.Errorf("backup: %q is not a Workshop item id", id)
+			}
+			continue
+		}
+		dir := FolderFor(root, gameID, id)
+		_, statErr := os.Stat(dir)
+		entry, recorded := idx.Mods[id]
+		if statErr != nil && !recorded {
+			continue
+		}
+		if err := os.RemoveAll(dir); err != nil {
+			if firstErr == nil {
+				firstErr = fmt.Errorf("backup: removing %s: %w", dir, err)
+			}
+			continue
+		}
+		_ = os.RemoveAll(dir + ".partial")
+		_ = os.RemoveAll(dir + ".old")
+		if recorded {
+			out.Bytes += entry.Size
+			delete(idx.Mods, id)
+		}
+		out.IDs = append(out.IDs, id)
+	}
+	if len(out.IDs) > 0 {
+		if err := writeIndex(gameDir, idx); err != nil && firstErr == nil {
+			firstErr = fmt.Errorf("backup: updating the record of backups: %w", err)
+		}
+	}
+	return out, firstErr
 }

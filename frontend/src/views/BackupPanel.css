@@ -142,3 +142,200 @@
     color: var(--amber);
     border-color: var(--amber);
 }
+
+/* Backups have stopped at a limit the person set. */
+.backup-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 11px;
+    max-width: 720px;
+    border: 1px solid var(--red);
+    border-radius: 5px;
+    padding: 10px 13px;
+    font: 400 12px/1.5 Barlow, sans-serif;
+    color: var(--text-mid);
+    background: rgba(212, 87, 78, .09);
+}
+
+.backup-banner > i {
+    color: var(--red);
+    margin-top: 2px;
+}
+
+.backup-banner-title {
+    font: 600 12.5px Barlow, sans-serif;
+    color: var(--red);
+    margin-bottom: 2px;
+}
+
+.backup-limits,
+.backup-cleanup {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    max-width: 720px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 12px 14px;
+}
+
+.backup-limits-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font: 600 12px Barlow, sans-serif;
+    color: var(--text-bright);
+}
+
+.backup-limit-row {
+    gap: 14px;
+    align-items: flex-start;
+}
+
+.backup-limit-hint {
+    display: block;
+    font: 400 11.5px/1.5 Barlow, sans-serif;
+    color: var(--text-muted);
+}
+
+.backup-limit-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: none;
+}
+
+.backup-size {
+    display: inline-flex;
+    align-items: stretch;
+    gap: 6px;
+}
+
+.backup-size.disabled {
+    opacity: .5;
+}
+
+.backup-size-input {
+    width: 72px;
+    font-size: 12px;
+    color: var(--text);
+    background: #161d27;
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    padding: 5px 8px;
+    text-align: right;
+}
+
+.backup-size-input:disabled {
+    cursor: not-allowed;
+}
+
+.backup-size-input::-webkit-inner-spin-button,
+.backup-size-input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.backup-size-input[type=number] {
+    -moz-appearance: textfield;
+}
+
+.backup-size-unit {
+    width: 70px;
+}
+
+.backup-usage {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.backup-usage-track {
+    flex: 1;
+    height: 5px;
+    border-radius: 3px;
+    background: #1b232e;
+    overflow: hidden;
+}
+
+.backup-usage-fill {
+    height: 100%;
+    background: var(--rust);
+    transition: width .3s ease;
+}
+
+.backup-usage-fill.full {
+    background: var(--red);
+}
+
+.backup-cleanup-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    font: 400 12px/1.5 Barlow, sans-serif;
+    color: var(--text-mid);
+}
+
+.backup-cleanup-name {
+    font: 500 12.5px Barlow, sans-serif;
+    color: var(--text);
+}
+
+.backup-notrec {
+    color: var(--red);
+    font-weight: 500;
+}
+
+.backup-cleanup-row.danger .btn-ghost:hover:not(:disabled) {
+    color: var(--red);
+    border-color: var(--red);
+}
+
+.backup-cleanup .btn-ghost:disabled {
+    opacity: .5;
+    cursor: not-allowed;
+}
+
+.backup-plan-names {
+    color: var(--text-muted);
+}
+
+.backup-confirm.danger {
+    border-color: var(--red);
+    background: rgba(212, 87, 78, .07);
+}
+
+.backup-row-delete {
+    flex: none;
+    font-size: 12px;
+    color: var(--text-dim);
+    cursor: pointer;
+    padding: 3px;
+}
+
+.backup-row-delete:hover {
+    color: var(--red);
+}
+
+.backup-row-confirm {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    flex: none;
+    font: 500 11.5px Barlow, sans-serif;
+    color: var(--text-mid);
+}
+
+.backup-row-confirm button {
+    padding: 3px 9px;
+    font-size: 11px;
+}
+
+.backup-compress {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+}

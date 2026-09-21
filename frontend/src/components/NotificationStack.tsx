@@ -115,6 +115,7 @@ export function NotificationStack() {
                         )}
                     </div>
                     {n.action && <span className="notification-action" onClick={n.action.onClick}>{n.action.label}</span>}
+                    {n.dismissLabel && <span className="notification-action" onClick={() => dismiss(n.id)}>{n.dismissLabel}</span>}
                     <i className="fa-solid fa-xmark notification-close" onClick={() => dismiss(n.id)}/>
                 </div>
             ))}

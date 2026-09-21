@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -47,6 +49,14 @@ type backupState struct {
 	// filesGone says which flagged mods no longer have files on disk to copy.
 	states    map[string][]WorkshopAvailability
 	filesGone map[string]map[string]bool
+	// blocked remembers, per Workshop item, that a copy was held back by a limit ("full":
+	// the size cap, "lowspace": the free-space guard). limitState is the same for the
+	// whole run ("size", "space" or ""), and is what the interface is told about once.
+	blocked    map[string]string
+	limitState string
+	// copyMu serialises the copies themselves, so the limits are checked against what is
+	// really there and two games' copies never race each other for the same space.
+	copyMu sync.Mutex
 	// defaultRoot is the backup folder used until the user picks one: inside the app's
 	// settings folder (empty when that could not be found).
 	defaultRoot string
@@ -67,6 +77,7 @@ func (a *App) initBackups(dir string) {
 	b.running = map[string]context.CancelFunc{}
 	b.inflight = map[string]bool{}
 	b.failedAt = map[string]time.Time{}
+	b.blocked = map[string]string{}
 	b.states = map[string][]WorkshopAvailability{}
 	b.filesGone = map[string]map[string]bool{}
 	b.defaultRoot = backup.DefaultRoot(dir)
@@ -243,6 +254,9 @@ func (a *App) preserveWorkshopMods(gameID string, states []WorkshopAvailability)
 	if mode == backup.ModeOff || len(jobs) == 0 || root == "" {
 		return
 	}
+	// What is deleted or private goes first, so a size cap or a full disk is never spent
+	// on mods that are in no danger while one that is waits.
+	sort.SliceStable(jobs, func(i, j int) bool { return jobs[i].reason != backup.ReasonAll && jobs[j].reason == backup.ReasonAll })
 	a.startBackupJobs(gameID, cfg.DisplayName, root, jobs)
 }
 
@@ -257,6 +271,7 @@ func (a *App) startBackupJobs(gameID, gameName, root string, jobs []backupJob) {
 	}
 	ctx, cancel := context.WithCancel(b.ctx)
 	b.running[gameID] = cancel
+	limits := b.settings.Limits()
 	var todo []backupJob
 	for _, j := range jobs {
 		if t, failed := b.failedAt[j.src.RemoteFileID]; failed && time.Since(t) < backupRetryAfter {
@@ -274,7 +289,7 @@ func (a *App) startBackupJobs(gameID, gameName, root string, jobs []backupJob) {
 	}
 	go func() {
 		defer a.finishBackupRun(gameID)
-		a.runBackupJobs(ctx, gameName, root, todo)
+		a.runBackupJobs(ctx, gameName, root, todo, limits)
 	}()
 }
 
@@ -302,32 +317,126 @@ type BackupResult struct {
 	Size    int64
 }
 
-func (a *App) runBackupJobs(ctx context.Context, gameName, root string, jobs []backupJob) {
-	copied := 0
+func (a *App) runBackupJobs(ctx context.Context, gameName, root string, jobs []backupJob, limits backup.Limits) {
+	copied, waiting := 0, 0
+	blockedKind := ""
 	for i, j := range jobs {
 		if ctx.Err() != nil {
 			return
 		}
-		res, ok := a.backupOne(ctx, root, j.src, gameName, func() {
+		if blockedKind != "" {
+			// A limit stopped the run: the rest wait, they are not tried one by one.
+			a.markBlocked(j.src.RemoteFileID, blockedKind)
+			waiting++
+			continue
+		}
+		res, err := a.backupOne(ctx, root, j.src, gameName, limits, func() {
 			a.emit("backup-progress", map[string]any{"GameID": j.src.GameID, "Done": i, "Total": len(jobs), "Name": j.src.Name})
 		})
-		if ok && !res.Skipped {
+		switch {
+		case errors.Is(err, backup.ErrOverLimit):
+			blockedKind = "full"
+		case errors.Is(err, backup.ErrLowSpace):
+			blockedKind = "lowspace"
+		case err == nil && !res.Skipped:
 			copied++
 		}
+		if blockedKind != "" {
+			a.markBlocked(j.src.RemoteFileID, blockedKind)
+			waiting++
+		}
+	}
+	if blockedKind != "" {
+		a.noteLimit(blockedKind, waiting)
+	} else {
+		a.clearLimit()
 	}
 	if copied > 0 {
 		a.emit("backups-changed")
 	}
 }
 
+func (a *App) markBlocked(remoteFileID, kind string) {
+	a.backup.mu.Lock()
+	a.backup.blocked[remoteFileID] = kind
+	a.backup.mu.Unlock()
+}
+
+// clearLimit forgets a limit that no longer holds back anything.
+func (a *App) clearLimit() {
+	b := &a.backup
+	b.mu.Lock()
+	b.limitState = ""
+	b.blocked = map[string]string{}
+	b.mu.Unlock()
+}
+
+// BackupLimitNotice is the "backup-limit" event: backups have stopped because of a limit
+// the user set. It is sent once each time the state changes, not on every check.
+type BackupLimitNotice struct {
+	// Kind is "size" (the size cap is reached) or "space" (the free-space guard).
+	Kind string
+	// Message says it in words, with the numbers.
+	Message string
+	// Waiting is how many mods are waiting to be backed up.
+	Waiting int
+}
+
+// noteLimit records that a limit stopped the run and, when that is news, tells the
+// interface.
+func (a *App) noteLimit(kind string, waiting int) {
+	state := "size"
+	if kind == "lowspace" {
+		state = "space"
+	}
+	b := &a.backup
+	b.mu.Lock()
+	previous := b.limitState
+	b.limitState = state
+	settings := b.settings
+	root := b.rootLocked()
+	b.mu.Unlock()
+	if previous == state {
+		return
+	}
+
+	mods := fmt.Sprintf("%d mods are", waiting)
+	if waiting == 1 {
+		mods = "1 mod is"
+	}
+	var msg string
+	if state == "size" {
+		msg = fmt.Sprintf("Mod backups are paused: they have reached the %s size limit (%s used). %s waiting to be backed up.",
+			humanSize(settings.LimitBytes), humanSize(backup.TotalSize(root)), capitalise(mods))
+	} else {
+		free := int64(0)
+		if f, ok := backup.FreeSpace(root); ok {
+			free = int64(f)
+		}
+		msg = fmt.Sprintf("Mod backups are paused: only %s is free on the drive holding the backup folder, and you asked to keep %s free. %s waiting to be backed up.",
+			humanSize(free), humanSize(settings.KeepFreeBytes), capitalise(mods))
+	}
+	applog.For("Backup").Warnf("%s", msg)
+	a.emit("backup-limit", BackupLimitNotice{Kind: state, Message: msg, Waiting: waiting})
+}
+
+func capitalise(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
+}
+
 // backupOne copies one mod and reports how it went (log, and "backup-done" for the
-// interface). ok is false when the copy failed outright.
-func (a *App) backupOne(ctx context.Context, root string, src backup.Source, gameName string, started func()) (backup.Result, bool) {
+// interface). The error is nil for a copy made or skipped; a limit that held it back
+// is backup.ErrOverLimit or backup.ErrLowSpace, which the caller deals with (they are
+// not failures to announce one by one).
+func (a *App) backupOne(ctx context.Context, root string, src backup.Source, gameName string, limits backup.Limits, started func()) (backup.Result, error) {
 	b := &a.backup
 	b.mu.Lock()
 	if b.inflight[src.RemoteFileID] {
 		b.mu.Unlock()
-		return backup.Result{Skipped: true}, true
+		return backup.Result{Skipped: true}, nil
 	}
 	b.inflight[src.RemoteFileID] = true
 	b.mu.Unlock()
@@ -340,15 +449,17 @@ func (a *App) backupOne(ctx context.Context, root string, src backup.Source, gam
 	log := applog.For("Backup")
 	timer := log.Begin()
 	var startedOnce sync.Once
-	res, err := backup.Copy(ctx, root, src, func(done, total int64) {
+	b.copyMu.Lock()
+	res, err := backup.CopyWithLimits(ctx, root, src, func(done, total int64) {
 		if started != nil {
 			startedOnce.Do(started)
 		}
-	})
+	}, limits)
+	b.copyMu.Unlock()
 	out := BackupResult{GameID: src.GameID, ModID: src.ModID, RemoteFileID: src.RemoteFileID, Name: src.Name, Reason: src.Reason}
 	switch {
 	case err == nil && res.Skipped:
-		return res, true
+		return res, nil
 	case err == nil && !res.Entry.Complete:
 		out.Status, out.Size = "incomplete", res.Entry.Size
 		out.Message = fmt.Sprintf("only part of it could be saved: %d files were removed while copying", res.Entry.Missing)
@@ -357,7 +468,10 @@ func (a *App) backupOne(ctx context.Context, root string, src backup.Source, gam
 		out.Status, out.Size = "ok", res.Entry.Size
 		timer.Infof("'%s' (%s) backed up: %d files, %s (%s)", src.Name, gameName, res.Entry.Files, humanSize(res.Entry.Size), backupReasonText(src.Reason))
 	case errors.Is(err, context.Canceled):
-		return res, false
+		return res, err
+	case errors.Is(err, backup.ErrOverLimit), errors.Is(err, backup.ErrLowSpace):
+		timer.Warnf("'%s' (%s) was not backed up: %v", src.Name, gameName, err)
+		return res, err
 	default:
 		out.Status, out.Message = "failed", err.Error()
 		timer.Warnf("couldn't back up '%s' (%s): %v", src.Name, gameName, err)
@@ -365,13 +479,14 @@ func (a *App) backupOne(ctx context.Context, root string, src backup.Source, gam
 		b.failedAt[src.RemoteFileID] = time.Now()
 		b.mu.Unlock()
 		a.emit("backup-done", out)
-		return res, false
+		return res, err
 	}
 	b.mu.Lock()
 	delete(b.failedAt, src.RemoteFileID)
+	delete(b.blocked, src.RemoteFileID)
 	b.mu.Unlock()
 	a.emit("backup-done", out)
-	return res, true
+	return res, nil
 }
 
 func backupReasonText(reason string) string {
@@ -412,10 +527,9 @@ func (a *App) attachBackupState(gameID string, states []WorkshopAvailability) {
 			failed[id] = true
 		}
 	}
-	running := b.inflight
-	inflight := map[string]bool{}
-	for id := range running {
-		inflight[id] = true
+	blocked := map[string]string{}
+	for id, kind := range b.blocked {
+		blocked[id] = kind
 	}
 	b.mu.Unlock()
 
@@ -434,6 +548,8 @@ func (a *App) attachBackupState(gameID string, states []WorkshopAvailability) {
 		case !atRisk:
 		case gone[s.RemoteFileID]:
 			s.BackupState = "gone"
+		case blocked[s.RemoteFileID] != "":
+			s.BackupState = blocked[s.RemoteFileID] // "full" or "lowspace"
 		case failed[s.RemoteFileID]:
 			s.BackupState = "failed"
 		case mode == backup.ModeOff:
@@ -459,6 +575,16 @@ type BackupStatus struct {
 	FreeBytes int64
 	// Running is true while copies are in progress.
 	Running bool
+	// LimitEnabled and LimitBytes are the cap on everything the backups take; KeepFreeEnabled
+	// and KeepFreeBytes the free space that is left alone.
+	LimitEnabled    bool
+	LimitBytes      int64
+	KeepFreeEnabled bool
+	KeepFreeBytes   int64
+	// UsedBytes is what all the backups take now, as recorded.
+	UsedBytes int64
+	// LimitState is "size" or "space" while a limit is holding backups back, "" otherwise.
+	LimitState string
 }
 
 // BackupStatus reports the backup settings.
@@ -468,8 +594,13 @@ func (a *App) BackupStatus() BackupStatus {
 	settings := b.settings
 	root, defaultRoot := b.rootLocked(), b.defaultRoot
 	running := len(b.running) > 0
+	limitState := b.limitState
 	b.mu.Unlock()
-	st := BackupStatus{Mode: string(settings.Mode), CustomPath: settings.Path, Root: root, DefaultRoot: defaultRoot, Running: running}
+	st := BackupStatus{
+		Mode: string(settings.Mode), CustomPath: settings.Path, Root: root, DefaultRoot: defaultRoot, Running: running,
+		LimitEnabled: settings.LimitEnabled, LimitBytes: settings.LimitBytes, KeepFreeEnabled: settings.KeepFreeEnabled, KeepFreeBytes: settings.KeepFreeBytes,
+		UsedBytes: backup.TotalSize(root), LimitState: limitState,
+	}
 	if st.Mode == "" {
 		st.Mode = string(backup.ModeAtRisk)
 	}
@@ -491,6 +622,9 @@ func (a *App) saveBackupSettings(next backup.Settings) error {
 		}
 	}
 	b.settings = next
+	// A changed setting deserves a fresh look: what a limit held back is tried again.
+	b.limitState = ""
+	b.blocked = map[string]string{}
 	var cancels []context.CancelFunc
 	if next.Mode == backup.ModeOff {
 		for _, c := range b.running {
@@ -527,6 +661,38 @@ func (a *App) SetBackupMode(mode string) (BackupStatus, error) {
 	}
 	applog.For("Backup").Infof("mod backups set to %s", m)
 	return a.BackupStatus(), nil
+}
+
+// SetBackupLimits sets the two rules a backup is held to: a cap on everything the backups
+// take together, and the free space on the drive that is left alone. Each can be switched
+// off; the sizes are in bytes. Backups a limit had held back are tried again at once.
+func (a *App) SetBackupLimits(limitEnabled bool, limitBytes int64, keepFreeEnabled bool, keepFreeBytes int64) (BackupStatus, error) {
+	if limitEnabled && limitBytes < backup.MinLimitBytes {
+		return a.BackupStatus(), errors.New("the size limit must be at least 1 MB")
+	}
+	if keepFreeBytes < 0 {
+		return a.BackupStatus(), errors.New("the free space to keep cannot be negative")
+	}
+	a.backup.mu.Lock()
+	next := a.backup.settings
+	a.backup.mu.Unlock()
+	next.LimitEnabled, next.KeepFreeEnabled = limitEnabled, keepFreeEnabled
+	if limitBytes >= backup.MinLimitBytes {
+		next.LimitBytes = limitBytes
+	}
+	next.KeepFreeBytes = keepFreeBytes
+	if err := a.saveBackupSettings(next); err != nil {
+		return a.BackupStatus(), err
+	}
+	applog.For("Backup").Infof("backup limits: size cap %s, keep %s free", onOff(next.LimitEnabled, humanSize(next.LimitBytes)), onOff(next.KeepFreeEnabled, humanSize(next.KeepFreeBytes)))
+	return a.BackupStatus(), nil
+}
+
+func onOff(on bool, value string) string {
+	if !on {
+		return "off"
+	}
+	return value
 }
 
 // SetBackupFolder chooses where backups are kept; "" goes back to the default folder.
@@ -694,15 +860,19 @@ func (a *App) BackupMod(gameID, modID string) (string, error) {
 			return "", errors.New("there is no backup folder")
 		}
 		src := backup.Source{GameID: gameID, ModID: m.ID, RemoteFileID: m.Descriptor.RemoteFileID, Name: m.Descriptor.Name, Version: m.Descriptor.Version, ContentPath: m.ContentPath, Reason: backup.ReasonManual}
-		res, ok := a.backupOne(a.baseContext(), root, src, cfg.DisplayName, nil)
-		if !ok {
-			a.backup.mu.Lock()
-			_, failed := a.backup.failedAt[src.RemoteFileID]
-			a.backup.mu.Unlock()
-			if failed {
-				return "", errors.New("the backup failed; the activity log says why")
-			}
+		a.backup.mu.Lock()
+		limits := a.backup.settings.Limits()
+		a.backup.mu.Unlock()
+		res, err := a.backupOne(a.baseContext(), root, src, cfg.DisplayName, limits, nil)
+		switch {
+		case errors.Is(err, backup.ErrOverLimit):
+			return "", errors.New("the backup size limit would be exceeded, so nothing was copied. Raise the limit or delete backups under Settings > Backup")
+		case errors.Is(err, backup.ErrLowSpace):
+			return "", errors.New("the drive would be left with less free space than you asked to keep, so nothing was copied. Free some space or change that setting under Settings > Backup")
+		case errors.Is(err, context.Canceled):
 			return "", errors.New("the backup was cancelled")
+		case err != nil:
+			return "", errors.New("the backup failed; the activity log says why")
 		}
 		if res.Skipped {
 			return "current", nil

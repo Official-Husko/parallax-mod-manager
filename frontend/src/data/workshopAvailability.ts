@@ -82,6 +82,10 @@ export function backupNote(flag: WorkshopFlag): string | undefined {
             return 'Steam had already removed this mod\'s files, so no copy could be made.';
         case 'failed':
             return 'The backup failed, so no copy exists yet. The activity log says why.';
+        case 'full':
+            return 'Not backed up: the backup size limit is reached. Raise it or delete backups under Settings > Backup.';
+        case 'lowspace':
+            return 'Not backed up: the drive is nearly full (less free space than you asked to keep). Free some space or change that under Settings > Backup.';
         case 'off':
             return 'Backups are off, so this mod is not being saved. Turn them on under Settings > Backup.';
         default:

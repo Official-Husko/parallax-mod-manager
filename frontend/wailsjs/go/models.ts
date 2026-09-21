@@ -813,6 +813,56 @@ export namespace main {
 		}
 	}
 	
+	export class BackupCleanupPlan {
+	    Kind: string;
+	    Entries: backup.Entry[];
+	    Bytes: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new BackupCleanupPlan(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Kind = source["Kind"];
+	        this.Entries = this.convertValues(source["Entries"], backup.Entry);
+	        this.Bytes = source["Bytes"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class BackupDeleteResult {
+	    Deleted: number;
+	    Bytes: number;
+	    Skipped: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new BackupDeleteResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Deleted = source["Deleted"];
+	        this.Bytes = source["Bytes"];
+	        this.Skipped = source["Skipped"];
+	    }
+	}
 	export class BackupOverview {
 	    WorkshopMods: number;
 	    WorkshopBytes: number;
@@ -840,6 +890,12 @@ export namespace main {
 	    DefaultRoot: string;
 	    FreeBytes: number;
 	    Running: boolean;
+	    LimitEnabled: boolean;
+	    LimitBytes: number;
+	    KeepFreeEnabled: boolean;
+	    KeepFreeBytes: number;
+	    UsedBytes: number;
+	    LimitState: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new BackupStatus(source);
@@ -853,6 +909,12 @@ export namespace main {
 	        this.DefaultRoot = source["DefaultRoot"];
 	        this.FreeBytes = source["FreeBytes"];
 	        this.Running = source["Running"];
+	        this.LimitEnabled = source["LimitEnabled"];
+	        this.LimitBytes = source["LimitBytes"];
+	        this.KeepFreeEnabled = source["KeepFreeEnabled"];
+	        this.KeepFreeBytes = source["KeepFreeBytes"];
+	        this.UsedBytes = source["UsedBytes"];
+	        this.LimitState = source["LimitState"];
 	    }
 	}
 	export class SteamAPIStatus {

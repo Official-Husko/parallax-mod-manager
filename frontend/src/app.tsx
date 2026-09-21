@@ -88,6 +88,9 @@ export function App() {
     // "no pending request," so Settings' own default section on first
     // mount is untouched by this.
     const [settingsManageGamesRequest, setSettingsManageGamesRequest] = useState(0);
+    // The same kind of request for Settings > Backup (the "Review" on the notification
+    // that says backups have stopped at a limit).
+    const [settingsBackupRequest, setSettingsBackupRequest] = useState(0);
     // Every view this session has actually navigated to at least once -
     // 'workspace' up front since it's the default. Once a view is in
     // here it's mounted for good (see the render below); this set only
@@ -103,7 +106,7 @@ export function App() {
 
     // The backend copies Workshop mods that are deleted or private in the background; this
     // is how the person hears about it.
-    useEffect(() => installBackupNotifications(), []);
+    useEffect(() => installBackupNotifications(() => openBackupSettings()), []);
 
     useEffect(() => {
         setVisitedViews((prev) => (prev.has(view) ? prev : new Set(prev).add(view)));
@@ -283,6 +286,11 @@ export function App() {
         setSettingsManageGamesRequest((n) => n + 1);
     }
 
+    function openBackupSettings() {
+        setView('settings');
+        setSettingsBackupRequest((n) => n + 1);
+    }
+
     const gamePicker = view === 'workspace'
         ? {
             gameLabel: gameName,
@@ -374,6 +382,7 @@ export function App() {
                 <div style={{display: view === 'settings' ? 'contents' : 'none'}}>
                     <Settings
                         jumpToManageGames={settingsManageGamesRequest}
+                        jumpToBackup={settingsBackupRequest}
                         onGamesChanged={loadGames}
                         // loadGames also refetches preferences (see its own
                         // comment) - the same function as onGamesChanged

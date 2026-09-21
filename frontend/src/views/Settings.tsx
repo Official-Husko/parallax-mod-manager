@@ -29,12 +29,14 @@ import {BackupPanel} from './BackupPanel';
 
 type Section = 'manage' | 'paths' | 'launch' | 'playsets' | 'sort' | 'steam' | 'backup' | 'appearance' | 'advanced' | 'about';
 
-export function Settings({jumpToManageGames, onGamesChanged, onPreferencesChanged}: {
+export function Settings({jumpToManageGames, jumpToBackup, onGamesChanged, onPreferencesChanged}: {
     // Incremented by app.tsx (the TopBar's own "Manage games" entry) to
     // ask this view to switch to the "Manage games" panel - 0 (the
     // default, falsy) means no pending request, so this never fights the
     // section the user's own click already put them on.
     jumpToManageGames?: number;
+    // The same, for the Backup panel (0 means no request).
+    jumpToBackup?: number;
     // Called after a change here (toggling a game managed, or browsing to
     // a new install path) might have changed which games app.tsx should
     // show - lets the game switcher, Library, DLC, and Workspace pick up
@@ -52,6 +54,10 @@ export function Settings({jumpToManageGames, onGamesChanged, onPreferencesChange
     useEffect(() => {
         if (jumpToManageGames) setSection('manage');
     }, [jumpToManageGames]);
+
+    useEffect(() => {
+        if (jumpToBackup) setSection('backup');
+    }, [jumpToBackup]);
 
     return (
         <div className="settings">

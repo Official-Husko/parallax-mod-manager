@@ -368,3 +368,138 @@ func TestIndexFileIsJSONCWithAnExplanation(t *testing.T) {
 		t.Errorf("List with a corrupt index = %+v", got)
 	}
 }
+
+// --- limits and deleting ----------------------------------------------------
+
+func TestCopyRefusesPastTheSizeLimitCountingEveryGame(t *testing.T) {
+	dir, _ := makeMod(t) // about 3 MB
+	root := t.TempDir()
+	// Another game's backup already takes some of the cap.
+	other := filepath.Join(t.TempDir(), "111")
+	write(t, filepath.Join(other, "big.bin"), strings.Repeat("y", 2<<20), time.Unix(1, 0))
+	s2 := Source{GameID: "other-game", ModID: "ugc_111", RemoteFileID: "111", Name: "Other", ContentPath: other, Reason: ReasonManual}
+	if _, err := Copy(context.Background(), root, s2, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	limits := Limits{MaxTotal: 4 << 20}
+	_, err := CopyWithLimits(context.Background(), root, src(dir), nil, limits)
+	if !errors.Is(err, ErrOverLimit) {
+		t.Fatalf("err = %v, want ErrOverLimit (2 MB used + 3 MB > 4 MB)", err)
+	}
+	if _, statErr := os.Stat(FolderFor(root, testGame, "2780180614")); statErr == nil {
+		t.Error("a refused copy left a folder behind")
+	}
+	if !strings.Contains(err.Error(), "used of") {
+		t.Errorf("the message does not say how much is used: %v", err)
+	}
+
+	limits.MaxTotal = 6 << 20
+	if _, err := CopyWithLimits(context.Background(), root, src(dir), nil, limits); err != nil {
+		t.Errorf("a copy that fits was refused: %v", err)
+	}
+	if got := TotalSize(root); got < 5<<20 {
+		t.Errorf("TotalSize = %d, want both games counted", got)
+	}
+}
+
+func TestReplacingACopyDoesNotCountItsOldSizeTwice(t *testing.T) {
+	dir, mtime := makeMod(t)
+	root := t.TempDir()
+	limits := Limits{MaxTotal: 4 << 20} // one 3 MB mod fits, two would not
+	if _, err := CopyWithLimits(context.Background(), root, src(dir), nil, limits); err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(dir, "common", "traits", "a.txt"), "changed\n", mtime.Add(time.Hour))
+	if _, err := CopyWithLimits(context.Background(), root, src(dir), nil, limits); err != nil {
+		t.Errorf("refreshing a mod that already fits was refused: %v", err)
+	}
+}
+
+func TestCopyKeepsTheFreeSpaceTheUserAskedFor(t *testing.T) {
+	dir, _ := makeMod(t)
+	root := t.TempDir()
+	old := freeBytes
+	freeBytes = func(string) (uint64, bool) { return 3<<20 + 900<<20, true }
+	defer func() { freeBytes = old }()
+
+	// 903 MB free, the mod needs 3 MB: 900 MB would be left.
+	if _, err := CopyWithLimits(context.Background(), root, src(dir), nil, Limits{MinFree: 1 << 30}); !errors.Is(err, ErrLowSpace) {
+		t.Errorf("err = %v, want ErrLowSpace (900 MB left of the 1 GB kept free)", err)
+	}
+	if _, statErr := os.Stat(FolderFor(root, testGame, "2780180614")); statErr == nil {
+		t.Error("a refused copy left a folder behind")
+	}
+	if _, err := CopyWithLimits(context.Background(), root, src(dir), nil, Limits{MinFree: 512 << 20}); err != nil {
+		t.Errorf("a copy leaving more than the kept space was refused: %v", err)
+	}
+	// No rule, no check (the hard "does it fit at all" test still applies).
+	root2 := t.TempDir()
+	if _, err := Copy(context.Background(), root2, src(dir), nil); err != nil {
+		t.Errorf("Copy without limits: %v", err)
+	}
+}
+
+func TestDeleteRemovesTheCopyAndItsRecord(t *testing.T) {
+	dir, _ := makeMod(t)
+	root := t.TempDir()
+	if _, err := Copy(context.Background(), root, src(dir), nil); err != nil {
+		t.Fatal(err)
+	}
+	other := filepath.Join(t.TempDir(), "111")
+	write(t, filepath.Join(other, "descriptor.mod"), `name="Other"`, time.Unix(1, 0))
+	s2 := src(other)
+	s2.RemoteFileID, s2.ModID, s2.Name = "111", "ugc_111", "Other"
+	if _, err := Copy(context.Background(), root, s2, nil); err != nil {
+		t.Fatal(err)
+	}
+	// Leftovers of an interrupted copy go with it.
+	_ = os.MkdirAll(FolderFor(root, testGame, "2780180614")+".partial", 0o755)
+
+	got, err := Delete(root, testGame, []string{"2780180614", "999", "111"})
+	if err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+	if len(got.IDs) != 2 || got.Bytes < 3<<20 {
+		t.Errorf("Deleted = %+v, want 2 copies and at least 3 MB", got)
+	}
+	for _, id := range []string{"2780180614", "111"} {
+		if _, err := os.Stat(FolderFor(root, testGame, id)); err == nil {
+			t.Errorf("the copy of %s is still there", id)
+		}
+	}
+	if _, err := os.Stat(FolderFor(root, testGame, "2780180614") + ".partial"); err == nil {
+		t.Error("the .partial leftover was not removed")
+	}
+	if list := List(root, testGame); len(list) != 0 {
+		t.Errorf("List = %+v, want none", list)
+	}
+	if TotalSize(root) != 0 {
+		t.Errorf("TotalSize = %d, want 0", TotalSize(root))
+	}
+	// The source is untouched.
+	if _, err := os.Stat(filepath.Join(dir, "descriptor.mod")); err != nil {
+		t.Error("Delete touched the mod itself")
+	}
+}
+
+func TestDeleteRefusesUnsafeIDsAndGames(t *testing.T) {
+	root := t.TempDir()
+	victim := filepath.Join(filepath.Dir(root), "victim")
+	_ = os.MkdirAll(victim, 0o755)
+	defer os.RemoveAll(victim)
+	if _, err := Delete(root, testGame, []string{"../../victim", ".."}); err == nil {
+		t.Error("Delete accepted an id that climbs out of the backup folder")
+	}
+	if _, err := os.Stat(victim); err != nil {
+		t.Error("a folder outside the backups was removed")
+	}
+	for _, game := range []string{"", "..", "a/b"} {
+		if _, err := Delete(root, game, []string{"1"}); err == nil {
+			t.Errorf("Delete accepted the game id %q", game)
+		}
+	}
+	if got, err := Delete(root, testGame, []string{"123"}); err != nil || len(got.IDs) != 0 {
+		t.Errorf("an id with no copy: %+v, %v", got, err)
+	}
+}

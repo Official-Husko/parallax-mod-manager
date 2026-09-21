@@ -109,6 +109,11 @@ for security, privacy, reliability or performance is called out (see the last tw
   size and free space), or off; a single mod can always be backed up from its right-click menu.
 - **Your own backup folder** - by default a "Parallax Mod Backups" folder inside the app's settings folder, one folder
   per game, changeable in Settings > Backup. Existing backups stay where they are.
+- **Size limit and free-space guard** - cap the total size of all backups (MB, GB or TB) and keep some free space on
+  the backup drive (1 GB by default, switchable). When one is hit, backups pause, deleted and private mods go first, and a
+  red notification stays until you answer it with OK or Review (which opens Settings > Backup).
+- **Free up space** - delete backups of mods still installed and available on the Workshop, or (not recommended) of mods
+  that are deleted or private, each with a preview and a confirmation; single backups can be deleted from the list.
 - **Safe copies** - a copy replaces an older one only when complete, mods that lose files while being copied are
   marked incomplete, and a full disk or an overlapping folder is refused with a message.
 - **Backup status on the mod** - flagged mods say whether their copy is saved (and when), partial, in progress,

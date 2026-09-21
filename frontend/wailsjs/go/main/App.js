@@ -78,6 +78,10 @@ export function DLCStoreData(arg1) {
   return window['go']['main']['App']['DLCStoreData'](arg1);
 }
 
+export function DeleteBackups(arg1, arg2, arg3) {
+  return window['go']['main']['App']['DeleteBackups'](arg1, arg2, arg3);
+}
+
 export function DeleteCollection(arg1) {
   return window['go']['main']['App']['DeleteCollection'](arg1);
 }
@@ -198,6 +202,10 @@ export function OpenPath(arg1) {
   return window['go']['main']['App']['OpenPath'](arg1);
 }
 
+export function PlanBackupCleanup(arg1, arg2) {
+  return window['go']['main']['App']['PlanBackupCleanup'](arg1, arg2);
+}
+
 export function PurgeMods(arg1, arg2) {
   return window['go']['main']['App']['PurgeMods'](arg1, arg2);
 }
@@ -240,6 +248,10 @@ export function ScanGame(arg1, arg2) {
 
 export function SetBackupFolder(arg1) {
   return window['go']['main']['App']['SetBackupFolder'](arg1);
+}
+
+export function SetBackupLimits(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['SetBackupLimits'](arg1, arg2, arg3, arg4);
 }
 
 export function SetBackupMode(arg1) {

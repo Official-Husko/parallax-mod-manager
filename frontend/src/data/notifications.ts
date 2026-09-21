@@ -23,6 +23,9 @@ export interface Notification {
     // message - most useful on an 'error' notification that isn't
     // auto-dismissed, so there's actually time to click it.
     action?: {label: string; onClick: () => void};
+    // When set, a second control with this label (an "OK") that just dismisses the
+    // notification - for one that stays until the person has seen it, next to `action`.
+    dismissLabel?: string;
 }
 
 // Messages/infos auto-dismiss after this long - warnings, errors and in-progress
@@ -50,7 +53,7 @@ function scheduleAutoDismiss(id: string, kind: NotificationKind) {
 // to later updateNotification() it in place (e.g. a 'progress' toast
 // that becomes 'success' or 'error' once the work it describes finishes)
 // or dismiss() it early.
-export function notify(kind: NotificationKind, message: string, extra?: Pick<Notification, 'progress' | 'action'>): string {
+export function notify(kind: NotificationKind, message: string, extra?: Pick<Notification, 'progress' | 'action' | 'dismissLabel'>): string {
     const id = `n${nextId++}`;
     notifications = [...notifications, {id, kind, message, ...extra}];
     emit();
@@ -100,6 +103,12 @@ export async function trackTask(
     if (outcome.success) updateNotification(id, {kind: 'success', message: outcome.success});
     else dismiss(id);
     return true;
+}
+
+// hasNotification says whether a notification is still showing - for code that raises
+// one at most once at a time.
+export function hasNotification(id: string | null): boolean {
+    return id !== null && notifications.some((n) => n.id === id);
 }
 
 export function dismiss(id: string) {

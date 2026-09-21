@@ -80,6 +80,11 @@ var (
 	ErrNoSpace = errors.New("backup: not enough free space in the backup folder")
 	// ErrSourceGone means the mod's folder is not there to copy any more.
 	ErrSourceGone = errors.New("backup: the mod's files are no longer on disk")
+	// ErrOverLimit means the copy would take the backups past the size cap the user set.
+	ErrOverLimit = errors.New("backup: the backup size limit would be exceeded")
+	// ErrLowSpace means the copy would leave the drive with less free space than the user
+	// asked to be kept.
+	ErrLowSpace = errors.New("backup: too little free space would be left")
 	// ErrIncomplete means files vanished while copying (Steam removing the mod under
 	// us) and an older complete copy was kept instead of a partial one.
 	ErrIncomplete = errors.New("backup: files were removed while copying")
@@ -91,7 +96,22 @@ var freeBytes = diskFree
 // spaceMargin is left free on the volume on top of the mod's own size.
 const spaceMargin = 64 << 20
 
-// Copy makes (or refreshes) the copy of src under root. It is safe to call again for
+// Limits are the two user-set rules a copy is held to. A zero value is no rule.
+type Limits struct {
+	// MaxTotal is the most every backup together may take, in bytes: a copy that would
+	// go past it is refused. The size a mod's older copy already takes does not count
+	// twice when it is replaced.
+	MaxTotal int64
+	// MinFree is the free space that must be left on the volume after the copy.
+	MinFree int64
+}
+
+// Copy is CopyWithLimits with no limits.
+func Copy(ctx context.Context, root string, src Source, progress Progress) (Result, error) {
+	return CopyWithLimits(ctx, root, src, progress, Limits{})
+}
+
+// CopyWithLimits makes (or refreshes) the copy of src under root. It is safe to call again for
 // a mod that is already backed up: an unchanged mod is skipped, a changed one is
 // copied anew and only then replaces the old copy.
 //
@@ -100,7 +120,7 @@ const spaceMargin = 64 << 20
 // good one was. Files that vanish while copying (Steam removing the mod as it is
 // copied) are counted: if that leaves a copy with files missing it is kept only when
 // there is no complete one already, and is marked incomplete.
-func Copy(ctx context.Context, root string, src Source, progress Progress) (Result, error) {
+func CopyWithLimits(ctx context.Context, root string, src Source, progress Progress, limits Limits) (Result, error) {
 	if root == "" {
 		return Result{}, errors.New("backup: no backup folder is set")
 	}
@@ -132,8 +152,26 @@ func Copy(ctx context.Context, root string, src Source, progress Progress) (Resu
 	if err := os.MkdirAll(filepath.Join(gameDir, "mods"), 0o755); err != nil {
 		return Result{}, fmt.Errorf("backup: creating %s: %w", gameDir, err)
 	}
-	if free, ok := freeBytes(gameDir); ok && free < uint64(fp.size)+spaceMargin {
-		return Result{}, fmt.Errorf("%w (needs %s, %s free)", ErrNoSpace, humanBytes(fp.size), humanBytes(int64(free)))
+	if limits.MaxTotal > 0 {
+		used := TotalSize(root)
+		if old, ok := idx.Mods[src.RemoteFileID]; ok {
+			used -= old.Size // replaced, not added to
+			if used < 0 {
+				used = 0
+			}
+		}
+		if used+fp.size > limits.MaxTotal {
+			return Result{}, fmt.Errorf("%w (%s used of %s, this mod needs %s)", ErrOverLimit, humanBytes(used), humanBytes(limits.MaxTotal), humanBytes(fp.size))
+		}
+	}
+	if free, ok := freeBytes(gameDir); ok {
+		if free < uint64(fp.size)+spaceMargin {
+			return Result{}, fmt.Errorf("%w (needs %s, %s free)", ErrNoSpace, humanBytes(fp.size), humanBytes(int64(free)))
+		}
+		if limits.MinFree > 0 && free < uint64(fp.size)+uint64(limits.MinFree) {
+			return Result{}, fmt.Errorf("%w (%s would be left of the %s you keep free; %s free now, this mod needs %s)",
+				ErrLowSpace, humanBytes(max(int64(free)-fp.size, 0)), humanBytes(limits.MinFree), humanBytes(int64(free)), humanBytes(fp.size))
+		}
 	}
 
 	partial := dest + ".partial"
