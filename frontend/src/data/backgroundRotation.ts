@@ -128,3 +128,27 @@ export function createRotator(opts: RotatorOptions): Rotator {
         },
     };
 }
+
+// imageNameFromUrl is the file name an image address ends in, decoded ("100 - a
+// b.jpg"), for the activity log - the address itself is long and full of escapes.
+export function imageNameFromUrl(url: string): string {
+    const path = url.startsWith('data:') ? 'inline image' : url.split(/[?#]/)[0];
+    const last = path.split('/').filter(Boolean).pop() ?? url;
+    try {
+        return decodeURIComponent(last);
+    } catch {
+        return last;
+    }
+}
+
+// imageOrigin says where an image address loads from, for the activity log: the
+// copies on this computer (served by the app itself), or the host it is streamed from.
+export function imageOrigin(url: string): string {
+    if (url.startsWith('/backgrounds/')) return 'from disk';
+    if (url.startsWith('data:')) return 'embedded';
+    try {
+        return `from ${new URL(url).host}`;
+    } catch {
+        return 'from an unknown address';
+    }
+}

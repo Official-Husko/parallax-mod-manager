@@ -4,7 +4,7 @@ import {useEffect, useState} from 'preact/hooks';
 import {BackgroundImages} from '../../wailsjs/go/main/App';
 import {EventsOn} from '../../wailsjs/runtime/runtime';
 import {logEvent} from '../data/appLog';
-import {createRotator} from '../data/backgroundRotation';
+import {createRotator, imageNameFromUrl, imageOrigin} from '../data/backgroundRotation';
 
 export const DEFAULT_BACKGROUND_INTERVAL_SECONDS = 300;
 
@@ -17,12 +17,16 @@ const PREFETCH_TIMEOUT_MS = 45_000;
 // instant; only the newest few are kept.
 const held = new Map<string, HTMLImageElement>();
 const HOLD_LIMIT = 3;
+// How long each image took to load, for the activity log line when it is shown.
+const loadMs = new Map<string, number>();
 
 // prefetchImage loads and decodes one image ahead of when it is shown. Rejects if it
 // cannot be loaded (offline, missing, not an image) or takes too long.
 function prefetchImage(url: string): Promise<void> {
     const existing = held.get(url);
     if (existing && existing.complete && existing.naturalWidth > 0) return Promise.resolve();
+    logEvent('debug', 'Backgrounds', `loading background '${imageNameFromUrl(url)}' (${imageOrigin(url)})`);
+    const began = performance.now();
     const img = new Image();
     img.decoding = 'async';
     img.src = url;
@@ -35,11 +39,26 @@ function prefetchImage(url: string): Promise<void> {
         }, PREFETCH_TIMEOUT_MS);
     });
     return Promise.race([img.decode(), timeout])
+        .then(() => {
+            loadMs.set(url, Math.round(performance.now() - began));
+        })
         .catch((err) => {
             held.delete(url);
             throw err;
         })
         .finally(() => window.clearTimeout(timer));
+}
+
+// describeShown is the activity log line for an image that has just gone on
+// screen: which one, how big it is, where it came from and how long it took to load.
+function describeShown(url: string): string {
+    const img = held.get(url);
+    const parts: string[] = [];
+    if (img && img.naturalWidth > 0) parts.push(`${img.naturalWidth}x${img.naturalHeight}`);
+    parts.push(imageOrigin(url));
+    const ms = loadMs.get(url);
+    if (ms !== undefined) parts.push(`loaded in ${ms} ms`);
+    return `showing background '${imageNameFromUrl(url)}' (${parts.join(', ')})`;
 }
 
 // release forgets the oldest held images beyond the limit, never `keep`.
@@ -100,6 +119,7 @@ export function AppBackground({gameId, disabled, rotationPaused, intervalSeconds
                     intervalMs: rotationPaused ? 0 : seconds * 1000,
                     prefetch: prefetchImage,
                     show: (url) => {
+                        logEvent('info', 'Backgrounds', describeShown(url));
                         release(url);
                         setState((prev) => {
                             const nextActive: 0 | 1 = prev.active === 0 ? 1 : 0;
@@ -108,7 +128,7 @@ export function AppBackground({gameId, disabled, rotationPaused, intervalSeconds
                             return {layers, active: nextActive};
                         });
                     },
-                    onLoadError: (url, err) => logEvent('warn', 'Backgrounds', `couldn't load a background image (${String(err)}): ${url.slice(-80)}`),
+                    onLoadError: (url, err) => logEvent('warn', 'Backgrounds', `couldn't load background '${imageNameFromUrl(url)}' (${imageOrigin(url)}): ${err instanceof Error ? err.message : String(err)}`),
                 });
                 rotator.start();
                 stop = () => rotator.stop();

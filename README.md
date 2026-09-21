@@ -807,7 +807,12 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   `data/backgrounds.jsonc` (default: the repository's `frontend/src/assets/game_media/background/<game id>/`,
   which nothing imports, so it is not bundled), replaceable by a `backgrounds.jsonc` in the settings folder; see
   [docs/backgrounds.md](docs/backgrounds.md) for how to publish. The About page and this README now name
-  GitHub as a second outside service (online mode only) alongside Steam. Tested with the race detector
+  GitHub as a second outside service (online mode only) alongside Steam. Everything it does shows in
+  the activity log under Settings > About (component "Backgrounds"): which images were listed for a game
+  and from where (or why the offline copies were used instead), each image as it is shown (name, pixel
+  size, host or disk, load time), and for downloads the start (how many images and MB, for which games),
+  each image (debug level, visible under "All"), every failure with its reason (the first ten as warnings),
+  a line as each game finishes, and the summary or the cancel. Tested with the race detector
   (listing, ETag, cache, resume, cancel, path safety, the asset route), a virtual-clock test of the
   30-second prefetch timing, the real components against a fake backend, and against real GitHub.
 

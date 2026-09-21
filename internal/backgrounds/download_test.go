@@ -321,3 +321,56 @@ func TestRunRespectsConcurrency(t *testing.T) {
 		t.Errorf("saw %d requests at once, want at most 2", got)
 	}
 }
+
+func TestRunReportsEachFileWithItsOutcome(t *testing.T) {
+	srv := &imageServer{bodies: map[string]string{"g1/ok.png": "12345", "g1/short.png": "abc"}}
+	d, _ := newDownloader(t, srv)
+	var mu sync.Mutex
+	var results []FileResult
+	d.OnFile = func(r FileResult) {
+		mu.Lock()
+		results = append(results, r)
+		mu.Unlock()
+	}
+	_, err := d.Run(context.Background(), []Job{{GameID: "g1", Files: []File{{"ok.png", 5}, {"gone.png", 9}, {"short.png", 99}}}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	by := map[string]FileResult{}
+	for _, r := range results {
+		by[r.Name] = r
+	}
+	if len(results) != 3 {
+		t.Fatalf("results = %+v, want one per image", results)
+	}
+	if r := by["ok.png"]; r.Err != nil || r.Size != 5 || r.GameID != "g1" || r.Took <= 0 {
+		t.Errorf("ok.png = %+v", r)
+	}
+	if r := by["gone.png"]; r.Err == nil || !strings.Contains(r.Err.Error(), "404") {
+		t.Errorf("gone.png = %+v, want the reason (HTTP 404)", r)
+	}
+	if r := by["short.png"]; r.Err == nil || !strings.Contains(r.Err.Error(), "size mismatch") {
+		t.Errorf("short.png = %+v, want the size mismatch", r)
+	}
+}
+
+func TestRunDoesNotReportAnImageThatWasOnlyCancelled(t *testing.T) {
+	srv := &imageServer{bodies: map[string]string{"g1/a.png": "1234"}, block: make(chan struct{})}
+	d, _ := newDownloader(t, srv)
+	var calls int32
+	d.OnFile = func(FileResult) { atomic.AddInt32(&calls, 1) }
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		d.Run(ctx, []Job{{GameID: "g1", Files: []File{{"a.png", 4}}}}, nil)
+		close(done)
+	}()
+	for atomic.LoadInt32(&srv.inFlight) < 1 {
+		time.Sleep(2 * time.Millisecond)
+	}
+	cancel()
+	<-done
+	if got := atomic.LoadInt32(&calls); got != 0 {
+		t.Errorf("OnFile called %d times for a cancelled image, want 0 (it did not fail)", got)
+	}
+}

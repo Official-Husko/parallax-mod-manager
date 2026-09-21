@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Official-Husko/parallax-mod-manager/internal/applog"
 	"github.com/Official-Husko/parallax-mod-manager/internal/backgrounds"
 	"github.com/Official-Husko/parallax-mod-manager/internal/preferences"
 )
@@ -26,6 +27,7 @@ type githubFake struct {
 	files    map[string]string // "gameID/name" -> content
 	gate     chan struct{}     // when non-nil, image requests wait for it
 	down     atomic.Bool
+	hide     map[string]bool // "gameID/name" -> listed, but the image itself answers 404
 }
 
 const fakeTreePath = "/repos/o/r/git/trees/main:game_media/backgrounds"
@@ -67,8 +69,9 @@ func newGithubFake(t *testing.T, files map[string]string) *githubFake {
 					return
 				}
 			}
-			body, ok := g.files[strings.TrimPrefix(r.URL.Path, "/o/r/main/game_media/backgrounds/")]
-			if !ok {
+			key := strings.TrimPrefix(r.URL.Path, "/o/r/main/game_media/backgrounds/")
+			body, ok := g.files[key]
+			if !ok || g.hide[key] {
 				http.NotFound(w, r)
 				return
 			}
@@ -500,5 +503,175 @@ func TestTheBuiltInBackgroundSourcePointsAtWhereTheImagesArePublished(t *testing
 	}
 	if src.Path != "frontend/src/assets/game_media/background" || src.Branch != "main" {
 		t.Errorf("src = %+v, want the folder the images are published in", src)
+	}
+}
+
+// backgroundLog returns the "Backgrounds" lines logged so far, as "LEVEL message".
+func backgroundLog() []string {
+	var out []string
+	for _, e := range applog.Default().Entries() {
+		if e.Component == "Backgrounds" {
+			out = append(out, strings.ToUpper(e.Level)+" "+e.Message)
+		}
+	}
+	return out
+}
+
+func logHas(lines []string, level, contains string) bool {
+	for _, l := range lines {
+		if strings.HasPrefix(l, strings.ToUpper(level)+" ") && strings.Contains(l, contains) {
+			return true
+		}
+	}
+	return false
+}
+
+func countLog(lines []string, level, contains string) int {
+	n := 0
+	for _, l := range lines {
+		if strings.HasPrefix(l, strings.ToUpper(level)+" ") && strings.Contains(l, contains) {
+			n++
+		}
+	}
+	return n
+}
+
+func TestBackgroundImagesLogWhichImagesAndWhere(t *testing.T) {
+	fake := newGithubFake(t, map[string]string{"g1/a.png": "A", "g1/b.png": "B"})
+	a, _ := backgroundsApp(t, fake, t.TempDir(), t.TempDir())
+	applog.Default().Clear()
+
+	a.BackgroundImages("g1")
+	a.preferences.BackgroundSource = "offline"
+	a.BackgroundImages("g1")
+	a.preferences.BackgroundSource = "online"
+	a.BackgroundImages("g-unpublished")
+	fake.down.Store(true)
+	a.backgrounds.mu.Lock()
+	a.backgrounds.manifest = nil // as after a restart with nothing cached
+	a.backgrounds.mu.Unlock()
+	os.Remove(a.backgrounds.cache.Path)
+	a.BackgroundImages("g1")
+
+	lines := backgroundLog()
+	if !logHas(lines, "info", "'g1': 2 background images from GitHub (online mode)") {
+		t.Errorf("no line for the online list:\n%s", strings.Join(lines, "\n"))
+	}
+	if !logHas(lines, "info", "no background images for 'g1' (from this computer (offline mode))") {
+		t.Errorf("no line for offline mode with nothing on disk:\n%s", strings.Join(lines, "\n"))
+	}
+	if !logHas(lines, "info", "no background images for 'g-unpublished' (from this computer, none are published for it)") {
+		t.Errorf("no line for an unpublished game:\n%s", strings.Join(lines, "\n"))
+	}
+	if !logHas(lines, "info", "no background images for 'g1' (from this computer, GitHub could not be reached") {
+		t.Errorf("an unreachable GitHub was not explained in the log:\n%s", strings.Join(lines, "\n"))
+	}
+	if !logHas(lines, "warn", "couldn't list the published backgrounds") {
+		t.Errorf("the listing failure itself should be a warning:\n%s", strings.Join(lines, "\n"))
+	}
+}
+
+func TestBackgroundDownloadIsLoggedFromStartToFinish(t *testing.T) {
+	fake := newGithubFake(t, map[string]string{"g1/a.png": strings.Repeat("A", 2048), "g1/b b.jpg": strings.Repeat("B", 100), "g2/z.webp": "Z"})
+	a, events := backgroundsApp(t, fake, t.TempDir(), t.TempDir())
+	os.MkdirAll(filepath.Join(a.backgrounds.store.Dir, "g1"), 0o755)
+	os.WriteFile(filepath.Join(a.backgrounds.store.Dir, "g1", "a.png"), []byte(strings.Repeat("A", 2048)), 0o644) // already there
+	applog.Default().Clear()
+
+	if err := a.StartBackgroundDownload([]string{"g1", "g2"}); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "the download to finish", func() bool { return events.count("background-packs-changed") == 1 })
+	lines := backgroundLog()
+	dump := strings.Join(lines, "\n")
+
+	if !logHas(lines, "info", "downloading 2 background images (~101 B) for 'g1', 'g2'; 1 already on disk") {
+		t.Errorf("no start line:\n%s", dump)
+	}
+	if !logHas(lines, "debug", "downloaded 'b b.jpg' of 'g1' (100 B in ") || !logHas(lines, "debug", "downloaded 'z.webp' of 'g2' (1 B in ") {
+		t.Errorf("each downloaded image should be a debug line:\n%s", dump)
+	}
+	if countLog(lines, "debug", "downloaded 'a.png'") != 0 {
+		t.Errorf("an image that was already on disk must not be logged as downloaded:\n%s", dump)
+	}
+	if !logHas(lines, "info", "'g1': all 1 images downloaded (100 B)") || !logHas(lines, "info", "'g2': all 1 images downloaded (1 B)") {
+		t.Errorf("no per-game completion lines:\n%s", dump)
+	}
+	if !logHas(lines, "info", "background download finished: 2 images (101 B) downloaded, 1 already on disk") {
+		t.Errorf("no summary line:\n%s", dump)
+	}
+}
+
+func TestBackgroundDownloadFailuresAreLoggedWithTheReason(t *testing.T) {
+	files := map[string]string{"g1/ok.png": "fine"}
+	fake := newGithubFake(t, files)
+	fake.hide = map[string]bool{}
+	// 13 images that are listed but missing on the server: only the first 10 are warnings.
+	for i := 0; i < 13; i++ {
+		name := "g1/gone" + itoa(i) + ".png"
+		files[name] = "x"
+		fake.hide[name] = true
+	}
+	a, events := backgroundsApp(t, fake, t.TempDir(), t.TempDir())
+	applog.Default().Clear()
+
+	if err := a.StartBackgroundDownload([]string{"g1"}); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "the download to finish", func() bool { return events.count("background-packs-changed") == 1 })
+	lines := backgroundLog()
+	dump := strings.Join(lines, "\n")
+
+	if got := countLog(lines, "warn", "couldn't download 'gone"); got != 10 {
+		t.Errorf("%d failure warnings, want the first 10 only:\n%s", got, dump)
+	}
+	if got := countLog(lines, "debug", "couldn't download 'gone"); got != 3 {
+		t.Errorf("%d failures at debug level, want the remaining 3:\n%s", got, dump)
+	}
+	if !logHas(lines, "warn", "of 'g1': ") || !logHas(lines, "warn", "HTTP 404") {
+		t.Errorf("a failure line must say why (HTTP 404):\n%s", dump)
+	}
+	if !logHas(lines, "warn", "'g1': 1 of 14 images downloaded (4 B), 13 failed") {
+		t.Errorf("the per-game line should count the failures:\n%s", dump)
+	}
+	if !logHas(lines, "warn", "background download finished: 1 image (4 B) downloaded, 13 failed - run it again to retry them") {
+		t.Errorf("the summary should say how to recover:\n%s", dump)
+	}
+}
+
+func TestBackgroundDownloadCancelIsLoggedAsACancelNotAFailure(t *testing.T) {
+	fake := newGithubFake(t, map[string]string{"g1/a.png": "AAAA", "g1/b.png": "BBBB"})
+	fake.gate = make(chan struct{})
+	a, events := backgroundsApp(t, fake, t.TempDir(), t.TempDir())
+	applog.Default().Clear()
+
+	if err := a.StartBackgroundDownload([]string{"g1"}); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "an image to be requested", func() bool { return atomic.LoadInt32(&fake.imgHits) >= 1 })
+	a.CancelBackgroundDownload()
+	waitFor(t, "the download to end", func() bool { return events.count("background-packs-changed") == 1 })
+	lines := backgroundLog()
+	dump := strings.Join(lines, "\n")
+	if !logHas(lines, "info", "background download cancelled after 0 images") {
+		t.Errorf("no cancel line:\n%s", dump)
+	}
+	if countLog(lines, "warn", "") != 0 {
+		t.Errorf("a cancel is not a warning:\n%s", dump)
+	}
+}
+
+func TestBackgroundDownloadWithNothingMissingSaysSo(t *testing.T) {
+	fake := newGithubFake(t, map[string]string{"g1/a.png": "A"})
+	a, events := backgroundsApp(t, fake, t.TempDir(), t.TempDir())
+	os.MkdirAll(filepath.Join(a.backgrounds.store.Dir, "g1"), 0o755)
+	os.WriteFile(filepath.Join(a.backgrounds.store.Dir, "g1", "a.png"), []byte("A"), 0o644)
+	applog.Default().Clear()
+	if err := a.StartBackgroundDownload([]string{"g1"}); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "the run to end", func() bool { return events.count("background-packs-changed") == 1 })
+	if !logHas(backgroundLog(), "info", "background images for 'g1' are already on disk (1 image), nothing to download") {
+		t.Errorf("log:\n%s", strings.Join(backgroundLog(), "\n"))
 	}
 }

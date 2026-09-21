@@ -48,6 +48,19 @@ type Result struct {
 	Bytes       int64
 }
 
+// FileResult is how one image ended, for callers that want to log each.
+type FileResult struct {
+	GameID string
+	Name   string
+	// Size is the image's size in bytes as listed.
+	Size int64
+	// Took is how long it took, retries included.
+	Took time.Duration
+	// Err is why it failed after its retries; nil when it was downloaded. An image
+	// that stopped because the run was cancelled is not reported at all.
+	Err error
+}
+
 // Downloader fetches images into a Store.
 type Downloader struct {
 	Client *http.Client
@@ -62,6 +75,9 @@ type Downloader struct {
 	RetryDelay time.Duration
 	// UserAgent is sent with every request.
 	UserAgent string
+	// OnFile, when set, is called as each image ends (from the worker that
+	// fetched it, so it must be safe to call concurrently).
+	OnFile func(FileResult)
 }
 
 // reportEvery is how often byte progress is reported while data is flowing; the
@@ -153,6 +169,7 @@ func (d Downloader) Run(ctx context.Context, jobs []Job, report func(Progress)) 
 				mu.Unlock()
 
 				var counted int64
+				began := time.Now()
 				err := d.fetchWithRetries(ctx, t, func(n int64) {
 					mu.Lock()
 					p.BytesDone += n
@@ -189,6 +206,9 @@ func (d Downloader) Run(ctx context.Context, jobs []Job, report func(Progress)) 
 				}
 				emit(true)
 				mu.Unlock()
+				if d.OnFile != nil && (err == nil || ctx.Err() == nil) {
+					d.OnFile(FileResult{GameID: t.gameID, Name: t.file.Name, Size: t.file.Size, Took: time.Since(began), Err: err})
+				}
 			}
 		}()
 	}

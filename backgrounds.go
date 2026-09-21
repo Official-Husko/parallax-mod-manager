@@ -2,11 +2,13 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -203,10 +205,24 @@ func (a *App) BackgroundCatalog(refresh bool) BackgroundCatalog {
 // offline mode - or online with nothing published or GitHub unreachable - the ones
 // on disk, served by the app itself. Empty means no background for this game.
 func (a *App) BackgroundImages(gameID string) []string {
-	bg := &a.backgrounds
 	if !backgrounds.ValidGameID(gameID) {
 		return []string{}
 	}
+	urls, origin := a.backgroundImages(gameID)
+	log := applog.For("Backgrounds")
+	if len(urls) == 0 {
+		log.Infof("no background images for '%s' (%s)", a.backgroundGameLabel(gameID), origin)
+	} else {
+		log.Infof("'%s': %d background image%s %s", a.backgroundGameLabel(gameID), len(urls), plural(len(urls)), origin)
+	}
+	return urls
+}
+
+// backgroundImages is BackgroundImages' choice, with where the answer came from in
+// words for the activity log - in particular why an online setting ended up on the
+// offline copies.
+func (a *App) backgroundImages(gameID string) ([]string, string) {
+	bg := &a.backgrounds
 	local := func() []string {
 		files := bg.store.List(gameID)
 		urls := make([]string, 0, len(files))
@@ -216,17 +232,30 @@ func (a *App) BackgroundImages(gameID string) []string {
 		return urls
 	}
 	if a.GetPreferences().BackgroundSource == preferences.BackgroundSourceOffline {
-		return local()
+		return local(), "from this computer (offline mode)"
 	}
-	manifest, _ := a.backgroundManifest(false)
+	manifest, remoteErr := a.backgroundManifest(false)
 	if p, ok := manifest.Pack(gameID); ok && len(p.Files) > 0 {
 		urls := make([]string, 0, len(p.Files))
 		for _, f := range p.Files {
 			urls = append(urls, bg.source.RawURL(bg.fetcher.Raw(), gameID, f.Name))
 		}
-		return urls
+		return urls, "from GitHub (online mode)"
 	}
-	return local()
+	if remoteErr != "" {
+		return local(), "from this computer, GitHub could not be reached: " + remoteErr
+	}
+	return local(), "from this computer, none are published for it"
+}
+
+// backgroundGameLabel is a game's name for the log, or its id when unknown.
+func (a *App) backgroundGameLabel(gameID string) string {
+	if a.registry != nil {
+		if cfg, ok := a.registry.Get(gameID); ok {
+			return cfg.DisplayName
+		}
+	}
+	return gameID
 }
 
 // StartBackgroundDownload downloads the published backgrounds for gameIDs into the
@@ -261,13 +290,16 @@ func (a *App) StartBackgroundDownload(gameIDs []string) error {
 
 	ctx, cancel := context.WithCancel(a.baseContext())
 	bg.dlCancel = cancel
+	log := applog.For("Backgrounds")
+	progress := newDownloadLog(a, jobs, log)
 	d := backgrounds.Downloader{
 		Store:     bg.store,
 		URL:       func(gameID, name string) string { return bg.source.RawURL(bg.fetcher.Raw(), gameID, name) },
 		UserAgent: bg.fetcher.UserAgent,
+		OnFile:    progress.file,
 	}
+	progress.announce()
 	go func() {
-		log := applog.For("Backgrounds")
 		timer := log.Begin()
 		res, err := d.Run(ctx, jobs, func(p backgrounds.Progress) { a.emit("background-download", p) })
 		bg.dlMu.Lock()
@@ -275,19 +307,134 @@ func (a *App) StartBackgroundDownload(gameIDs []string) error {
 		bg.dlMu.Unlock()
 		cancel()
 		switch {
+		case errors.Is(err, context.Canceled):
+			timer.Infof("background download cancelled after %d image%s (%s); what was finished is kept", res.Downloaded, plural(res.Downloaded), formatSize(res.Bytes))
 		case err != nil:
-			timer.Warnf("background download stopped after %d image%s (%s)", res.Downloaded, plural(res.Downloaded), err)
+			timer.Warnf("background download stopped after %d image%s: %v", res.Downloaded, plural(res.Downloaded), err)
 		case res.Failed > 0:
-			timer.Warnf("downloaded %d background image%s (%s), %d failed", res.Downloaded, plural(res.Downloaded), formatMB(res.Bytes), res.Failed)
+			timer.Warnf("background download finished: %d image%s (%s) downloaded, %d failed - run it again to retry them", res.Downloaded, plural(res.Downloaded), formatSize(res.Bytes), res.Failed)
 		default:
-			timer.Infof("downloaded %d background image%s (%s), %d already there", res.Downloaded, plural(res.Downloaded), formatMB(res.Bytes), res.Skipped)
+			timer.Infof("background download finished: %d image%s (%s) downloaded, %d already on disk", res.Downloaded, plural(res.Downloaded), formatSize(res.Bytes), res.Skipped)
 		}
 		a.emit("background-packs-changed")
 	}()
 	return nil
 }
 
-func formatMB(n int64) string { return fmt.Sprintf("%.1f MB", float64(n)/(1<<20)) }
+// downloadLog turns a download's per-image results into activity log lines: what
+// is about to be fetched, each image (debug level - a big pack is hundreds of
+// lines), every failure with its reason (the first few as warnings, the rest as
+// debug so a dead connection does not bury the log), and one line as each game's
+// images are done.
+type downloadLog struct {
+	app *App
+	log applog.Logger
+
+	mu       sync.Mutex
+	games    map[string]*gameDownload
+	order    []string
+	skipped  int
+	toFetch  int
+	bytes    int64
+	warnings int
+}
+
+type gameDownload struct {
+	total, remaining, ok, failed int
+	bytes                        int64
+}
+
+// maxDownloadWarnings is how many failed images are logged as warnings.
+const maxDownloadWarnings = 10
+
+func newDownloadLog(a *App, jobs []backgrounds.Job, log applog.Logger) *downloadLog {
+	dl := &downloadLog{app: a, log: log, games: map[string]*gameDownload{}}
+	for _, j := range jobs {
+		g := &gameDownload{}
+		for _, f := range j.Files {
+			if backgrounds.ValidName(f.Name) && !a.backgrounds.store.Has(j.GameID, f) {
+				g.total++
+				g.remaining++
+				dl.toFetch++
+				dl.bytes += f.Size
+			} else if backgrounds.ValidName(f.Name) {
+				dl.skipped++
+			}
+		}
+		dl.games[j.GameID] = g
+		dl.order = append(dl.order, j.GameID)
+	}
+	return dl
+}
+
+// announce logs what the download is about to do.
+func (dl *downloadLog) announce() {
+	names := make([]string, 0, len(dl.order))
+	for _, id := range dl.order {
+		names = append(names, "'"+dl.app.backgroundGameLabel(id)+"'")
+	}
+	list := strings.Join(names, ", ")
+	if dl.toFetch == 0 {
+		dl.log.Infof("background images for %s are already on disk (%d image%s), nothing to download", list, dl.skipped, plural(dl.skipped))
+		return
+	}
+	dl.log.Infof("downloading %d background image%s (~%s) for %s; %d already on disk", dl.toFetch, plural(dl.toFetch), formatSize(dl.bytes), list, dl.skipped)
+}
+
+// file is the downloader's per-image callback (called from several goroutines).
+func (dl *downloadLog) file(r backgrounds.FileResult) {
+	dl.mu.Lock()
+	g := dl.games[r.GameID]
+	warn := false
+	var done gameDownload
+	finished := false
+	if g != nil {
+		g.remaining--
+		if r.Err == nil {
+			g.ok++
+			g.bytes += r.Size
+		} else {
+			g.failed++
+			if dl.warnings < maxDownloadWarnings {
+				dl.warnings++
+				warn = true
+			}
+		}
+		if g.remaining == 0 {
+			finished, done = true, *g
+		}
+	}
+	dl.mu.Unlock()
+
+	label := dl.app.backgroundGameLabel(r.GameID)
+	switch {
+	case r.Err == nil:
+		dl.log.Debugf("downloaded '%s' of '%s' (%s in %d ms)", r.Name, label, formatSize(r.Size), r.Took.Milliseconds())
+	case warn:
+		dl.log.Warnf("couldn't download '%s' of '%s': %v", r.Name, label, r.Err)
+	default:
+		dl.log.Debugf("couldn't download '%s' of '%s': %v", r.Name, label, r.Err)
+	}
+	if finished {
+		if done.failed > 0 {
+			dl.log.Warnf("'%s': %d of %d images downloaded (%s), %d failed", label, done.ok, done.total, formatSize(done.bytes), done.failed)
+		} else {
+			dl.log.Infof("'%s': all %d images downloaded (%s)", label, done.ok, formatSize(done.bytes))
+		}
+	}
+}
+
+// formatSize renders a byte count for the log: "512 B", "557.8 KB", "84.5 MB".
+func formatSize(n int64) string {
+	switch {
+	case n >= 1<<20:
+		return fmt.Sprintf("%.1f MB", float64(n)/(1<<20))
+	case n >= 1<<10:
+		return fmt.Sprintf("%.1f KB", float64(n)/(1<<10))
+	default:
+		return fmt.Sprintf("%d B", n)
+	}
+}
 
 // CancelBackgroundDownload stops a running download; what it had finished stays.
 func (a *App) CancelBackgroundDownload() {
