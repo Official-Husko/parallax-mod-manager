@@ -775,6 +775,37 @@ export namespace main {
 		    return a;
 		}
 	}
+	
+	export class SteamAPIStatus {
+	    Mode: string;
+	    HasKey: boolean;
+	    Fingerprint: string;
+	    State: string;
+	    ExhaustedUntil: number;
+	    LastError: string;
+	    ItemsFromKey: number;
+	    ItemsFromFree: number;
+	    Rescued: number;
+	    Protection: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SteamAPIStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Mode = source["Mode"];
+	        this.HasKey = source["HasKey"];
+	        this.Fingerprint = source["Fingerprint"];
+	        this.State = source["State"];
+	        this.ExhaustedUntil = source["ExhaustedUntil"];
+	        this.LastError = source["LastError"];
+	        this.ItemsFromKey = source["ItemsFromKey"];
+	        this.ItemsFromFree = source["ItemsFromFree"];
+	        this.Rescued = source["Rescued"];
+	        this.Protection = source["Protection"];
+	    }
+	}
 
 }
 
@@ -983,6 +1014,7 @@ export namespace steamapi {
 	    ID: string;
 	    Result: number;
 	    Banned: boolean;
+	    Visibility: number;
 	    Title: string;
 	    Description: string;
 	    PreviewURL: string;
@@ -994,6 +1026,7 @@ export namespace steamapi {
 	    Views: number;
 	    FileSize: number;
 	    Tags: string[];
+	    Source: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new PublishedFileDetails(source);
@@ -1004,6 +1037,7 @@ export namespace steamapi {
 	        this.ID = source["ID"];
 	        this.Result = source["Result"];
 	        this.Banned = source["Banned"];
+	        this.Visibility = source["Visibility"];
 	        this.Title = source["Title"];
 	        this.Description = source["Description"];
 	        this.PreviewURL = source["PreviewURL"];
@@ -1015,6 +1049,7 @@ export namespace steamapi {
 	        this.Views = source["Views"];
 	        this.FileSize = source["FileSize"];
 	        this.Tags = source["Tags"];
+	        this.Source = source["Source"];
 	    }
 	}
 

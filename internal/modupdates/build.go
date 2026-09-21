@@ -59,7 +59,18 @@ func Build(mods []ModInput, ws Workshop, prev *Snapshot, now time.Time) Snapshot
 				switch {
 				case d.Banned:
 					rec.WorkshopGone = true
-				case d.Result != 1:
+				case steamapi.EResult(d.Result).IsDeleted():
+					// Only the keyed API says this (the free one folds it into "not
+					// found"), and it is Steam's own word: the item was deleted.
+					rec.WorkshopGone = true
+				case d.Result == int(steamapi.ResultOK):
+					// Returned in full - even an unlisted item, which the free API cannot
+					// return but which is alive.
+				case !NeedsPageCheck(d):
+					// A busy or failing Steam, a rate limit: nothing is known about the
+					// item, so what was known before stays.
+					rec.WorkshopGone = hadOld && old.WorkshopGone
+				default:
 					if live, checked := ws.PageLive[m.RemoteFileID]; checked {
 						rec.WorkshopGone = !live
 					} else {
@@ -88,4 +99,15 @@ func Build(mods []ModInput, ws Workshop, prev *Snapshot, now time.Time) Snapshot
 		snap.Mods[m.ID] = rec
 	}
 	return snap
+}
+
+// NeedsPageCheck says whether an item's own Workshop page has to be looked at to
+// know what became of it: Steam answered something other than success, and not
+// with a verdict of its own (banned, deleted) or a sign that Steam itself was
+// unwell (a timeout, a busy service, a rate limit - see steamapi.EResult). "Not
+// found" is the case this is for: the free API says it for unlisted items whose
+// page is up, so it proves nothing on its own.
+func NeedsPageCheck(d steamapi.PublishedFileDetails) bool {
+	r := steamapi.EResult(d.Result)
+	return !d.Banned && !r.IsOK() && !r.IsDeleted() && !r.IsTransient() && !r.IsRateLimit()
 }

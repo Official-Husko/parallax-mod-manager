@@ -2,9 +2,12 @@
 // (ISteamRemoteStorage/GetPublishedFileDetails) and Store app details
 // (store.steampowered.com/api/appdetails) - both unauthenticated, no API
 // key needed, confirmed by direct real requests during development (see
-// docs/steam-web-api.md). This is the only package in this project that
-// makes outbound network calls to a third party; everything else works
-// entirely from local files.
+// docs/steam-web-api.md). Workshop metadata can also be fetched with the
+// user's own Steam Web API key (IPublishedFileService/GetDetails, see keyed.go
+// and Service), which returns items the free endpoint cannot, such as unlisted
+// ones. Apart from the optional GitHub background images, this is the only
+// package in this project that makes outbound network calls to a third party;
+// everything else works entirely from local files.
 package steamapi
 
 import (

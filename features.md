@@ -128,6 +128,10 @@ for security, privacy, reliability or performance is called out (see the last tw
 
 - **No account, no telemetry** - the only outside services are Steam (Workshop and Store data) and, for
   online backgrounds only, GitHub. The About page itself makes no network requests.
+- **Steam API key kept encrypted** - if you enter a Steam Web API key (optional), it is checked with
+  Steam before it is saved, encrypted with a key derived from your computer so the settings file is
+  useless on any other machine, never shown again, never written to the activity log, and deleted from
+  the file when you choose Free API use only.
 - **Nothing is uploaded** - the activity log stays on your computer.
 - **Your data is written safely** - settings, playsets and caches are written to a temporary file and
   renamed into place, so a crash never leaves a half-written file; a playset that fails to load is an

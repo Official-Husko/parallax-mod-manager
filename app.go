@@ -135,6 +135,10 @@ type App struct {
 	// workshopDetails holds real Steam Workshop metadata in memory for the
 	// app's runtime - see library.WorkshopDetailsCache. Zero-value usable.
 	workshopDetails library.WorkshopDetailsCache
+	// steam is the optional Steam Web API key and the service that decides which
+	// Steam API answers Workshop details - see steamapi_settings.go. Set up by
+	// initSteamAPI in startup.
+	steam steamAPIState
 	// authorProfiles holds real Steam Community profiles for Workshop mod
 	// authors in memory for the app's runtime - see
 	// library.AuthorProfileCache. Zero-value usable.
@@ -205,6 +209,7 @@ func (a *App) startup(ctx context.Context) {
 		a.patchThumbnailPath = filepath.Join(configDir, "parallax-mod-manager", "patch_thumbnail.png")
 		a.configAppDir = filepath.Join(configDir, "parallax-mod-manager")
 	}
+	a.initSteamAPI(a.configAppDir)
 
 	mediaFS, err := fs.Sub(embeddedGameMedia, "data/game_media")
 	if err == nil {

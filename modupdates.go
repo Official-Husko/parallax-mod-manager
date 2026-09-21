@@ -116,7 +116,7 @@ func (a *App) workshopState(gameID string, cfg game.GameConfig, mods []mod.Mod, 
 func (a *App) confirmWorkshopPages(details map[string]steamapi.PublishedFileDetails) map[string]bool {
 	var ids []string
 	for id, d := range details {
-		if d.Result != 1 && !d.Banned {
+		if modupdates.NeedsPageCheck(d) {
 			ids = append(ids, id)
 		}
 	}

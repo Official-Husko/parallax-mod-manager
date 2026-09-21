@@ -126,3 +126,63 @@ func TestBuildBannedIsGoneWithoutAPageCheck(t *testing.T) {
 		t.Errorf("record = %+v, want gone: Steam flags it banned", r)
 	}
 }
+
+func TestBuildItemDeletedIsGoneWithoutAPageCheck(t *testing.T) {
+	// Result 86 (ItemDeleted) is Steam's own verdict, which only the keyed API gives.
+	mods := []ModInput{{ID: "ugc_1", Source: SourceWorkshop, RemoteFileID: "1"}}
+	ws := Workshop{OK: true, Details: map[string]steamapi.PublishedFileDetails{"1": {Result: 86}}}
+	r := Build(mods, ws, nil, t0).Mods["ugc_1"]
+	if !r.WorkshopGone || r.GoneSince != t0.Unix() {
+		t.Errorf("record = %+v, want gone since now", r)
+	}
+}
+
+func TestBuildAnUnlistedItemTheKeyReturnedIsAliveAndDated(t *testing.T) {
+	// What the keyed API returns for the unlisted item 2780180614: result 1, visibility 3.
+	prev := snap(1, map[string]Record{"ugc_1": {Source: SourceWorkshop, RemoteFileID: "1", WorkshopGone: true, GoneSince: 9}})
+	mods := []ModInput{{ID: "ugc_1", Source: SourceWorkshop, RemoteFileID: "1"}}
+	ws := Workshop{OK: true, Details: map[string]steamapi.PublishedFileDetails{"1": {Result: 1, Visibility: 3, TimeUpdated: 1730223116}}}
+	r := Build(mods, ws, &prev, t0).Mods["ugc_1"]
+	if r.WorkshopGone || r.WorkshopUpdated != 1730223116 {
+		t.Errorf("record = %+v, want alive with its update date", r)
+	}
+}
+
+func TestBuildSteamBeingUnwellSaysNothingAboutTheItem(t *testing.T) {
+	prev := snap(1, map[string]Record{"ugc_1": {Source: SourceWorkshop, RemoteFileID: "1", WorkshopUpdated: 300}})
+	mods := []ModInput{{ID: "ugc_1", Source: SourceWorkshop, RemoteFileID: "1"}}
+	for _, code := range []int{2, 3, 10, 16, 20, 25, 35, 55, 84} {
+		ws := Workshop{OK: true, Details: map[string]steamapi.PublishedFileDetails{"1": {Result: code}}}
+		r := Build(mods, ws, &prev, t0).Mods["ugc_1"]
+		if r.WorkshopGone || r.WorkshopUpdated != 300 {
+			t.Errorf("result %d: record = %+v, want not gone and the last date kept", code, r)
+		}
+	}
+	// ...and an earlier confirmed deletion is not undone by a busy Steam either.
+	gone := snap(1, map[string]Record{"ugc_1": {Source: SourceWorkshop, RemoteFileID: "1", WorkshopGone: true, GoneSince: 9}})
+	ws := Workshop{OK: true, Details: map[string]steamapi.PublishedFileDetails{"1": {Result: 10}}}
+	if r := Build(mods, ws, &gone, t0).Mods["ugc_1"]; !r.WorkshopGone || r.GoneSince != 9 {
+		t.Errorf("record = %+v, want the earlier deletion kept", r)
+	}
+}
+
+func TestNeedsPageCheck(t *testing.T) {
+	cases := []struct {
+		d    steamapi.PublishedFileDetails
+		want bool
+	}{
+		{steamapi.PublishedFileDetails{Result: 1}, false},
+		{steamapi.PublishedFileDetails{Result: 9}, true},
+		{steamapi.PublishedFileDetails{Result: 42}, true},
+		{steamapi.PublishedFileDetails{Result: 15}, true},
+		{steamapi.PublishedFileDetails{Result: 86}, false},
+		{steamapi.PublishedFileDetails{Result: 9, Banned: true}, false},
+		{steamapi.PublishedFileDetails{Result: 16}, false},
+		{steamapi.PublishedFileDetails{Result: 84}, false},
+	}
+	for _, tc := range cases {
+		if got := NeedsPageCheck(tc.d); got != tc.want {
+			t.Errorf("NeedsPageCheck(result %d, banned %v) = %v, want %v", tc.d.Result, tc.d.Banned, got, tc.want)
+		}
+	}
+}

@@ -3,6 +3,7 @@ package library
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 
 	"github.com/Official-Husko/parallax-mod-manager/internal/game"
 	"github.com/Official-Husko/parallax-mod-manager/internal/mod"
@@ -21,6 +22,28 @@ type WorkshopDetailsCache struct {
 	// field rather than a direct call so tests can substitute a fake that
 	// never makes a real network request.
 	fetch func(ctx context.Context, ids []string) (map[string]steamapi.PublishedFileDetails, error)
+	// epoch is bumped by Forget without taking mu (a fetch in flight holds it for
+	// the whole network round trip); seen is the epoch byID belongs to. When they
+	// differ, what is remembered predates the Forget and is dropped.
+	epoch atomic.Uint64
+	seen  uint64
+}
+
+// SetFetch replaces the function used to fetch details from Steam - how the
+// optional Steam API key service (steamapi.Service) is put in front of the free
+// endpoint. nil restores the default (steamapi.GetPublishedFileDetails).
+func (c *WorkshopDetailsCache) SetFetch(fetch func(ctx context.Context, ids []string) (map[string]steamapi.PublishedFileDetails, error)) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.fetch = fetch
+}
+
+// Forget drops everything remembered, so the next Get asks Steam again - for when
+// how Steam is asked changed (a key was saved or removed) and what was fetched the
+// old way, an unlisted item's empty "not found" answer for one, is stale. It never
+// waits for a fetch in flight; that fetch's results are simply not kept.
+func (c *WorkshopDetailsCache) Forget() {
+	c.epoch.Add(1)
 }
 
 // Get returns real Steam Workshop metadata for every one of cfg's
@@ -56,8 +79,9 @@ func (c *WorkshopDetailsCache) get(ctx context.Context, cfg game.GameConfig, opt
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.byID == nil {
+	if e := c.epoch.Load(); c.byID == nil || e != c.seen {
 		c.byID = map[string]steamapi.PublishedFileDetails{}
+		c.seen = e
 	}
 
 	missing := make([]string, 0, len(ids))
@@ -74,6 +98,19 @@ func (c *WorkshopDetailsCache) get(ctx context.Context, cfg game.GameConfig, opt
 		fetched, err := fetch(ctx, missing)
 		if err != nil {
 			return nil, err
+		}
+		if c.epoch.Load() != c.seen {
+			// Forget was called while this fetch was running: it was asked the old
+			// way, so use it for this call but do not keep it.
+			out := make(map[string]steamapi.PublishedFileDetails, len(ids))
+			for _, id := range ids {
+				if d, ok := fetched[id]; ok {
+					out[id] = d
+				} else if d, ok := c.byID[id]; ok {
+					out[id] = d
+				}
+			}
+			return out, nil
 		}
 		for id, d := range fetched {
 			c.byID[id] = d

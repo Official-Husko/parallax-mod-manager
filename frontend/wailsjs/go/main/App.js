@@ -42,6 +42,10 @@ export function CheckModUpdates(arg1, arg2) {
   return window['go']['main']['App']['CheckModUpdates'](arg1, arg2);
 }
 
+export function CheckSteamAPIKey() {
+  return window['go']['main']['App']['CheckSteamAPIKey']();
+}
+
 export function ClearGamePath(arg1) {
   return window['go']['main']['App']['ClearGamePath'](arg1);
 }
@@ -202,6 +206,10 @@ export function SavePlayset(arg1) {
   return window['go']['main']['App']['SavePlayset'](arg1);
 }
 
+export function SaveSteamAPIKey(arg1, arg2) {
+  return window['go']['main']['App']['SaveSteamAPIKey'](arg1, arg2);
+}
+
 export function ScanGame(arg1, arg2) {
   return window['go']['main']['App']['ScanGame'](arg1, arg2);
 }
@@ -226,12 +234,20 @@ export function SetPreferences(arg1) {
   return window['go']['main']['App']['SetPreferences'](arg1);
 }
 
+export function SetSteamAPIMode(arg1) {
+  return window['go']['main']['App']['SetSteamAPIMode'](arg1);
+}
+
 export function StartBackgroundDownload(arg1) {
   return window['go']['main']['App']['StartBackgroundDownload'](arg1);
 }
 
 export function StartupNotice() {
   return window['go']['main']['App']['StartupNotice']();
+}
+
+export function SteamAPIStatus() {
+  return window['go']['main']['App']['SteamAPIStatus']();
 }
 
 export function StopGame(arg1) {

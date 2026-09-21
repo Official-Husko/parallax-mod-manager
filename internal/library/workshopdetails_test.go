@@ -158,3 +158,76 @@ func TestWorkshopDetailsCacheGetFreshAsksSteamAgain(t *testing.T) {
 		t.Errorf("Get after GetFresh = %d, want the refreshed 200 remembered", after["111"].TimeUpdated)
 	}
 }
+
+func TestWorkshopDetailsCacheSetFetchReplacesTheFetcher(t *testing.T) {
+	modDir := t.TempDir()
+	writeWorkshopMod(t, modDir, "111")
+
+	c := &WorkshopDetailsCache{}
+	c.SetFetch(func(ctx context.Context, ids []string) (map[string]steamapi.PublishedFileDetails, error) {
+		return map[string]steamapi.PublishedFileDetails{"111": {ID: "111", Title: "from the service", Result: 1}}, nil
+	})
+	got, err := c.Get(context.Background(), testGameConfig(), Options{ModDir: modDir})
+	if err != nil || got["111"].Title != "from the service" {
+		t.Errorf("got = %+v, err = %v", got, err)
+	}
+}
+
+func TestWorkshopDetailsCacheForgetMakesTheNextGetAskAgain(t *testing.T) {
+	modDir := t.TempDir()
+	writeWorkshopMod(t, modDir, "111")
+
+	answer := "not found"
+	fetchCount := 0
+	c := &WorkshopDetailsCache{}
+	c.SetFetch(func(ctx context.Context, ids []string) (map[string]steamapi.PublishedFileDetails, error) {
+		fetchCount++
+		return map[string]steamapi.PublishedFileDetails{"111": {ID: "111", Title: answer}}, nil
+	})
+	if got, _ := c.Get(context.Background(), testGameConfig(), Options{ModDir: modDir}); got["111"].Title != "not found" {
+		t.Fatalf("first = %+v", got)
+	}
+	answer = "found with the key"
+	if got, _ := c.Get(context.Background(), testGameConfig(), Options{ModDir: modDir}); got["111"].Title != "not found" || fetchCount != 1 {
+		t.Fatalf("before Forget the cache should still answer from memory: %+v (fetches %d)", got, fetchCount)
+	}
+	c.Forget()
+	got, _ := c.Get(context.Background(), testGameConfig(), Options{ModDir: modDir})
+	if got["111"].Title != "found with the key" || fetchCount != 2 {
+		t.Errorf("after Forget: %+v (fetches %d), want a fresh fetch", got, fetchCount)
+	}
+}
+
+func TestWorkshopDetailsCacheForgetDuringAFetchDoesNotBlockOrKeepTheOldAnswer(t *testing.T) {
+	modDir := t.TempDir()
+	writeWorkshopMod(t, modDir, "111")
+
+	started := make(chan struct{})
+	release := make(chan struct{})
+	calls := 0
+	c := &WorkshopDetailsCache{}
+	c.SetFetch(func(ctx context.Context, ids []string) (map[string]steamapi.PublishedFileDetails, error) {
+		calls++
+		if calls == 1 {
+			close(started)
+			<-release
+			return map[string]steamapi.PublishedFileDetails{"111": {ID: "111", Title: "old way"}}, nil
+		}
+		return map[string]steamapi.PublishedFileDetails{"111": {ID: "111", Title: "new way"}}, nil
+	})
+
+	done := make(chan map[string]steamapi.PublishedFileDetails)
+	go func() {
+		got, _ := c.Get(context.Background(), testGameConfig(), Options{ModDir: modDir})
+		done <- got
+	}()
+	<-started
+	c.Forget() // must return at once although the fetch above holds the cache's lock
+	close(release)
+	if got := <-done; got["111"].Title != "old way" {
+		t.Errorf("the call in flight should still get its own answer, got %+v", got)
+	}
+	if got, _ := c.Get(context.Background(), testGameConfig(), Options{ModDir: modDir}); got["111"].Title != "new way" {
+		t.Errorf("the old answer was kept after Forget: %+v", got)
+	}
+}

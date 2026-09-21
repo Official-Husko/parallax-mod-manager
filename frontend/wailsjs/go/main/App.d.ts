@@ -35,6 +35,8 @@ export function CheckGameUpdates():Promise<Array<library.GameUpdate>>;
 
 export function CheckModUpdates(arg1:string,arg2:boolean):Promise<modupdates.Report>;
 
+export function CheckSteamAPIKey():Promise<main.SteamAPIStatus>;
+
 export function ClearGamePath(arg1:string):Promise<library.DetectedGame>;
 
 export function ClearLog():Promise<void>;
@@ -115,6 +117,8 @@ export function SaveCollection(arg1:collection.Collection):Promise<void>;
 
 export function SavePlayset(arg1:playset.Playset):Promise<void>;
 
+export function SaveSteamAPIKey(arg1:string,arg2:string):Promise<main.SteamAPIStatus>;
+
 export function ScanGame(arg1:string,arg2:string):Promise<library.Summary>;
 
 export function SetConflictResolved(arg1:string,arg2:string,arg3:string,arg4:boolean):Promise<void>;
@@ -127,9 +131,13 @@ export function SetPatchOverride(arg1:string,arg2:string,arg3:string,arg4:string
 
 export function SetPreferences(arg1:preferences.Preferences):Promise<void>;
 
+export function SetSteamAPIMode(arg1:string):Promise<main.SteamAPIStatus>;
+
 export function StartBackgroundDownload(arg1:Array<string>):Promise<void>;
 
 export function StartupNotice():Promise<string>;
+
+export function SteamAPIStatus():Promise<main.SteamAPIStatus>;
 
 export function StopGame(arg1:string):Promise<number>;
 

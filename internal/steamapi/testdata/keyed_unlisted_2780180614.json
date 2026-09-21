@@ -1,0 +1,84 @@
+{
+ "response": {
+  "publishedfiledetails": [
+   {
+    "result": 1,
+    "publishedfileid": "2780180614",
+    "creator": "76561198092064326",
+    "creator_appid": 281990,
+    "consumer_appid": 281990,
+    "consumer_shortcutid": 0,
+    "filename": "",
+    "file_size": "261157",
+    "preview_file_size": "240408",
+    "preview_url": "https://images.steamusercontent.com/ugc/1829030636939815754/E189BC5113F5DBD26024BCC723BCD8D39C042702/",
+    "url": "",
+    "hcontent_file": "9215042440569310672",
+    "hcontent_preview": "1829030636939815754",
+    "title": "OUTDATED Cross Border Trade",
+    "file_description": "This mod will not be updated for Stellaris 4.0. Trade is fundamentally different now, and this mod no longer fits the game well. If you disagree, you are free to fork, update, and re-upload.\r\n\r\nBorders produce trade value!\r\n\r\nCommercial pacts too static? Shouldn't smaller empires benefit more from trading with bigger empires? This mod aims to address both of these questions.\r\n\r\nBorders with Commercial Pacts produce dynamic Trade Value, which needs to be collected like other Trade Value. Bigger borders produce more Trade Value, and trading with bigger trade network gives you a bonus. The value will fluctuate with time and the fate of your neighbors.\r\n\r\n[h1]Details[/h1]\r\nAnother country is considered a trading partner if you have a Commercial Pact with them, they are your overlord, they are your subject, you share the same overlord, or you are members of the same federation. Gestalt empires, inward perfectionists, fallen empires, and the great khan are excluded.\r\n\r\nEach system gets 2/5/10/20 Trade Value (depending on tech: none/Offworld Trade Companies/Interstellar Economics/Galactic Markets) added to its star, per bordering system owned by a trading partner, affected by the following bonuses:\r\n[list]\r\n  [*] Proportional bonus for trading with a bigger network\r\n  [*] Long-term bonus +1% trade value per year, reaching a maximum of +200% after 200 years.\r\n  [*] +100% bonus if hyper relays connect across the border, and both are connected to their owners' capitals\r\n  [*] Bonus equal to your empire's Commercial Pact Efficiency modifier\r\n[/list]\r\n\r\nBorder Trade Value is updated only at the start of each month, and when a Commercial Pact is formed. That means changes to borders, canceled Commercial Pacts, etc will not update Trade Value until the next month.\r\n\r\nThis does not modify the vanilla bonuses from Commercial Pacts; border trade value is in addition to vanilla effects.\r\n\r\n[h1]Compatibility[/h1]\r\n[list]\r\n  [*] For Stellaris 3.14.*\r\n  [*] NOT achievement compatible\r\n  [*] Can be added to an existing game\r\n  [*] Can be removed from an existing game. You might see \"empty\" modifiers on stars\r\n  [*] Should be compatible with all other mods, unless they remove vanilla trade tech, which is very rare except for total conversion mods. The follow total conversions are currently supported:\r\n  [list]\r\n    [*] Star Wars: Legacy of the Old Republic\r\n    [*] Star Wars: New Dawn\r\n    [*] Star Trek: New Civilizations\r\n  [/list]\r\n[/list]\r\n\r\n[h1]Credits[/h1]\r\n[list]\r\n [*] Thanks to tzverg for the Russian translation!\r\n [*] Thanks to Root for the Japanese translation!\r\n [*] Thanks to Kucige for the German translation!\r\n [*] Thanks to Cerodan for the French translation!\r\n[/list]\r\n\r\n[h1]Sharing[/h1]\r\nFeel free to update, pack, patch, translate, fork, or incorporate this mod, no prior permission required. Credit, linking to the original mod, and letting me know is appreciated!\r\n\r\n[url=https://discord.gg/bHVez2C][img]https://i.imgur.com/4Und3QN.png[/img][/url]\r\nCome chat in #oatmeal-mods",
+    "time_created": 1647486579,
+    "time_updated": 1730223116,
+    "visibility": 3,
+    "flags": 5632,
+    "workshop_file": false,
+    "workshop_accepted": false,
+    "show_subscribe_all": false,
+    "num_comments_public": 170,
+    "banned": false,
+    "ban_reason": "",
+    "banner": "76561197960265728",
+    "can_be_deleted": true,
+    "app_name": "Stellaris",
+    "file_type": 0,
+    "can_subscribe": true,
+    "subscriptions": 25839,
+    "favorited": 2473,
+    "followers": 0,
+    "lifetime_subscriptions": 78565,
+    "lifetime_favorited": 3167,
+    "lifetime_followers": 0,
+    "lifetime_playtime": "0",
+    "lifetime_playtime_sessions": "0",
+    "views": 84577,
+    "num_children": 0,
+    "num_reports": 0,
+    "previews": [
+     {
+      "previewid": "28788377",
+      "sortorder": 1,
+      "url": "https://images.steamusercontent.com/ugc/1750232228707132374/2F299F5896E5A551151A166B6C7251FF8639503A/",
+      "size": 149495,
+      "filename": "Screenshot from 2022-08-26 11-13-02.png",
+      "preview_type": 0
+     }
+    ],
+    "tags": [
+     {
+      "tag": "Diplomacy",
+      "display_name": "Diplomacy"
+     },
+     {
+      "tag": "Economy",
+      "display_name": "Economy"
+     },
+     {
+      "tag": "Gameplay",
+      "display_name": "Gameplay"
+     }
+    ],
+    "vote_data": {
+     "score": 0.9382199048995972,
+     "votes_up": 846,
+     "votes_down": 9
+    },
+    "language": 0,
+    "maybe_inappropriate_sex": false,
+    "maybe_inappropriate_violence": false,
+    "revision_change_number": "31",
+    "revision": 1,
+    "ban_text_check_result": 5
+   }
+  ]
+ }
+}
