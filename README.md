@@ -740,6 +740,15 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   steadily lit instead. Checked by a unit test of the comparison (15 cases) and the real Workspace in a headless browser
   (blinking and a really changing glow, tooltips, save and reorder and remove, a playset loaded at startup, clear, a mod
   vanishing from disk, reduced motion).
+- **Settings changed in Settings are no longer undone by the workspace or the game switcher** (`frontend/src/data/preferencesPatch.ts`,
+  `Workspace.tsx`, `app.tsx`) - the settings are saved as one whole object, so any part of the interface that held an old copy and
+  saved it wrote every setting back as it was when that copy was read. Found in a real log: a slider moved in Settings was saved,
+  and a few minutes later loading a playset saved the workspace's copy from when it opened, putting the old values back in one
+  write (the log line named exactly the two settings that had been moved). Remembering the active playset and remembering the
+  selected game now read the current settings, change only their own entry (for the per-game playset map, on top of the current
+  map) and save, one change at a time in the order asked for, so a change made elsewhere in between is kept. Checked with a
+  test of the helper against a fake settings store (an old copy cannot undo a newer change, a per-game map keeps the other
+  game's entry, three simultaneous changes all apply, a failed save neither hides nor blocks the next).
 - **Notifications float over the page instead of pushing it down** (`frontend/src/components/NotificationStack.tsx`,
   `NotificationStack.css`) - the toast stack used to take room in the layout, between the top bar and the view, so every
   message pushed the whole view down and back up again as it came and went. It now floats over the page from the top bar's

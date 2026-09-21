@@ -18,7 +18,6 @@ import {
     SavePlayset,
     ScanGame,
     SetModIncompatibilityIgnored,
-    SetPreferences,
     StopGame,
     WatchMods,
     BackupMod,
@@ -48,6 +47,7 @@ import {tip} from '../data/tooltip';
 import {colorFromName} from '../data/nameColor';
 import {listEditedSinceScan, liveConflicts} from '../data/liveConflicts';
 import {hasUnsavedChanges} from '../data/playsetDirty';
+import {patchPreferences} from '../data/preferencesPatch';
 import {domainLegendTip, domainTip, flagLegendTip, modFlagsTip} from '../components/FlagTips';
 import {TipItem} from '../components/Tooltip';
 import {UpdatesCard} from '../components/UpdatesCard';
@@ -273,10 +273,12 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
     // loaded yet - worse case is simply not auto-loading next time, not a
     // lost setting, so this never blocks the save/load it's attached to.
     function rememberActivePlayset(name: string) {
-        if (!prefs) return;
-        const next = {...prefs, lastActivePlaysets: {...prefs.lastActivePlaysets, [selectedGame]: name}};
-        setPrefs(next);
-        SetPreferences(next).catch(() => undefined);
+        // Built on the current settings, not this view's copy: that was read when the view
+        // mounted and would put back whatever Settings changed since (see preferencesPatch).
+        const game = selectedGame;
+        patchPreferences((current) => ({lastActivePlaysets: {...current.lastActivePlaysets, [game]: name}}))
+            .then(setPrefs)
+            .catch(() => undefined);
     }
 
     // refreshMods re-fetches the mod summary for the current game.

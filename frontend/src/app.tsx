@@ -12,6 +12,7 @@ import {ensureModUpdates} from './data/modUpdates';
 import {Tooltip} from './components/Tooltip';
 import {AppBackground} from './components/AppBackground';
 import {DEFAULT_BACKGROUND_BLUR, DEFAULT_BACKGROUND_DARKEN} from './data/backgroundLook';
+import {patchPreferences} from './data/preferencesPatch';
 import {dismiss, notify} from './data/notifications';
 import {displayVersion} from './data/versionCompat';
 import {Workspace} from './views/Workspace';
@@ -253,11 +254,9 @@ export function App() {
 
     function selectGame(id: string) {
         setSelectedGame(id);
-        if (prefs) {
-            const next = {...prefs, lastSelectedGame: id};
-            setPrefs(next);
-            SetPreferences(next).catch(() => undefined);
-        }
+        // Only the game changes: writing this component's whole copy of the settings back would
+        // undo whatever Settings changed since it was read (see data/preferencesPatch.ts).
+        patchPreferences({lastSelectedGame: id}).then(setPrefs).catch(() => undefined);
     }
 
     const accent = useGameAccent(onboarded ? selectedGame : '');
