@@ -711,6 +711,23 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   while the app is open, a failing folder not retried at once, a descriptor trying to escape the folder), and the panel,
   toasts, flags and right-click entry in a headless browser. See [docs/backups.md](docs/backups.md) for the design,
   what it cannot save, and the notes on compression.
+- **A start-up report at the top of the activity log** (`internal/sysinfo`, `systemlog.go`, `applog.Logger.Pin`) - the first
+  lines of every run say what the rest of the log is about, so a bug report needs less asking: the build (version, commit,
+  Go and Wails), the operating system and kernel, the session (Wayland or X11) and desktop, the webview (WebKitGTK or
+  WebView2), the CPU and its threads, memory (total and available), the graphics card and its driver, operating-system limits
+  that matter (how many folders may be watched), the app's settings and cache folders with their free space, the Steam
+  installations found, the Steam API mode (never the key), the backup settings and folder, the settings that change behaviour,
+  and each installed game with its version, install folder, launch mode and mod folder. They are written under the component
+  **System**, pinned so they stay at the top of the log view however long the run gets, and repeated at the start of every
+  session in `app.log`. Everything is read from files the operating system already keeps (or the registry, or sysctl), with no
+  process spawned and no network call - about 10 ms here - and each line is optional, so a missing source only leaves its
+  line out. Nothing identifying is collected: no computer or user name, serial number, address, machine id, Steam key or
+  account id. It only goes into the local log; when sharing a log is built, the option to include computer details governs
+  these lines (see [docs/log-sharing.md](docs/log-sharing.md)). The Windows and macOS readers are compiled but not yet run
+  on those systems, and macOS leaves the graphics card out. Tested against a made-up Linux machine (a whole report, a
+  machine with nothing readable, junk in every file, session fallbacks, the PCI name lookup, ARM processors, a check that no
+  hostname, machine id or user name is read), the real machine, the App's report lines, and the pinning (the report survives
+  the log filling up).
 - **The rest of the design mockup's screens** (`frontend/src/views/Library.tsx`,
   `PlaysetsModal.tsx`) - a faithful, fully navigable visual preview of the
   mockup's cross-game library, built from the mockup's own example content.

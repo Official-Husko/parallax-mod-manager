@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -119,8 +120,11 @@ const DefaultCapacity = 2000
 
 // Hub collects log lines. The zero value is not usable; use New.
 type Hub struct {
-	mu       sync.Mutex
-	ring     []Entry
+	mu   sync.Mutex
+	ring []Entry
+	// pinned are lines kept for the whole run whatever else is logged (see Logger.Pin):
+	// the start-up report that says what machine and build the rest of the log is about.
+	pinned   []Entry
 	start    int // index of the oldest line in ring
 	count    int
 	seq      int64
@@ -195,11 +199,26 @@ func (h *Hub) Close() {
 	}
 }
 
-// Entries returns a copy of every line still in memory, oldest first.
+// Entries returns a copy of every line still in memory, oldest first: the most recent
+// lines the ring holds, plus the pinned ones however long ago they were logged.
 func (h *Hub) Entries() []Entry {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	out := make([]Entry, 0, h.count)
+	out := make([]Entry, 0, h.count+len(h.pinned))
+	if len(h.pinned) > 0 {
+		pinned := make(map[int64]bool, len(h.pinned))
+		for _, e := range h.pinned {
+			pinned[e.Seq] = true
+		}
+		out = append(out, h.pinned...)
+		for i := 0; i < h.count; i++ {
+			if e := h.ring[(h.start+i)%len(h.ring)]; !pinned[e.Seq] {
+				out = append(out, e)
+			}
+		}
+		sort.Slice(out, func(i, j int) bool { return out[i].Seq < out[j].Seq })
+		return out
+	}
 	for i := 0; i < h.count; i++ {
 		out = append(out, h.ring[(h.start+i)%len(h.ring)])
 	}
@@ -211,6 +230,7 @@ func (h *Hub) Entries() []Entry {
 func (h *Hub) Clear() {
 	h.mu.Lock()
 	h.start, h.count = 0, 0
+	h.pinned = nil
 	h.mu.Unlock()
 }
 
@@ -233,6 +253,14 @@ func (h *Hub) Subscribe(fn func(Entry)) (cancel func()) {
 
 // Log records one line. duration is only shown when timed is true.
 func (h *Hub) Log(level Level, component, message string, timed bool, duration time.Duration) {
+	h.log(level, component, message, timed, duration, false)
+}
+
+// maxPinned bounds how many lines can be pinned: it is for a short header, not a
+// second log.
+const maxPinned = 64
+
+func (h *Hub) log(level Level, component, message string, timed bool, duration time.Duration, pin bool) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if level < h.minLevel {
@@ -247,6 +275,9 @@ func (h *Hub) Log(level Level, component, message string, timed bool, duration t
 		Message:    oneLine(message),
 		Timed:      timed,
 		DurationMs: duration.Milliseconds(),
+	}
+	if pin && len(h.pinned) < maxPinned {
+		h.pinned = append(h.pinned, e)
 	}
 	if h.count < len(h.ring) {
 		h.ring[(h.start+h.count)%len(h.ring)] = e
@@ -295,6 +326,17 @@ func cleanComponent(c string) string {
 type Logger struct {
 	hub       *Hub
 	component string
+	pin       bool
+}
+
+// Pin returns a logger whose lines are kept for the whole run: they stay in the log
+// view however many lines follow, where an ordinary line is dropped once the log has
+// grown past its capacity. For the few lines that explain the rest of the log (what
+// machine and build it is from) - at most 64 lines are kept this way, and Clear forgets
+// them with everything else. The file gets every line either way.
+func (l Logger) Pin() Logger {
+	l.pin = true
+	return l
 }
 
 // For returns a logger on h tagging every line with component.
@@ -305,7 +347,7 @@ func (l Logger) log(level Level, format string, args []any) {
 	if len(args) > 0 {
 		msg = fmt.Sprintf(format, args...)
 	}
-	l.hub.Log(level, l.component, msg, false, 0)
+	l.hub.log(level, l.component, msg, false, 0, l.pin)
 }
 
 // Debugf, Infof, Warnf and Errorf log a formatted line at that level. With no

@@ -200,6 +200,8 @@ func (a *App) startup(ctx context.Context) {
 	a.initLogging(ctx)
 	build := about.Collect(AppName, AppVersion)
 	applog.For("App").Infof("%s %s starting (go %s, %s/%s, %d CPUs)", AppName, AppVersion, build.GoVersion, build.OS, build.Arch, runtime.NumCPU())
+	// What the rest of the log is about: the build and the computer, pinned to the top.
+	a.logSystemReport(build)
 	if notice != "" {
 		applog.For("Games").Warnf("%s", notice)
 	}
@@ -232,6 +234,9 @@ func (a *App) startup(ctx context.Context) {
 	} else {
 		a.preferences = preferences.Defaults()
 	}
+
+	// The app's own surroundings and settings, once they are all loaded.
+	go a.logEnvironmentReport()
 }
 
 // shutdown is called when the app is closing, before the runtime exits.

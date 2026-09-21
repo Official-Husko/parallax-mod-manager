@@ -200,3 +200,82 @@ func TestDefaultHubIsUsableWithoutSetup(t *testing.T) {
 		t.Error("the package-level logger must work with no setup")
 	}
 }
+
+func TestPinnedLinesSurviveTheRingFillingUp(t *testing.T) {
+	h := New(5)
+	head := h.For("System").Pin()
+	head.Infof("OS: test")
+	head.Infof("CPU: test")
+	other := h.For("Scan")
+	for i := 0; i < 20; i++ {
+		other.Infof("line %d", i)
+	}
+	entries := h.Entries()
+	if len(entries) != 7 {
+		t.Fatalf("got %d entries, want the 2 pinned and the newest 5", len(entries))
+	}
+	if entries[0].Message != "OS: test" || entries[1].Message != "CPU: test" || entries[2].Message != "line 15" || entries[6].Message != "line 19" {
+		t.Errorf("entries = %+v", entries)
+	}
+	for i := 1; i < len(entries); i++ {
+		if entries[i].Seq <= entries[i-1].Seq {
+			t.Errorf("entries are not in order: %d then %d", entries[i-1].Seq, entries[i].Seq)
+		}
+	}
+}
+
+func TestPinnedLinesAreNotDuplicatedWhileTheRingStillHoldsThem(t *testing.T) {
+	h := New(50)
+	h.For("System").Pin().Infof("OS: test")
+	h.For("Scan").Infof("scanning")
+	entries := h.Entries()
+	if len(entries) != 2 || entries[0].Message != "OS: test" || entries[1].Message != "scanning" {
+		t.Errorf("entries = %+v, want each line once, in order", entries)
+	}
+}
+
+func TestClearForgetsPinnedLinesAndOnlyOrdinaryLinesArePinnedByPin(t *testing.T) {
+	h := New(3)
+	h.For("System").Pin().Infof("kept")
+	h.For("Scan").Infof("ordinary")
+	for i := 0; i < 10; i++ {
+		h.For("Scan").Infof("more %d", i)
+	}
+	for _, e := range h.Entries() {
+		if e.Message == "ordinary" {
+			t.Error("an ordinary line was pinned")
+		}
+	}
+	h.Clear()
+	if got := h.Entries(); len(got) != 0 {
+		t.Errorf("after Clear: %+v", got)
+	}
+}
+
+func TestPinnedLinesStillGoToTheFileAndSubscribers(t *testing.T) {
+	h := New(5)
+	var got []string
+	cancel := h.Subscribe(func(e Entry) { got = append(got, e.Message) })
+	defer cancel()
+	h.For("System").Pin().Infof("hello")
+	if len(got) != 1 || got[0] != "hello" {
+		t.Errorf("subscriber saw %v", got)
+	}
+}
+
+func TestOnlyAShortHeaderCanBePinned(t *testing.T) {
+	h := New(2)
+	p := h.For("System").Pin()
+	for i := 0; i < 200; i++ {
+		p.Infof("line %d", i)
+	}
+	pinned := 0
+	for _, e := range h.Entries() {
+		if e.Component == "System" {
+			pinned++
+		}
+	}
+	if pinned > maxPinned+2 {
+		t.Errorf("%d pinned lines, want at most %d (plus what the ring holds)", pinned, maxPinned)
+	}
+}

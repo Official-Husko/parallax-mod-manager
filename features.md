@@ -135,6 +135,9 @@ for security, privacy, reliability or performance is called out (see the last tw
 
 - **Activity log** - a live, colored, filterable log of what the app is doing, also kept in a rotating
   file for bug reports.
+- **Start-up report in the log** - the top of every log says which build and which computer it is about (operating
+  system, session, webview, CPU, memory, graphics card and driver), plus the app's folders, Steam, key settings and the
+  games found, so a bug report needs less asking. It stays pinned at the top of the log however long the run gets.
 - **About page** - version, commit, platform and where your settings, cache and logs live, with
   buttons to open them.
 - **Licence in the app** - the full non-commercial licence, readable inside the About page.
@@ -161,6 +164,8 @@ for security, privacy, reliability or performance is called out (see the last tw
   Steam before it is saved, encrypted with a key derived from your computer so the settings file is
   useless on any other machine, never shown again, never written to the activity log, and deleted from
   the file when you choose Free API use only.
+- **The start-up report is anonymous** - it never includes your computer or user name, serial numbers, addresses, a Steam
+  key or account id, or mod names, and it stays in your local log.
 - **Nothing is uploaded** - the activity log stays on your computer.
 - **Your data is written safely** - settings, playsets and caches are written to a temporary file and
   renamed into place, so a crash never leaves a half-written file; a playset that fails to load is an
