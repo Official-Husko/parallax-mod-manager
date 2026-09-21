@@ -740,6 +740,14 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   steadily lit instead. Checked by a unit test of the comparison (15 cases) and the real Workspace in a headless browser
   (blinking and a really changing glow, tooltips, save and reorder and remove, a playset loaded at startup, clear, a mod
   vanishing from disk, reduced motion).
+- **Notifications float over the page instead of pushing it down** (`frontend/src/components/NotificationStack.tsx`,
+  `NotificationStack.css`) - the toast stack used to take room in the layout, between the top bar and the view, so every
+  message pushed the whole view down and back up again as it came and went. It now floats over the page from the top bar's
+  bottom edge (a zero-height anchor in the flow marks where it starts), with a soft shadow, and nothing below it moves. Messages
+  are drawn above the page content and can still be dismissed or acted on, dialogs still start below the messages as before,
+  and the space they need is still published for them. Checked in a headless browser: three messages, an action, a dismissal
+  with its exit animation sampled throughout (the main area never shifts), an open dialog, and none left - plus a control that
+  puts the old in-flow layout back and fails the same check as it should.
 - **Backgrounds, Rotating or Static, and a Random button** (`components/AppBackground.tsx`, `data/backgroundRotation.ts`,
   `data/backgroundControl.ts`, Settings > Appearance, `backgrounds.go`'s `SetStaticBackground`) - the Appearance panel now reads
   the way the background source does: a **Backgrounds** switch that turns them off completely or on, the **Online / Offline**

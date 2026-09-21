@@ -1,15 +1,28 @@
+/* The anchor takes no room: zero height, in the flow right under the top bar, so
+   it marks where the stack starts and nothing else. (A stack that took room there
+   pushed the whole view down whenever a message appeared and back up when it went.) */
+.notification-anchor {
+    position: relative;
+    z-index: 60;
+    height: 0;
+    flex: none;
+}
+
 /* Above the modal overlays (z-index 50) - a notification raised while a modal
    is open (a patch result, a failed apply) has to be seen and dismissable, not
    sit dimmed behind the backdrop. The overlays keep clear of it by starting below
    its bottom edge (--notification-bottom, published by NotificationStack.tsx), so
-   it never covers a dialog's own header or buttons. */
+   it never covers a dialog's own header or buttons. The stack itself floats over
+   the page from the top bar's bottom edge. */
 .notification-stack {
-    position: relative;
-    z-index: 60;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
     display: flex;
     flex-direction: column;
     gap: 1px;
-    flex: none;
+    box-shadow: 0 8px 18px -8px rgba(0, 0, 0, .6);
 }
 
 .notification {

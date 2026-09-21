@@ -98,27 +98,33 @@ export function NotificationStack() {
     if (items.length === 0) {
         return null;
     }
+    // The stack floats over the page from the top bar's bottom edge instead of taking
+    // room in the layout: the zero-height anchor sits in the flow right under the top
+    // bar (so that is where the stack starts), and the stack is drawn over what is below.
+    // A message must never push the view under it down and up again as it comes and goes.
     return (
-        <div className="notification-stack" ref={stackRef}>
-            {items.map((n) => (
-                <div key={n.id} className={`notification notification-${n.kind} ${n.exiting ? 'exiting' : ''}`}>
-                    <i className={`fa-solid ${ICONS[n.kind]}`}/>
-                    <div className="notification-body">
-                        <span className="notification-message">{n.message}</span>
-                        {n.kind === 'progress' && (
-                            <div className="notification-progress-track">
-                                <div
-                                    className={`notification-progress-fill ${n.progress === undefined ? 'indeterminate' : ''}`}
-                                    style={n.progress !== undefined ? {width: `${Math.max(0, Math.min(100, n.progress))}%`} : undefined}
-                                />
-                            </div>
-                        )}
+        <div className="notification-anchor">
+            <div className="notification-stack" ref={stackRef}>
+                {items.map((n) => (
+                    <div key={n.id} className={`notification notification-${n.kind} ${n.exiting ? 'exiting' : ''}`}>
+                        <i className={`fa-solid ${ICONS[n.kind]}`}/>
+                        <div className="notification-body">
+                            <span className="notification-message">{n.message}</span>
+                            {n.kind === 'progress' && (
+                                <div className="notification-progress-track">
+                                    <div
+                                        className={`notification-progress-fill ${n.progress === undefined ? 'indeterminate' : ''}`}
+                                        style={n.progress !== undefined ? {width: `${Math.max(0, Math.min(100, n.progress))}%`} : undefined}
+                                    />
+                                </div>
+                            )}
+                        </div>
+                        {n.action && <span className="notification-action" onClick={n.action.onClick}>{n.action.label}</span>}
+                        {n.dismissLabel && <span className="notification-action" onClick={() => dismiss(n.id)}>{n.dismissLabel}</span>}
+                        <i className="fa-solid fa-xmark notification-close" onClick={() => dismiss(n.id)}/>
                     </div>
-                    {n.action && <span className="notification-action" onClick={n.action.onClick}>{n.action.label}</span>}
-                    {n.dismissLabel && <span className="notification-action" onClick={() => dismiss(n.id)}>{n.dismissLabel}</span>}
-                    <i className="fa-solid fa-xmark notification-close" onClick={() => dismiss(n.id)}/>
-                </div>
-            ))}
+                ))}
+            </div>
         </div>
     );
 }

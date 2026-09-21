@@ -130,7 +130,8 @@ for security, privacy, reliability or performance is called out (see the last tw
   dark the layer over it is (84% is how it has always looked), with a live preview while you drag.
 - **Online or offline backgrounds** - stream them from GitHub, or download the ones you want once and
   work offline, with a progress window that can be stopped and resumed.
-- **Notifications for slow work** - a stacking toast system with progress bars and retry actions.
+- **Notifications for slow work** - a stacking toast system with progress bars and retry actions, floating over the page
+  right under the top bar so nothing shifts when one appears.
 - **Themed controls and rich tooltips** - the app's own dropdowns, right-click menus, and tooltips
   instead of the webview's defaults.
 - **Views stay alive** - switching between Workspace, Library and DLC keeps unsaved edits and running
