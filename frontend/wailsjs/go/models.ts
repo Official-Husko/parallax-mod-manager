@@ -806,6 +806,22 @@ export namespace main {
 	        this.Protection = source["Protection"];
 	    }
 	}
+	export class WorkshopAvailability {
+	    RemoteFileID: string;
+	    State: string;
+	    Reason: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new WorkshopAvailability(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.RemoteFileID = source["RemoteFileID"];
+	        this.State = source["State"];
+	        this.Reason = source["Reason"];
+	    }
+	}
 
 }
 

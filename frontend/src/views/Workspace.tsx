@@ -21,12 +21,14 @@ import {
     SetPreferences,
     StopGame,
     WatchMods,
+    WorkshopAvailability,
     WorkshopDetails,
 } from '../../wailsjs/go/main/App';
 import {BrowserOpenURL, EventsOn} from '../../wailsjs/runtime/runtime';
 import type {launcherdb, library, playset, preferences, steamapi} from '../../wailsjs/go/models';
 import {autosort, findMissingActiveDependencies, type MissingActiveDependencies} from '../data/autosort';
 import {dismiss, notify, trackTask, updateNotification} from '../data/notifications';
+import {type WorkshopFlag, workshopFlags, workshopFlagStyle, workshopFlagText} from '../data/workshopAvailability';
 import {describePatchStatus, patchNeedsAttention} from '../data/patchStatus';
 import {logEvent} from '../data/appLog';
 import {useGameRunning} from '../data/gameStatus';
@@ -481,6 +483,10 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
     // panel.
     const [workshopDetails, setWorkshopDetails] = useState<Map<string, steamapi.PublishedFileDetails>>(new Map());
     const [workshopDetailsState, setWorkshopDetailsState] = useState<'idle' | 'loading' | 'loaded' | 'error'>('idle');
+    // Which Workshop mods are unlisted, private or deleted (by Workshop item id) -
+    // worked out by the backend once the details above are in. Empty until then, and
+    // for a game whose mods are all ordinary.
+    const [workshopFlagsById, setWorkshopFlagsById] = useState<Map<string, WorkshopFlag>>(new Map());
     // Guards re-entry into the fetch effect below via a ref, not state -
     // a real bug found and fixed here: the effect used to gate on
     // workshopDetailsState itself (idle/loading/loaded/error) while also
@@ -511,6 +517,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
         // A previous game's fetched data must never be shown against this
         // game's mods.
         setWorkshopDetails(new Map());
+        setWorkshopFlagsById(new Map());
         setWorkshopDetailsState('idle');
         workshopDetailsStartedRef.current = false;
     }, [selectedGame]);
@@ -541,6 +548,11 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                 if (cancelled) { dismiss(notifId); return; }
                 setWorkshopDetails(new Map(list.map((d) => [d.ID, d])));
                 setWorkshopDetailsState('loaded');
+                // The flags come after the details (they are worked out from them) and never
+                // fail the fetch: without them the lists just show no Workshop flags.
+                WorkshopAvailability(selectedGame)
+                    .then((flags) => { if (!cancelled) setWorkshopFlagsById(workshopFlags(flags)); })
+                    .catch(() => undefined);
                 updateNotification(notifId, {
                     kind: 'success',
                     message: `Fetched Steam Workshop details for ${list.length} mod${list.length === 1 ? '' : 's'}.`,
@@ -1130,6 +1142,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                         onSelectMod={setSelectedId}
                         workshopDetails={workshopDetails}
                         workshopDetailsState={workshopDetailsState}
+                        workshopFlagsById={workshopFlagsById}
                         authorProfiles={authorProfiles}
                         ignoredIncompatible={ignoredIncompatible}
                     />
@@ -1193,6 +1206,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                                 const incompatible = compat.known && !compat.compatible;
                                 const compatible = compat.known && compat.compatible;
                                 const ignored = ignoredIncompatible.has(m.ID);
+                                const workshopFlag = m.RemoteFileID ? workshopFlagsById.get(m.RemoteFileID) : undefined;
                                 return (
                                 <div
                                     key={m.ID}
@@ -1203,6 +1217,12 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                                 >
                                     <SourceBadge source={m.Source} name={m.Name}/>
                                     <span className="name">{m.Name}</span>
+                                    {workshopFlag && (
+                                        <i
+                                            className={`fa-solid ${FLAG[workshopFlag.state].icon} row-workshop workshop-${workshopFlag.state}`}
+                                            {...tip(() => modFlagsTip({workshop: workshopFlag}))}
+                                        />
+                                    )}
                                     <span
                                         className={`ver mono ${compatible ? 'compatible' : incompatible && !ignored ? 'incompatible' : ''}`}
                                         {...tip(() => incompatible ? modFlagsTip({version: {supported: m.SupportedVersion, game: gameVersion, ignored}}) : null)}
@@ -1272,6 +1292,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                                 const incompatible = compat.known && !compat.compatible;
                                 const ignored = ignoredIncompatible.has(m.ID);
                                 const hasDependencyIssue = dependencyIssues.affectedIds.has(m.ID);
+                                const workshopFlag = m.RemoteFileID ? workshopFlagsById.get(m.RemoteFileID) : undefined;
                                 return (
                                     <div
                                         key={m.ID}
@@ -1295,6 +1316,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                                                 version: incompatible ? {supported: m.SupportedVersion, game: gameVersion, ignored} : undefined,
                                                 conflict: conflicted ? conflictInfo.get(m.ID) : undefined,
                                                 dependency: hasDependencyIssue ? dependencyIssues.byMod.get(m.ID) : undefined,
+                                                workshop: workshopFlag,
                                             }))}
                                         >
                                             {incompatible && (
@@ -1305,6 +1327,9 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                                             )}
                                             {hasDependencyIssue && (
                                                 <i className={`fa-solid ${FLAG.dependency.icon} warning-icon dependency`}/>
+                                            )}
+                                            {workshopFlag && (
+                                                <i className={`fa-solid ${FLAG[workshopFlag.state].icon} warning-icon workshop-${workshopFlag.state}`}/>
                                             )}
                                         </span>
                                         <span className="row-actions">
@@ -1564,18 +1589,6 @@ function matchesSearch(m: library.ModSummary, search: string): boolean {
     return m.Name.toLowerCase().includes(q) || m.ID.toLowerCase().includes(q);
 }
 
-// visibilityLabel names a Workshop item's visibility (0 public, 1 friends only, 2 private,
-// 3 unlisted). Only shown for the non-public ones; an unlisted item is fine, just not listed
-// on the Workshop, which is why the free Steam API cannot return it.
-function visibilityLabel(v: number): string {
-    switch (v) {
-        case 1: return 'Friends only';
-        case 2: return 'Private';
-        case 3: return 'Unlisted (reachable by link only)';
-        default: return 'Public';
-    }
-}
-
 // authorNameFor resolves a mod's real Steam Workshop author name, if it's
 // a Workshop mod and both its own Workshop metadata and that creator's
 // profile have been fetched - "" otherwise (a local mod, or data not
@@ -1591,7 +1604,7 @@ function authorNameFor(
     return authorProfiles.get(d.Creator)?.Name ?? '';
 }
 
-function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, gameVersion, allMods, conflicts, onError, onSelectMod, workshopDetails, workshopDetailsState, authorProfiles, ignoredIncompatible}: {
+function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, gameVersion, allMods, conflicts, onError, onSelectMod, workshopDetails, workshopDetailsState, workshopFlagsById, authorProfiles, ignoredIncompatible}: {
     mod: library.ModSummary | null;
     tab: DetailTab;
     onTab: (t: DetailTab) => void;
@@ -1608,6 +1621,7 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, gameVersion, allM
     // own state of the same name for how/when this populates.
     workshopDetails: Map<string, steamapi.PublishedFileDetails>;
     workshopDetailsState: 'idle' | 'loading' | 'loaded' | 'error';
+    workshopFlagsById: Map<string, WorkshopFlag>;
     authorProfiles: Map<string, steamapi.Profile>;
     // Same set as the Available/Active lists use - so the "Supports" row
     // below shows the same acknowledged-not-live warning treatment as the
@@ -1770,6 +1784,7 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, gameVersion, allM
                                 onOpenFolder={openFolder}
                                 onSelectMod={onSelectMod}
                                 steamDetails={validSteamDetails}
+                                workshopFlag={mod.RemoteFileID ? workshopFlagsById.get(mod.RemoteFileID) : undefined}
                                 author={author}
                                 gameVersion={gameVersion}
                                 ignoredIncompatible={ignoredIncompatible}
@@ -1975,7 +1990,7 @@ function stripBBCode(s: string): string {
     return s.replace(/\[[^\]]*\]/g, '').trim();
 }
 
-function OverviewTab({mod, files, filesLoading, allMods, conflicts, onOpenFolder, onSelectMod, steamDetails, author, gameVersion, ignoredIncompatible}: {
+function OverviewTab({mod, files, filesLoading, allMods, conflicts, onOpenFolder, onSelectMod, steamDetails, workshopFlag, author, gameVersion, ignoredIncompatible}: {
     mod: library.ModSummary;
     files: library.ModFiles | null;
     filesLoading: boolean;
@@ -1994,6 +2009,8 @@ function OverviewTab({mod, files, filesLoading, allMods, conflicts, onOpenFolder
     // author card and item stats moved here, alongside the description
     // they came with.
     steamDetails: steamapi.PublishedFileDetails | undefined;
+    // Unlisted, private or deleted on the Steam Workshop, when it is one of those.
+    workshopFlag: WorkshopFlag | undefined;
     author: steamapi.Profile | undefined;
     // The real, currently-installed game version - drives the "Supports"
     // row's own color below (see data/versionCompat.ts), instead of the
@@ -2064,17 +2081,24 @@ function OverviewTab({mod, files, filesLoading, allMods, conflicts, onOpenFolder
                 </span>
                 <span className="label">Tags</span><span className="value">{mod.Tags.length ? mod.Tags.join(', ') : '-'}</span>
             </div>
+            {workshopFlag && (() => {
+                const style = workshopFlagStyle(workshopFlag);
+                const text = workshopFlagText(workshopFlag);
+                return (
+                    <div className="workshop-notice" style={{'--notice-color': style.color} as h.JSX.CSSProperties}>
+                        <i className={`fa-solid ${style.icon}`}/>
+                        <div>
+                            <div className="workshop-notice-title">{text.title}</div>
+                            <div className="workshop-notice-text">{text.detail}</div>
+                        </div>
+                    </div>
+                );
+            })()}
             {steamDetails && (
                 <div className="overview-grid">
                     <span className="label">Subscribers</span><span className="value mono">{steamDetails.Subscriptions.toLocaleString()}</span>
                     <span className="label">Favorited</span><span className="value mono">{steamDetails.Favorited.toLocaleString()}</span>
                     <span className="label">Views</span><span className="value mono">{steamDetails.Views.toLocaleString()}</span>
-                    {steamDetails.Visibility > 0 && (
-                        <>
-                            <span className="label">Visibility</span>
-                            <span className="value">{visibilityLabel(steamDetails.Visibility)}</span>
-                        </>
-                    )}
                 </div>
             )}
             <div className="section">

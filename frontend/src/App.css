@@ -52,6 +52,11 @@
     --flag-conflict: var(--red);
     --flag-dependency: #a98bdc;
     --flag-ignored: var(--text-dim);
+    /* Steam Workshop states of a mod - each its own hue, none of them the
+       amber/red that mean a warning/hard conflict. */
+    --flag-unlisted: #45b5c4;
+    --flag-private: #d777b4;
+    --flag-deleted: #e6874a;
     /* File-tree icon colors (Workspace's Files tab) - a deliberately wider,
        richer set than the app's own narrow chrome accent palette above:
        distinguishing content types by color (script vs. localisation vs.

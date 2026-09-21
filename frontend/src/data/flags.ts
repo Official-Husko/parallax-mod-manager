@@ -1,9 +1,10 @@
 import type {library} from '../../wailsjs/go/models';
 
-// The three per-mod problem flags (version mismatch, hard conflict,
-// dependency issue) and the one icon + color each is drawn with, everywhere
-// it shows up - Active row FLAGS column, detail panel, pre-flight list,
-// Autosort modals. Icons are Font Awesome Pro solid glyphs; colors are the
+// The per-mod flags - three problems (version mismatch, hard conflict,
+// dependency issue) and three Steam Workshop states (unlisted, private,
+// deleted) - and the one icon + color each is drawn with, everywhere
+// it shows up - Active row FLAGS column, Available list, detail panel,
+// pre-flight list, Autosort modals, the Updates window. Icons are Font Awesome Pro solid glyphs; colors are the
 // --flag-* tokens in App.css. Each flag differs in both shape and hue so
 // they stay tellable apart at 10px and for anyone who can't rely on color.
 export const FLAG = {
@@ -14,6 +15,13 @@ export const FLAG = {
     conflict: {icon: 'fa-burst', color: 'var(--flag-conflict)'},
     // A declared requirement isn't active, isn't installed, or loads too late.
     dependency: {icon: 'fa-link-slash', color: 'var(--flag-dependency)'},
+    // What became of the mod on the Steam Workshop (see data/workshopAvailability.ts).
+    // Not problems with the mod as installed, so none of them is red or amber:
+    // unlisted is only a fact worth knowing (teal), private and deleted mean the
+    // mod may never update (pink, orange).
+    unlisted: {icon: 'fa-eye-slash', color: 'var(--flag-unlisted)'},
+    private: {icon: 'fa-lock', color: 'var(--flag-private)'},
+    deleted: {icon: 'fa-cloud-slash', color: 'var(--flag-deleted)'},
 } as const;
 
 export interface ModConflictInfo {

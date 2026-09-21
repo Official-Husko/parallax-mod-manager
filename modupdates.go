@@ -106,42 +106,87 @@ func (a *App) workshopState(gameID string, cfg game.GameConfig, mods []mod.Mod, 
 	if err != nil {
 		return modupdates.Workshop{}, err.Error()
 	}
-	return modupdates.Workshop{OK: true, Details: details, PageLive: a.confirmWorkshopPages(details)}, ""
+	return modupdates.Workshop{OK: true, Details: details, PageLive: a.confirmWorkshopPages(details, refresh)}, ""
 }
 
 // confirmWorkshopPages looks at the item page of every Workshop item the API
 // answered "not found" for, because that answer is not proof of a deletion (see
-// steamapi.ItemPageExists). Only the few items in that state are fetched. One
-// whose page could not be read is left out of the result: unknown, not deleted.
-func (a *App) confirmWorkshopPages(details map[string]steamapi.PublishedFileDetails) map[string]bool {
+// steamapi.ItemPageExists). Only the few items in that state are fetched, and a
+// page already looked at this run is remembered (refresh looks again). One whose
+// page could not be read is left out of the result: unknown, not deleted.
+func (a *App) confirmWorkshopPages(details map[string]steamapi.PublishedFileDetails, refresh bool) map[string]bool {
 	var ids []string
 	for id, d := range details {
-		if modupdates.NeedsPageCheck(d) {
+		if steamapi.NeedsPageCheck(d) {
 			ids = append(ids, id)
 		}
 	}
-	live := make(map[string]bool, len(ids))
+	return a.workshopPages.confirm(a.baseContext(), ids, refresh)
+}
+
+// pageLiveCache remembers, for the app's runtime, whether each looked-at Workshop
+// item page was up. Zero value ready to use.
+type pageLiveCache struct {
+	mu   sync.Mutex
+	live map[string]bool
+	// exists is steamapi.ItemPageExists; tests replace it.
+	exists func(ctx context.Context, id string) (bool, error)
+}
+
+// confirm returns, for the ids it could find out about, whether their page is up.
+func (p *pageLiveCache) confirm(ctx context.Context, ids []string, refresh bool) map[string]bool {
+	result := make(map[string]bool, len(ids))
 	if len(ids) == 0 {
-		return live
+		return result
 	}
-	var mu sync.Mutex
-	g, gctx := errgroup.WithContext(a.ctx)
-	g.SetLimit(4)
+	exists := p.exists
+	if exists == nil {
+		exists = steamapi.ItemPageExists
+	}
+
+	var toLook []string
+	p.mu.Lock()
 	for _, id := range ids {
+		if live, ok := p.live[id]; ok && !refresh {
+			result[id] = live
+		} else {
+			toLook = append(toLook, id)
+		}
+	}
+	p.mu.Unlock()
+	if len(toLook) == 0 {
+		return result
+	}
+
+	var mu sync.Mutex
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(4)
+	for _, id := range toLook {
 		g.Go(func() error {
-			exists, err := steamapi.ItemPageExists(gctx, id)
+			ok, err := exists(gctx, id)
 			if err != nil {
 				applog.For("Updates").Warnf("couldn't confirm Workshop item %s: %v", id, err)
 				return nil
 			}
 			mu.Lock()
-			live[id] = exists
+			result[id] = ok
 			mu.Unlock()
 			return nil
 		})
 	}
 	_ = g.Wait()
-	return live
+
+	p.mu.Lock()
+	if p.live == nil {
+		p.live = map[string]bool{}
+	}
+	for _, id := range toLook {
+		if live, ok := result[id]; ok {
+			p.live[id] = live
+		}
+	}
+	p.mu.Unlock()
+	return result
 }
 
 // modUpdateInputs turns scanned mods into what modupdates.Build takes,

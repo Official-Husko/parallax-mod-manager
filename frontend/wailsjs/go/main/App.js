@@ -266,6 +266,10 @@ export function WatchMods(arg1) {
   return window['go']['main']['App']['WatchMods'](arg1);
 }
 
+export function WorkshopAvailability(arg1) {
+  return window['go']['main']['App']['WorkshopAvailability'](arg1);
+}
+
 export function WorkshopDetails(arg1) {
   return window['go']['main']['App']['WorkshopDetails'](arg1);
 }

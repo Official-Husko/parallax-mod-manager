@@ -657,6 +657,25 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   key were confirmed live; the keyed request itself follows the documented method and could not be run
   without a key, and the panel's **Check key** button reports at once whether a key works. See
   [docs/steam-web-api.md](docs/steam-web-api.md).
+- **Unlisted, private and deleted Workshop mods get their own flags** (`internal/steamapi/availability.go`,
+  `workshopavailability.go`, `frontend/src/data/workshopAvailability.ts`, `FlagTips.tsx`) - what became of a
+  Workshop mod is now worked out and shown, since it decides whether the mod can still update. Three flags,
+  each with its own Font Awesome Pro icon and hue (none of them the amber or red that mean a warning or a hard
+  conflict, so nothing is mistaken for a problem with the mod itself): **unlisted** (teal eye-slash: reachable by
+  its link only, works fine), **private** (pink lock: private or friends only) and **deleted** (orange
+  cloud-slash: gone from the Workshop, or removed by Steam's moderators; the same icon and color the Updates window
+  already used for it). They show as a small icon after the name in the Available list, in the Active list's FLAGS
+  column next to the version, conflict and dependency flags (the column is wider so all four fit), in the FLAGS header's
+  legend, and as a notice in the mod's Overview tab. A hover explains each and says how sure the app is. The
+  classification (`steamapi.Classify`) uses Steam's own record when it has one (the keyed API's `visibility`, the
+  `ItemDeleted` result, the `banned` flag), and otherwise the item's own Workshop page, which is only fetched for
+  "not found" answers and remembered for the session: not found with the page up is an unlisted item, with the page gone
+  it is "deleted or private" (an anonymous page cannot tell which, and the wording says so). A busy Steam, a rate limit
+  or a page that could not be read shows nothing rather than a guess. Tested with the real record for `2780180614`,
+  every result and page combination, the page cache, and the flags in a headless browser against a mocked backend
+  (icons and colors on both lists, four icons fitting the FLAGS cell, the tooltips, the legend, the detail notice and the
+  case where the flags cannot be worked out). The private and access-denied mappings follow Steam's documented values
+  and are not yet checked against a real private item.
 - **The rest of the design mockup's screens** (`frontend/src/views/Library.tsx`,
   `PlaysetsModal.tsx`) - a faithful, fully navigable visual preview of the
   mockup's cross-game library, built from the mockup's own example content.

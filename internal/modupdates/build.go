@@ -67,8 +67,9 @@ func Build(mods []ModInput, ws Workshop, prev *Snapshot, now time.Time) Snapshot
 					// Returned in full - even an unlisted item, which the free API cannot
 					// return but which is alive.
 				case !NeedsPageCheck(d):
-					// A busy or failing Steam, a rate limit: nothing is known about the
-					// item, so what was known before stays.
+					// A busy or failing Steam, a rate limit, or "access denied" (the item is
+					// private, which is not a deletion): nothing says it is gone, so what
+					// was known before stays.
 					rec.WorkshopGone = hadOld && old.WorkshopGone
 				default:
 					if live, checked := ws.PageLive[m.RemoteFileID]; checked {
@@ -102,12 +103,5 @@ func Build(mods []ModInput, ws Workshop, prev *Snapshot, now time.Time) Snapshot
 }
 
 // NeedsPageCheck says whether an item's own Workshop page has to be looked at to
-// know what became of it: Steam answered something other than success, and not
-// with a verdict of its own (banned, deleted) or a sign that Steam itself was
-// unwell (a timeout, a busy service, a rate limit - see steamapi.EResult). "Not
-// found" is the case this is for: the free API says it for unlisted items whose
-// page is up, so it proves nothing on its own.
-func NeedsPageCheck(d steamapi.PublishedFileDetails) bool {
-	r := steamapi.EResult(d.Result)
-	return !d.Banned && !r.IsOK() && !r.IsDeleted() && !r.IsTransient() && !r.IsRateLimit()
-}
+// know what became of it - see steamapi.NeedsPageCheck.
+func NeedsPageCheck(d steamapi.PublishedFileDetails) bool { return steamapi.NeedsPageCheck(d) }

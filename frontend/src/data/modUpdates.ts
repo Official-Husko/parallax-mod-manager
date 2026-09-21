@@ -1,6 +1,7 @@
 import {useEffect, useState} from 'preact/hooks';
 import {CheckModUpdates, MarkModUpdatesSeen} from '../../wailsjs/go/main/App';
 import type {modupdates} from '../../wailsjs/go/models';
+import {FLAG} from './flags';
 
 // What happened to a game's mods since the app last started - the frontend half
 // of internal/modupdates. The backend does the comparing (and remembers what the
@@ -81,11 +82,12 @@ export function useModUpdates(gameId: string): ModUpdatesState {
 
 export type ChangeKind = 'deleted' | 'removed' | 'updated' | 'changed';
 
-// How each kind of change is drawn, everywhere it appears. Amber for the
-// Workshop deleting a mod (worth knowing, not a failure), green for an update,
+// How each kind of change is drawn, everywhere it appears. The Workshop
+// deleting a mod is drawn as the mod's own "deleted" flag is (see data/flags.ts),
+// green for an update,
 // blue for files that changed, quiet grey for a mod that is simply gone.
 export const CHANGE_KINDS: Record<ChangeKind, {icon: string; color: string; label: string; plural: string}> = {
-    deleted: {icon: 'fa-cloud-slash', color: 'var(--amber)', label: 'Deleted from the Workshop', plural: 'deleted from the Workshop'},
+    deleted: {icon: FLAG.deleted.icon, color: FLAG.deleted.color, label: 'Deleted from the Workshop', plural: 'deleted from the Workshop'},
     removed: {icon: 'fa-circle-minus', color: 'var(--text-muted)', label: 'Removed', plural: 'removed'},
     updated: {icon: 'fa-circle-arrow-up', color: 'var(--green)', label: 'Updated', plural: 'updated'},
     changed: {icon: 'fa-pen-to-square', color: 'var(--blue)', label: 'Files changed', plural: 'changed'},

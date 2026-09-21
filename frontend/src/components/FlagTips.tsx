@@ -6,6 +6,8 @@ import {domains} from '../data/mockData';
 import {DOMAIN_NAMES} from '../data/domainOverlap';
 import type {DomainState} from '../data/domainOverlap';
 import {displayVersion} from '../data/versionCompat';
+import type {WorkshopFlag} from '../data/workshopAvailability';
+import {workshopFlagStyle, workshopFlagText} from '../data/workshopAvailability';
 import {TipHeading, TipItem} from './Tooltip';
 
 // The rich tooltip bodies for the Active/Available lists' colored markers -
@@ -20,6 +22,8 @@ export interface ModFlags {
     version?: {supported: string; game: string; ignored: boolean};
     conflict?: ModConflictInfo;
     dependency?: {missing: string[]; misordered: string[]};
+    // Unlisted, private or deleted on the Steam Workshop.
+    workshop?: WorkshopFlag;
 }
 
 // Names shown in a detail line: the first few, then how many more.
@@ -41,8 +45,8 @@ function Names({names}: {names: string[]}) {
 // The tooltip for a mod's own flags - one entry per flag that applies.
 // null when none does, so hovering a clean row shows nothing at all.
 export function modFlagsTip(flags: ModFlags): ComponentChild | null {
-    const {version, conflict, dependency} = flags;
-    if (!version && !conflict && !dependency) return null;
+    const {version, conflict, dependency, workshop} = flags;
+    if (!version && !conflict && !dependency && !workshop) return null;
     return (
         <div className="tip-list">
             {version && (
@@ -68,6 +72,11 @@ export function modFlagsTip(flags: ModFlags): ComponentChild | null {
                     <div>Autosort can fix the order.</div>
                 </TipItem>
             )}
+            {workshop && (
+                <TipItem icon={workshopFlagStyle(workshop).icon} color={workshopFlagStyle(workshop).color} title={workshopFlagText(workshop).title}>
+                    {workshopFlagText(workshop).detail}
+                </TipItem>
+            )}
         </div>
     );
 }
@@ -85,6 +94,16 @@ export function flagLegendTip(): ComponentChild {
             </TipItem>
             <TipItem icon={FLAG.dependency.icon} color={FLAG.dependency.color} title="Dependency issue">
                 A required mod is missing, not active, or loads too late.
+            </TipItem>
+            <TipHeading>Steam Workshop</TipHeading>
+            <TipItem icon={FLAG.unlisted.icon} color={FLAG.unlisted.color} title="Unlisted">
+                Only reachable by its link. Works fine and can still update.
+            </TipItem>
+            <TipItem icon={FLAG.private.icon} color={FLAG.private.color} title="Private">
+                Its author made it private or friends only.
+            </TipItem>
+            <TipItem icon={FLAG.deleted.icon} color={FLAG.deleted.color} title="Deleted">
+                Gone from the Workshop. It keeps working but will never update.
             </TipItem>
         </div>
     );

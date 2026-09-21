@@ -135,6 +135,9 @@ type App struct {
 	// workshopDetails holds real Steam Workshop metadata in memory for the
 	// app's runtime - see library.WorkshopDetailsCache. Zero-value usable.
 	workshopDetails library.WorkshopDetailsCache
+	// workshopPages remembers which Workshop item pages were up when looked at, for
+	// telling a deleted item from an unlisted one - see confirmWorkshopPages.
+	workshopPages pageLiveCache
 	// steam is the optional Steam Web API key and the service that decides which
 	// Steam API answers Workshop details - see steamapi_settings.go. Set up by
 	// initSteamAPI in startup.

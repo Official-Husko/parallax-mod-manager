@@ -777,7 +777,7 @@
 
 /* Active-only: matches .row-warnings' own width/alignment. */
 .column-header-warnings {
-    width: 50px;
+    width: 68px;
     flex: none;
     text-align: right;
 }
@@ -1031,7 +1031,7 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    width: 50px;
+    width: 68px;
     flex: none;
     justify-content: flex-end;
 }
@@ -1061,6 +1061,57 @@
    version warning, so it gets its own hue. */
 .warning-icon.dependency {
     color: var(--flag-dependency);
+}
+
+/* What became of the mod on the Steam Workshop - unlisted, private or deleted
+   (data/workshopAvailability.ts). At most one per mod. Each has its own hue,
+   none of them the amber/red that mean a warning or a hard conflict. The same
+   classes colour the small icon the Available list draws after a mod's name. */
+.workshop-unlisted {
+    color: var(--flag-unlisted);
+}
+
+.workshop-private {
+    color: var(--flag-private);
+}
+
+.workshop-deleted {
+    color: var(--flag-deleted);
+}
+
+.row-workshop {
+    flex: none;
+    font-size: 11px;
+    margin: 0 8px 0 2px;
+}
+
+/* The Overview tab's statement of the same thing, in the flag's own color. */
+.workshop-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 12px;
+    padding: 9px 11px;
+    border: 1px solid color-mix(in srgb, var(--notice-color) 45%, transparent);
+    border-radius: 5px;
+    background: color-mix(in srgb, var(--notice-color) 9%, transparent);
+}
+
+.workshop-notice > i {
+    color: var(--notice-color);
+    font-size: 13px;
+    margin-top: 1px;
+}
+
+.workshop-notice-title {
+    font: 600 12px Barlow, sans-serif;
+    color: var(--notice-color);
+    margin-bottom: 2px;
+}
+
+.workshop-notice-text {
+    font: 400 11.5px/1.5 Barlow, sans-serif;
+    color: var(--text-muted);
 }
 
 .row-actions {

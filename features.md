@@ -94,6 +94,9 @@ for security, privacy, reliability or performance is called out (see the last tw
   mods the free API cannot return (unlisted ones, for example): Complete use (recommended), Backup use
   only when the free API cannot answer, or Free API use only (the default, which keeps no key). If the
   key runs out of requests the app falls back to the free API by itself.
+- **Unlisted, private and deleted mods flagged** - Workshop mods that are unlisted (teal), private (pink) or
+  deleted (orange) get their own icon and color in the Available and Active lists and a notice on the mod, with a
+  hover that says how the app knows.
 - **Steam status codes understood** - Steam's own result codes are read properly, so a busy Steam or a
   rate limit is never mistaken for a mod being deleted, and unlisted mods are shown as such.
 

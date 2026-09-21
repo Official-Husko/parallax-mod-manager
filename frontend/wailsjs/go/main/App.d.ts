@@ -147,4 +147,6 @@ export function WatchGameLog(arg1:string,arg2:string):Promise<number>;
 
 export function WatchMods(arg1:string):Promise<void>;
 
+export function WorkshopAvailability(arg1:string):Promise<Array<main.WorkshopAvailability>>;
+
 export function WorkshopDetails(arg1:string):Promise<Array<steamapi.PublishedFileDetails>>;

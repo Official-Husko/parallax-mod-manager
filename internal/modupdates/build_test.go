@@ -174,7 +174,7 @@ func TestNeedsPageCheck(t *testing.T) {
 		{steamapi.PublishedFileDetails{Result: 1}, false},
 		{steamapi.PublishedFileDetails{Result: 9}, true},
 		{steamapi.PublishedFileDetails{Result: 42}, true},
-		{steamapi.PublishedFileDetails{Result: 15}, true},
+		{steamapi.PublishedFileDetails{Result: 15}, false}, // access denied: private, a verdict of its own
 		{steamapi.PublishedFileDetails{Result: 86}, false},
 		{steamapi.PublishedFileDetails{Result: 9, Banned: true}, false},
 		{steamapi.PublishedFileDetails{Result: 16}, false},
