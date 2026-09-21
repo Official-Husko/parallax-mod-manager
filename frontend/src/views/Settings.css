@@ -46,7 +46,6 @@
     padding: 20px 24px;
     flex-direction: column;
     gap: 18px;
-    max-width: 640px;
 }
 
 /* Used by panels that are fundamentally a list of rows (Manage Games,
@@ -57,6 +56,23 @@
     padding: 20px 24px;
     flex-direction: column;
     gap: 18px;
+}
+
+/* A panel's blocks in side-by-side columns when the window has room for them (each at least
+   440px wide), one under the other when it has not - so a panel fills a wide window instead of
+   leaving the right of it empty. Give each column its blocks, top to bottom. */
+.settings-columns {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(440px, 1fr));
+    gap: 18px 28px;
+    align-items: start;
+}
+
+.settings-column {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    min-width: 0;
 }
 
 .settings-content.split {
@@ -471,6 +487,14 @@
     gap: 9px;
 }
 
+/* A short list of alternatives (Launch options, Playsets): side by side when there is room,
+   each at least 340px wide. */
+.mode-option-list.tiled {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    align-items: stretch;
+}
+
 .mode-option {
     display: flex;
     align-items: flex-start;
@@ -561,9 +585,10 @@
 }
 
 .sort-rules-list {
-    display: flex;
-    flex-direction: column;
-    gap: 7px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(440px, 1fr));
+    gap: 7px 12px;
+    align-items: stretch;
 }
 
 .sort-rule-row {

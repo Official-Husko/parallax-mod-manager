@@ -256,7 +256,7 @@ export function BackupPanel() {
     const notEnoughRoom = confirmAll && status.FreeBytes > 0 && willNeed > status.FreeBytes;
 
     return (
-        <div className="settings-content wide">
+        <div className="settings-content single">
             <div>
                 <div className="settings-title">Backup</div>
                 <div className="settings-subtitle">
@@ -267,230 +267,235 @@ export function BackupPanel() {
                 </div>
             </div>
 
-            {status.LimitState !== '' && (
-                <div className="backup-banner">
-                    <i className="fa-solid fa-triangle-exclamation"/>
-                    <div>
-                        <div className="backup-banner-title">Backups are paused</div>
-                        <div>
-                            {status.LimitState === 'size'
-                                ? <>The backup size limit ({formatBytes(status.LimitBytes)}) is reached, so no more mods are being backed up. Raise the limit below, or delete backups to make room.</>
-                                : <>Only {formatBytes(status.FreeBytes)} is free on the drive holding the backup folder, and you asked to keep {formatBytes(status.KeepFreeBytes)} free, so no more mods are being backed up. Free some space, lower the amount kept free, or delete backups.</>}
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            <div className="mode-option-list backup-modes">
-                {MODES.map((m) => {
-                    const active = status.Mode === m.mode;
-                    return (
-                        <div key={m.mode} className={`mode-option ${active ? 'active' : ''} ${busy ? 'disabled' : ''}`} onClick={() => pick(m.mode)}>
-                            <i className={`fa-solid ${active ? 'fa-circle-dot' : 'fa-circle'} mode-option-radio ${active ? 'on' : 'off'}`}/>
-                            <div className="mode-option-main">
-                                <div className="mode-option-name">
-                                    {m.name}
-                                    {m.recommended && <span className="mode-option-recommended">(Recommended)</span>}
+            <div className="settings-columns">
+                <div className="settings-column">
+                    {status.LimitState !== '' && (
+                        <div className="backup-banner">
+                            <i className="fa-solid fa-triangle-exclamation"/>
+                            <div>
+                                <div className="backup-banner-title">Backups are paused</div>
+                                <div>
+                                    {status.LimitState === 'size'
+                                        ? <>The backup size limit ({formatBytes(status.LimitBytes)}) is reached, so no more mods are being backed up. Raise the limit below, or delete backups to make room.</>
+                                        : <>Only {formatBytes(status.FreeBytes)} is free on the drive holding the backup folder, and you asked to keep {formatBytes(status.KeepFreeBytes)} free, so no more mods are being backed up. Free some space, lower the amount kept free, or delete backups.</>}
                                 </div>
-                                <div className="mode-option-desc">{m.desc}</div>
                             </div>
                         </div>
-                    );
-                })}
-            </div>
+                    )}
 
-            {confirmAll && (
-                <div className="backup-confirm">
-                    <span>
-                        {overview
-                            ? <>This game has {overview.WorkshopMods} Workshop mods ({formatBytes(overview.WorkshopBytes)}); {overview.BackedUpMods > 0 ? `${formatBytes(willNeed)} more would be copied now. ` : 'all of it would be copied now. '}</>
-                            : <>Every installed Workshop mod would be copied. </>}
-                        Other games add their own. {status.FreeBytes > 0 && <>{formatBytes(status.FreeBytes)} is free in the backup folder.</>}
-                        {notEnoughRoom && <strong className="backup-warn"> That is more than the free space: choose another folder first.</strong>}
-                    </span>
-                    <span className="backup-confirm-actions">
-                        <button className="btn-primary" disabled={busy} onClick={() => { setConfirmAll(false); run(() => SetBackupMode('all')); }}>Back up every Workshop mod</button>
-                        <button className="btn-ghost" onClick={() => setConfirmAll(false)}>Cancel</button>
-                    </span>
-                </div>
-            )}
-
-            <div className="backup-folder">
-                <div className="backup-folder-label"><i className="fa-solid fa-folder-open"/> Backup folder</div>
-                <div className="backup-folder-row">
-                    <span className="backup-path mono" title={status.Root}>{status.Root || 'No folder'}</span>
-                    <button className="btn-ghost" disabled={busy} onClick={chooseFolder}>Change...</button>
-                    {!usingDefault && <button className="btn-ghost" disabled={busy} onClick={() => run(() => SetBackupFolder(''))}>Use default</button>}
-                    <button className="btn-ghost" disabled={!status.Root} onClick={() => OpenPath(status.Root).catch((e) => notify('error', String(e)))}>Open</button>
-                </div>
-                <div className="backup-note">
-                    {usingDefault ? 'The default folder, inside the app\'s settings folder (on the same drive, so choose another if that one is small). ' : 'A folder you chose. '}
-                    Each game gets its own folder inside, named by its id: <span className="mono">{'<folder>/<game id>/mods/<item id>'}</span>.
-                    Backups already made stay where they are if you change the folder.
-                    {status.FreeBytes > 0 && <> {formatBytes(status.FreeBytes)} free.</>}
-                </div>
-                {error && <div className="backup-error"><i className="fa-solid fa-circle-exclamation"/> {error}</div>}
-            </div>
-
-            <div className="backup-limits">
-                <div className="backup-limits-title"><i className="fa-solid fa-gauge-high"/> Limits</div>
-                <div className="profile-toggle-row backup-limit-row">
-                    <span>
-                        Limit the total size of all backups
-                        <span className="backup-limit-hint">When it is reached no more mods are backed up, and you are told.</span>
-                    </span>
-                    <span className="backup-limit-controls">
-                        <SizeField bytes={status.LimitBytes} disabled={!status.LimitEnabled || busy} onCommit={(b) => setLimits({limitBytes: b})}/>
-                        <Toggle on={status.LimitEnabled} onClick={busy ? undefined : () => setLimits({limitEnabled: !status.LimitEnabled})}/>
-                    </span>
-                </div>
-                <div className="backup-usage">
-                    <div className="backup-usage-track">
-                        <div
-                            className={`backup-usage-fill ${status.LimitState === 'size' ? 'full' : ''}`}
-                            style={{width: `${status.LimitEnabled && status.LimitBytes > 0 ? Math.min(100, (status.UsedBytes / status.LimitBytes) * 100) : 0}%`}}
-                        />
+                    <div className="mode-option-list backup-modes">
+                        {MODES.map((m) => {
+                            const active = status.Mode === m.mode;
+                            return (
+                                <div key={m.mode} className={`mode-option ${active ? 'active' : ''} ${busy ? 'disabled' : ''}`} onClick={() => pick(m.mode)}>
+                                    <i className={`fa-solid ${active ? 'fa-circle-dot' : 'fa-circle'} mode-option-radio ${active ? 'on' : 'off'}`}/>
+                                    <div className="mode-option-main">
+                                        <div className="mode-option-name">
+                                            {m.name}
+                                            {m.recommended && <span className="mode-option-recommended">(Recommended)</span>}
+                                        </div>
+                                        <div className="mode-option-desc">{m.desc}</div>
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
-                    <span className="mono">
-                        {formatBytes(status.UsedBytes)} used{status.LimitEnabled ? ` of ${formatBytes(status.LimitBytes)}` : ' (no limit)'}
-                    </span>
-                </div>
-                <div className="profile-toggle-row backup-limit-row">
-                    <span>
-                        Keep free space on the backup drive
-                        <span className="backup-limit-hint">No mod is backed up if that would leave less than this free.{status.FreeBytes > 0 && <> {formatBytes(status.FreeBytes)} is free now.</>}</span>
-                    </span>
-                    <span className="backup-limit-controls">
-                        <SizeField bytes={status.KeepFreeBytes} disabled={!status.KeepFreeEnabled || busy} onCommit={(b) => setLimits({keepFreeBytes: b})}/>
-                        <Toggle on={status.KeepFreeEnabled} onClick={busy ? undefined : () => setLimits({keepFreeEnabled: !status.KeepFreeEnabled})}/>
-                    </span>
-                </div>
-            </div>
 
-            <div className="backup-compress">
-                <div className="mode-option disabled">
-                    <i className="fa-solid fa-square mode-option-radio off"/>
-                    <div className="mode-option-main">
-                        <div className="mode-option-name">Compress backups <span className="chip">Planned</span></div>
-                        <div className="mode-option-desc">
-                            Store backups in a compressed archive (7-Zip at maximum compression, or similar) to save space.
-                            Still being investigated: backups are plain folders for now.
+                    {confirmAll && (
+                        <div className="backup-confirm">
+                            <span>
+                                {overview
+                                    ? <>This game has {overview.WorkshopMods} Workshop mods ({formatBytes(overview.WorkshopBytes)}); {overview.BackedUpMods > 0 ? `${formatBytes(willNeed)} more would be copied now. ` : 'all of it would be copied now. '}</>
+                                    : <>Every installed Workshop mod would be copied. </>}
+                                Other games add their own. {status.FreeBytes > 0 && <>{formatBytes(status.FreeBytes)} is free in the backup folder.</>}
+                                {notEnoughRoom && <strong className="backup-warn"> That is more than the free space: choose another folder first.</strong>}
+                            </span>
+                            <span className="backup-confirm-actions">
+                                <button className="btn-primary" disabled={busy} onClick={() => { setConfirmAll(false); run(() => SetBackupMode('all')); }}>Back up every Workshop mod</button>
+                                <button className="btn-ghost" onClick={() => setConfirmAll(false)}>Cancel</button>
+                            </span>
+                        </div>
+                    )}
+
+                    <div className="backup-folder">
+                        <div className="backup-folder-label"><i className="fa-solid fa-folder-open"/> Backup folder</div>
+                        <div className="backup-folder-row">
+                            <span className="backup-path mono" title={status.Root}>{status.Root || 'No folder'}</span>
+                            <button className="btn-ghost" disabled={busy} onClick={chooseFolder}>Change...</button>
+                            {!usingDefault && <button className="btn-ghost" disabled={busy} onClick={() => run(() => SetBackupFolder(''))}>Use default</button>}
+                            <button className="btn-ghost" disabled={!status.Root} onClick={() => OpenPath(status.Root).catch((e) => notify('error', String(e)))}>Open</button>
+                        </div>
+                        <div className="backup-note">
+                            {usingDefault ? 'The default folder, inside the app\'s settings folder (on the same drive, so choose another if that one is small). ' : 'A folder you chose. '}
+                            Each game gets its own folder inside, named by its id: <span className="mono">{'<folder>/<game id>/mods/<item id>'}</span>.
+                            Backups already made stay where they are if you change the folder.
+                            {status.FreeBytes > 0 && <> {formatBytes(status.FreeBytes)} free.</>}
+                        </div>
+                        {error && <div className="backup-error"><i className="fa-solid fa-circle-exclamation"/> {error}</div>}
+                    </div>
+
+                    <div className="backup-limits">
+                        <div className="backup-limits-title"><i className="fa-solid fa-gauge-high"/> Limits</div>
+                        <div className="profile-toggle-row backup-limit-row">
+                            <span>
+                                Limit the total size of all backups
+                                <span className="backup-limit-hint">When it is reached no more mods are backed up, and you are told.</span>
+                            </span>
+                            <span className="backup-limit-controls">
+                                <SizeField bytes={status.LimitBytes} disabled={!status.LimitEnabled || busy} onCommit={(b) => setLimits({limitBytes: b})}/>
+                                <Toggle on={status.LimitEnabled} onClick={busy ? undefined : () => setLimits({limitEnabled: !status.LimitEnabled})}/>
+                            </span>
+                        </div>
+                        <div className="backup-usage">
+                            <div className="backup-usage-track">
+                                <div
+                                    className={`backup-usage-fill ${status.LimitState === 'size' ? 'full' : ''}`}
+                                    style={{width: `${status.LimitEnabled && status.LimitBytes > 0 ? Math.min(100, (status.UsedBytes / status.LimitBytes) * 100) : 0}%`}}
+                                />
+                            </div>
+                            <span className="mono">
+                                {formatBytes(status.UsedBytes)} used{status.LimitEnabled ? ` of ${formatBytes(status.LimitBytes)}` : ' (no limit)'}
+                            </span>
+                        </div>
+                        <div className="profile-toggle-row backup-limit-row">
+                            <span>
+                                Keep free space on the backup drive
+                                <span className="backup-limit-hint">No mod is backed up if that would leave less than this free.{status.FreeBytes > 0 && <> {formatBytes(status.FreeBytes)} is free now.</>}</span>
+                            </span>
+                            <span className="backup-limit-controls">
+                                <SizeField bytes={status.KeepFreeBytes} disabled={!status.KeepFreeEnabled || busy} onCommit={(b) => setLimits({keepFreeBytes: b})}/>
+                                <Toggle on={status.KeepFreeEnabled} onClick={busy ? undefined : () => setLimits({keepFreeEnabled: !status.KeepFreeEnabled})}/>
+                            </span>
+                        </div>
+                    </div>
+
+                    <div className="backup-compress">
+                        <div className="mode-option disabled">
+                            <i className="fa-solid fa-square mode-option-radio off"/>
+                            <div className="mode-option-main">
+                                <div className="mode-option-name">Compress backups <span className="chip">Planned</span></div>
+                                <div className="mode-option-desc">
+                                    Store backups in a compressed archive (7-Zip at maximum compression, or similar) to save space.
+                                    Still being investigated: backups are plain folders for now.
+                                </div>
+                            </div>
+                        </div>
+                        <div className="mode-option disabled">
+                            <i className="fa-solid fa-square mode-option-radio off"/>
+                            <div className="mode-option-main">
+                                <div className="mode-option-name">Upload deleted mods to an archive <span className="chip">Coming soon</span></div>
+                                <div className="mode-option-desc">
+                                    Automatically send a copy of a mod that was deleted from the Workshop to a public archive, so it is
+                                    not lost for everyone. Not built yet: nothing is uploaded.
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
-                <div className="mode-option disabled">
-                    <i className="fa-solid fa-square mode-option-radio off"/>
-                    <div className="mode-option-main">
-                        <div className="mode-option-name">Upload deleted mods to an archive <span className="chip">Coming soon</span></div>
-                        <div className="mode-option-desc">
-                            Automatically send a copy of a mod that was deleted from the Workshop to a public archive, so it is
-                            not lost for everyone. Not built yet: nothing is uploaded.
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div className="backup-games">
-                {state.kind === 'loading' && <p className="status-page">Checking installed games...</p>}
-                {state.kind === 'error' && <p className="status-page error">{state.message}</p>}
-                {managedGames.length > 0 && (
-                    <GamePickerChips games={managedGames} selectedGameId={selectedGameId} onSelect={setSelectedGameId}/>
-                )}
-                {selectedGameId && (
-                    <div className="backup-summary">
-                        {overview
-                            ? <>
-                                {overview.BackedUpMods} {overview.BackedUpMods === 1 ? 'mod' : 'mods'} backed up ({formatBytes(overview.BackedUpBytes)}) of {overview.WorkshopMods} installed Workshop {overview.WorkshopMods === 1 ? 'mod' : 'mods'} ({formatBytes(overview.WorkshopBytes)}).
-                                {overview.AtRiskMods > 0 && <> {overview.AtRiskMods} deleted or private.</>}
-                            </>
-                            : 'Counting...'}
-                        {status.Running && <span className="backup-running"><i className="fa-solid fa-spinner fa-spin"/> Backing up...</span>}
-                        {overview && overview.BackedUpMods > 0 && (
-                            <span className="link-btn" onClick={() => OpenBackupFolder(selectedGameId).catch((e) => notify('error', String(e)))}>Open this game's folder</span>
+                <div className="settings-column">
+                    <div className="backup-games">
+                        {state.kind === 'loading' && <p className="status-page">Checking installed games...</p>}
+                        {state.kind === 'error' && <p className="status-page error">{state.message}</p>}
+                        {managedGames.length > 0 && (
+                            <GamePickerChips games={managedGames} selectedGameId={selectedGameId} onSelect={setSelectedGameId}/>
                         )}
-                    </div>
-                )}
-                {selectedGameId && entries.length === 0 && overview && (
-                    <p className="status-page">No backups for this game yet. That is normal while no mod has been deleted.</p>
-                )}
-                {selectedGameId && (
-                    <div className="backup-cleanup">
-                        <div className="backup-limits-title"><i className="fa-solid fa-broom"/> Free up space</div>
-                        <div className="backup-cleanup-row">
-                            <div>
-                                <div className="backup-cleanup-name">Delete backups of mods still in the Workshop folder</div>
-                                <div className="backup-limit-hint">Those mods are installed and still on the Workshop, so the copy is not needed yet.</div>
-                            </div>
-                            <button className="btn-ghost" disabled={planning !== null || busy} onClick={() => planCleanup('installed')}>
-                                {planning === 'installed' ? 'Checking...' : 'Review...'}
-                            </button>
-                        </div>
-                        <div className="backup-cleanup-row danger">
-                            <div>
-                                <div className="backup-cleanup-name">Delete backups of unavailable mods <span className="backup-notrec">(Not recommended)</span></div>
-                                <div className="backup-limit-hint">Mods that are deleted or private on the Workshop. These backups may be the only copies left.</div>
-                            </div>
-                            <button className="btn-ghost" disabled={planning !== null || busy} onClick={() => planCleanup('unavailable')}>
-                                {planning === 'unavailable' ? 'Checking...' : 'Review...'}
-                            </button>
-                        </div>
-                        {plan && (
-                            <div className={`backup-confirm ${plan.kind === 'unavailable' ? 'danger' : ''}`}>
-                                {plan.entries.length === 0 ? (
-                                    <span>
-                                        {plan.kind === 'installed'
-                                            ? 'Nothing to delete: no backup is of a mod that is installed and still available on the Workshop.'
-                                            : 'Nothing to delete: no backup is of a mod known to be deleted or private.'}
-                                    </span>
-                                ) : (
-                                    <>
-                                        <span>
-                                            {plan.kind === 'unavailable' && <strong className="backup-warn">These may be the only copies of mods that are gone from the Workshop, and this cannot be undone. </strong>}
-                                            {plan.entries.length} {plan.entries.length === 1 ? 'backup' : 'backups'} ({formatBytes(plan.bytes)}) would be deleted:
-                                        </span>
-                                        <span className="backup-plan-names">
-                                            {plan.entries.slice(0, 6).map((e) => e.Name || e.RemoteFileID).join(', ')}
-                                            {plan.entries.length > 6 && ` and ${plan.entries.length - 6} more`}
-                                        </span>
-                                        <span className="backup-confirm-actions">
-                                            <button
-                                                className={plan.kind === 'unavailable' ? 'btn-danger' : 'btn-primary'}
-                                                onClick={() => deleteBackups(plan.kind, plan.entries.map((e) => e.RemoteFileID))}
-                                            >
-                                                {plan.kind === 'unavailable' ? 'Delete the only copies' : `Delete ${plan.entries.length} ${plan.entries.length === 1 ? 'backup' : 'backups'}`}
-                                            </button>
-                                            <button className="btn-ghost" onClick={() => setPlan(null)}>Cancel</button>
-                                        </span>
+                        {selectedGameId && (
+                            <div className="backup-summary">
+                                {overview
+                                    ? <>
+                                        {overview.BackedUpMods} {overview.BackedUpMods === 1 ? 'mod' : 'mods'} backed up ({formatBytes(overview.BackedUpBytes)}) of {overview.WorkshopMods} installed Workshop {overview.WorkshopMods === 1 ? 'mod' : 'mods'} ({formatBytes(overview.WorkshopBytes)}).
+                                        {overview.AtRiskMods > 0 && <> {overview.AtRiskMods} deleted or private.</>}
                                     </>
+                                    : 'Counting...'}
+                                {status.Running && <span className="backup-running"><i className="fa-solid fa-spinner fa-spin"/> Backing up...</span>}
+                                {overview && overview.BackedUpMods > 0 && (
+                                    <span className="link-btn" onClick={() => OpenBackupFolder(selectedGameId).catch((e) => notify('error', String(e)))}>Open this game's folder</span>
                                 )}
-                                {plan.entries.length === 0 && <span className="backup-confirm-actions"><button className="btn-ghost" onClick={() => setPlan(null)}>OK</button></span>}
                             </div>
                         )}
-                        {cleanupError && <div className="backup-error"><i className="fa-solid fa-circle-exclamation"/> {cleanupError}</div>}
-                    </div>
-                )}
-                {entries.length > 0 && (
-                    <div className="backup-list">
-                        {entries.map((e) => (
-                            <div key={e.RemoteFileID} className="backup-row">
-                                <span className="backup-name" title={e.Name}>{e.Name || e.RemoteFileID}</span>
-                                <span className={`chip backup-reason ${e.Reason}`}>{backupReasonLabel(e.Reason)}</span>
-                                {!e.Complete && <span className="chip backup-incomplete" title={`${e.Missing} files were removed while copying`}>Incomplete</span>}
-                                <span className="backup-meta mono">{formatBytes(e.Size)}</span>
-                                <span className="backup-meta mono" title={new Date(e.BackedUpAt * 1000).toLocaleString()}>{timeAgo(e.BackedUpAt)}</span>
-                                {rowDelete === e.RemoteFileID ? (
-                                    <span className="backup-row-confirm">
-                                        Delete this backup?
-                                        <button className="btn-danger" onClick={() => deleteBackups('selected', [e.RemoteFileID])}>Delete</button>
-                                        <button className="btn-ghost" onClick={() => setRowDelete('')}>Cancel</button>
-                                    </span>
-                                ) : (
-                                    <i className="fa-solid fa-trash-can backup-row-delete" title="Delete this backup" onClick={() => setRowDelete(e.RemoteFileID)}/>
+                        {selectedGameId && entries.length === 0 && overview && (
+                            <p className="status-page">No backups for this game yet. That is normal while no mod has been deleted.</p>
+                        )}
+                        {selectedGameId && (
+                            <div className="backup-cleanup">
+                                <div className="backup-limits-title"><i className="fa-solid fa-broom"/> Free up space</div>
+                                <div className="backup-cleanup-row">
+                                    <div>
+                                        <div className="backup-cleanup-name">Delete backups of mods still in the Workshop folder</div>
+                                        <div className="backup-limit-hint">Those mods are installed and still on the Workshop, so the copy is not needed yet.</div>
+                                    </div>
+                                    <button className="btn-ghost" disabled={planning !== null || busy} onClick={() => planCleanup('installed')}>
+                                        {planning === 'installed' ? 'Checking...' : 'Review...'}
+                                    </button>
+                                </div>
+                                <div className="backup-cleanup-row danger">
+                                    <div>
+                                        <div className="backup-cleanup-name">Delete backups of unavailable mods <span className="backup-notrec">(Not recommended)</span></div>
+                                        <div className="backup-limit-hint">Mods that are deleted or private on the Workshop. These backups may be the only copies left.</div>
+                                    </div>
+                                    <button className="btn-ghost" disabled={planning !== null || busy} onClick={() => planCleanup('unavailable')}>
+                                        {planning === 'unavailable' ? 'Checking...' : 'Review...'}
+                                    </button>
+                                </div>
+                                {plan && (
+                                    <div className={`backup-confirm ${plan.kind === 'unavailable' ? 'danger' : ''}`}>
+                                        {plan.entries.length === 0 ? (
+                                            <span>
+                                                {plan.kind === 'installed'
+                                                    ? 'Nothing to delete: no backup is of a mod that is installed and still available on the Workshop.'
+                                                    : 'Nothing to delete: no backup is of a mod known to be deleted or private.'}
+                                            </span>
+                                        ) : (
+                                            <>
+                                                <span>
+                                                    {plan.kind === 'unavailable' && <strong className="backup-warn">These may be the only copies of mods that are gone from the Workshop, and this cannot be undone. </strong>}
+                                                    {plan.entries.length} {plan.entries.length === 1 ? 'backup' : 'backups'} ({formatBytes(plan.bytes)}) would be deleted:
+                                                </span>
+                                                <span className="backup-plan-names">
+                                                    {plan.entries.slice(0, 6).map((e) => e.Name || e.RemoteFileID).join(', ')}
+                                                    {plan.entries.length > 6 && ` and ${plan.entries.length - 6} more`}
+                                                </span>
+                                                <span className="backup-confirm-actions">
+                                                    <button
+                                                        className={plan.kind === 'unavailable' ? 'btn-danger' : 'btn-primary'}
+                                                        onClick={() => deleteBackups(plan.kind, plan.entries.map((e) => e.RemoteFileID))}
+                                                    >
+                                                        {plan.kind === 'unavailable' ? 'Delete the only copies' : `Delete ${plan.entries.length} ${plan.entries.length === 1 ? 'backup' : 'backups'}`}
+                                                    </button>
+                                                    <button className="btn-ghost" onClick={() => setPlan(null)}>Cancel</button>
+                                                </span>
+                                            </>
+                                        )}
+                                        {plan.entries.length === 0 && <span className="backup-confirm-actions"><button className="btn-ghost" onClick={() => setPlan(null)}>OK</button></span>}
+                                    </div>
                                 )}
+                                {cleanupError && <div className="backup-error"><i className="fa-solid fa-circle-exclamation"/> {cleanupError}</div>}
                             </div>
-                        ))}
+                        )}
+                        {entries.length > 0 && (
+                            <div className="backup-list">
+                                {entries.map((e) => (
+                                    <div key={e.RemoteFileID} className="backup-row">
+                                        <span className="backup-name" title={e.Name}>{e.Name || e.RemoteFileID}</span>
+                                        <span className={`chip backup-reason ${e.Reason}`}>{backupReasonLabel(e.Reason)}</span>
+                                        {!e.Complete && <span className="chip backup-incomplete" title={`${e.Missing} files were removed while copying`}>Incomplete</span>}
+                                        <span className="backup-meta mono">{formatBytes(e.Size)}</span>
+                                        <span className="backup-meta mono" title={new Date(e.BackedUpAt * 1000).toLocaleString()}>{timeAgo(e.BackedUpAt)}</span>
+                                        {rowDelete === e.RemoteFileID ? (
+                                            <span className="backup-row-confirm">
+                                                Delete this backup?
+                                                <button className="btn-danger" onClick={() => deleteBackups('selected', [e.RemoteFileID])}>Delete</button>
+                                                <button className="btn-ghost" onClick={() => setRowDelete('')}>Cancel</button>
+                                            </span>
+                                        ) : (
+                                            <i className="fa-solid fa-trash-can backup-row-delete" title="Delete this backup" onClick={() => setRowDelete(e.RemoteFileID)}/>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
-                )}
+                </div>
             </div>
         </div>
     );

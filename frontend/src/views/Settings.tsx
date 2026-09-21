@@ -461,7 +461,7 @@ function LaunchOptionsPanel() {
             {selectedGame && prefs && (() => {
                 const mode = launchModeFor(prefs, selectedGame.ID);
                 return (
-                    <div className="mode-option-list">
+                    <div className="mode-option-list tiled">
                         {!selectedGame.Installed && (
                             <p className="status-page">
                                 {selectedGame.DisplayName} isn't installed yet - set its path under
@@ -576,7 +576,7 @@ function PlaysetsSettingsPanel() {
                 const mode = playsetAutoloadModeFor(prefs, selectedGame.ID);
                 const customTarget = prefs.playsetAutoloadCustom?.[selectedGame.ID] ?? '';
                 return (
-                    <div className="mode-option-list">
+                    <div className="mode-option-list tiled">
                         <div className={`mode-option ${mode === 'off' ? 'active' : ''}`} onClick={() => setAutoloadMode('off')}>
                             <i className={`fa-solid ${mode === 'off' ? 'fa-circle-dot' : 'fa-circle'} mode-option-radio ${mode === 'off' ? 'on' : 'off'}`}/>
                             <div className="mode-option-main">
@@ -901,159 +901,166 @@ function AppearancePanel({onPreferencesChanged}: { onPreferencesChanged?: () => 
                     games have any. Let it rotate, or keep one picture.
                 </div>
             </div>
-            <AccentSettings onPreferencesChanged={onPreferencesChanged}/>
-            <div className="profile-toggles">
-                <div className="profile-toggle-row">
-                    <span>Backgrounds</span>
-                    <Toggle on={backgroundOn} onClick={() => togglePref('backgroundDisabled')}/>
+            <div className="settings-columns">
+                <div className="settings-column">
+                    <AccentSettings onPreferencesChanged={onPreferencesChanged}/>
                 </div>
-                <div className={`profile-toggle-row ${backgroundOn ? '' : 'disabled'}`}>
-                    <span>Background source</span>
-                    <span className="source-toggle">
-                        <span className={offline ? '' : 'active'} onClick={backgroundOn && offline ? () => setSource('online') : undefined}>
-                            <i className="fa-solid fa-cloud"/> Online
-                        </span>
-                        <span className={offline ? 'active' : ''} onClick={backgroundOn && !offline ? () => setDownloadMode('switch') : undefined}>
-                            <i className="fa-solid fa-hard-drive"/> Offline
-                        </span>
-                    </span>
-                </div>
-                <div className={`appearance-source-note ${backgroundOn ? '' : 'disabled'}`}>
-                    {offline ? (
-                        <>
-                            <span>
-                                Only images downloaded to this computer are used - nothing is fetched.{' '}
-                                {onDisk && onDisk.files > 0
-                                    ? `${onDisk.files} images (${formatBytes(onDisk.bytes)}) on disk.`
-                                    : 'None downloaded yet, so no background will show.'}
+                <div className="settings-column">
+                    <div className="appearance-group-label">BACKGROUND</div>
+                    <div className="profile-toggles">
+                        <div className="profile-toggle-row">
+                            <span>Backgrounds</span>
+                            <Toggle on={backgroundOn} onClick={() => togglePref('backgroundDisabled')}/>
+                        </div>
+                        <div className={`profile-toggle-row ${backgroundOn ? '' : 'disabled'}`}>
+                            <span>Background source</span>
+                            <span className="source-toggle">
+                                <span className={offline ? '' : 'active'} onClick={backgroundOn && offline ? () => setSource('online') : undefined}>
+                                    <i className="fa-solid fa-cloud"/> Online
+                                </span>
+                                <span className={offline ? 'active' : ''} onClick={backgroundOn && !offline ? () => setDownloadMode('switch') : undefined}>
+                                    <i className="fa-solid fa-hard-drive"/> Offline
+                                </span>
                             </span>
-                            <span className="link-btn amber" onClick={() => setDownloadMode('manage')}>Manage downloads</span>
-                        </>
-                    ) : (
-                        <span>
-                            Images are streamed from {onDisk?.repo ? `GitHub (${onDisk.repo})` : 'GitHub'} as they are needed: a small
-                            listing is fetched at startup and each image loads about 30 seconds before it appears. Nothing is
-                            stored. Choose Offline to download them instead.
-                        </span>
-                    )}
-                </div>
-                <div className={`profile-toggle-row ${backgroundOn ? '' : 'disabled'}`}>
-                    <span>Background mode</span>
-                    <span className="source-toggle">
-                        <span className={rotationOn ? 'active' : ''} onClick={backgroundOn && !rotationOn ? () => setRotating(true) : undefined}>
-                            <i className="fa-solid fa-arrows-rotate"/> Rotating
-                        </span>
-                        <span className={rotationOn ? '' : 'active'} onClick={backgroundOn && rotationOn ? () => setRotating(false) : undefined}>
-                            <i className="fa-solid fa-image"/> Static
-                        </span>
-                    </span>
-                </div>
-                <div className={`appearance-source-note ${backgroundOn ? '' : 'disabled'}`}>
-                    {rotationOn
-                        ? <>A new random image every {formatIntervalDuration(Number(intervalInput))}. The next one is loaded a little before, so the swap is instant.</>
-                        : <>One picture that never changes by itself: the one showing when you chose Static, or the last one you picked with Random. It is saved, so the same one loads every time; each game keeps its own.</>}
-                </div>
-                <div className={`profile-toggle-row ${backgroundOn && rotationOn ? '' : 'disabled'}`}>
-                    <span>Change every</span>
-                    <span className="appearance-interval">
-                        <span className={`interval-stepper ${!backgroundOn || !rotationOn ? 'disabled' : ''}`}>
-                            <input
-                                type="number"
-                                step={BACKGROUND_INTERVAL_STEP}
-                                min={MIN_BACKGROUND_INTERVAL_SECONDS}
-                                max={MAX_BACKGROUND_INTERVAL_SECONDS}
-                                value={intervalInput}
-                                disabled={!backgroundOn || !rotationOn}
-                                onInput={(e) => setIntervalInput((e.target as HTMLInputElement).value)}
-                                onBlur={commitInterval}
-                                onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-                            />
-                            <span className="interval-stepper-buttons">
+                        </div>
+                        <div className={`appearance-source-note ${backgroundOn ? '' : 'disabled'}`}>
+                            {offline ? (
+                                <>
+                                    <span>
+                                        Only images downloaded to this computer are used - nothing is fetched.{' '}
+                                        {onDisk && onDisk.files > 0
+                                            ? `${onDisk.files} images (${formatBytes(onDisk.bytes)}) on disk.`
+                                            : 'None downloaded yet, so no background will show.'}
+                                    </span>
+                                    <span className="link-btn amber" onClick={() => setDownloadMode('manage')}>Manage downloads</span>
+                                </>
+                            ) : (
+                                <span>
+                                    Images are streamed from {onDisk?.repo ? `GitHub (${onDisk.repo})` : 'GitHub'} as they are needed: a small
+                                    listing is fetched at startup and each image loads about 30 seconds before it appears. Nothing is
+                                    stored. Choose Offline to download them instead.
+                                </span>
+                            )}
+                        </div>
+                        <div className={`profile-toggle-row ${backgroundOn ? '' : 'disabled'}`}>
+                            <span>Background mode</span>
+                            <span className="source-toggle">
+                                <span className={rotationOn ? 'active' : ''} onClick={backgroundOn && !rotationOn ? () => setRotating(true) : undefined}>
+                                    <i className="fa-solid fa-arrows-rotate"/> Rotating
+                                </span>
+                                <span className={rotationOn ? '' : 'active'} onClick={backgroundOn && rotationOn ? () => setRotating(false) : undefined}>
+                                    <i className="fa-solid fa-image"/> Static
+                                </span>
+                            </span>
+                        </div>
+                        <div className={`appearance-source-note ${backgroundOn ? '' : 'disabled'}`}>
+                            {rotationOn
+                                ? <>A new random image every {formatIntervalDuration(Number(intervalInput))}. The next one is loaded a little before, so the swap is instant.</>
+                                : <>One picture that never changes by itself: the one showing when you chose Static, or the last one you picked with Random. It is saved, so the same one loads every time; each game keeps its own.</>}
+                        </div>
+                        <div className={`profile-toggle-row ${backgroundOn && rotationOn ? '' : 'disabled'}`}>
+                            <span>Change every</span>
+                            <span className="appearance-interval">
+                                <span className={`interval-stepper ${!backgroundOn || !rotationOn ? 'disabled' : ''}`}>
+                                    <input
+                                        type="number"
+                                        step={BACKGROUND_INTERVAL_STEP}
+                                        min={MIN_BACKGROUND_INTERVAL_SECONDS}
+                                        max={MAX_BACKGROUND_INTERVAL_SECONDS}
+                                        value={intervalInput}
+                                        disabled={!backgroundOn || !rotationOn}
+                                        onInput={(e) => setIntervalInput((e.target as HTMLInputElement).value)}
+                                        onBlur={commitInterval}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                                    />
+                                    <span className="interval-stepper-buttons">
+                                        <button
+                                            type="button"
+                                            className="interval-stepper-btn up"
+                                            tabIndex={-1}
+                                            disabled={!backgroundOn || !rotationOn}
+                                            onClick={() => stepInterval(BACKGROUND_INTERVAL_STEP)}
+                                        >
+                                            <i className="fa-solid fa-chevron-up"/>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="interval-stepper-btn down"
+                                            tabIndex={-1}
+                                            disabled={!backgroundOn || !rotationOn}
+                                            onClick={() => stepInterval(-BACKGROUND_INTERVAL_STEP)}
+                                        >
+                                            <i className="fa-solid fa-chevron-down"/>
+                                        </button>
+                                    </span>
+                                </span>
+                                <span className="mono unit">{formatIntervalDuration(Number(intervalInput))}</span>
+                            </span>
+                        </div>
+                        <div className={`profile-toggle-row ${backgroundOn ? '' : 'disabled'}`}>
+                            <span>Image</span>
+                            <span className="appearance-random">
+                                <span className="mono image-name" title={currentBackground ? `${currentBackground.name} (${currentBackground.origin})` : ''}>
+                                    {backgroundOn && currentBackground ? currentBackground.name : '-'}
+                                </span>
                                 <button
                                     type="button"
-                                    className="interval-stepper-btn up"
-                                    tabIndex={-1}
-                                    disabled={!backgroundOn || !rotationOn}
-                                    onClick={() => stepInterval(BACKGROUND_INTERVAL_STEP)}
+                                    className="btn-ghost"
+                                    disabled={!backgroundOn || !canRandom}
+                                    title={!backgroundOn ? '' : canRandom ? (rotationOn ? 'Show another random image now' : 'Pick another random image and keep it') : 'This game has only one image to choose from'}
+                                    onClick={() => requestRandomBackground()}
                                 >
-                                    <i className="fa-solid fa-chevron-up"/>
-                                </button>
-                                <button
-                                    type="button"
-                                    className="interval-stepper-btn down"
-                                    tabIndex={-1}
-                                    disabled={!backgroundOn || !rotationOn}
-                                    onClick={() => stepInterval(-BACKGROUND_INTERVAL_STEP)}
-                                >
-                                    <i className="fa-solid fa-chevron-down"/>
+                                    <i className="fa-solid fa-shuffle"/> Random
                                 </button>
                             </span>
-                        </span>
-                        <span className="mono unit">{formatIntervalDuration(Number(intervalInput))}</span>
-                    </span>
-                </div>
-                <div className={`profile-toggle-row ${backgroundOn ? '' : 'disabled'}`}>
-                    <span>Image</span>
-                    <span className="appearance-random">
-                        <span className="mono image-name" title={currentBackground ? `${currentBackground.name} (${currentBackground.origin})` : ''}>
-                            {backgroundOn && currentBackground ? currentBackground.name : '-'}
-                        </span>
-                        <button
-                            type="button"
-                            className="btn-ghost"
-                            disabled={!backgroundOn || !canRandom}
-                            title={!backgroundOn ? '' : canRandom ? (rotationOn ? 'Show another random image now' : 'Pick another random image and keep it') : 'This game has only one image to choose from'}
-                            onClick={() => requestRandomBackground()}
-                        >
-                            <i className="fa-solid fa-shuffle"/> Random
-                        </button>
-                    </span>
-                </div>
-                <div className={`profile-toggle-row ${backgroundOn ? '' : 'disabled'}`}>
-                    <span>Blur</span>
-                    <span className="look-slider">
-                        <input
-                            type="range"
-                            min={0}
-                            max={100}
-                            step={1}
-                            value={look.blur}
-                            disabled={!backgroundOn}
-                            aria-label="Background blur"
-                            onInput={(e) => previewLook({...look, blur: Number((e.target as HTMLInputElement).value)})}
-                            onChange={(e) => commitLook({...look, blur: Number((e.target as HTMLInputElement).value)})}
-                        />
-                        <span className="mono unit">{look.blur === 0 ? 'Off' : `${blurPixels(look.blur)} px`}</span>
-                        <span
-                            className={`link-btn look-reset ${look.blur === DEFAULT_BACKGROUND_BLUR || !backgroundOn ? 'hidden' : ''}`}
-                            onClick={() => commitLook({...look, blur: DEFAULT_BACKGROUND_BLUR})}
-                        >Reset</span>
-                    </span>
-                </div>
-                <div className={`profile-toggle-row ${backgroundOn ? '' : 'disabled'}`}>
-                    <span>Darken</span>
-                    <span className="look-slider">
-                        <input
-                            type="range"
-                            min={0}
-                            max={100}
-                            step={1}
-                            value={look.darken}
-                            disabled={!backgroundOn}
-                            aria-label="Background darkening"
-                            onInput={(e) => previewLook({...look, darken: Number((e.target as HTMLInputElement).value)})}
-                            onChange={(e) => commitLook({...look, darken: Number((e.target as HTMLInputElement).value)})}
-                        />
-                        <span className="mono unit">{look.darken}%</span>
-                        <span
-                            className={`link-btn look-reset ${look.darken === DEFAULT_BACKGROUND_DARKEN || !backgroundOn ? 'hidden' : ''}`}
-                            onClick={() => commitLook({...look, darken: DEFAULT_BACKGROUND_DARKEN})}
-                        >Reset</span>
-                    </span>
-                </div>
-                <div className={`appearance-source-note ${backgroundOn ? '' : 'disabled'}`}>
-                    Blur softens the image. Darken is how dark the layer over it is; {DEFAULT_BACKGROUND_DARKEN}% is how the app
-                    has always looked, and less lets more of the art show through behind the text.
+                        </div>
+                        <div className={`profile-toggle-row ${backgroundOn ? '' : 'disabled'}`}>
+                            <span>Blur</span>
+                            <span className="look-slider">
+                                <input
+                                    type="range"
+                                    min={0}
+                                    max={100}
+                                    step={1}
+                                    value={look.blur}
+                                    disabled={!backgroundOn}
+                                    aria-label="Background blur"
+                                    onInput={(e) => previewLook({...look, blur: Number((e.target as HTMLInputElement).value)})}
+                                    onChange={(e) => commitLook({...look, blur: Number((e.target as HTMLInputElement).value)})}
+                                />
+                                <span className="mono unit">{look.blur === 0 ? 'Off' : `${blurPixels(look.blur)} px`}</span>
+                                <span
+                                    className={`link-btn look-reset ${look.blur === DEFAULT_BACKGROUND_BLUR || !backgroundOn ? 'hidden' : ''}`}
+                                    onClick={() => commitLook({...look, blur: DEFAULT_BACKGROUND_BLUR})}
+                                >Reset</span>
+                            </span>
+                        </div>
+                        <div className={`profile-toggle-row ${backgroundOn ? '' : 'disabled'}`}>
+                            <span>Darken</span>
+                            <span className="look-slider">
+                                <input
+                                    type="range"
+                                    min={0}
+                                    max={100}
+                                    step={1}
+                                    value={look.darken}
+                                    disabled={!backgroundOn}
+                                    aria-label="Background darkening"
+                                    onInput={(e) => previewLook({...look, darken: Number((e.target as HTMLInputElement).value)})}
+                                    onChange={(e) => commitLook({...look, darken: Number((e.target as HTMLInputElement).value)})}
+                                />
+                                <span className="mono unit">{look.darken}%</span>
+                                <span
+                                    className={`link-btn look-reset ${look.darken === DEFAULT_BACKGROUND_DARKEN || !backgroundOn ? 'hidden' : ''}`}
+                                    onClick={() => commitLook({...look, darken: DEFAULT_BACKGROUND_DARKEN})}
+                                >Reset</span>
+                            </span>
+                        </div>
+                        <div className={`appearance-source-note ${backgroundOn ? '' : 'disabled'}`}>
+                            Blur softens the image. Darken is how dark the layer over it is; {DEFAULT_BACKGROUND_DARKEN}% is how the app
+                            has always looked, and less lets more of the art show through behind the text.
+                        </div>
+                    </div>
                 </div>
             </div>
             {downloadMode && <BackgroundDownloadModal mode={downloadMode} onClose={closeDownloadModal}/>}

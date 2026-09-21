@@ -171,6 +171,9 @@ for security, privacy, reliability or performance is called out (see the last tw
 
 ## Window
 
+- **Settings use the whole window** - on a wide window each Settings tab spreads into side-by-side columns
+  (mode cards beside the key form, backup options beside the per-game backups, and so on) instead of a narrow strip,
+  and stacks again when the window is small.
 - **Minimum window size** - the window can be resized down to 1200 x 640 and no further, so the mod lists always
   have room for names and Play is always in reach. It opens at 1280 x 700.
 

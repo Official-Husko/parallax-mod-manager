@@ -169,7 +169,6 @@ export function AccentSettings({onPreferencesChanged}: {onPreferencesChanged?: (
                     </div>
                 )}
             </div>
-            <div className="appearance-group-label">BACKGROUND</div>
         </>
     );
 }

@@ -549,6 +549,16 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   the row says to save. When a mod in the playset has no files on disk or is not installed there is
   no honest number, so it says "unavailable" and why instead of leaving the mod out. DLC is not part
   of the checksum, so it is not shown on the DLC screen. Calculating only reads files.
+- **Settings panels fill a wide window** (`frontend/src/views/Settings.css` and the panels) - most
+  Settings tabs were capped at 640 pixels wide, so on a big window everything sat in a narrow strip
+  with the rest of the page empty (Backup was capped at 720). The cap is gone and each panel now
+  spreads out: **Appearance** puts the accent colour and the background settings in two columns,
+  **Steam API** puts the mode cards beside the key form, **Backup** puts the mode, folder and limits
+  beside the per-game backups and the free-up-space tools, the option cards of **Launch options** and
+  **Playsets** sit side by side, and **Sort rules**, **Advanced** and **Debug** lay their rows out
+  in as many columns as fit. Columns are at least 440 pixels wide and stack when the window is too
+  narrow, so nothing changes at the 1200 pixel minimum except that it now uses its width too. Checked
+  in a headless browser at 1920 x 1080, 1280 x 700 and 1200 x 640: no horizontal overflow on any tab.
 - **Accent colour: from the game's icon, custom, or default** (**Settings > Appearance**,
   `frontend/src/views/AccentSettings.tsx`, `frontend/src/data/accentPick.ts`,
   `frontend/src/data/accentColor.ts`) - the interface's main colour used to be taken from each game's

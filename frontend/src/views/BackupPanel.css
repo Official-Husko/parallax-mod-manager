@@ -1,12 +1,10 @@
 .backup-modes {
-    max-width: 720px;
 }
 
 .backup-confirm {
     display: flex;
     flex-direction: column;
     gap: 9px;
-    max-width: 720px;
     border: 1px solid var(--amber);
     border-radius: 5px;
     padding: 10px 13px;
@@ -28,7 +26,6 @@
     display: flex;
     flex-direction: column;
     gap: 7px;
-    max-width: 720px;
 }
 
 .backup-folder-label {
@@ -74,14 +71,12 @@
 }
 
 .backup-compress {
-    max-width: 720px;
 }
 
 .backup-games {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    max-width: 720px;
 }
 
 .backup-summary {
@@ -148,7 +143,6 @@
     display: flex;
     align-items: flex-start;
     gap: 11px;
-    max-width: 720px;
     border: 1px solid var(--red);
     border-radius: 5px;
     padding: 10px 13px;
@@ -173,7 +167,6 @@
     display: flex;
     flex-direction: column;
     gap: 9px;
-    max-width: 720px;
     border: 1px solid var(--border);
     border-radius: 5px;
     padding: 12px 14px;

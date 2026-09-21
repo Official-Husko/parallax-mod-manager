@@ -165,83 +165,88 @@ export function SteamApiPanel() {
                 </div>
             </div>
 
-            <div className={`steam-status ${line.tone}`}>
-                <i className={`fa-solid ${line.icon}`}/>
-                <span>{line.text}</span>
-            </div>
+            <div className="settings-columns">
+                <div className="settings-column">
+                    <div className={`steam-status ${line.tone}`}>
+                        <i className={`fa-solid ${line.icon}`}/>
+                        <span>{line.text}</span>
+                    </div>
 
-            <div className="mode-option-list">
-                {MODES.map((m) => {
-                    const active = chosen === m.mode;
-                    return (
-                        <div key={m.mode} className={`mode-option ${active ? 'active' : ''} ${busy ? 'disabled' : ''}`} onClick={() => pick(m.mode)}>
-                            <i className={`fa-solid ${active ? 'fa-circle-dot' : 'fa-circle'} mode-option-radio ${active ? 'on' : 'off'}`}/>
-                            <div className="mode-option-main">
-                                <div className="mode-option-name">
-                                    {m.name}
-                                    {m.recommended && <span className="mode-option-recommended">(Recommended)</span>}
-                                    {m.mode === 'free' && <span className="chip">Default</span>}
+                    <div className="mode-option-list">
+                        {MODES.map((m) => {
+                            const active = chosen === m.mode;
+                            return (
+                                <div key={m.mode} className={`mode-option ${active ? 'active' : ''} ${busy ? 'disabled' : ''}`} onClick={() => pick(m.mode)}>
+                                    <i className={`fa-solid ${active ? 'fa-circle-dot' : 'fa-circle'} mode-option-radio ${active ? 'on' : 'off'}`}/>
+                                    <div className="mode-option-main">
+                                        <div className="mode-option-name">
+                                            {m.name}
+                                            {m.recommended && <span className="mode-option-recommended">(Recommended)</span>}
+                                            {m.mode === 'free' && <span className="chip">Default</span>}
+                                        </div>
+                                        <div className="mode-option-desc">{m.desc}</div>
+                                    </div>
                                 </div>
-                                <div className="mode-option-desc">{m.desc}</div>
-                            </div>
+                            );
+                        })}
+                    </div>
+
+                    {confirmFree && (
+                        <div className="steam-confirm">
+                            <span>Free API use only deletes your saved key ({status.Fingerprint}) from the settings file. You would have to enter it again to use it later.</span>
+                            <span className="steam-confirm-actions">
+                                <button className="btn-primary" onClick={deleteKeyAndUseFree}>Delete key and use free</button>
+                                <button className="btn-ghost" onClick={() => setConfirmFree(false)}>Cancel</button>
+                            </span>
                         </div>
-                    );
-                })}
-            </div>
-
-            {confirmFree && (
-                <div className="steam-confirm">
-                    <span>Free API use only deletes your saved key ({status.Fingerprint}) from the settings file. You would have to enter it again to use it later.</span>
-                    <span className="steam-confirm-actions">
-                        <button className="btn-primary" onClick={deleteKeyAndUseFree}>Delete key and use free</button>
-                        <button className="btn-ghost" onClick={() => setConfirmFree(false)}>Cancel</button>
-                    </span>
-                </div>
-            )}
-
-            <div className={`steam-key ${locked ? 'locked' : ''}`}>
-                <label className="steam-key-label" htmlFor="steam-api-key">
-                    <i className="fa-solid fa-key"/> Steam Web API key
-                    <span className="link-btn" onClick={() => BrowserOpenURL(KEY_PAGE)}>Get a key</span>
-                </label>
-                <div className="steam-key-row">
-                    <input
-                        id="steam-api-key"
-                        className="steam-key-input"
-                        type="password"
-                        autocomplete="off"
-                        spellcheck={false}
-                        value={key}
-                        disabled={locked || busy !== null}
-                        placeholder={locked ? 'Locked while Free API use only is chosen' : status.HasKey ? 'A key is saved - enter a new one to replace it' : '32 letters and numbers'}
-                        onInput={(e) => setKey((e.target as HTMLInputElement).value)}
-                        onKeyDown={(e) => e.key === 'Enter' && canSave && save()}
-                    />
-                    <button className="btn-primary" disabled={!canSave} onClick={save}>
-                        {busy === 'save' ? 'Checking...' : 'Save key'}
-                    </button>
-                    {status.HasKey && !locked && (
-                        <button className="btn-ghost" disabled={busy !== null || !keyUsable} onClick={check}>
-                            {busy === 'check' ? 'Checking...' : 'Check key'}
-                        </button>
                     )}
                 </div>
-                {error && <div className="steam-key-error"><i className="fa-solid fa-circle-exclamation"/> {error}</div>}
-                <div className="steam-key-note">
-                    The key is checked with Steam before it is saved, so a wrong one is never stored.
-                    {status.HasKey && <> Saved key: <span className="mono">{status.Fingerprint}</span> (a short fingerprint, not the key).</>}
-                </div>
-                <div className="steam-key-note">
-                    <i className="fa-solid fa-lock"/> {status.Protection}
+                <div className="settings-column">
+                    <div className={`steam-key ${locked ? 'locked' : ''}`}>
+                        <label className="steam-key-label" htmlFor="steam-api-key">
+                            <i className="fa-solid fa-key"/> Steam Web API key
+                            <span className="link-btn" onClick={() => BrowserOpenURL(KEY_PAGE)}>Get a key</span>
+                        </label>
+                        <div className="steam-key-row">
+                            <input
+                                id="steam-api-key"
+                                className="steam-key-input"
+                                type="password"
+                                autocomplete="off"
+                                spellcheck={false}
+                                value={key}
+                                disabled={locked || busy !== null}
+                                placeholder={locked ? 'Locked while Free API use only is chosen' : status.HasKey ? 'A key is saved - enter a new one to replace it' : '32 letters and numbers'}
+                                onInput={(e) => setKey((e.target as HTMLInputElement).value)}
+                                onKeyDown={(e) => e.key === 'Enter' && canSave && save()}
+                            />
+                            <button className="btn-primary" disabled={!canSave} onClick={save}>
+                                {busy === 'save' ? 'Checking...' : 'Save key'}
+                            </button>
+                            {status.HasKey && !locked && (
+                                <button className="btn-ghost" disabled={busy !== null || !keyUsable} onClick={check}>
+                                    {busy === 'check' ? 'Checking...' : 'Check key'}
+                                </button>
+                            )}
+                        </div>
+                        {error && <div className="steam-key-error"><i className="fa-solid fa-circle-exclamation"/> {error}</div>}
+                        <div className="steam-key-note">
+                            The key is checked with Steam before it is saved, so a wrong one is never stored.
+                            {status.HasKey && <> Saved key: <span className="mono">{status.Fingerprint}</span> (a short fingerprint, not the key).</>}
+                        </div>
+                        <div className="steam-key-note">
+                            <i className="fa-solid fa-lock"/> {status.Protection}
+                        </div>
+                    </div>
+
+                    {(status.ItemsFromKey > 0 || status.ItemsFromFree > 0) && (
+                        <div className="steam-counts">
+                            Since the app started: {status.ItemsFromKey} Workshop items answered through your key, {status.ItemsFromFree} through the free API
+                            {status.Rescued > 0 && <>, {status.Rescued} of them only the key could return</>}.
+                        </div>
+                    )}
                 </div>
             </div>
-
-            {(status.ItemsFromKey > 0 || status.ItemsFromFree > 0) && (
-                <div className="steam-counts">
-                    Since the app started: {status.ItemsFromKey} Workshop items answered through your key, {status.ItemsFromFree} through the free API
-                    {status.Rescued > 0 && <>, {status.Rescued} of them only the key could return</>}.
-                </div>
-            )}
         </div>
     );
 }
