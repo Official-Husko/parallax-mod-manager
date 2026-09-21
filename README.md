@@ -882,6 +882,8 @@ needed on Windows/macOS.
 
 ## Documentation
 
+- [features.md](features.md) - everything the app can do today, one line each, including what it does
+  for your security and privacy.
 - [CLAUDE.md](CLAUDE.md) - project conventions, layout, and contributor guidance.
 - [docs/](docs/) - Paradox modding domain knowledge (file formats, conflict resolution,
   game launching, performance strategy), written from research rather than assumption.
