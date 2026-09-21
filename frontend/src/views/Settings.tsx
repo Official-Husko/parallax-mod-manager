@@ -84,7 +84,7 @@ export function Settings({jumpToManageGames, jumpToBackup, onGamesChanged, onPre
                     return (
                         <div
                             key={s.key}
-                            className={`settings-nav-row ${clickable ? 'clickable' : 'inert'}`}
+                            className={`settings-nav-row ${clickable ? 'clickable' : 'inert'} ${s.key === 'about' ? 'pinned-bottom' : ''}`}
                             style={{background: active ? '#1e2734' : 'transparent', color: active ? 'var(--text-bright)' : 'var(--text-mid)'}}
                             onClick={() => clickable && setSection(s.key as Section)}
                         >

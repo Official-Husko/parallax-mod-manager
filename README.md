@@ -549,6 +549,9 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   the row says to save. When a mod in the playset has no files on disk or is not installed there is
   no honest number, so it says "unavailable" and why instead of leaving the mod out. DLC is not part
   of the checksum, so it is not shown on the DLC screen. Calculating only reads files.
+- **About is pinned to the bottom of the Settings sidebar** (`Settings.tsx`, `Settings.css`) - the
+  About tab now sits on the bottom edge of the sidebar, set apart by a line, whatever the window's height
+  and whether or not the development-only Debug tab is shown, instead of trailing the list.
 - **Settings panels fill a wide window** (`frontend/src/views/Settings.css` and the panels) - most
   Settings tabs were capped at 640 pixels wide, so on a big window everything sat in a narrow strip
   with the rest of the page empty (Backup was capped at 720). The cap is gone and each panel now

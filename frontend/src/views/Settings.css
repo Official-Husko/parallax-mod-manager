@@ -11,11 +11,19 @@
     background: var(--bg-rail);
     padding: 14px 0;
     overflow-y: auto;
+    display: flex;
+    flex-direction: column;
 }
 
 .settings-nav-row {
     padding: 7px 14px;
     font: 500 12.5px Barlow, sans-serif;
+}
+
+/* About sits at the very bottom of the sidebar, whatever the window's height, set apart by a line. */
+.settings-nav-row.pinned-bottom {
+    margin-top: auto;
+    border-top: 1px solid var(--border);
 }
 
 .settings-nav-row.clickable {
