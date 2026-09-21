@@ -686,8 +686,8 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   space only for mods really in danger), **Every Workshop mod** (the only way to be certain: every installed mod is kept
   and refreshed when it changes; asks first and shows how much it would copy and how much room is left, since a full
   library is large - 47 GB for 81 mods on the development machine) and **Off** (a single mod can still be backed up
-  from its right-click menu, **Back up now**). Backups go to a folder of your choice, by default **Parallax Mod Backups**
-  in the home folder, one folder per game by its id and the mod copied 1:1 inside
+  from its right-click menu, **Back up now**). Backups go to a folder of your choice, by default a **Parallax Mod Backups**
+  folder inside the app's settings folder (where the settings and caches live), one folder per game by its id and the mod copied 1:1 inside
   (`<folder>/<game id>/mods/<Workshop item id>/...`), next to a `backups.jsonc` that records what was copied, when and
   why; changing the folder keeps the backups already made where they are. A copy is written to a temporary folder and
   moved into place when complete, so a cancelled copy or a crash never replaces a good backup; files that vanish

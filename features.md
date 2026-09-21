@@ -107,8 +107,8 @@ for security, privacy, reliability or performance is called out (see the last tw
   deleted while the app is open. Steam cannot be asked to wait, so it copies in time rather than holding the deletion.
 - **Choose what is backed up** - deleted and private mods (recommended), every Workshop mod (asks first and shows the
   size and free space), or off; a single mod can always be backed up from its right-click menu.
-- **Your own backup folder** - default "Parallax Mod Backups" in your home folder, one folder per game, changeable
-  in Settings > Backup. Existing backups stay where they are.
+- **Your own backup folder** - by default a "Parallax Mod Backups" folder inside the app's settings folder, one folder
+  per game, changeable in Settings > Backup. Existing backups stay where they are.
 - **Safe copies** - a copy replaces an older one only when complete, mods that lose files while being copied are
   marked incomplete, and a full disk or an overlapping folder is refused with a message.
 - **Backup status on the mod** - flagged mods say whether their copy is saved (and when), partial, in progress,

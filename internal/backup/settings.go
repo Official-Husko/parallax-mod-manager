@@ -41,7 +41,7 @@ func ParseMode(s string) Mode {
 // Settings is what the user chose.
 type Settings struct {
 	Mode Mode `json:"mode"`
-	// Path is a backup folder the user picked; empty means the default (DefaultRoot).
+	// Path is a backup folder the user picked; empty means the default (see DefaultRoot).
 	Path string `json:"path"`
 }
 
@@ -51,22 +51,23 @@ func Defaults() Settings { return Settings{Mode: ModeAtRisk} }
 // FolderName is the name of the default backup folder.
 const FolderName = "Parallax Mod Backups"
 
-// DefaultRoot is the backup folder used until the user picks one: Parallax Mod
-// Backups in their home folder. Empty when the home folder cannot be found.
-func DefaultRoot() string {
-	home, err := os.UserHomeDir()
-	if err != nil || home == "" {
+// DefaultRoot is the backup folder used until the user picks one: a Parallax Mod
+// Backups folder inside the app's own settings folder (configDir). Empty when there
+// is no settings folder.
+func DefaultRoot(configDir string) string {
+	if configDir == "" {
 		return ""
 	}
-	return filepath.Join(home, FolderName)
+	return filepath.Join(configDir, FolderName)
 }
 
-// Root is the folder backups go in for these settings.
-func (s Settings) Root() string {
+// Root is the folder backups go in for these settings: the one the user picked, or
+// defaultRoot (see DefaultRoot).
+func (s Settings) Root(defaultRoot string) string {
 	if p := strings.TrimSpace(s.Path); p != "" {
 		return filepath.Clean(p)
 	}
-	return DefaultRoot()
+	return defaultRoot
 }
 
 // ValidateRoot checks that a folder can be backed up into: it is an absolute path,
@@ -139,8 +140,8 @@ func (s Store) Save(st Settings) error {
   //   "off"    - nothing automatically
   "mode": ` + q(string(st.Mode)) + `,
 
-  // Where backups are kept. Empty means the default, "` + FolderName + `" in your home
-  // folder. Each game gets its own folder inside, named by its id: <path>/<game id>/mods/<item id>.
+  // Where backups are kept. Empty means the default, a "` + FolderName + `" folder inside this
+  // settings folder. Each game gets its own folder inside, named by its id: <path>/<game id>/mods/<item id>.
   "path": ` + q(st.Path) + `
 }
 `

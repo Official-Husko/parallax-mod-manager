@@ -180,7 +180,7 @@ export function BackupPanel() {
                     <button className="btn-ghost" disabled={!status.Root} onClick={() => OpenPath(status.Root).catch((e) => notify('error', String(e)))}>Open</button>
                 </div>
                 <div className="backup-note">
-                    {usingDefault ? 'The default folder, in your home folder. ' : 'A folder you chose. '}
+                    {usingDefault ? 'The default folder, inside the app\'s settings folder (on the same drive, so choose another if that one is small). ' : 'A folder you chose. '}
                     Each game gets its own folder inside, named by its id: <span className="mono">{'<folder>/<game id>/mods/<item id>'}</span>.
                     Backups already made stay where they are if you change the folder.
                     {status.FreeBytes > 0 && <> {formatBytes(status.FreeBytes)} free.</>}

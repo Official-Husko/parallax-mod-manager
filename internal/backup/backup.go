@@ -7,8 +7,8 @@
 // disk (see internal/steamapi.Classify), or, in the "every mod" mode, ahead of any
 // trouble.
 //
-// Layout, under a root folder the user can choose (default: Parallax Mod Backups in
-// the home folder):
+// Layout, under a root folder the user can choose (default: a Parallax Mod Backups
+// folder inside the app's settings folder):
 //
 //	<root>/<game id>/mods/<workshop item id>/...   the mod's folder, copied as it is
 //	<root>/<game id>/backups.jsonc                 what was copied, when and why

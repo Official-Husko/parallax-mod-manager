@@ -47,10 +47,16 @@ type backupState struct {
 	// filesGone says which flagged mods no longer have files on disk to copy.
 	states    map[string][]WorkshopAvailability
 	filesGone map[string]map[string]bool
+	// defaultRoot is the backup folder used until the user picks one: inside the app's
+	// settings folder (empty when that could not be found).
+	defaultRoot string
 	// ctx stops everything at shutdown.
 	ctx    context.Context
 	cancel context.CancelFunc
 }
+
+// rootLocked is the folder backups go in now. Callers hold mu.
+func (b *backupState) rootLocked() string { return b.settings.Root(b.defaultRoot) }
 
 // initBackups loads the backup settings and starts the background re-check. dir is the
 // app's config folder ("" when it could not be found: the defaults are used and
@@ -63,6 +69,7 @@ func (a *App) initBackups(dir string) {
 	b.failedAt = map[string]time.Time{}
 	b.states = map[string][]WorkshopAvailability{}
 	b.filesGone = map[string]map[string]bool{}
+	b.defaultRoot = backup.DefaultRoot(dir)
 	if dir != "" {
 		b.store = backup.Store{Path: filepath.Join(dir, backup.SettingsFile)}
 	}
@@ -70,13 +77,14 @@ func (a *App) initBackups(dir string) {
 	b.settings = settings
 	b.ctx, b.cancel = context.WithCancel(context.Background())
 	ctx := b.ctx
+	root := b.rootLocked()
 	b.mu.Unlock()
 
 	log := applog.For("Backup")
 	if err != nil {
 		log.Warnf("the backup settings could not be read, so the defaults are used: %v", err)
 	}
-	log.Infof("mod backups: %s, folder '%s'", settings.Mode, settings.Root())
+	log.Infof("mod backups: %s, folder '%s'", settings.Mode, root)
 
 	if a.ctx != nil {
 		go a.backupWatchdog(ctx)
@@ -179,7 +187,7 @@ func (a *App) preserveWorkshopMods(gameID string, states []WorkshopAvailability)
 	}
 	b.states[gameID] = states
 	mode := b.settings.Mode
-	root := b.settings.Root()
+	root := b.rootLocked()
 	b.mu.Unlock()
 
 	byItem := make(map[string]string, len(states))
@@ -396,7 +404,7 @@ func (a *App) attachBackupState(gameID string, states []WorkshopAvailability) {
 	b := &a.backup
 	b.mu.Lock()
 	mode := b.settings.Mode
-	root := b.settings.Root()
+	root := b.rootLocked()
 	gone := b.filesGone[gameID]
 	failed := map[string]bool{}
 	for id, t := range b.failedAt {
@@ -458,9 +466,10 @@ func (a *App) BackupStatus() BackupStatus {
 	b := &a.backup
 	b.mu.Lock()
 	settings := b.settings
+	root, defaultRoot := b.rootLocked(), b.defaultRoot
 	running := len(b.running) > 0
 	b.mu.Unlock()
-	st := BackupStatus{Mode: string(settings.Mode), CustomPath: settings.Path, Root: settings.Root(), DefaultRoot: backup.DefaultRoot(), Running: running}
+	st := BackupStatus{Mode: string(settings.Mode), CustomPath: settings.Path, Root: root, DefaultRoot: defaultRoot, Running: running}
 	if st.Mode == "" {
 		st.Mode = string(backup.ModeAtRisk)
 	}
@@ -525,11 +534,12 @@ func (a *App) SetBackupMode(mode string) (BackupStatus, error) {
 func (a *App) SetBackupFolder(path string) (BackupStatus, error) {
 	a.backup.mu.Lock()
 	next := a.backup.settings
+	defaultRoot := a.backup.defaultRoot
 	a.backup.mu.Unlock()
 	next.Path = path
-	root := next.Root()
+	root := next.Root(defaultRoot)
 	if root == "" {
-		return a.BackupStatus(), errors.New("the home folder could not be found, so there is no default backup folder: choose one")
+		return a.BackupStatus(), errors.New("the app's settings folder could not be found, so there is no default backup folder: choose one")
 	}
 	if err := backup.ValidateRoot(root); err != nil {
 		return a.BackupStatus(), err
@@ -604,7 +614,7 @@ func (a *App) BackupOverview(gameID string) (BackupOverview, error) {
 	b.mu.Lock()
 	states := b.states[gameID]
 	gone := b.filesGone[gameID]
-	root := b.settings.Root()
+	root := b.rootLocked()
 	b.mu.Unlock()
 	for _, s := range states {
 		if (s.State == string(steamapi.AvailabilityDeleted) || s.State == string(steamapi.AvailabilityPrivate)) && !gone[s.RemoteFileID] {
@@ -624,7 +634,7 @@ func (a *App) ListBackups(gameID string) ([]backup.Entry, error) {
 		return nil, fmt.Errorf("app: unknown game %q", gameID)
 	}
 	a.backup.mu.Lock()
-	root := a.backup.settings.Root()
+	root := a.backup.rootLocked()
 	a.backup.mu.Unlock()
 	entries := backup.List(root, gameID)
 	if entries == nil {
@@ -639,7 +649,7 @@ func (a *App) OpenBackupFolder(gameID string) error {
 		return fmt.Errorf("app: unknown game %q", gameID)
 	}
 	a.backup.mu.Lock()
-	root := a.backup.settings.Root()
+	root := a.backup.rootLocked()
 	a.backup.mu.Unlock()
 	if root == "" {
 		return errors.New("there is no backup folder")
@@ -678,7 +688,7 @@ func (a *App) BackupMod(gameID, modID string) (string, error) {
 			return "", errors.New("this mod's files are not on disk, so there is nothing to copy")
 		}
 		a.backup.mu.Lock()
-		root := a.backup.settings.Root()
+		root := a.backup.rootLocked()
 		a.backup.mu.Unlock()
 		if root == "" {
 			return "", errors.New("there is no backup folder")

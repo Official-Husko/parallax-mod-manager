@@ -16,18 +16,19 @@ func TestParseModeDefaultsToAtRisk(t *testing.T) {
 	}
 }
 
-func TestDefaultRootIsParallaxModBackupsInHome(t *testing.T) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		t.Skip("no home folder")
+func TestDefaultRootIsParallaxModBackupsInsideTheSettingsFolder(t *testing.T) {
+	config := filepath.Join(t.TempDir(), "parallax-mod-manager")
+	def := DefaultRoot(config)
+	if want := filepath.Join(config, "Parallax Mod Backups"); def != want {
+		t.Errorf("DefaultRoot = %q, want %q", def, want)
 	}
-	if got, want := DefaultRoot(), filepath.Join(home, "Parallax Mod Backups"); got != want {
-		t.Errorf("DefaultRoot = %q, want %q", got, want)
+	if DefaultRoot("") != "" {
+		t.Error("with no settings folder there is no default")
 	}
-	if got := (Settings{}).Root(); got != DefaultRoot() {
+	if got := (Settings{}).Root(def); got != def {
 		t.Errorf("empty path Root = %q, want the default", got)
 	}
-	if got := (Settings{Path: "  /somewhere/else/  "}).Root(); got != filepath.Clean("/somewhere/else") {
+	if got := (Settings{Path: "  /somewhere/else/  "}).Root(def); got != filepath.Clean("/somewhere/else") {
 		t.Errorf("custom path Root = %q", got)
 	}
 }
@@ -47,7 +48,7 @@ func TestSettingsRoundTripAndComments(t *testing.T) {
 	}
 	data, _ := os.ReadFile(s.Path)
 	text := string(data)
-	if !strings.Contains(text, "// Which mods are backed up on their own") || !strings.Contains(text, "// Where backups are kept") || strings.Contains(text, "—") {
+	if !strings.Contains(text, "// Which mods are backed up on their own") || !strings.Contains(text, "// Where backups are kept") || !strings.Contains(text, "inside this") || strings.Contains(text, "—") {
 		t.Errorf("the file has no explanation beside its fields:\n%s", text)
 	}
 }

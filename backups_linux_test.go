@@ -358,8 +358,8 @@ func TestBackupSettingsPersistAndDefault(t *testing.T) {
 	if st.Mode != "atrisk" || st.Root != root || st.CustomPath != root {
 		t.Errorf("status = %+v", st)
 	}
-	if st.DefaultRoot != backup.DefaultRoot() || !strings.HasSuffix(st.DefaultRoot, "Parallax Mod Backups") {
-		t.Errorf("DefaultRoot = %q", st.DefaultRoot)
+	if st.DefaultRoot != filepath.Join(configDir, "Parallax Mod Backups") {
+		t.Errorf("DefaultRoot = %q, want a Parallax Mod Backups folder inside the settings folder %q", st.DefaultRoot, configDir)
 	}
 	if st.FreeBytes <= 0 {
 		t.Errorf("FreeBytes = %d, want the space left on the volume", st.FreeBytes)
@@ -380,7 +380,7 @@ func TestBackupSettingsPersistAndDefault(t *testing.T) {
 	if _, err := a.SetBackupFolder(""); err != nil {
 		t.Fatal(err)
 	}
-	if got := a.BackupStatus(); got.CustomPath != "" || got.Root != backup.DefaultRoot() {
+	if got := a.BackupStatus(); got.CustomPath != "" || got.Root != filepath.Join(configDir, "Parallax Mod Backups") {
 		t.Errorf("after reset: %+v", got)
 	}
 	file := filepath.Join(t.TempDir(), "afile")
@@ -478,5 +478,40 @@ func TestRecheckFindsAModDeletedWhileTheAppIsOpenAndBacksItUp(t *testing.T) {
 	events.mu.Unlock()
 	if progress != 1 {
 		t.Errorf("backup-progress emitted %d times, want 1 (only the copy that really happened)", progress)
+	}
+}
+
+func TestWithNoFolderChosenBackupsGoInsideTheSettingsFolder(t *testing.T) {
+	dataHome := t.TempDir()
+	t.Setenv("XDG_DATA_HOME", dataHome)
+	modDir := filepath.Join(dataHome, "Paradox Interactive", "TestGame", "mod")
+	cfg := game.GameConfig{ID: backupTestGame, DisplayName: "Test Game", FolderName: "TestGame", DescriptorType: mod.DescriptorClassic, ScanFolders: []string{"common"}}
+	a := &App{ctx: context.Background(), registry: game.NewRegistry([]game.GameConfig{cfg}), eventSink: (&backupEvents{}).sink}
+	configDir := filepath.Join(t.TempDir(), "parallax-mod-manager")
+	a.initBackups(configDir)
+	t.Cleanup(a.stopBackups)
+	writeWorkshopStub(t, modDir, "111", "Deleted One")
+
+	a.preserveWorkshopMods(backupTestGame, []WorkshopAvailability{av("111", "deleted", "record")})
+	waitForBackups(t, a)
+
+	want := filepath.Join(configDir, "Parallax Mod Backups", backupTestGame, "mods", "111", "common", "x.txt")
+	if _, err := os.Stat(want); err != nil {
+		t.Errorf("the copy is not in the default folder inside the settings folder: %v", err)
+	}
+	if st := a.BackupStatus(); st.Root != filepath.Join(configDir, "Parallax Mod Backups") || st.CustomPath != "" {
+		t.Errorf("status = %+v", st)
+	}
+}
+
+func TestWithNoSettingsFolderThereIsNoDefaultAndNothingIsBackedUp(t *testing.T) {
+	a := &App{ctx: context.Background(), registry: game.NewRegistry(nil)}
+	a.initBackups("")
+	t.Cleanup(a.stopBackups)
+	if st := a.BackupStatus(); st.Root != "" || st.DefaultRoot != "" {
+		t.Errorf("status = %+v, want no folder", st)
+	}
+	if _, err := a.SetBackupFolder(""); err == nil {
+		t.Error("resetting to a default that does not exist succeeded")
 	}
 }
