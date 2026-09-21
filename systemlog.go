@@ -161,9 +161,13 @@ func (a *App) environmentReportLines() []string {
 			background += fmt.Sprintf(", every %ds", p.BackgroundIntervalSeconds)
 		}
 	}
-	lines = append(lines, fmt.Sprintf("Settings: watch for new mods %s, close after launch %s, background %s, autosort dependencies %s / fixes last %s / patch last %s",
+	devtools := onOffText(p.DeveloperTools)
+	if !devtoolsBuiltIn {
+		devtools += " (not in this build)"
+	}
+	lines = append(lines, fmt.Sprintf("Settings: watch for new mods %s, close after launch %s, background %s, autosort dependencies %s / fixes last %s / patch last %s, developer tools %s",
 		onOffText(p.ScanForNewMods), onOffText(p.CloseAfterLaunch), background,
-		onOffText(p.AutosortDependencies), onOffText(p.AutosortFixesLast), onOffText(p.AutosortPatchLast)))
+		onOffText(p.AutosortDependencies), onOffText(p.AutosortFixesLast), onOffText(p.AutosortPatchLast), devtools))
 
 	if a.registry == nil {
 		return lines

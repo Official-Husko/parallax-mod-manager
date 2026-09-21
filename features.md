@@ -162,6 +162,12 @@ for security, privacy, reliability or performance is called out (see the last tw
   buttons to open them.
 - **Licence in the app** - the full non-commercial licence, readable inside the About page.
 
+## Debug
+
+- **Developer tools switch** - Settings > Debug adds the browser's inspector to the app (Shift+right-click for
+  Inspect Element, plus the window's keyboard shortcut and an Open button), off by default and applied after a
+  restart. Says so when a build was made without the inspector.
+
 ## Performance
 
 - **Incremental parsing cache** - unchanged mods cost almost nothing on the next launch; a corrupt

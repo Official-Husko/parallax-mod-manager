@@ -917,6 +917,24 @@ export namespace main {
 	        this.LimitState = source["LimitState"];
 	    }
 	}
+	export class DeveloperToolsStatus {
+	    BuiltIn: boolean;
+	    Enabled: boolean;
+	    RestartNeeded: boolean;
+	    OS: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DeveloperToolsStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.BuiltIn = source["BuiltIn"];
+	        this.Enabled = source["Enabled"];
+	        this.RestartNeeded = source["RestartNeeded"];
+	        this.OS = source["OS"];
+	    }
+	}
 	export class PlaysetChecksumResult {
 	    Status: string;
 	    Checksum: string;
@@ -1125,6 +1143,7 @@ export namespace preferences {
 	    playsetAutoloadModes: Record<string, string>;
 	    playsetAutoloadCustom: Record<string, string>;
 	    lastSeenGameVersions: Record<string, string>;
+	    developerTools: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Preferences(source);
@@ -1154,6 +1173,7 @@ export namespace preferences {
 	        this.playsetAutoloadModes = source["playsetAutoloadModes"];
 	        this.playsetAutoloadCustom = source["playsetAutoloadCustom"];
 	        this.lastSeenGameVersions = source["lastSeenGameVersions"];
+	        this.developerTools = source["developerTools"];
 	    }
 	}
 

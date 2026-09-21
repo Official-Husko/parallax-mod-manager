@@ -269,3 +269,28 @@ func TestChangedKeysNamesTheBackgroundLookSettings(t *testing.T) {
 		t.Errorf("keys = %v", keys)
 	}
 }
+
+func TestDeveloperToolsAreOffByDefaultAndSurviveASave(t *testing.T) {
+	if Defaults().DeveloperTools {
+		t.Fatal("developer tools must be off on a fresh install")
+	}
+	path := filepath.Join(t.TempDir(), "preferences.jsonc")
+	if err := os.WriteFile(path, []byte(`{"scanForNewMods": false}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if Load(path).DeveloperTools {
+		t.Error("a file from before the setting existed must read as off")
+	}
+
+	p := Defaults()
+	p.DeveloperTools = true
+	if err := Save(path, p); err != nil {
+		t.Fatal(err)
+	}
+	if !Load(path).DeveloperTools {
+		t.Error("the setting was lost by a save and load")
+	}
+	if keys := ChangedKeys(Defaults(), p); len(keys) != 1 || keys[0] != "developerTools" {
+		t.Errorf("ChangedKeys = %v, want [developerTools]", keys)
+	}
+}

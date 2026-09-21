@@ -549,6 +549,19 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   the row says to save. When a mod in the playset has no files on disk or is not installed there is
   no honest number, so it says "unavailable" and why instead of leaving the mod out. DLC is not part
   of the checksum, so it is not shown on the DLC screen. Calculating only reads files.
+- **Developer tools** (**Settings > Debug**, `devtools.go`, `frontend/src/views/DebugPanel.tsx`) -
+  a new Debug tab whose first switch adds the browser's inspector to the app for debugging and for
+  testing changes to the interface; off by default. What Wails v2 allows shapes it: whether a build
+  contains the inspector at all is decided when it is compiled (the `devtools` tag, which
+  `./build.sh` passes as `-devtools`; `wails dev` always has it), and the window's own keyboard
+  shortcut (F12, Ctrl+Shift+F12 on Linux) cannot be turned off afterwards. The switch controls the
+  rest: with it on, **Shift+right-click** anywhere gives the browser's own menu with Inspect Element
+  (everywhere else the app shows its own menus and never the browser's), and the tab shows the
+  shortcut and, on Linux and macOS, an **Open developer tools** button. The native menu is chosen
+  when the window is created, so the switch reads the setting from the settings file before the
+  window exists and asks for a restart to apply a change. A build made without the inspector says so
+  in the tab instead of offering a switch that does nothing, and the start-up report in the activity
+  log says whether developer tools are on and whether the build has them.
 - **Real DLC toggling** (`internal/dlc`, `Dlc.tsx`) - lets a user disable specific installed
   DLC for a saved playset. The write path was already real and already launched
   (`internal/launch` has written `dlc_load.json`'s `disabled_dlcs` field since playsets shipped);
@@ -1093,6 +1106,7 @@ that legitimately does rewrite the file's `modsOrder`).
 ```sh
 wails dev -tags webkit2_41    # hot-reload dev mode
 wails build -tags webkit2_41  # production build, outputs to build/bin/
+./build.sh                    # the same, plus -devtools: the inspector for Settings > Debug
 go test ./... -race           # backend test suite
 ```
 

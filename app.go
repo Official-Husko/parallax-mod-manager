@@ -109,10 +109,14 @@ type App struct {
 	steamRoots []string
 	// checksumMu guards checksumCancel: the calculation running for each game, so a newer
 	// request for the same game can stop the older one (see checksum.go).
-	checksumMu     sync.Mutex
-	checksumCancel map[string]context.CancelFunc
-	modWatcher     *watch.FolderWatcher
-	watchedGameID  string
+	// developerToolsAtStart is the developer tools setting as it was when the window
+	// was created - what the native right-click menu was set up with, so a change made
+	// since needs a restart (see devtools.go).
+	developerToolsAtStart bool
+	checksumMu            sync.Mutex
+	checksumCancel        map[string]context.CancelFunc
+	modWatcher            *watch.FolderWatcher
+	watchedGameID         string
 	// watchMute silences modWatcher while the app is itself writing into the
 	// mod folder (generating the patch, purging mods): those operations
 	// refresh the mod list on their own. Zero-value usable.
@@ -174,7 +178,7 @@ type App struct {
 // paths, loading the games list) happens in startup, once a context
 // exists - see that method.
 func NewApp() *App {
-	return &App{}
+	return &App{developerToolsAtStart: developerToolsSetting()}
 }
 
 // startup is called when the app starts. The context is saved so we can

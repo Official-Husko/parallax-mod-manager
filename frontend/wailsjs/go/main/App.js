@@ -94,6 +94,10 @@ export function DetectGames() {
   return window['go']['main']['App']['DetectGames']();
 }
 
+export function DeveloperToolsStatus() {
+  return window['go']['main']['App']['DeveloperToolsStatus']();
+}
+
 export function FindEmptyMods(arg1) {
   return window['go']['main']['App']['FindEmptyMods'](arg1);
 }

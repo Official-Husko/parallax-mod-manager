@@ -33,8 +33,9 @@ import {GamePickerChips, type ManageGamesState, useManagedGamePicker} from './Ga
 import {BackgroundDownloadModal} from './BackgroundDownloadModal';
 import {SteamApiPanel} from './SteamApiPanel';
 import {BackupPanel} from './BackupPanel';
+import {DebugPanel} from './DebugPanel';
 
-type Section = 'manage' | 'paths' | 'launch' | 'playsets' | 'sort' | 'steam' | 'backup' | 'appearance' | 'advanced' | 'about';
+type Section = 'manage' | 'paths' | 'launch' | 'playsets' | 'sort' | 'steam' | 'backup' | 'appearance' | 'advanced' | 'debug' | 'about';
 
 export function Settings({jumpToManageGames, jumpToBackup, onGamesChanged, onPreferencesChanged}: {
     // Incremented by app.tsx (the TopBar's own "Manage games" entry) to
@@ -71,7 +72,7 @@ export function Settings({jumpToManageGames, jumpToBackup, onGamesChanged, onPre
             <div className="settings-nav">
                 <div className="sidebar-label">SETTINGS</div>
                 {settingsNav.map((s) => {
-                    const clickable = s.key === 'manage' || s.key === 'paths' || s.key === 'launch' || s.key === 'playsets' || s.key === 'sort' || s.key === 'steam' || s.key === 'backup' || s.key === 'appearance' || s.key === 'advanced' || s.key === 'about';
+                    const clickable = s.key === 'manage' || s.key === 'paths' || s.key === 'launch' || s.key === 'playsets' || s.key === 'sort' || s.key === 'steam' || s.key === 'backup' || s.key === 'appearance' || s.key === 'advanced' || s.key === 'debug' || s.key === 'about';
                     const active = clickable && s.key === section;
                     return (
                         <div
@@ -95,6 +96,7 @@ export function Settings({jumpToManageGames, jumpToBackup, onGamesChanged, onPre
             {section === 'backup' && <BackupPanel/>}
             {section === 'appearance' && <AppearancePanel onPreferencesChanged={onPreferencesChanged}/>}
             {section === 'advanced' && <AdvancedPanel/>}
+            {section === 'debug' && <DebugPanel/>}
             {section === 'about' && <AboutPanel/>}
         </div>
     );

@@ -1,0 +1,60 @@
+/* A line about the state of the developer tools: what the build has, or what a restart will do. */
+.debug-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 9px 12px;
+    font: 500 12px/1.5 Barlow, sans-serif;
+    color: var(--text-mid);
+    background: rgba(255, 255, 255, .02);
+}
+
+.debug-note i {
+    margin-top: 2px;
+    flex: none;
+    color: var(--text-dim);
+}
+
+.debug-note.warn i {
+    color: var(--amber);
+}
+
+.debug-note code,
+.debug-how code {
+    font-family: 'Azeret Mono', monospace;
+    font-size: 11px;
+    color: var(--text-bright);
+}
+
+.debug-how {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 11px 13px;
+    font: 400 11.5px/1.5 Barlow, sans-serif;
+    color: var(--text-muted);
+}
+
+.debug-how-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.debug-how-row > span:first-child {
+    flex: 1;
+    min-width: 0;
+}
+
+.debug-footnote {
+    font: 400 11px/1.5 Barlow, sans-serif;
+    color: var(--text-dim);
+}
+
+.sort-rule-row.disabled .toggle-pill {
+    opacity: .45;
+}

@@ -34,8 +34,12 @@ func main() {
 		// behind the window (the desktop, another app) through the gap
 		// instead of this app's own dark background.
 		BackgroundColour: &options.RGBA{R: 10, G: 13, B: 18, A: 255},
-		OnStartup:        app.startup,
-		OnShutdown:       app.shutdown,
+		// The browser's own right-click menu (Inspect Element) is only allowed
+		// through when the developer tools setting asks for it - the interface
+		// shows its own menus otherwise. See devtools.go.
+		EnableDefaultContextMenu: app.developerToolsAtStart,
+		OnStartup:                app.startup,
+		OnShutdown:               app.shutdown,
 		Bind: []interface{}{
 			app,
 		},

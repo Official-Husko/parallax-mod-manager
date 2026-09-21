@@ -62,6 +62,8 @@ export function DeletePlayset(arg1:string,arg2:string):Promise<void>;
 
 export function DetectGames():Promise<Array<library.DetectedGame>>;
 
+export function DeveloperToolsStatus():Promise<main.DeveloperToolsStatus>;
+
 export function FindEmptyMods(arg1:string):Promise<Array<library.EmptyModCandidate>>;
 
 export function GameLogFiles(arg1:string):Promise<gamelog.Listing>;

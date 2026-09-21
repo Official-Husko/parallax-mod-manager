@@ -23,6 +23,7 @@ export const settingsNav = [
     {label: 'Backup', key: 'backup'},
     {label: 'Appearance', key: 'appearance'},
     {label: 'Advanced', key: 'advanced'},
+    {label: 'Debug', key: 'debug'},
     {label: 'About', key: 'about'},
 ];
 

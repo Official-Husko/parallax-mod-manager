@@ -9,6 +9,7 @@ import {NotificationStack} from './components/NotificationStack';
 import {ContextMenu} from './components/ContextMenu';
 import {installBackupNotifications} from './data/backups';
 import {installModStubNotifications} from './data/modStubs';
+import {setShiftRightClickNative, wantsNativeContextMenu} from './data/developerTools';
 import {ensureModUpdates} from './data/modUpdates';
 import {Tooltip} from './components/Tooltip';
 import {AppBackground} from './components/AppBackground';
@@ -127,10 +128,22 @@ export function App() {
     // inspect element, and the like - not meaningful chrome for a
     // packaged desktop app). Runs unconditionally, before the onboarding
     // check below, so this holds even on the first-run wizard screen.
+    //
+    // The one exception is the developer tools setting (Settings > Debug): with it on,
+    // Shift+right-click is left to the browser, whose own menu has Inspect Element. That
+    // is caught before anything else sees it, so it works over rows that have menus too.
     useEffect(() => {
         const onContextMenu = (e: MouseEvent) => e.preventDefault();
+        const nativeMenu = (e: MouseEvent) => { if (wantsNativeContextMenu(e)) e.stopPropagation(); };
         document.addEventListener('contextmenu', onContextMenu);
-        return () => document.removeEventListener('contextmenu', onContextMenu);
+        document.addEventListener('contextmenu', nativeMenu, true);
+        return () => {
+            document.removeEventListener('contextmenu', onContextMenu);
+            document.removeEventListener('contextmenu', nativeMenu, true);
+        };
+    }, []);
+    useEffect(() => {
+        GetPreferences().then((p) => setShiftRightClickNative(!!p.developerTools)).catch(() => undefined);
     }, []);
 
     // Recomputes the visible/selectable game list from ListGames() plus
