@@ -13,8 +13,10 @@
 
 /* --- Detail panel --- */
 
+/* The two side panels give up a little width on a narrow window (down to the app's minimum
+   size, see main.go) so the mod lists keep room for names. */
 .detail-panel {
-    width: 322px;
+    width: clamp(270px, 25vw, 322px);
     flex: none;
     border-right: 1px solid var(--border);
     background: var(--bg-rail);
@@ -1254,10 +1256,16 @@
     background: #2f3b49;
 }
 
+/* The load order (the second list) has more fixed columns than Available - position, domain
+   bars, flags - so it takes the larger share of the width. */
+.list-pane + .list-pane {
+    flex-grow: 1.35;
+}
+
 /* --- Actions rail --- */
 
 .actions-rail {
-    width: 252px;
+    width: clamp(232px, 20vw, 252px);
     flex: none;
     background: var(--bg-rail);
     display: flex;
@@ -1470,6 +1478,13 @@
     display: flex;
     flex-direction: column;
     gap: 9px;
+    /* On a window too short for the whole rail the rail scrolls, but Play stays in view. */
+    position: sticky;
+    bottom: -13px;
+    margin: 0 -14px -13px;
+    padding: 8px 14px 13px;
+    background: var(--bg-rail);
+    backdrop-filter: blur(6px);
 }
 
 .play-button {

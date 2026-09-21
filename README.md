@@ -549,6 +549,17 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   the row says to save. When a mod in the playset has no files on disk or is not installed there is
   no honest number, so it says "unavailable" and why instead of leaving the mod out. DLC is not part
   of the checksum, so it is not shown on the DLC screen. Calculating only reads files.
+- **Minimum window size** (`main.go`, `Workspace.css`) - the window can no longer be dragged smaller
+  than **1200 x 640** (it opens at 1280 x 700, where 1024 x 768 used to be the default). Those numbers
+  are where the interface was checked and found right, not a guess: at 1024 x 768 the Workspace's mod
+  names shrank to a single letter and the load order lost them entirely, and below about 700 pixels of
+  height Play fell off the bottom of the actions rail. Checked at 1200 x 640 in a headless browser
+  across the Workspace, Library, DLC and every Settings tab, and the launch, playsets and conflict
+  dialogs, and again at 1280 x 700 and 1920 x 1080. To make it hold, the detail panel and the actions
+  rail give up a little width on a narrow window (they stay at their full size from about 1290 pixels
+  up), the load order takes a larger share of the list width than Available (it has more fixed
+  columns), and the rail's Play block now stays pinned in view when the rail is too short and has to
+  scroll. 1200 x 640 still fits a 1080p screen at 150% display scaling.
 - **Personal notes per mod** (`internal/modnotes`, `modnotes.go`, `frontend/src/components/ModNote.tsx`,
   `frontend/src/data/modNotes.ts`) - write your own notes about any mod ("crashes with X", "waiting for
   an update", "needed for the co-op playset"). Select a mod and use the **Notes** box on its Overview

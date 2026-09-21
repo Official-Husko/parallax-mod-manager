@@ -165,6 +165,11 @@ for security, privacy, reliability or performance is called out (see the last tw
   buttons to open them.
 - **Licence in the app** - the full non-commercial licence, readable inside the About page.
 
+## Window
+
+- **Minimum window size** - the window can be resized down to 1200 x 640 and no further, so the mod lists always
+  have room for names and Play is always in reach. It opens at 1280 x 700.
+
 ## Debug
 
 - **Developer tools switch** - Settings > Debug adds the browser's inspector to the app (Shift+right-click for

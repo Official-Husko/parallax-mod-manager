@@ -11,15 +11,29 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
+// The window's size. The smallest it can be made is what the interface was checked at: below it
+// the Workspace's mod lists lose their names and the launch controls fall off the bottom. The
+// side panels shrink toward it (see Workspace.css), and the rail keeps Play in view when it is
+// short. 1200x640 still fits a 1080p screen at 150% display scaling. The starting size is a
+// little larger, and never below the minimum.
+const (
+	minWindowWidth      = 1200
+	minWindowHeight     = 640
+	defaultWindowWidth  = 1280
+	defaultWindowHeight = 700
+)
+
 func main() {
 	// Create an instance of the app structure
 	app := NewApp()
 
 	// Create application with options
 	err := wails.Run(&options.App{
-		Title:  "Parallax Mod Manager",
-		Width:  1024,
-		Height: 768,
+		Title:     "Parallax Mod Manager",
+		Width:     defaultWindowWidth,
+		Height:    defaultWindowHeight,
+		MinWidth:  minWindowWidth,
+		MinHeight: minWindowHeight,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 			// Answers /backgrounds/... itself (the offline background images, which
