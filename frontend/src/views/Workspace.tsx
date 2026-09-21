@@ -34,7 +34,8 @@ import {logEvent} from '../data/appLog';
 import {useGameRunning} from '../data/gameStatus';
 import {type ContextMenuItem, openContextMenu} from '../data/contextMenu';
 import {useDragMultiSelect} from '../data/dragMultiSelect';
-import {type DropTarget, useListDragMove} from '../data/listDragMove';
+import {useListDragMove} from '../data/listDragMove';
+import {reorderInsert} from '../data/listReorder';
 import {domains} from '../data/mockData';
 import {playsetAutoloadTarget} from '../data/playsetAutoload';
 import {computeDomainOverlap} from '../data/domainOverlap';
@@ -838,10 +839,9 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
         if (source === 'available' && target.list === 'active') {
             // Activate: insert at the dropped position in the load order.
             setOrder((prev) => {
-                const insertAt = target.kind === 'end' ? prev.length : Math.max(0, prev.indexOf(target.id));
                 const toInsert = ids.filter((id) => !prev.includes(id));
                 if (toInsert.length === 0) return prev;
-                return [...prev.slice(0, insertAt), ...toInsert, ...prev.slice(insertAt)];
+                return reorderInsert(prev, toInsert, target);
             });
             setSelectedAvailable(new Set());
         } else if (source === 'active' && target.list === 'available') {
@@ -1656,19 +1656,6 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
             )}
         </div>
     );
-}
-
-// Removes ids from list, then reinserts them (in their given relative
-// order) at target's dropped position within what's left - computing the
-// insertion index against the already-filtered array is what keeps this
-// correct regardless of whether the dragged rows sat before or after the
-// drop point originally. Shared by every reorder-in-place case in
-// dragMove's onDrop above (Active-internal, Available-internal, and an
-// Active -> Available deactivate landing at a specific spot).
-function reorderInsert(list: string[], ids: string[], target: DropTarget): string[] {
-    const remaining = list.filter((id) => !ids.includes(id));
-    const insertAt = target.kind === 'end' ? remaining.length : Math.max(0, remaining.indexOf(target.id));
-    return [...remaining.slice(0, insertAt), ...ids, ...remaining.slice(insertAt)];
 }
 
 function matchesSearch(m: library.ModSummary, search: string): boolean {
