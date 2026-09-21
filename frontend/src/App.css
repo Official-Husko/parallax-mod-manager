@@ -191,7 +191,8 @@
 
 .topbar-game-pill .game-name {
     font: 600 11.5px Barlow, sans-serif;
-    color: var(--text-bright);
+    /* The game's own colour (see data/accentPick.ts, which keeps it readable on the dark bar). */
+    color: var(--rust);
     background: #1b232e;
     padding: 5px 11px;
 }

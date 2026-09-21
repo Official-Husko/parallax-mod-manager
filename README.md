@@ -559,10 +559,13 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   or `#fa0`; a bad one is refused and the box goes back), and the whole interface follows the colour
   box as you move it, before it is saved. Under the switch are the **main colours of the current
   game's icon** (colorthief's vibrant, light, dark and muted swatches, without near-duplicates) as
-  round swatches: one click uses that colour for every game. The text drawn on the accent (the Play
-  button and the like) is picked by contrast, dark or light, so a dark blue gets light text; and a
-  custom colour too dark to see on the app's dark background gets a warning, since active tabs and
-  other accent-coloured text would fade into it. Saved as `accentMode` and `accentColor` in the
+  round swatches: one click uses that colour for every game. The accent also colours the **game's
+  name in the top bar**. **A dark colour can never make the interface unreadable**: whatever the
+  source (a custom colour, a swatch, a game's icon), a colour with less than 4.5:1 contrast against the
+  app's dark background is lightened - keeping its hue, only as far as it takes - before the
+  interface uses it, and the setting says so and shows the shade in use while your own colour stays
+  saved exactly as chosen (black becomes a mid grey, a dark navy a lighter blue). The text drawn on
+  the accent (the Play button and the like) is picked by contrast, dark or light. Saved as `accentMode` and `accentColor` in the
   settings file (a hand-edited nonsense value reads as the game's colour, a bad colour as none), and
   the two places that hard-coded the rust as a tint now follow whichever accent is in use. Checked
   against the six real game logos in a headless browser (colorthief extraction, saving, live preview,

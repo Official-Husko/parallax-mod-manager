@@ -28,6 +28,46 @@ export function hexToRgb(hex: string): [number, number, number] {
     return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
+export function rgbToHex(r: number, g: number, b: number): string {
+    const clamp = (n: number) => Math.max(0, Math.min(255, Math.round(n)));
+    return '#' + [r, g, b].map((n) => clamp(n).toString(16).padStart(2, '0')).join('');
+}
+
+export function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
+    r /= 255; g /= 255; b /= 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    const l = (max + min) / 2;
+    if (max === min) {
+        return [0, 0, l * 100];
+    }
+    const d = max - min;
+    const s = d / (1 - Math.abs(2 * l - 1));
+    let h: number;
+    switch (max) {
+        case r: h = ((g - b) / d) % 6; break;
+        case g: h = (b - r) / d + 2; break;
+        default: h = (r - g) / d + 4; break;
+    }
+    h *= 60;
+    if (h < 0) h += 360;
+    return [h, s * 100, l * 100];
+}
+
+export function hslToRgb(h: number, s: number, l: number): [number, number, number] {
+    s /= 100; l /= 100;
+    const c = (1 - Math.abs(2 * l - 1)) * s;
+    const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+    const m = l - c / 2;
+    let rgb: [number, number, number];
+    if (h < 60) rgb = [c, x, 0];
+    else if (h < 120) rgb = [x, c, 0];
+    else if (h < 180) rgb = [0, c, x];
+    else if (h < 240) rgb = [0, x, c];
+    else if (h < 300) rgb = [x, 0, c];
+    else rgb = [c, 0, x];
+    return [(rgb[0] + m) * 255, (rgb[1] + m) * 255, (rgb[2] + m) * 255];
+}
+
 // WCAG relative luminance of a colour.
 function luminance(hex: string): number {
     const [r, g, b] = hexToRgb(hex).map((c) => {
@@ -55,18 +95,41 @@ export function readableTextOn(hex: string): string {
 // The app's own background (App.css --bg-app), which the accent is drawn on as text and lines.
 const APP_BACKGROUND = '#0a0d12';
 
-// hardToSee says whether a colour would be hard to make out drawn on the app's dark background
-// (below the 3:1 contrast WCAG asks of large text and interface parts): a near-black accent would
-// make the active tab and other accent-coloured text vanish.
-export function hardToSee(hex: string): boolean {
+// The contrast an accent must have against that background to be used as it is: the 4.5:1 WCAG asks
+// of ordinary text, since the accent colours small labels, active tabs and the game's name.
+export const MIN_ACCENT_CONTRAST = 4.5;
+
+// ensureVisible is the colour the interface should actually use for a chosen one: the colour itself
+// when it stands out enough on the app's dark background, otherwise a lighter shade of the same hue
+// (just as much lighter as it takes). A near-black accent would make active tabs and accent-coloured
+// text vanish, so no source of an accent - a custom colour, a game's icon - reaches the interface
+// without passing this. '' when the text is not a colour.
+export function ensureVisible(hex: string): string {
     const color = normalizeHex(hex);
-    return !!color && contrast(color, APP_BACKGROUND) < 3;
+    if (!color) return '';
+    if (contrast(color, APP_BACKGROUND) >= MIN_ACCENT_CONTRAST) return color;
+    const [h, s, l] = rgbToHsl(...hexToRgb(color));
+    for (let lightness = Math.ceil(l) + 1; lightness <= 100; lightness++) {
+        const lighter = rgbToHex(...hslToRgb(h, s, lightness));
+        if (contrast(lighter, APP_BACKGROUND) >= MIN_ACCENT_CONTRAST) return lighter;
+    }
+    return '#ffffff';
 }
 
-// customAccent is the accent for a chosen colour, or null when it is not a colour.
+// customAccent is the accent to use for a chosen colour - made visible (see ensureVisible), with
+// readable text for it - or null when it is not a colour.
 export function customAccent(hex: string): Accent | null {
-    const color = normalizeHex(hex);
+    const color = ensureVisible(hex);
     return color ? {color, textColor: readableTextOn(color)} : null;
+}
+
+// visibleGameAccent is a game's icon colour made visible the same way. One that already stands out
+// is kept exactly, with the text colour colorthief chose for it; a lightened one gets text picked
+// for the new colour.
+function visibleGameAccent(game: Accent): Accent {
+    const color = ensureVisible(game.color);
+    if (!color || color === normalizeHex(game.color)) return game;
+    return {color, textColor: readableTextOn(color)};
 }
 
 // resolveAccent decides the accent to draw the interface with:
@@ -74,12 +137,14 @@ export function customAccent(hex: string): Accent | null {
 //   - 'default' is the app's own colour (null: leave the stylesheet's);
 //   - 'custom' is the chosen colour; if there is none yet the game's own colour stands in;
 //   - 'game' is the game's colour, or null (the app's own) for a game with no usable icon.
+// Whatever the source, a colour too dark to read on the app's background is lightened first.
 export function resolveAccent(mode: AccentMode, customHex: string, game: Accent | null, previewHex: string | null = null): Accent | null {
     const preview = previewHex ? customAccent(previewHex) : null;
     if (preview) return preview;
     if (mode === 'default') return null;
-    if (mode === 'custom') return customAccent(customHex) ?? game;
-    return game;
+    const fromGame = game ? visibleGameAccent(game) : null;
+    if (mode === 'custom') return customAccent(customHex) ?? fromGame;
+    return fromGame;
 }
 
 export interface PaletteColor {

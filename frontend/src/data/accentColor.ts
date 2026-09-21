@@ -1,5 +1,5 @@
 import {getSwatchesSync} from 'colorthief';
-import {distinctColors, hexToRgb} from './accentPick';
+import {distinctColors, hexToRgb, hslToRgb, rgbToHex, rgbToHsl} from './accentPick';
 import type {Accent, PaletteColor} from './accentPick';
 
 // An accent color pulled from a game's own logo art, plus the text color
@@ -70,46 +70,6 @@ export async function extractPalette(imageSrc: string): Promise<PaletteColor[]> 
     }
     paletteCache.set(imageSrc, colors);
     return colors;
-}
-
-function rgbToHex(r: number, g: number, b: number): string {
-    const clamp = (n: number) => Math.max(0, Math.min(255, Math.round(n)));
-    return '#' + [r, g, b].map((n) => clamp(n).toString(16).padStart(2, '0')).join('');
-}
-
-function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
-    r /= 255; g /= 255; b /= 255;
-    const max = Math.max(r, g, b), min = Math.min(r, g, b);
-    const l = (max + min) / 2;
-    if (max === min) {
-        return [0, 0, l * 100];
-    }
-    const d = max - min;
-    const s = d / (1 - Math.abs(2 * l - 1));
-    let h: number;
-    switch (max) {
-        case r: h = ((g - b) / d) % 6; break;
-        case g: h = (b - r) / d + 2; break;
-        default: h = (r - g) / d + 4; break;
-    }
-    h *= 60;
-    if (h < 0) h += 360;
-    return [h, s * 100, l * 100];
-}
-
-function hslToRgb(h: number, s: number, l: number): [number, number, number] {
-    s /= 100; l /= 100;
-    const c = (1 - Math.abs(2 * l - 1)) * s;
-    const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
-    const m = l - c / 2;
-    let rgb: [number, number, number];
-    if (h < 60) rgb = [c, x, 0];
-    else if (h < 120) rgb = [x, c, 0];
-    else if (h < 180) rgb = [0, c, x];
-    else if (h < 240) rgb = [0, x, c];
-    else if (h < 300) rgb = [x, 0, c];
-    else rgb = [c, 0, x];
-    return [(rgb[0] + m) * 255, (rgb[1] + m) * 255, (rgb[2] + m) * 255];
 }
 
 // adjustLightness shifts a hex color's HSL lightness by deltaPercent

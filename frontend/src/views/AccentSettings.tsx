@@ -4,7 +4,7 @@ import {useEffect, useState} from 'preact/hooks';
 import {GameMedia, GetPreferences, ListGames} from '../../wailsjs/go/main/App';
 import type {preferences} from '../../wailsjs/go/models';
 import {extractPalette} from '../data/accentColor';
-import {hardToSee, normalizeAccentMode, normalizeHex} from '../data/accentPick';
+import {ensureVisible, normalizeAccentMode, normalizeHex} from '../data/accentPick';
 import type {AccentMode, PaletteColor} from '../data/accentPick';
 import {previewAccent} from '../data/accentPreview';
 import {notify} from '../data/notifications';
@@ -86,6 +86,11 @@ export function AccentSettings({onPreferencesChanged}: {onPreferencesChanged?: (
         else setHexInput(hex);
     }
 
+    // What the interface really uses for the custom colour: a lighter shade when it is too dark
+    // to read (see ensureVisible).
+    const chosen = normalizeHex(hexInput) || custom;
+    const shade = chosen ? ensureVisible(chosen) : '';
+
     const note = mode === 'custom'
         ? 'This colour is used for every game.'
         : mode === 'default'
@@ -136,9 +141,12 @@ export function AccentSettings({onPreferencesChanged}: {onPreferencesChanged?: (
                         </span>
                     </div>
                 )}
-                {mode === 'custom' && hardToSee(normalizeHex(hexInput) || custom) && (
-                    <div className="appearance-source-note accent-warning">
-                        <span><i className="fa-solid fa-triangle-exclamation"/> This colour is hard to see on the dark background: active tabs and other accent-coloured text will fade into it.</span>
+                {mode === 'custom' && shade && shade !== chosen && (
+                    <div className="appearance-source-note accent-shade">
+                        <span>
+                            <i className="fa-solid fa-circle-half-stroke"/> This colour is too dark to read on the app's dark background, so the
+                            interface uses a lighter shade of it, <span className="accent-shade-swatch" style={{background: shade}}/> <span className="mono">{shade}</span>. Your colour stays saved as it is.
+                        </span>
                     </div>
                 )}
                 {game && (

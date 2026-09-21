@@ -70,10 +70,19 @@
     box-shadow: 0 0 0 2px var(--text-bright);
 }
 
-.accent-warning {
+.accent-shade {
     color: var(--amber);
 }
 
-.accent-warning i {
+.accent-shade i {
     margin-right: 4px;
+}
+
+.accent-shade-swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    vertical-align: -1px;
+    box-shadow: 0 0 0 1px var(--border-light);
 }
