@@ -47,6 +47,7 @@ import {FLAG, conflictsByMod} from '../data/flags';
 import {tip} from '../data/tooltip';
 import {colorFromName} from '../data/nameColor';
 import {listEditedSinceScan, liveConflicts} from '../data/liveConflicts';
+import {hasUnsavedChanges} from '../data/playsetDirty';
 import {domainLegendTip, domainTip, flagLegendTip, modFlagsTip} from '../components/FlagTips';
 import {TipItem} from '../components/Tooltip';
 import {UpdatesCard} from '../components/UpdatesCard';
@@ -122,6 +123,12 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
     const [availableOrder, setAvailableOrder] = useState<string[]>([]);
     const [detailTab, setDetailTab] = useState<DetailTab>('overview');
     const [playsetName, setPlaysetNameState] = useState('');
+    // The load order the playset had when it was last loaded or saved - what the list is
+    // compared with to tell whether there is anything to save (the Save button blinks
+    // while there is). null while no saved playset is behind the list: a new draft, an
+    // imported playset, a deleted one. See data/playsetDirty.ts.
+    const [savedOrder, setSavedOrder] = useState<string[] | null>(null);
+    const playsetNameInputRef = useRef<HTMLInputElement>(null);
     const [playsetList, setPlaysetList] = useState<string[]>([]);
     // Real playsets found in the Paradox Launcher's own database
     // (launcher-v2.sqlite), read-only - see docs/launcher-database.md. A
@@ -248,7 +255,10 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
         }
         ListPlaysets(selectedGame).then(setPlaysetList).catch(() => undefined);
         GetPreferences().then(setPrefs).catch(() => undefined);
-        if (playsetNameRef.current === name) setPlaysetName('');
+        if (playsetNameRef.current === name) {
+            setPlaysetName('');
+            setSavedOrder(null);
+        }
         return null;
     }
 
@@ -288,6 +298,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
         if (!preserveSelection) {
             if (scanNoticeRef.current) dismiss(scanNoticeRef.current);
             setPlaysetName('');
+            setSavedOrder(null);
             setDisabledDlc([]);
             setSelectedAvailable(new Set());
             scanNoticeRef.current = scanId = notify('progress', 'Scanning mods...');
@@ -725,6 +736,8 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
     // not summary.Conflicts, so clearing or editing the list is reflected at once.
     const conflicts = useMemo(() => liveConflicts(summary?.Conflicts ?? [], orderSet), [summary, orderSet]);
     const listEdited = useMemo(() => listEditedSinceScan(order, summary?.Mods ?? []), [order, summary]);
+    // Something in the load order is not saved yet: the Save button blinks.
+    const unsaved = useMemo(() => hasUnsavedChanges(order, savedOrder, (id) => modsById.has(id)), [order, savedOrder, modsById]);
     const conflictedIds = useMemo(() => {
         const s = new Set<string>();
         for (const c of conflicts) {
@@ -1040,7 +1053,12 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
 
     async function handleSave() {
         const name = playsetName.trim();
-        if (!name) return;
+        if (!name) {
+            // The Save button blinks for an unnamed draft too, so say what it needs.
+            notify('info', 'Type a name for this playset first, then press Save.');
+            playsetNameInputRef.current?.focus();
+            return;
+        }
         await trackTask(`Saving "${name}"...`, async () => {
             // disabledDlc is preserved as loaded (see handleLoadPlayset),
             // not reset - Workspace edits the load order, not DLC toggles
@@ -1048,6 +1066,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
             // silently wipe whatever was really set there.
             const p = {name, gameKey: selectedGame, modIds: order, disabledDlc: disabledDlc} as playset.Playset;
             await SavePlayset(p);
+            setSavedOrder(order);
             await refreshAfterSave(p.name);
             rememberActivePlayset(p.name);
         }, {success: `Saved "${name}".`, failure: `Couldn't save "${name}"`});
@@ -1057,6 +1076,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
         await trackTask(`Loading "${name}"...`, async () => {
             const p = await LoadPlayset(selectedGame, name);
             setOrder(p.modIds ?? []);
+            setSavedOrder(p.modIds ?? []);
             setPlaysetName(p.name);
             setDisabledDlc(p.disabledDlc ?? []);
             rememberActivePlayset(p.name);
@@ -1084,6 +1104,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
             .map((m) => m.GameRegistryID.replace(/^mod\//, '').replace(/\.mod$/, ''))
             .filter((id) => modsById.has(id));
         setOrder(resolved);
+        setSavedOrder(null);
         setPlaysetName(p.Name);
         setSelectedAvailable(new Set());
         setShowPlaysets(false);
@@ -1109,6 +1130,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
             if (playsetName.trim()) {
                 const p = {name: playsetName.trim(), gameKey: selectedGame, modIds: order, disabledDlc: disabledDlc} as playset.Playset;
                 await SavePlayset(p);
+                setSavedOrder(order);
                 await LaunchGame(selectedGame, p.name);
             } else {
                 await LaunchGame(selectedGame, '');
@@ -1382,6 +1404,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                             <div className="rail-label">PLAYSET</div>
                             <div className="playset-card">
                                 <input
+                                    ref={playsetNameInputRef}
                                     className="playset-name-input"
                                     placeholder="Playset name"
                                     {...tip(() => (
@@ -1397,7 +1420,17 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                                 />
                                 <div className="mono meta">{active.length} mods</div>
                                 <div className="playset-card-actions">
-                                    <span className="btn-ghost" onClick={handleSave}>Save</span>
+                                    <span
+                                        className={`btn-ghost ${unsaved ? 'unsaved' : ''}`}
+                                        onClick={handleSave}
+                                        {...tip(() => unsaved ? (
+                                            <TipItem icon="fa-floppy-disk" color="var(--rust)" title="Unsaved changes">
+                                                {playsetName.trim()
+                                                    ? 'The load order is different from the saved playset. Press Save to keep it.'
+                                                    : 'This load order is not saved. Name the playset, then press Save.'}
+                                            </TipItem>
+                                        ) : null)}
+                                    >Save</span>
                                     <span className="btn-ghost" onClick={() => setShowPlaysets(true)}>Switch</span>
                                     <span className="btn-ghost inert">Share <i className="fa-solid fa-arrow-up-right-from-square"/></span>
                                 </div>
@@ -1532,7 +1565,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                     names={playsetList}
                     launcherPlaysets={launcherPlaysets}
                     onActivate={handleLoadPlayset}
-                    onNew={() => { setOrder([]); setPlaysetName(''); setDisabledDlc([]); setShowPlaysets(false); }}
+                    onNew={() => { setOrder([]); setSavedOrder(null); setPlaysetName(''); setDisabledDlc([]); setShowPlaysets(false); }}
                     onImport={handleImportLauncherPlayset}
                     onRename={renamePlayset}
                     onDelete={deletePlayset}

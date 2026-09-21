@@ -40,6 +40,8 @@ for security, privacy, reliability or performance is called out (see the last tw
 
 - **Playsets** - named, ordered mod selections you can save, rename, delete and reload, with per-game
   options for what opens at startup (nothing, the last one, or a pinned one).
+- **Unsaved changes are hard to miss** - the Save button blinks while the load order differs from the saved playset
+  (a mod added, removed or moved), stops when you save, and holds steady instead if your system asks for less motion.
 - **Drag and drop** - between Available and Active, and to reorder, with multi-select and a live
   insertion line.
 - **Autosort** - fixes and utility mods to the end, and every mod after its declared dependencies,

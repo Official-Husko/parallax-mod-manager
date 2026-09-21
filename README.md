@@ -728,6 +728,18 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   machine with nothing readable, junk in every file, session fallbacks, the PCI name lookup, ARM processors, a check that no
   hostname, machine id or user name is read), the real machine, the App's report lines, and the pinning (the report survives
   the log filling up).
+- **The Save button blinks while the load order has unsaved changes** (`frontend/src/data/playsetDirty.ts`, `Workspace.tsx`) -
+  the playset card's **Save** pulses in the game's accent color whenever the load order on screen differs from what the
+  playset was when it was last loaded or saved: a mod added, removed or moved (order counts, so moving a mod and moving it back
+  stops the blink), or anything at all in a draft that has not been saved yet (a new list, an imported Paradox Launcher playset,
+  one whose playset was deleted). Saving, launching with a named playset (which saves it), loading a playset or switching
+  games resets the comparison. A mod that disappears from disk is ignored on both sides, since that changes the list without
+  the person having done anything and saving would only drop it. A tooltip on the button says what is unsaved ("Name the
+  playset, then press Save" for a draft with no name, and pressing Save without a name now says so and puts the cursor in
+  the name field, instead of doing nothing). With the system set to reduce motion there is no animation: the button stays
+  steadily lit instead. Checked by a unit test of the comparison (15 cases) and the real Workspace in a headless browser
+  (blinking and a really changing glow, tooltips, save and reorder and remove, a playset loaded at startup, clear, a mod
+  vanishing from disk, reduced motion).
 - **The rest of the design mockup's screens** (`frontend/src/views/Library.tsx`,
   `PlaysetsModal.tsx`) - a faithful, fully navigable visual preview of the
   mockup's cross-game library, built from the mockup's own example content.

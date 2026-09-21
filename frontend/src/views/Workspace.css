@@ -1604,3 +1604,33 @@
     color: var(--text-dim);
 }
 
+
+/* Save blinks while the load order holds changes the saved playset does not (see
+   data/playsetDirty.ts): a glow that swells and fades in the game's accent color,
+   with the button lit up so it reads as "press me" even between blinks. */
+.btn-ghost.unsaved {
+    color: var(--text-bright);
+    border-color: var(--rust);
+    animation: save-blink 1.5s ease-in-out infinite;
+}
+
+@keyframes save-blink {
+    0%, 100% {
+        background: #1b232e;
+        box-shadow: 0 0 0 0 color-mix(in srgb, var(--rust) 0%, transparent);
+    }
+    50% {
+        background: color-mix(in srgb, var(--rust) 26%, #1b232e);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--rust) 38%, transparent);
+    }
+}
+
+/* For anyone who asked their system for less motion: no blinking, a steady lit
+   button instead. */
+@media (prefers-reduced-motion: reduce) {
+    .btn-ghost.unsaved {
+        animation: none;
+        background: color-mix(in srgb, var(--rust) 22%, #1b232e);
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--rust) 40%, transparent);
+    }
+}
