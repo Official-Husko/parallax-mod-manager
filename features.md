@@ -100,6 +100,20 @@ for security, privacy, reliability or performance is called out (see the last tw
 - **Steam status codes understood** - Steam's own result codes are read properly, so a busy Steam or a
   rate limit is never mistaken for a mod being deleted, and unlisted mods are shown as such.
 
+## Mod preservation
+
+- **Backups before Steam removes a mod** - when a Workshop mod is found deleted or private, its files are copied
+  1:1 into your backup folder while they are still on disk, and a background check every 30 minutes catches mods
+  deleted while the app is open. Steam cannot be asked to wait, so it copies in time rather than holding the deletion.
+- **Choose what is backed up** - deleted and private mods (recommended), every Workshop mod (asks first and shows the
+  size and free space), or off; a single mod can always be backed up from its right-click menu.
+- **Your own backup folder** - default "Parallax Mod Backups" in your home folder, one folder per game, changeable
+  in Settings > Backup. Existing backups stay where they are.
+- **Safe copies** - a copy replaces an older one only when complete, mods that lose files while being copied are
+  marked incomplete, and a full disk or an overlapping folder is refused with a message.
+- **Backup status on the mod** - flagged mods say whether their copy is saved (and when), partial, in progress,
+  impossible because Steam already removed the files, or off, and a notification announces each finished copy.
+
 ## Appearance and interface
 
 - **Rotating per-game backgrounds** - cross-fading art behind the whole UI, which you can turn off,
@@ -137,6 +151,7 @@ for security, privacy, reliability or performance is called out (see the last tw
 
 - **No account, no telemetry** - the only outside services are Steam (Workshop and Store data) and, for
   online backgrounds only, GitHub. The About page itself makes no network requests.
+- **Backups stay on your computer** - mod backups are plain folders in a location you choose and are never sent anywhere.
 - **Steam API key kept encrypted** - if you enter a Steam Web API key (optional), it is checked with
   Steam before it is saved, encrypted with a key derived from your computer so the settings file is
   useless on any other machine, never shown again, never written to the activity log, and deleted from

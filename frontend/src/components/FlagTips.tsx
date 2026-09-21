@@ -7,7 +7,7 @@ import {DOMAIN_NAMES} from '../data/domainOverlap';
 import type {DomainState} from '../data/domainOverlap';
 import {displayVersion} from '../data/versionCompat';
 import type {WorkshopFlag} from '../data/workshopAvailability';
-import {workshopFlagStyle, workshopFlagText} from '../data/workshopAvailability';
+import {backupNote, workshopFlagStyle, workshopFlagText} from '../data/workshopAvailability';
 import {TipHeading, TipItem} from './Tooltip';
 
 // The rich tooltip bodies for the Active/Available lists' colored markers -
@@ -75,6 +75,7 @@ export function modFlagsTip(flags: ModFlags): ComponentChild | null {
             {workshop && (
                 <TipItem icon={workshopFlagStyle(workshop).icon} color={workshopFlagStyle(workshop).color} title={workshopFlagText(workshop).title}>
                     {workshopFlagText(workshop).detail}
+                    {backupNote(workshop) && <div>{backupNote(workshop)}</div>}
                 </TipItem>
             )}
         </div>

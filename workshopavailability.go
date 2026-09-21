@@ -21,6 +21,14 @@ type WorkshopAvailability struct {
 	// "page-up", "page-gone" - see steamapi.Reason*), so the interface can say how
 	// sure the app is.
 	Reason string
+	// BackedUpAt is when a copy of the mod was saved (Unix seconds), 0 when there is none.
+	BackedUpAt int64
+	// BackupState says where the mod stands for preservation: "done" (a complete copy
+	// exists), "incomplete" (only part of it could be saved), "pending" (a copy will be
+	// made), "gone" (Steam already removed its files, so none could be made), "failed"
+	// (the copy failed; see the activity log), "off" (backups are off) or "" (not
+	// deleted or private, so not at risk).
+	BackupState string
 }
 
 // WorkshopAvailability says which of gameID's Workshop mods are unlisted, private
@@ -40,6 +48,9 @@ func (a *App) WorkshopAvailability(gameID string) ([]WorkshopAvailability, error
 	}
 	pages := a.confirmWorkshopPages(byID, false)
 	result := classifyWorkshop(byID, pages)
+	// Anything deleted or private is copied while its files are still there.
+	a.preserveWorkshopMods(gameID, result)
+	a.attachBackupState(gameID, result)
 
 	counts := map[string]int{}
 	for _, r := range result {

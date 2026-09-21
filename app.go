@@ -138,6 +138,9 @@ type App struct {
 	// workshopPages remembers which Workshop item pages were up when looked at, for
 	// telling a deleted item from an unlisted one - see confirmWorkshopPages.
 	workshopPages pageLiveCache
+	// backup is mod preservation: copies of Workshop mods that are deleted or private,
+	// made before Steam removes their files - see backups.go.
+	backup backupState
 	// steam is the optional Steam Web API key and the service that decides which
 	// Steam API answers Workshop details - see steamapi_settings.go. Set up by
 	// initSteamAPI in startup.
@@ -213,6 +216,7 @@ func (a *App) startup(ctx context.Context) {
 		a.configAppDir = filepath.Join(configDir, "parallax-mod-manager")
 	}
 	a.initSteamAPI(a.configAppDir)
+	a.initBackups(a.configAppDir)
 
 	mediaFS, err := fs.Sub(embeddedGameMedia, "data/game_media")
 	if err == nil {
@@ -234,6 +238,7 @@ func (a *App) startup(ctx context.Context) {
 func (a *App) shutdown(ctx context.Context) {
 	a.modWatcher.Close()
 	a.StopWatchingGameLog()
+	a.stopBackups()
 	applog.For("App").Infof("shutting down")
 	applog.Default().Close()
 }

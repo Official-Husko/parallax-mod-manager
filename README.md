@@ -676,6 +676,34 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   (icons and colors on both lists, four icons fitting the FLAGS cell, the tooltips, the legend, the detail notice and the
   case where the flags cannot be worked out). The private and access-denied mappings follow Steam's documented values
   and are not yet checked against a real private item.
+- **Backups of Workshop mods before Steam removes them** (`internal/backup`, `backups.go`,
+  `frontend/src/views/BackupPanel.tsx`, Settings > Backup) - when a Workshop item is deleted or made private, Steam
+  removes its files from your disk on its own schedule and the mod is lost. Steam offers no way to be asked to wait
+  (and freezing its process from outside is fragile, while watching the folder only reports files after they are
+  gone), so the app copies a mod **in time**: the moment it learns the mod is deleted or private (see the flags
+  above) while its files are still there, and again whenever a background check, run every 30 minutes for the games
+  looked at, finds a mod's status changed. Three modes: **Deleted and private mods** (the default, recommended; costs
+  space only for mods really in danger), **Every Workshop mod** (the only way to be certain: every installed mod is kept
+  and refreshed when it changes; asks first and shows how much it would copy and how much room is left, since a full
+  library is large - 47 GB for 81 mods on the development machine) and **Off** (a single mod can still be backed up
+  from its right-click menu, **Back up now**). Backups go to a folder of your choice, by default **Parallax Mod Backups**
+  in the home folder, one folder per game by its id and the mod copied 1:1 inside
+  (`<folder>/<game id>/mods/<Workshop item id>/...`), next to a `backups.jsonc` that records what was copied, when and
+  why; changing the folder keeps the backups already made where they are. A copy is written to a temporary folder and
+  moved into place when complete, so a cancelled copy or a crash never replaces a good backup; files that vanish
+  while copying (Steam deleting the mod under the copy) are counted, and a copy with files missing is marked
+  *Incomplete* and never replaces a complete one. Unchanged mods are skipped (file count, size and newest change time),
+  a copy is refused when the disk is too full or when the backup folder overlaps the mod's own, the item id that names the
+  folder must be digits only (a mod's descriptor cannot send a copy outside the backup folder), and symlinks are not
+  followed. A copy that finishes, is incomplete or fails raises a notification; several at once show one progress
+  toast. The flagged mod's notice and tooltip say where its backup stands (saved and when, partial, being made,
+  Steam had already removed the files, failed, or backups are off), and the panel lists a game's backups with reason,
+  size and age. Nothing leaves your computer. Tested with the race detector (fidelity, permissions and times, skip and
+  replace, cancel, overlap and unsafe ids, full disk, files vanishing mid-copy, symlinks, the index, the settings), an
+  App-level run over real mod folders (at-risk versus every-mod versus off, the background re-check finding a mod deleted
+  while the app is open, a failing folder not retried at once, a descriptor trying to escape the folder), and the panel,
+  toasts, flags and right-click entry in a headless browser. See [docs/backups.md](docs/backups.md) for the design,
+  what it cannot save, and the notes on compression.
 - **The rest of the design mockup's screens** (`frontend/src/views/Library.tsx`,
   `PlaysetsModal.tsx`) - a faithful, fully navigable visual preview of the
   mockup's cross-game library, built from the mockup's own example content.
@@ -908,6 +936,12 @@ that legitimately does rewrite the file's `modsOrder`).
 - **Remote games-list updates** - `data/games.jsonc` supports a live on-disk override already
   (see above), but nothing fetches an update from its own `source` URL yet; that's a deliberate
   follow-up, not an oversight (see `internal/game.LoadRegistry`'s doc comment).
+- **Compressed backups** - Settings > Backup shows a disabled "Compress backups" option: storing backups in a
+  compressed archive (7-Zip at maximum compression, or a built-in format) to save space. Backups are plain folders
+  for now; [docs/backups.md](docs/backups.md) records the candidate formats, the open questions and a plan for
+  measuring real mods before choosing.
+- **Restoring a backup from the interface** - a backup is a plain 1:1 folder that can be copied back by hand; a
+  one-click restore (copy into the mod folder and write the descriptor stub) is not built yet.
 - **Merge patch** - the Conflict Resolver's disabled "Generate merge patch" option: a resolution
   that combines content from more than one candidate instead of picking a single winner. No code
   yet; [docs/merge-patch.md](docs/merge-patch.md) records what it would take (byte-range

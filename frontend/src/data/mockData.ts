@@ -20,6 +20,7 @@ export const settingsNav = [
     {label: 'Conflict scanning', key: 'conflict'},
     {label: 'Updates', key: 'updates'},
     {label: 'Steam API', key: 'steam'},
+    {label: 'Backup', key: 'backup'},
     {label: 'Appearance', key: 'appearance'},
     {label: 'Advanced', key: 'advanced'},
     {label: 'About', key: 'about'},

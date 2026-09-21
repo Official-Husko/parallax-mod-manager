@@ -9,6 +9,7 @@ import {gamelog} from '../models';
 import {gameproc} from '../models';
 import {preferences} from '../models';
 import {launcherdb} from '../models';
+import {backup} from '../models';
 import {collection} from '../models';
 import {dlc} from '../models';
 import {playset} from '../models';
@@ -23,7 +24,15 @@ export function BackgroundCatalog(arg1:boolean):Promise<main.BackgroundCatalog>;
 
 export function BackgroundImages(arg1:string):Promise<Array<string>>;
 
+export function BackupMod(arg1:string,arg2:string):Promise<string>;
+
+export function BackupOverview(arg1:string):Promise<main.BackupOverview>;
+
+export function BackupStatus():Promise<main.BackupStatus>;
+
 export function BrowseForAnyGameInstall():Promise<library.DetectedGame>;
+
+export function BrowseForBackupFolder():Promise<main.BackupStatus>;
 
 export function BrowseForExtraModFolder(arg1:string):Promise<string>;
 
@@ -73,6 +82,8 @@ export function LaunchGame(arg1:string,arg2:string):Promise<void>;
 
 export function LicenceText():Promise<string>;
 
+export function ListBackups(arg1:string):Promise<Array<backup.Entry>>;
+
 export function ListCollections():Promise<Array<collection.Collection>>;
 
 export function ListDLC(arg1:string):Promise<Array<dlc.Entry>>;
@@ -97,6 +108,8 @@ export function ModSizes(arg1:string):Promise<Record<string, number>>;
 
 export function ModThumbnail(arg1:string,arg2:string):Promise<string>;
 
+export function OpenBackupFolder(arg1:string):Promise<void>;
+
 export function OpenModFolder(arg1:string,arg2:string):Promise<void>;
 
 export function OpenPath(arg1:string):Promise<void>;
@@ -120,6 +133,10 @@ export function SavePlayset(arg1:playset.Playset):Promise<void>;
 export function SaveSteamAPIKey(arg1:string,arg2:string):Promise<main.SteamAPIStatus>;
 
 export function ScanGame(arg1:string,arg2:string):Promise<library.Summary>;
+
+export function SetBackupFolder(arg1:string):Promise<main.BackupStatus>;
+
+export function SetBackupMode(arg1:string):Promise<main.BackupStatus>;
 
 export function SetConflictResolved(arg1:string,arg2:string,arg3:string,arg4:boolean):Promise<void>;
 

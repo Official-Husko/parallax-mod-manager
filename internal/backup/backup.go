@@ -1,0 +1,401 @@
+// Package backup keeps 1:1 copies of Steam Workshop mods, so a mod that is deleted
+// from the Workshop (or made private) is not lost when Steam removes its files.
+//
+// Steam cannot be asked to hold a deletion back, and nothing outside it can see one
+// coming, so the only reliable moment to copy a mod is before Steam removes it: as
+// soon as the app learns a mod is deleted or private while its files are still on
+// disk (see internal/steamapi.Classify), or, in the "every mod" mode, ahead of any
+// trouble.
+//
+// Layout, under a root folder the user can choose (default: Parallax Mod Backups in
+// the home folder):
+//
+//	<root>/<game id>/mods/<workshop item id>/...   the mod's folder, copied as it is
+//	<root>/<game id>/backups.jsonc                 what was copied, when and why
+//
+// The mod folders hold nothing but the mod's own files, so one can be dropped back
+// into the Workshop or mod folder as it is.
+package backup
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
+)
+
+// itemIDPattern is what a Workshop item id looks like: it names the folder a mod's
+// copy is kept in, the same name Steam gives the folder the mod lives in.
+var itemIDPattern = regexp.MustCompile(`^[0-9]{1,20}$`)
+
+// Source is one mod to copy.
+type Source struct {
+	// GameID names the game's folder (its permanent id).
+	GameID string
+	// ModID is the app's id for the mod (for showing).
+	ModID string
+	// RemoteFileID is the Workshop item id, which names the copy's folder. Digits only:
+	// it comes from a mod's own descriptor, so it must never be able to point outside
+	// the backup folder.
+	RemoteFileID string
+	Name         string
+	Version      string
+	// ContentPath is the folder to copy.
+	ContentPath string
+	// Reason is why it is being copied: ReasonDeleted, ReasonPrivate, ReasonAll or
+	// ReasonManual.
+	Reason string
+}
+
+// Why a copy was made (Entry.Reason).
+const (
+	ReasonDeleted = "deleted"
+	ReasonPrivate = "private"
+	ReasonAll     = "all"
+	ReasonManual  = "manual"
+)
+
+// Result is what Copy did.
+type Result struct {
+	Entry Entry
+	// Skipped is true when an up-to-date copy was already there, so nothing was written.
+	Skipped bool
+}
+
+// Progress reports how far a copy has got, in bytes. It is called once with 0 done
+// just before any file is copied (so a caller learns a copy has really started, not
+// been skipped as up to date), then after each file.
+type Progress func(doneBytes, totalBytes int64)
+
+// Errors Copy returns that a caller can tell apart.
+var (
+	// ErrNoSpace means the volume the backups live on does not have room for the mod.
+	ErrNoSpace = errors.New("backup: not enough free space in the backup folder")
+	// ErrSourceGone means the mod's folder is not there to copy any more.
+	ErrSourceGone = errors.New("backup: the mod's files are no longer on disk")
+	// ErrIncomplete means files vanished while copying (Steam removing the mod under
+	// us) and an older complete copy was kept instead of a partial one.
+	ErrIncomplete = errors.New("backup: files were removed while copying")
+)
+
+// freeBytes is diskFree; a variable so tests can pretend the disk is full.
+var freeBytes = diskFree
+
+// spaceMargin is left free on the volume on top of the mod's own size.
+const spaceMargin = 64 << 20
+
+// Copy makes (or refreshes) the copy of src under root. It is safe to call again for
+// a mod that is already backed up: an unchanged mod is skipped, a changed one is
+// copied anew and only then replaces the old copy.
+//
+// The copy is made into a temporary folder next to its place and moved into place
+// when finished, so a crash or a cancel never leaves a half-written copy where a
+// good one was. Files that vanish while copying (Steam removing the mod as it is
+// copied) are counted: if that leaves a copy with files missing it is kept only when
+// there is no complete one already, and is marked incomplete.
+func Copy(ctx context.Context, root string, src Source, progress Progress) (Result, error) {
+	if root == "" {
+		return Result{}, errors.New("backup: no backup folder is set")
+	}
+	if !itemIDPattern.MatchString(src.RemoteFileID) {
+		return Result{}, fmt.Errorf("backup: %q is not a Workshop item id", src.RemoteFileID)
+	}
+	if src.GameID == "" || strings.ContainsAny(src.GameID, `/\`) || src.GameID == "." || src.GameID == ".." {
+		return Result{}, fmt.Errorf("backup: %q is not a game id", src.GameID)
+	}
+	info, err := os.Stat(src.ContentPath)
+	if err != nil || !info.IsDir() {
+		return Result{}, ErrSourceGone
+	}
+
+	gameDir := filepath.Join(root, src.GameID)
+	dest := filepath.Join(gameDir, "mods", src.RemoteFileID)
+	if err := refuseOverlap(src.ContentPath, dest); err != nil {
+		return Result{}, err
+	}
+
+	fp := fingerprint(src.ContentPath)
+	idx := loadIndex(gameDir)
+	if old, ok := idx.Mods[src.RemoteFileID]; ok && old.Complete && old.Files == fp.files && old.Size == fp.size && old.Newest == fp.newest {
+		if _, err := os.Stat(dest); err == nil {
+			return Result{Entry: old, Skipped: true}, nil
+		}
+	}
+
+	if err := os.MkdirAll(filepath.Join(gameDir, "mods"), 0o755); err != nil {
+		return Result{}, fmt.Errorf("backup: creating %s: %w", gameDir, err)
+	}
+	if free, ok := freeBytes(gameDir); ok && free < uint64(fp.size)+spaceMargin {
+		return Result{}, fmt.Errorf("%w (needs %s, %s free)", ErrNoSpace, humanBytes(fp.size), humanBytes(int64(free)))
+	}
+
+	partial := dest + ".partial"
+	if err := os.RemoveAll(partial); err != nil {
+		return Result{}, fmt.Errorf("backup: clearing %s: %w", partial, err)
+	}
+	stats, err := copyTree(ctx, src.ContentPath, partial, fp.size, progress)
+	if err != nil {
+		_ = os.RemoveAll(partial)
+		return Result{}, err
+	}
+
+	// Files that vanished between counting the source and walking it were never seen
+	// by the walk, so count them here.
+	if stats.files+stats.missing < fp.files {
+		stats.missing = fp.files - stats.files
+	}
+	incomplete := stats.missing > 0
+	if incomplete {
+		if old, ok := idx.Mods[src.RemoteFileID]; ok && old.Complete {
+			_ = os.RemoveAll(partial)
+			return Result{}, fmt.Errorf("%w (%d of %d files); the earlier copy was kept", ErrIncomplete, stats.missing, stats.files+stats.missing)
+		}
+	}
+
+	// Move the new copy into place; the old one goes only once the new is there.
+	old := dest + ".old"
+	_ = os.RemoveAll(old)
+	if _, err := os.Stat(dest); err == nil {
+		if err := os.Rename(dest, old); err != nil {
+			_ = os.RemoveAll(partial)
+			return Result{}, fmt.Errorf("backup: replacing the earlier copy: %w", err)
+		}
+	}
+	if err := os.Rename(partial, dest); err != nil {
+		_ = os.Rename(old, dest) // put the earlier copy back
+		_ = os.RemoveAll(partial)
+		return Result{}, fmt.Errorf("backup: moving the copy into place: %w", err)
+	}
+	_ = os.RemoveAll(old)
+
+	entry := Entry{
+		ModID:        src.ModID,
+		RemoteFileID: src.RemoteFileID,
+		Name:         src.Name,
+		Version:      src.Version,
+		BackedUpAt:   time.Now().Unix(),
+		Reason:       src.Reason,
+		Files:        stats.files,
+		Size:         stats.bytes,
+		Newest:       fp.newest,
+		Complete:     !incomplete,
+		Missing:      stats.missing,
+	}
+	// An incomplete copy never matches the source's fingerprint, so the next check
+	// tries again; a complete one records the source's, to skip until it changes.
+	if !incomplete {
+		entry.Files, entry.Size = fp.files, fp.size
+	}
+	if err := recordEntry(gameDir, entry); err != nil {
+		return Result{Entry: entry}, fmt.Errorf("backup: the copy was made but could not be recorded: %w", err)
+	}
+	return Result{Entry: entry}, nil
+}
+
+// refuseOverlap stops a copy that would write into the mod it is copying, or copy a
+// backup folder into itself.
+func refuseOverlap(src, dest string) error {
+	a, b := resolve(src), resolve(dest)
+	if a == b || within(a, b) || within(b, a) {
+		return fmt.Errorf("backup: the backup folder overlaps the mod's own folder (%s); choose a folder outside the mods", src)
+	}
+	return nil
+}
+
+// resolve is a clean absolute path with symlinks followed as far as they exist.
+func resolve(p string) string {
+	abs, err := filepath.Abs(p)
+	if err != nil {
+		abs = filepath.Clean(p)
+	}
+	// Follow links on the longest existing prefix, so a not-yet-created destination
+	// still resolves through the links above it.
+	rest := ""
+	cur := abs
+	for {
+		if r, err := filepath.EvalSymlinks(cur); err == nil {
+			return filepath.Join(r, rest)
+		}
+		parent := filepath.Dir(cur)
+		if parent == cur {
+			return abs
+		}
+		rest = filepath.Join(filepath.Base(cur), rest)
+		cur = parent
+	}
+}
+
+// within says whether child is inside parent (and not the same folder).
+func within(parent, child string) bool {
+	rel, err := filepath.Rel(parent, child)
+	return err == nil && rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+type fingerprintResult struct {
+	files  int
+	size   int64
+	newest int64
+}
+
+// fingerprint counts the files under root, their total size and the newest
+// modification time - the same summary update tracking uses to tell a mod changed.
+func fingerprint(root string) fingerprintResult {
+	var f fingerprintResult
+	_ = filepath.WalkDir(root, func(_ string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !d.Type().IsRegular() {
+			return nil
+		}
+		info, err := d.Info()
+		if err != nil {
+			return nil
+		}
+		f.files++
+		f.size += info.Size()
+		if t := info.ModTime().Unix(); t > f.newest {
+			f.newest = t
+		}
+		return nil
+	})
+	return f
+}
+
+type copyStats struct {
+	files   int
+	bytes   int64
+	missing int // files that vanished while copying
+	skipped int // links and other non-regular files
+}
+
+// copyBufferSize is the read size for file copies: large, since mods hold big
+// textures and sound files.
+const copyBufferSize = 1 << 20
+
+// copyTree copies the regular files and folders under src into dst, keeping each
+// file's permissions and modification time. A file that disappears part-way is
+// counted as missing, not fatal.
+func copyTree(ctx context.Context, src, dst string, total int64, progress Progress) (copyStats, error) {
+	var stats copyStats
+	buf := make([]byte, copyBufferSize)
+	var done int64
+	if progress != nil {
+		progress(0, total)
+	}
+	walkErr := filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
+		if cerr := ctx.Err(); cerr != nil {
+			return cerr
+		}
+		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				stats.missing++
+				return nil
+			}
+			return err
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(dst, rel)
+		switch {
+		case d.IsDir():
+			return os.MkdirAll(target, 0o755)
+		case !d.Type().IsRegular():
+			stats.skipped++
+			return nil
+		}
+		n, err := copyFile(ctx, path, target, buf)
+		switch {
+		case errors.Is(err, fs.ErrNotExist):
+			stats.missing++
+			_ = os.Remove(target)
+			return nil
+		case err != nil:
+			return err
+		}
+		stats.files++
+		stats.bytes += n
+		done += n
+		if progress != nil {
+			progress(done, total)
+		}
+		return nil
+	})
+	if walkErr != nil {
+		return stats, walkErr
+	}
+	return stats, nil
+}
+
+// copyFile copies one file, checks the size arrived intact and restores its time and
+// permissions. A source that is gone (or vanishes while being read) is ErrNotExist.
+func copyFile(ctx context.Context, from, to string, buf []byte) (int64, error) {
+	in, err := os.Open(from)
+	if err != nil {
+		return 0, err
+	}
+	defer in.Close()
+	info, err := in.Stat()
+	if err != nil {
+		return 0, err
+	}
+	if err := os.MkdirAll(filepath.Dir(to), 0o755); err != nil {
+		return 0, err
+	}
+	out, err := os.OpenFile(to, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, info.Mode().Perm()|0o200)
+	if err != nil {
+		return 0, err
+	}
+	n, copyErr := io.CopyBuffer(out, &ctxReader{ctx: ctx, r: in}, buf)
+	closeErr := out.Close()
+	if copyErr != nil {
+		_ = os.Remove(to)
+		return 0, copyErr
+	}
+	if closeErr != nil {
+		_ = os.Remove(to)
+		return 0, closeErr
+	}
+	if n != info.Size() {
+		// The file changed size under us (a download still writing to it, or Steam
+		// removing it): it is not a faithful copy.
+		_ = os.Remove(to)
+		return 0, fmt.Errorf("%s changed while it was being copied: %w", from, fs.ErrNotExist)
+	}
+	_ = os.Chmod(to, info.Mode().Perm())
+	_ = os.Chtimes(to, time.Now(), info.ModTime())
+	return n, nil
+}
+
+// ctxReader makes a long copy stop promptly when its context is cancelled.
+type ctxReader struct {
+	ctx context.Context
+	r   io.Reader
+}
+
+func (c *ctxReader) Read(p []byte) (int, error) {
+	if err := c.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return c.r.Read(p)
+}
+
+// humanBytes formats a size for messages.
+func humanBytes(n int64) string {
+	const unit = 1024
+	if n < unit {
+		return strconv.FormatInt(n, 10) + " B"
+	}
+	div, exp := int64(unit), 0
+	for m := n / unit; m >= unit; m /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %ciB", float64(n)/float64(div), "KMGTPE"[exp])
+}

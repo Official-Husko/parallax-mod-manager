@@ -7,6 +7,7 @@ import {TopBar} from './components/TopBar';
 import type {ViewKey} from './components/TopBar';
 import {NotificationStack} from './components/NotificationStack';
 import {ContextMenu} from './components/ContextMenu';
+import {installBackupNotifications} from './data/backups';
 import {ensureModUpdates} from './data/modUpdates';
 import {Tooltip} from './components/Tooltip';
 import {AppBackground} from './components/AppBackground';
@@ -99,6 +100,10 @@ export function App() {
     // eagerly mounting it up front would run that unasked-for work on
     // every single app launch, even for a session that never opens it.
     const [visitedViews, setVisitedViews] = useState<Set<ViewKey>>(new Set(['workspace']));
+
+    // The backend copies Workshop mods that are deleted or private in the background; this
+    // is how the person hears about it.
+    useEffect(() => installBackupNotifications(), []);
 
     useEffect(() => {
         setVisitedViews((prev) => (prev.has(view) ? prev : new Set(prev).add(view)));

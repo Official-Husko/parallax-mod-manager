@@ -1,0 +1,144 @@
+.backup-modes {
+    max-width: 720px;
+}
+
+.backup-confirm {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    max-width: 720px;
+    border: 1px solid var(--amber);
+    border-radius: 5px;
+    padding: 10px 13px;
+    font: 400 12px/1.5 Barlow, sans-serif;
+    color: var(--text-mid);
+    background: rgba(224, 163, 64, .07);
+}
+
+.backup-confirm-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.backup-warn {
+    color: var(--red);
+}
+
+.backup-folder {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    max-width: 720px;
+}
+
+.backup-folder-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font: 600 12px Barlow, sans-serif;
+    color: var(--text-bright);
+}
+
+.backup-folder-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.backup-path {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+    color: var(--text);
+    background: #161d27;
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    padding: 6px 10px;
+}
+
+.backup-note {
+    font: 400 11.5px/1.5 Barlow, sans-serif;
+    color: var(--text-muted);
+}
+
+.backup-note .mono {
+    color: var(--text-mid);
+}
+
+.backup-error {
+    font: 500 12px/1.5 Barlow, sans-serif;
+    color: var(--red);
+}
+
+.backup-compress {
+    max-width: 720px;
+}
+
+.backup-games {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 720px;
+}
+
+.backup-summary {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    font: 400 12px/1.5 Barlow, sans-serif;
+    color: var(--text-mid);
+}
+
+.backup-running {
+    color: var(--text-muted);
+}
+
+.backup-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.backup-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 8px 12px;
+    font: 500 12px Barlow, sans-serif;
+    color: var(--text);
+}
+
+.backup-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.backup-meta {
+    flex: none;
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.backup-reason.deleted {
+    color: var(--flag-deleted);
+    border-color: var(--flag-deleted);
+}
+
+.backup-reason.private {
+    color: var(--flag-private);
+    border-color: var(--flag-private);
+}
+
+.backup-incomplete {
+    color: var(--amber);
+    border-color: var(--amber);
+}

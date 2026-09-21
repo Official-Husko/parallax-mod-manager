@@ -18,8 +18,24 @@ export function BackgroundImages(arg1) {
   return window['go']['main']['App']['BackgroundImages'](arg1);
 }
 
+export function BackupMod(arg1, arg2) {
+  return window['go']['main']['App']['BackupMod'](arg1, arg2);
+}
+
+export function BackupOverview(arg1) {
+  return window['go']['main']['App']['BackupOverview'](arg1);
+}
+
+export function BackupStatus() {
+  return window['go']['main']['App']['BackupStatus']();
+}
+
 export function BrowseForAnyGameInstall() {
   return window['go']['main']['App']['BrowseForAnyGameInstall']();
+}
+
+export function BrowseForBackupFolder() {
+  return window['go']['main']['App']['BrowseForBackupFolder']();
 }
 
 export function BrowseForExtraModFolder(arg1) {
@@ -118,6 +134,10 @@ export function LicenceText() {
   return window['go']['main']['App']['LicenceText']();
 }
 
+export function ListBackups(arg1) {
+  return window['go']['main']['App']['ListBackups'](arg1);
+}
+
 export function ListCollections() {
   return window['go']['main']['App']['ListCollections']();
 }
@@ -166,6 +186,10 @@ export function ModThumbnail(arg1, arg2) {
   return window['go']['main']['App']['ModThumbnail'](arg1, arg2);
 }
 
+export function OpenBackupFolder(arg1) {
+  return window['go']['main']['App']['OpenBackupFolder'](arg1);
+}
+
 export function OpenModFolder(arg1, arg2) {
   return window['go']['main']['App']['OpenModFolder'](arg1, arg2);
 }
@@ -212,6 +236,14 @@ export function SaveSteamAPIKey(arg1, arg2) {
 
 export function ScanGame(arg1, arg2) {
   return window['go']['main']['App']['ScanGame'](arg1, arg2);
+}
+
+export function SetBackupFolder(arg1) {
+  return window['go']['main']['App']['SetBackupFolder'](arg1);
+}
+
+export function SetBackupMode(arg1) {
+  return window['go']['main']['App']['SetBackupMode'](arg1);
 }
 
 export function SetConflictResolved(arg1, arg2, arg3, arg4) {

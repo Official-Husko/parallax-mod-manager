@@ -1114,6 +1114,18 @@
     color: var(--text-muted);
 }
 
+/* What became of the copy of a mod that is about to be removed (see backups.go). */
+.workshop-notice-backup {
+    margin-top: 6px;
+    font: 500 11.5px/1.5 Barlow, sans-serif;
+    color: var(--text-mid);
+}
+
+.workshop-notice-backup i {
+    color: var(--notice-color);
+    margin-right: 3px;
+}
+
 .row-actions {
     display: none;
     align-items: center;

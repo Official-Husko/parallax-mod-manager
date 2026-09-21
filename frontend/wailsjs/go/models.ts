@@ -108,6 +108,43 @@ export namespace applog {
 
 }
 
+export namespace backup {
+	
+	export class Entry {
+	    ModID: string;
+	    RemoteFileID: string;
+	    Name: string;
+	    Version: string;
+	    BackedUpAt: number;
+	    Reason: string;
+	    Files: number;
+	    Size: number;
+	    Newest: number;
+	    Complete: boolean;
+	    Missing: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Entry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ModID = source["ModID"];
+	        this.RemoteFileID = source["RemoteFileID"];
+	        this.Name = source["Name"];
+	        this.Version = source["Version"];
+	        this.BackedUpAt = source["BackedUpAt"];
+	        this.Reason = source["Reason"];
+	        this.Files = source["Files"];
+	        this.Size = source["Size"];
+	        this.Newest = source["Newest"];
+	        this.Complete = source["Complete"];
+	        this.Missing = source["Missing"];
+	    }
+	}
+
+}
+
 export namespace collection {
 	
 	export class ModRef {
@@ -776,6 +813,48 @@ export namespace main {
 		}
 	}
 	
+	export class BackupOverview {
+	    WorkshopMods: number;
+	    WorkshopBytes: number;
+	    AtRiskMods: number;
+	    BackedUpMods: number;
+	    BackedUpBytes: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new BackupOverview(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.WorkshopMods = source["WorkshopMods"];
+	        this.WorkshopBytes = source["WorkshopBytes"];
+	        this.AtRiskMods = source["AtRiskMods"];
+	        this.BackedUpMods = source["BackedUpMods"];
+	        this.BackedUpBytes = source["BackedUpBytes"];
+	    }
+	}
+	export class BackupStatus {
+	    Mode: string;
+	    CustomPath: string;
+	    Root: string;
+	    DefaultRoot: string;
+	    FreeBytes: number;
+	    Running: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new BackupStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Mode = source["Mode"];
+	        this.CustomPath = source["CustomPath"];
+	        this.Root = source["Root"];
+	        this.DefaultRoot = source["DefaultRoot"];
+	        this.FreeBytes = source["FreeBytes"];
+	        this.Running = source["Running"];
+	    }
+	}
 	export class SteamAPIStatus {
 	    Mode: string;
 	    HasKey: boolean;
@@ -810,6 +889,8 @@ export namespace main {
 	    RemoteFileID: string;
 	    State: string;
 	    Reason: string;
+	    BackedUpAt: number;
+	    BackupState: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new WorkshopAvailability(source);
@@ -820,6 +901,8 @@ export namespace main {
 	        this.RemoteFileID = source["RemoteFileID"];
 	        this.State = source["State"];
 	        this.Reason = source["Reason"];
+	        this.BackedUpAt = source["BackedUpAt"];
+	        this.BackupState = source["BackupState"];
 	    }
 	}
 

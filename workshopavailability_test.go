@@ -22,10 +22,10 @@ func TestClassifyWorkshopKeepsOnlyTheNotableOnesInOrder(t *testing.T) {
 	pages := map[string]bool{"7": false, "8": true}
 	got := classifyWorkshop(details, pages)
 	want := []WorkshopAvailability{
-		{"10", "private", steamapi.ReasonRecord},
-		{"2780180614", "unlisted", steamapi.ReasonRecord},
-		{"7", "deleted", steamapi.ReasonPageGone},
-		{"8", "unlisted", steamapi.ReasonPageUp},
+		{RemoteFileID: "10", State: "private", Reason: steamapi.ReasonRecord},
+		{RemoteFileID: "2780180614", State: "unlisted", Reason: steamapi.ReasonRecord},
+		{RemoteFileID: "7", State: "deleted", Reason: steamapi.ReasonPageGone},
+		{RemoteFileID: "8", State: "unlisted", Reason: steamapi.ReasonPageUp},
 	}
 	if len(got) != len(want) {
 		t.Fatalf("got %+v, want %+v", got, want)

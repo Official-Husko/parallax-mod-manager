@@ -1,4 +1,5 @@
 import type {main} from '../../wailsjs/go/models';
+import {timeAgo} from './format';
 import {FLAG} from './flags';
 
 // What became of a Workshop mod on Steam - unlisted, private or deleted - and how
@@ -12,6 +13,10 @@ export interface WorkshopFlag {
     state: WorkshopState;
     // How it was worked out: record, friends, denied, banned, page-up or page-gone.
     reason: string;
+    // Where the mod stands for preservation (see backups.go): done, incomplete, pending,
+    // gone, failed, off or '' when it is not at risk; and when a copy was saved (Unix seconds).
+    backupState: string;
+    backedUpAt: number;
 }
 
 // workshopFlags indexes the backend's list by the Workshop item id a mod's
@@ -20,7 +25,7 @@ export function workshopFlags(list: main.WorkshopAvailability[]): Map<string, Wo
     const byId = new Map<string, WorkshopFlag>();
     for (const a of list) {
         if (a.State === 'unlisted' || a.State === 'private' || a.State === 'deleted') {
-            byId.set(a.RemoteFileID, {state: a.State, reason: a.Reason});
+            byId.set(a.RemoteFileID, {state: a.State, reason: a.Reason, backupState: a.BackupState, backedUpAt: a.BackedUpAt});
         }
     }
     return byId;
@@ -60,6 +65,27 @@ export function workshopFlagText(flag: WorkshopFlag): {title: string; detail: st
                 };
             }
             return {title: 'Deleted', detail: 'Deleted from the Workshop. Your installed copy keeps working but will never update.'};
+    }
+}
+
+// backupNote says what became of a copy of the mod, for a flag that is about a mod
+// Steam is about to remove (deleted or private). undefined when it does not apply.
+export function backupNote(flag: WorkshopFlag): string | undefined {
+    switch (flag.backupState) {
+        case 'done':
+            return `A copy of this mod was saved ${timeAgo(flag.backedUpAt)}, in your backup folder.`;
+        case 'incomplete':
+            return 'Only part of this mod could be saved: Steam removed some of its files while it was being copied.';
+        case 'pending':
+            return 'A copy is being made in your backup folder.';
+        case 'gone':
+            return 'Steam had already removed this mod\'s files, so no copy could be made.';
+        case 'failed':
+            return 'The backup failed, so no copy exists yet. The activity log says why.';
+        case 'off':
+            return 'Backups are off, so this mod is not being saved. Turn them on under Settings > Backup.';
+        default:
+            return undefined;
     }
 }
 

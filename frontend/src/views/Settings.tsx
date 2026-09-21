@@ -22,10 +22,12 @@ import {formatBytes} from '../data/format';
 import {DEFAULT_BACKGROUND_INTERVAL_SECONDS} from '../components/AppBackground';
 import {type PlaysetAutoloadMode, playsetAutoloadModeFor} from '../data/playsetAutoload';
 import {AboutPanel} from './About';
+import {GamePickerChips, type ManageGamesState, useManagedGamePicker} from './GamePicker';
 import {BackgroundDownloadModal} from './BackgroundDownloadModal';
 import {SteamApiPanel} from './SteamApiPanel';
+import {BackupPanel} from './BackupPanel';
 
-type Section = 'manage' | 'paths' | 'launch' | 'playsets' | 'sort' | 'steam' | 'appearance' | 'advanced' | 'about';
+type Section = 'manage' | 'paths' | 'launch' | 'playsets' | 'sort' | 'steam' | 'backup' | 'appearance' | 'advanced' | 'about';
 
 export function Settings({jumpToManageGames, onGamesChanged, onPreferencesChanged}: {
     // Incremented by app.tsx (the TopBar's own "Manage games" entry) to
@@ -56,7 +58,7 @@ export function Settings({jumpToManageGames, onGamesChanged, onPreferencesChange
             <div className="settings-nav">
                 <div className="sidebar-label">SETTINGS</div>
                 {settingsNav.map((s) => {
-                    const clickable = s.key === 'manage' || s.key === 'paths' || s.key === 'launch' || s.key === 'playsets' || s.key === 'sort' || s.key === 'steam' || s.key === 'appearance' || s.key === 'advanced' || s.key === 'about';
+                    const clickable = s.key === 'manage' || s.key === 'paths' || s.key === 'launch' || s.key === 'playsets' || s.key === 'sort' || s.key === 'steam' || s.key === 'backup' || s.key === 'appearance' || s.key === 'advanced' || s.key === 'about';
                     const active = clickable && s.key === section;
                     return (
                         <div
@@ -77,17 +79,13 @@ export function Settings({jumpToManageGames, onGamesChanged, onPreferencesChange
             {section === 'playsets' && <PlaysetsSettingsPanel/>}
             {section === 'sort' && <SortRulesPanel/>}
             {section === 'steam' && <SteamApiPanel/>}
+            {section === 'backup' && <BackupPanel/>}
             {section === 'appearance' && <AppearancePanel onPreferencesChanged={onPreferencesChanged}/>}
             {section === 'advanced' && <AdvancedPanel/>}
             {section === 'about' && <AboutPanel/>}
         </div>
     );
 }
-
-type ManageGamesState =
-    | { kind: 'loading' }
-    | { kind: 'error'; message: string }
-    | { kind: 'ready'; games: library.DetectedGame[] };
 
 function ManageGamesPanel({onGamesChanged}: { onGamesChanged?: () => void }) {
     const [state, setState] = useState<ManageGamesState>({kind: 'loading'});
@@ -389,65 +387,6 @@ function PathsPanel() {
                     })}
                 </div>
             )}
-        </div>
-    );
-}
-
-// Shared "pick one managed game to configure" behavior between Launch
-// Options and Playsets below - both configure per-game settings one game
-// at a time (see each panel's own subtitle), so this is the same
-// selection logic, not two subtly different ones. prefs is read (for
-// managedGames/lastSelectedGame) but never written here - each panel
-// keeps its own prefs state for that, since each writes different fields.
-function useManagedGamePicker(prefs: preferences.Preferences | null) {
-    const [state, setState] = useState<ManageGamesState>({kind: 'loading'});
-    const [selectedGameId, setSelectedGameId] = useState('');
-
-    useEffect(() => {
-        DetectGames()
-            .then((games) => setState({kind: 'ready', games}))
-            .catch((err) => setState({kind: 'error', message: String(err)}));
-    }, []);
-
-    const managedGames = state.kind === 'ready'
-        ? (prefs?.managedGames && prefs.managedGames.length > 0
-            ? state.games.filter((g) => prefs.managedGames!.includes(g.ID))
-            : state.games)
-        : [];
-
-    useEffect(() => {
-        if (selectedGameId || managedGames.length === 0) return;
-        setSelectedGameId(prefs?.lastSelectedGame && managedGames.some((g) => g.ID === prefs.lastSelectedGame)
-            ? prefs.lastSelectedGame
-            : managedGames[0].ID);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [managedGames.length, prefs]);
-
-    const selectedGame = managedGames.find((g) => g.ID === selectedGameId);
-    return {state, managedGames, selectedGame, selectedGameId, setSelectedGameId};
-}
-
-// The chip row itself, shared by the same two panels useManagedGamePicker
-// is - each game's real logo (GameLogo already handles the no-art-yet
-// fallback) next to its name, so picking one among several games isn't
-// just reading text.
-function GamePickerChips({games, selectedGameId, onSelect}: {
-    games: library.DetectedGame[];
-    selectedGameId: string;
-    onSelect: (gameId: string) => void;
-}) {
-    return (
-        <div className="settings-game-picker">
-            {games.map((g) => (
-                <span
-                    key={g.ID}
-                    className={`chip ${g.ID === selectedGameId ? 'chip-active' : ''}`}
-                    onClick={() => onSelect(g.ID)}
-                >
-                    <GameLogo gameId={g.ID} className="chip-logo"/>
-                    {g.DisplayName}
-                </span>
-            ))}
         </div>
     );
 }

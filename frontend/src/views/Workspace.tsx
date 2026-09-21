@@ -21,6 +21,7 @@ import {
     SetPreferences,
     StopGame,
     WatchMods,
+    BackupMod,
     WorkshopAvailability,
     WorkshopDetails,
 } from '../../wailsjs/go/main/App';
@@ -28,7 +29,7 @@ import {BrowserOpenURL, EventsOn} from '../../wailsjs/runtime/runtime';
 import type {launcherdb, library, playset, preferences, steamapi} from '../../wailsjs/go/models';
 import {autosort, findMissingActiveDependencies, type MissingActiveDependencies} from '../data/autosort';
 import {dismiss, notify, trackTask, updateNotification} from '../data/notifications';
-import {type WorkshopFlag, workshopFlags, workshopFlagStyle, workshopFlagText} from '../data/workshopAvailability';
+import {backupNote, type WorkshopFlag, workshopFlags, workshopFlagStyle, workshopFlagText} from '../data/workshopAvailability';
 import {describePatchStatus, patchNeedsAttention} from '../data/patchStatus';
 import {logEvent} from '../data/appLog';
 import {useGameRunning} from '../data/gameStatus';
@@ -522,6 +523,19 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
         workshopDetailsStartedRef.current = false;
     }, [selectedGame]);
 
+    // A copy finishing, or the background check finding that some mod's Workshop status
+    // changed, updates the flags: asking again is cheap (the details and the item pages
+    // are remembered) and never starts a copy that is already made.
+    useEffect(() => {
+        const refetch = (gameId?: string) => {
+            if (gameId && gameId !== selectedGame) return;
+            WorkshopAvailability(selectedGame).then((flags) => setWorkshopFlagsById(workshopFlags(flags))).catch(() => undefined);
+        };
+        const offChanged = EventsOn('backups-changed', () => refetch());
+        const offAvail = EventsOn('workshop-availability-changed', (gameId: string) => refetch(gameId));
+        return () => { offChanged(); offAvail(); };
+    }, [selectedGame]);
+
     // Saving, removing or switching the Steam API key (Settings > Steam API) changes what
     // Steam can return - an unlisted mod is "not found" to the free API and complete with a
     // key - so the details are fetched again the new way.
@@ -898,6 +912,16 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
     // Available and Active lists, since most actions apply to both; the
     // load-order-specific ones (reorder/remove vs. add) are the only real
     // difference, controlled by whether the mod is already in order.
+    // Copies a Workshop mod into the backup folder now (Settings > Backup). A copy that
+    // is made announces itself; one that was already up to date is said here.
+    function backUpNow(m: library.ModSummary) {
+        BackupMod(selectedGame, m.ID)
+            .then((result) => {
+                if (result === 'current') notify('info', `'${m.Name}' is already backed up and has not changed.`);
+            })
+            .catch((err) => notify('error', `Couldn't back up '${m.Name}': ${String(err).replace(/^Error:\s*/, '')}`));
+    }
+
     function modContextMenuItems(m: library.ModSummary): ContextMenuItem[] {
         const inOrder = order.includes(m.ID);
         const items: ContextMenuItem[] = inOrder
@@ -912,6 +936,9 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
         items.push({label: 'Open folder', onClick: () => openModFolder(m.ID), separatorBefore: true});
         if (m.Source === 'workshop' && m.RemoteFileID) {
             items.push({label: 'Open Workshop page', onClick: () => BrowserOpenURL(`https://steamcommunity.com/sharedfiles/filedetails/?id=${m.RemoteFileID}`)});
+        }
+        if (m.Source === 'workshop' && m.RemoteFileID) {
+            items.push({label: 'Back up now', onClick: () => backUpNow(m)});
         }
         items.push({label: 'Copy mod ID', onClick: () => copyModId(m.ID)});
         const isIgnored = ignoredIncompatible.has(m.ID);
@@ -2090,6 +2117,7 @@ function OverviewTab({mod, files, filesLoading, allMods, conflicts, onOpenFolder
                         <div>
                             <div className="workshop-notice-title">{text.title}</div>
                             <div className="workshop-notice-text">{text.detail}</div>
+                            {backupNote(workshopFlag) && <div className="workshop-notice-backup"><i className="fa-solid fa-box-archive"/> {backupNote(workshopFlag)}</div>}
                         </div>
                     </div>
                 );
