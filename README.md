@@ -526,6 +526,29 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   installed version (for "N mods target an older patch") and an online checksum-sharing feature
   (for "matches your friends") don't exist anywhere in this project. The rail's UPDATES card
   similarly no longer shows a fabricated count; it is now real (see "Mod update tracking" below).
+  The mockup's "Checksum stable · MP ok" row is real too now - see "Multiplayer checksum" below.
+- **Multiplayer checksum** (`internal/checksum`, `checksum.go`, `frontend/src/data/checksum.ts`,
+  [docs/checksum.md](docs/checksum.md)) - works out, offline, the four characters the game
+  shows on its main menu for the saved playset: the code every player in a multiplayer game has to
+  share, so a group can compare before anyone starts the game. It reproduces each game's scheme:
+  the game's `checksum_manifest.txt` files with every enabled mod laid over them (overrides,
+  `replace_path`, directory and `.zip` mods, dependencies), hashed with the game version. Two
+  schemes are known, **Stellaris** and **Hearts of Iron IV**, chosen per game by a `checksum`
+  field in `data/games.jsonc`; any other game shows no checksum rather than a guess. Checked exactly
+  against real values on this machine: vanilla Stellaris gives the code
+  `launcher-settings.json` itself carries, a Stellaris launch with two mods (one of them from a
+  custom folder) gave the number the game showed, and a Hearts of Iron IV launch gave the code in its
+  own log; the tests also hold the values two independent reference implementations produce for a
+  small tree that covers overrides, replaced folders, a dependency listed out of order, an archive
+  and a case-only difference. It is shown the way the design mockup has it: `checksum XXXX` above the
+  Play button, a **Checksum XXXX · MP ready** row in the pre-flight list, and a **Multiplayer
+  checksum** box in the "Ready to launch?" dialog. It is calculated automatically whenever a playset
+  is saved or loaded (and again when mod files change on disk, or when you click the value), in the
+  background - about a tenth of a second, and a newer request stops an older one. It describes the
+  *saved* playset, which is what launching loads, so with unsaved edits the value turns amber and
+  the row says to save. When a mod in the playset has no files on disk or is not installed there is
+  no honest number, so it says "unavailable" and why instead of leaving the mod out. DLC is not part
+  of the checksum, so it is not shown on the DLC screen. Calculating only reads files.
 - **Real DLC toggling** (`internal/dlc`, `Dlc.tsx`) - lets a user disable specific installed
   DLC for a saved playset. The write path was already real and already launched
   (`internal/launch` has written `dlc_load.json`'s `disabled_dlcs` field since playsets shipped);
@@ -616,8 +639,10 @@ This list grows as features land - see [Progress](#progress) below, which is kep
     (`internal/dlc`'s own directory walk, not Steam - the Store API has no size field to fetch)
     - confirmed meaningfully varied on a real Stellaris install: from ~76KB for a free bonus
     pack up to ~110MB for a full expansion, ~1.2GB total across all installed DLC. The mockup's
-    own "required by mods" and multiplayer-checksum fields aren't shown - Paradox mods don't
-    declare DLC dependencies anywhere this project can parse.
+    own "required by mods" and checksum-with-DLC fields aren't shown - Paradox mods don't
+    declare DLC dependencies anywhere this project can parse, and DLC is not part of the
+    multiplayer checksum as far as the schemes recovered so far show (see "Multiplayer
+    checksum" below).
   - **A playset's disabled DLC that's no longer found locally is shown, not silently dropped** -
     a real, easy-to-hit case (removing a DLC folder, or a drive disconnecting, reproduces it
     exactly): the id stays in the playset's real `disabledDlc` list either way, so it's shown as

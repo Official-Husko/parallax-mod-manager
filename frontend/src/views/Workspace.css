@@ -1511,6 +1511,23 @@
     color: var(--green);
 }
 
+/* The multiplayer checksum above Play: the code every player in a multiplayer game has
+   to share. Clicking it works it out again. */
+.play-checksum {
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+.play-checksum i {
+    margin-right: 6px;
+}
+
+.play-checksum.warn .play-checksum-value {
+    color: var(--amber);
+}
+
 .play-title {
     font: 700 15px Barlow, sans-serif;
     color: var(--rust-text);

@@ -52,6 +52,11 @@ type GameConfig struct {
 
 	DLC []DLCEntry
 
+	// ChecksumAlgorithm names how this game's multiplayer checksum is calculated (see
+	// internal/checksum: "stellaris", "hoi4"); "" for a game whose scheme is not known, which
+	// simply gets no checksum.
+	ChecksumAlgorithm string
+
 	// LauncherSettingsPath is where this game's launcher-settings.json
 	// lives, relative to its install directory. Most games keep it at the
 	// install root ("launcher-settings.json"); some nest it under a

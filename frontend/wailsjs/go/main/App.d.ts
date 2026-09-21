@@ -118,6 +118,8 @@ export function OpenPath(arg1:string):Promise<void>;
 
 export function PlanBackupCleanup(arg1:string,arg2:string):Promise<main.BackupCleanupPlan>;
 
+export function PlaysetChecksum(arg1:string,arg2:string):Promise<main.PlaysetChecksumResult>;
+
 export function PurgeMods(arg1:string,arg2:Array<string>):Promise<library.PurgeResult>;
 
 export function ReadModFile(arg1:string,arg2:string,arg3:string):Promise<library.ModFileContent>;

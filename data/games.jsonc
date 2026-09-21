@@ -39,6 +39,10 @@
                 "common", "events", "map", "localisation", "gfx", "gui",
                 "prescripted_countries", "solar_system_initializers"
             ],
+            // How the game's multiplayer checksum (the four characters on its main menu) is
+            // calculated - see internal/checksum. Leave it out for a game whose scheme is not
+            // known: it simply gets no checksum.
+            "checksum": "stellaris",
             // Official DLC, so it can be listed/toggled like a mod - not built yet.
             "dlc": []
         },
@@ -75,6 +79,7 @@
             "launcher_settings_path": "launcher-settings.json",
             "signature_files": ["launcher-settings.json"],
             "scan_folders": ["common", "events", "history", "map"],
+            "checksum": "hoi4",
             "dlc": []
         },
         {

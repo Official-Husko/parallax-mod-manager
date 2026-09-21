@@ -917,6 +917,28 @@ export namespace main {
 	        this.LimitState = source["LimitState"];
 	    }
 	}
+	export class PlaysetChecksumResult {
+	    Status: string;
+	    Checksum: string;
+	    Files: number;
+	    Mods: number;
+	    Reason: string;
+	    Warnings: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new PlaysetChecksumResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Status = source["Status"];
+	        this.Checksum = source["Checksum"];
+	        this.Files = source["Files"];
+	        this.Mods = source["Mods"];
+	        this.Reason = source["Reason"];
+	        this.Warnings = source["Warnings"];
+	    }
+	}
 	export class SteamAPIStatus {
 	    Mode: string;
 	    HasKey: boolean;

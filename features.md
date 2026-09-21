@@ -79,6 +79,16 @@ for security, privacy, reliability or performance is called out (see the last tw
 - **Stale references shown, not dropped** - a disabled DLC that is no longer found is listed with a
   one-click clear.
 
+## Multiplayer checksum
+
+- **Checksum of the saved playset** - the four-character code the game shows on its main menu (Stellaris and
+  Hearts of Iron IV), calculated offline whenever a playset is saved or loaded, so a group can compare before
+  anyone starts the game. Shown above Play, in the pre-flight list and in the launch dialog; click it to
+  calculate again.
+- **Honest when it cannot** - if an enabled mod is missing or not installed it says "unavailable" and why,
+  and while there are unsaved edits it says the value is for the saved playset. A game without a known scheme
+  shows nothing.
+
 ## Launching
 
 - **Launch with the playset active** - writes the game's own load files and starts the game through
@@ -169,6 +179,7 @@ for security, privacy, reliability or performance is called out (see the last tw
 
 - **No account, no telemetry** - the only outside services are Steam (Workshop and Store data) and, for
   online backgrounds only, GitHub. The About page itself makes no network requests.
+- **Checksums only read** - calculating the multiplayer checksum reads game and mod files and writes nothing.
 - **Backups stay on your computer** - mod backups are plain folders in a location you choose and are never sent anywhere.
 - **Steam API key kept encrypted** - if you enter a Steam Web API key (optional), it is checked with
   Steam before it is saved, encrypted with a key derived from your computer so the settings file is

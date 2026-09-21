@@ -1,5 +1,7 @@
 import {FLAG} from './flags';
 import type {library} from '../../wailsjs/go/models';
+import {checksumShown} from './checksum';
+import type {ChecksumState} from './checksum';
 
 // Real pre-flight checks for the Workspace's own actions rail and the
 // full "Ready to launch?" dialog - both used to show the exact same
@@ -14,6 +16,9 @@ import type {library} from '../../wailsjs/go/models';
 // anywhere yet; "load order matches your friends" would need an online
 // checksum-sharing feature that doesn't exist at all.
 export interface PreflightItem {
+    // Set for the rows a screen may treat specially (the launch dialog shows the checksum in a
+    // box of its own, so it leaves this row out while there is nothing to add to it).
+    id?: 'checksum';
     icon: string;
     color: string;
     title: string;
@@ -84,6 +89,7 @@ export function buildPreflightItems(
     conflicts: library.ConflictSummary[],
     scanErrors: string[],
     dependencyIssues: DependencyIssues,
+    checksum?: {state: ChecksumState; playsetName: string; unsaved: boolean},
 ): PreflightItem[] {
     const items: PreflightItem[] = [];
 
@@ -140,5 +146,26 @@ export function buildPreflightItems(
         });
     }
 
+    if (checksum && checksumShown(checksum.state, checksum.playsetName)) {
+        items.push(checksumPreflightItem(checksum.state, checksum.unsaved));
+    }
+
     return items;
+}
+
+// The multiplayer checksum's row. The code describes the playset as saved - what launching
+// loads - so while the list on screen has edits not saved yet it says so instead of vouching
+// for a number that is about to change.
+export function checksumPreflightItem(state: ChecksumState, unsaved: boolean): PreflightItem {
+    if (state.kind === 'calculating') {
+        return {id: 'checksum', icon: 'fa-spinner fa-spin', color: 'var(--text-muted)', title: 'Calculating the checksum...', detail: 'Working out the code the game will show on its main menu.'};
+    }
+    if (state.kind === 'unavailable') {
+        return {id: 'checksum', icon: 'fa-triangle-exclamation', color: 'var(--amber)', title: 'Checksum unavailable', detail: state.reason};
+    }
+    const detail = `Every player needs this same code to join your multiplayer game - it is the one the game shows on its main menu. Worked out from ${state.files.toLocaleString()} files.`;
+    if (unsaved) {
+        return {id: 'checksum', icon: 'fa-triangle-exclamation', color: 'var(--amber)', title: `Checksum ${state.value} · save to update`, detail: `${detail} It describes the saved playset; the changes not saved yet will change it.`};
+    }
+    return {id: 'checksum', icon: 'fa-check', color: 'var(--green)', title: `Checksum ${state.value} · MP ready`, detail};
 }

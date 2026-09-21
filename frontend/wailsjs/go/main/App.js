@@ -206,6 +206,10 @@ export function PlanBackupCleanup(arg1, arg2) {
   return window['go']['main']['App']['PlanBackupCleanup'](arg1, arg2);
 }
 
+export function PlaysetChecksum(arg1, arg2) {
+  return window['go']['main']['App']['PlaysetChecksum'](arg1, arg2);
+}
+
 export function PurgeMods(arg1, arg2) {
   return window['go']['main']['App']['PurgeMods'](arg1, arg2);
 }

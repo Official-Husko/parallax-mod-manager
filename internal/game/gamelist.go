@@ -31,6 +31,7 @@ type gameListEntry struct {
 	LauncherSettingsPath string                  `json:"launcher_settings_path"`
 	SignatureFiles       []string                `json:"signature_files"`
 	ScanFolders          []string                `json:"scan_folders"`
+	Checksum             string                  `json:"checksum,omitempty"`
 	DLC                  []dlcEntryJSON          `json:"dlc,omitempty"`
 	ExecutableFallback   *executableFallbackJSON `json:"executable_fallback,omitempty"`
 }
@@ -140,6 +141,7 @@ func (f gameListFile) toRegistry() (*Registry, error) {
 			LauncherSettingsPath: e.LauncherSettingsPath,
 			SignatureFiles:       e.SignatureFiles,
 			ScanFolders:          e.ScanFolders,
+			ChecksumAlgorithm:    e.Checksum,
 			DLC:                  dlc,
 			ExecutableFallback:   fallback,
 		})

@@ -1,0 +1,1 @@
+not in a non-recursive rule

@@ -75,3 +75,33 @@
     padding: 9px 0;
     font-size: 12.5px;
 }
+
+/* The multiplayer checksum: the code every player in a multiplayer game has to share. */
+.preflight-checksum {
+    background: #161d27;
+    border: 1px solid var(--border-light);
+    border-radius: 5px;
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.preflight-checksum-label {
+    font: 400 11.5px Barlow, sans-serif;
+    color: var(--text-muted);
+}
+
+.preflight-checksum-value {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--green);
+}
+
+.preflight-checksum-value.busy {
+    color: var(--text-muted);
+}
+
+.preflight-checksum-value.warn {
+    color: var(--amber);
+}

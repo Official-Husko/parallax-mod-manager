@@ -38,7 +38,7 @@ import {type DropTarget, useListDragMove} from '../data/listDragMove';
 import {domains} from '../data/mockData';
 import {playsetAutoloadTarget} from '../data/playsetAutoload';
 import {computeDomainOverlap} from '../data/domainOverlap';
-import {buildPreflightItems, findDependencyIssues} from '../data/preflight';
+import {buildPreflightItems, checksumPreflightItem, findDependencyIssues} from '../data/preflight';
 import {checkVersionCompatibility, displayVersion} from '../data/versionCompat';
 import {formatBytes, timeAgo, truncate} from '../data/format';
 import {SourceBadge} from '../components/SourceBadge';
@@ -47,6 +47,7 @@ import {tip} from '../data/tooltip';
 import {colorFromName} from '../data/nameColor';
 import {listEditedSinceScan, liveConflicts} from '../data/liveConflicts';
 import {hasUnsavedChanges} from '../data/playsetDirty';
+import {checksumBadge, usePlaysetChecksum} from '../data/checksum';
 import {patchPreferences} from '../data/preferencesPatch';
 import {domainLegendTip, domainTip, flagLegendTip, modFlagsTip} from '../components/FlagTips';
 import {TipItem} from '../components/Tooltip';
@@ -143,6 +144,9 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
     const [disabledDlc, setDisabledDlc] = useState<string[]>([]);
     const [showPreflight, setShowPreflight] = useState(false);
     const [showGameLog, setShowGameLog] = useState(false);
+    // The multiplayer checksum of the saved playset: worked out whenever one is saved or
+    // loaded (see handleSave and handleLoadPlayset), and again when mods change on disk.
+    const checksum = usePlaysetChecksum(selectedGame);
     // Whether the game is running - whoever started it - so Play can become Stop.
     const game = useGameRunning(selectedGame);
     // Stopping the game loses whatever it hadn't saved, so the first press only
@@ -240,7 +244,10 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
         }
         ListPlaysets(selectedGame).then(setPlaysetList).catch(() => undefined);
         GetPreferences().then(setPrefs).catch(() => undefined);
-        if (playsetNameRef.current === oldName) setPlaysetName(newName.trim());
+        if (playsetNameRef.current === oldName) {
+            setPlaysetName(newName.trim());
+            checksum.calculate(newName);
+        }
         return null;
     }
 
@@ -415,8 +422,9 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
             if (gameId === selectedGame) {
                 refreshMods(true);
                 // Mods were added, removed or rewritten on disk: what changed since
-                // the last startup may have changed with them.
+                // the last startup may have changed with them - and so may the checksum.
                 checkModUpdates(gameId);
+                checksum.refresh();
             }
         });
         return () => unsubscribe();
@@ -796,10 +804,11 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
     const selectedMod = selectedId ? modsById.get(selectedId) ?? null : null;
     const dependencyIssues = useMemo(() => findDependencyIssues(active), [active]);
     const preflightItems = useMemo(
-        () => buildPreflightItems(active, conflicts, summary?.Errors ?? [], dependencyIssues),
-        [active, summary, conflicts, dependencyIssues],
+        () => buildPreflightItems(active, conflicts, summary?.Errors ?? [], dependencyIssues, {state: checksum.state, playsetName, unsaved}),
+        [active, summary, conflicts, dependencyIssues, checksum.state, playsetName, unsaved],
     );
 
+    const checksumShownBadge = checksumBadge(checksum.state, playsetName, unsaved);
     const workshopCount = allMods.filter((m) => m.Source === 'workshop').length;
     const localCount = allMods.filter((m) => m.Source !== 'workshop').length;
 
@@ -1069,6 +1078,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
             const p = {name, gameKey: selectedGame, modIds: order, disabledDlc: disabledDlc} as playset.Playset;
             await SavePlayset(p);
             setSavedOrder(order);
+            checksum.calculate(p.name);
             await refreshAfterSave(p.name);
             rememberActivePlayset(p.name);
         }, {success: `Saved "${name}".`, failure: `Couldn't save "${name}"`});
@@ -1082,6 +1092,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
             setPlaysetName(p.name);
             setDisabledDlc(p.disabledDlc ?? []);
             rememberActivePlayset(p.name);
+            checksum.calculate(p.name);
             const seq = ++latestScanRef.current;
             const result = await ScanGame(selectedGame, p.name);
             applyScan(seq, result);
@@ -1133,6 +1144,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                 const p = {name: playsetName.trim(), gameKey: selectedGame, modIds: order, disabledDlc: disabledDlc} as playset.Playset;
                 await SavePlayset(p);
                 setSavedOrder(order);
+                checksum.calculate(p.name);
                 await LaunchGame(selectedGame, p.name);
             } else {
                 await LaunchGame(selectedGame, '');
@@ -1476,6 +1488,19 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                         <div className="rail-spacer"/>
 
                         <div className="play-block">
+                            {checksumShownBadge && (
+                                <div
+                                    className={`play-checksum mono ${checksumShownBadge.tone}`}
+                                    onClick={() => checksum.refresh()}
+                                    {...tip(() => {
+                                        const p = checksumPreflightItem(checksum.state, unsaved);
+                                        return <TipItem icon={p.icon} color={p.color} title={p.title}>{p.detail} Click to work it out again.</TipItem>;
+                                    })}
+                                >
+                                    {checksumShownBadge.tone === 'busy' && <i className="fa-solid fa-spinner fa-spin"/>}
+                                    checksum <span className="play-checksum-value">{checksumShownBadge.text}</span>
+                                </div>
+                            )}
                             {game.running ? (
                                 <button
                                     className={`play-button stop ${stopStep}`}
@@ -1589,6 +1614,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                     gameName={gameName}
                     modCount={active.length}
                     items={preflightItems}
+                    checksum={checksumShownBadge}
                     onFixConflicts={() => { setShowPreflight(false); setShowConflictResolver(true); }}
                     onLaunchAnyway={handleLaunchAnyway}
                     onClose={() => setShowPreflight(false)}

@@ -105,10 +105,14 @@ type App struct {
 	configAppDir string
 	// logDir is the folder the activity log file lives in (empty when file
 	// logging couldn't start) - see initLogging.
-	logDir        string
-	steamRoots    []string
-	modWatcher    *watch.FolderWatcher
-	watchedGameID string
+	logDir     string
+	steamRoots []string
+	// checksumMu guards checksumCancel: the calculation running for each game, so a newer
+	// request for the same game can stop the older one (see checksum.go).
+	checksumMu     sync.Mutex
+	checksumCancel map[string]context.CancelFunc
+	modWatcher     *watch.FolderWatcher
+	watchedGameID  string
 	// watchMute silences modWatcher while the app is itself writing into the
 	// mod folder (generating the patch, purging mods): those operations
 	// refresh the mod list on their own. Zero-value usable.
