@@ -172,9 +172,9 @@ for security, privacy, reliability or performance is called out (see the last tw
 
 ## Debug
 
-- **Developer tools switch** - Settings > Debug adds the browser's inspector to the app (Shift+right-click for
-  Inspect Element, plus the window's keyboard shortcut and an Open button), off by default and applied after a
-  restart. Says so when a build was made without the inspector.
+- **Debug tab, development builds only** - Settings > Debug (a Developer tools switch for the browser's
+  Inspect Element, plus the inspector shortcut and an Open button) exists only when running `wails dev`
+  (F5 in VS Code). Release builds are made without the inspector and without the tab.
 
 ## Performance
 

@@ -1,7 +1,7 @@
 import './App.css'
 import {h} from 'preact';
 import {useEffect, useRef, useState} from 'preact/hooks';
-import {CheckGameUpdates, GameVersion, GetPreferences, ListGames, SetPreferences, StartupNotice} from '../wailsjs/go/main/App';
+import {CheckGameUpdates, DeveloperToolsStatus, GameVersion, GetPreferences, ListGames, SetPreferences, StartupNotice} from '../wailsjs/go/main/App';
 import type {library, preferences} from '../wailsjs/go/models';
 import {TopBar} from './components/TopBar';
 import type {ViewKey} from './components/TopBar';
@@ -143,7 +143,8 @@ export function App() {
         };
     }, []);
     useEffect(() => {
-        GetPreferences().then((p) => setShiftRightClickNative(!!p.developerTools)).catch(() => undefined);
+        // Only a development build has developer tools; the backend says whether they are on.
+        DeveloperToolsStatus().then((s) => setShiftRightClickNative(s.Enabled)).catch(() => undefined);
     }, []);
 
     // Recomputes the visible/selectable game list from ListGames() plus

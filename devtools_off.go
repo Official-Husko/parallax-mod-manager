@@ -1,7 +1,7 @@
-//go:build !devtools && !dev
+//go:build !dev
 
 package main
 
-// devtoolsBuiltIn says whether this build includes the web inspector at all: the
-// devtools build tag (wails build -devtools) or a dev build (wails dev).
-const devtoolsBuiltIn = false
+// devBuild says whether this is a development build (wails dev, which F5 in VS Code runs): the
+// only kind that has the Debug tab and the developer tools.
+const devBuild = false

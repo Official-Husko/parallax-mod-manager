@@ -1,60 +1,35 @@
 package main
 
-import (
-	"os"
-	"path/filepath"
-	"runtime"
+import "runtime"
 
-	"github.com/Official-Husko/parallax-mod-manager/internal/preferences"
-)
-
-// Developer tools (Settings > Debug) are the web inspector for the interface, for
-// debugging and for testing changes to it.
+// Developer tools (Settings > Debug) are the web inspector for the interface, for debugging and
+// for testing changes to it. They belong to development builds only: a release build is made
+// without the inspector (no devtools build tag), the Debug tab is not offered in it, and the
+// setting is ignored there even if a settings file asks for it.
 //
-// What the framework allows: whether a build contains the inspector at all is decided when
-// it is compiled (the devtools build tag, which build.sh passes, or a dev build), and the
-// window's own keyboard shortcut for it (F12, Ctrl+Shift+F12 on Linux) cannot be turned off
-// afterwards. What the setting controls is the rest: the browser's own right-click menu with
-// Inspect Element (Shift+right-click), which the window is created with only when the
-// setting is on - hence a restart to apply a change - and the button and hints in the Debug
-// tab.
-
-// developerToolsSetting reads the developer tools setting straight from the settings file,
-// before the window exists: the option it feeds is fixed at creation, and the app's own
-// startup runs after that.
-func developerToolsSetting() bool {
-	if !devtoolsBuiltIn {
-		return false
-	}
-	dir, err := os.UserConfigDir()
-	if err != nil {
-		return false
-	}
-	return preferences.Load(filepath.Join(dir, "parallax-mod-manager", "preferences.jsonc")).DeveloperTools
-}
+// In a development build (wails dev, F5 in VS Code) the inspector is always there - its keyboard
+// shortcut (F12, Ctrl+Shift+F12 on Linux) and the browser's own right-click menu, which the
+// window allows in dev mode. What the setting adds is letting Shift+right-click through to that
+// menu: the interface otherwise shows its own menus and never the browser's.
 
 // DeveloperToolsStatus says what the Debug tab needs to know that the settings file does not.
 type DeveloperToolsStatus struct {
-	// BuiltIn: this build includes the web inspector. Without it the setting does
-	// nothing, and the tab says how to make a build that has it.
-	BuiltIn bool
-	// Enabled is the setting as it stands now.
+	// Available: this is a development build, so the Debug tab exists.
+	Available bool
+	// Enabled is the developer tools setting; always false outside a development build.
 	Enabled bool
-	// RestartNeeded: the setting differs from what the window was created with.
-	RestartNeeded bool
 	// OS is the operating system (runtime.GOOS), for the shortcut to show.
 	OS string
 }
 
-// DeveloperToolsStatus reports the state of the developer tools setting.
+// DeveloperToolsStatus reports whether the Debug tab is available and the state of its setting.
 func (a *App) DeveloperToolsStatus() DeveloperToolsStatus {
 	a.preferencesMu.Lock()
 	enabled := a.preferences.DeveloperTools
 	a.preferencesMu.Unlock()
 	return DeveloperToolsStatus{
-		BuiltIn:       devtoolsBuiltIn,
-		Enabled:       enabled,
-		RestartNeeded: devtoolsBuiltIn && enabled != a.developerToolsAtStart,
-		OS:            runtime.GOOS,
+		Available: devBuild,
+		Enabled:   devBuild && enabled,
+		OS:        runtime.GOOS,
 	}
 }

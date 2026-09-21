@@ -573,19 +573,16 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   queue so a slow save can never land after a newer one. They are your own writing, so a notes file
   that cannot be read switches notes off with the reason instead of being replaced by an empty one,
   and note text is never written to the activity log or sent anywhere.
-- **Developer tools** (**Settings > Debug**, `devtools.go`, `frontend/src/views/DebugPanel.tsx`) -
-  a new Debug tab whose first switch adds the browser's inspector to the app for debugging and for
-  testing changes to the interface; off by default. What Wails v2 allows shapes it: whether a build
-  contains the inspector at all is decided when it is compiled (the `devtools` tag, which
-  `./build.sh` passes as `-devtools`; `wails dev` always has it), and the window's own keyboard
-  shortcut (F12, Ctrl+Shift+F12 on Linux) cannot be turned off afterwards. The switch controls the
-  rest: with it on, **Shift+right-click** anywhere gives the browser's own menu with Inspect Element
-  (everywhere else the app shows its own menus and never the browser's), and the tab shows the
-  shortcut and, on Linux and macOS, an **Open developer tools** button. The native menu is chosen
-  when the window is created, so the switch reads the setting from the settings file before the
-  window exists and asks for a restart to apply a change. A build made without the inspector says so
-  in the tab instead of offering a switch that does nothing, and the start-up report in the activity
-  log says whether developer tools are on and whether the build has them.
+- **Developer tools, in development builds only** (**Settings > Debug**, `devtools.go`,
+  `frontend/src/views/DebugPanel.tsx`) - a Debug tab with a **Developer tools** switch (off by default)
+  that lets **Shift+right-click** through to the browser's own menu with Inspect Element (everywhere else
+  the app shows its own menus and never the browser's), plus the inspector's shortcut and, on Linux and
+  macOS, an **Open developer tools** button. The tab exists **only in a development build** - `wails dev`,
+  which F5 in VS Code runs, recognised by the `dev` build tag - and a release build is made without the
+  inspector (no `devtools` tag, so Wails leaves it out) and does not offer the tab or honour the setting,
+  even if a settings file switches it on. In a development build the inspector is always there (F12,
+  Ctrl+Shift+F12 on Linux) and the switch takes effect at once. The activity log's start-up report says
+  whether developer tools are on, in development builds.
 - **Real DLC toggling** (`internal/dlc`, `Dlc.tsx`) - lets a user disable specific installed
   DLC for a saved playset. The write path was already real and already launched
   (`internal/launch` has written `dlc_load.json`'s `disabled_dlcs` field since playsets shipped);
@@ -1130,7 +1127,7 @@ that legitimately does rewrite the file's `modsOrder`).
 ```sh
 wails dev -tags webkit2_41    # hot-reload dev mode
 wails build -tags webkit2_41  # production build, outputs to build/bin/
-./build.sh                    # the same, plus -devtools: the inspector for Settings > Debug
+./build.sh                    # the same; a release build has no developer tools or Debug tab
 go test ./... -race           # backend test suite
 ```
 

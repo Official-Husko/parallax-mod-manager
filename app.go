@@ -110,10 +110,6 @@ type App struct {
 	steamRoots []string
 	// checksumMu guards checksumCancel: the calculation running for each game, so a newer
 	// request for the same game can stop the older one (see checksum.go).
-	// developerToolsAtStart is the developer tools setting as it was when the window
-	// was created - what the native right-click menu was set up with, so a change made
-	// since needs a restart (see devtools.go).
-	developerToolsAtStart bool
 	// modNotes keeps the person's own notes about individual mods, and modNotesMu
 	// serialises changing them (each change reads the file, edits it and writes it).
 	modNotes       modnotes.Store
@@ -183,7 +179,7 @@ type App struct {
 // paths, loading the games list) happens in startup, once a context
 // exists - see that method.
 func NewApp() *App {
-	return &App{developerToolsAtStart: developerToolsSetting()}
+	return &App{}
 }
 
 // startup is called when the app starts. The context is saved so we can

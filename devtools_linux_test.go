@@ -1,75 +1,36 @@
 package main
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/Official-Husko/parallax-mod-manager/internal/preferences"
 )
 
-// The setting is read from the settings file before the window exists, and only counts in a
-// build that includes the web inspector.
-func TestDeveloperToolsSettingIsReadFromTheSettingsFile(t *testing.T) {
-	config := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", config)
-	dir := filepath.Join(config, "parallax-mod-manager")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	path := filepath.Join(dir, "preferences.jsonc")
-
-	if developerToolsSetting() {
-		t.Error("no settings file: developer tools must be off")
-	}
-	p := preferences.Defaults()
-	p.DeveloperTools = true
-	if err := preferences.Save(path, p); err != nil {
-		t.Fatal(err)
-	}
-	if got := developerToolsSetting(); got != devtoolsBuiltIn {
-		t.Errorf("setting on: developerToolsSetting() = %v, want %v (whether this build has developer tools)", got, devtoolsBuiltIn)
-	}
-	if app := NewApp(); app.developerToolsAtStart != devtoolsBuiltIn {
-		t.Errorf("NewApp remembered %v at start, want %v", app.developerToolsAtStart, devtoolsBuiltIn)
-	}
-}
-
+// Developer tools exist in development builds only: elsewhere the setting is ignored, even when a
+// settings file has it switched on.
 func TestDeveloperToolsStatus(t *testing.T) {
 	a := &App{preferences: preferences.Defaults()}
 	st := a.DeveloperToolsStatus()
-	if st.BuiltIn != devtoolsBuiltIn || st.Enabled || st.RestartNeeded || st.OS != "linux" {
+	if st.Available != devBuild || st.Enabled || st.OS != "linux" {
 		t.Errorf("fresh: %+v", st)
 	}
 
-	// Turned on since the window was created: the native menu is not set up for it yet.
 	a.preferences.DeveloperTools = true
 	st = a.DeveloperToolsStatus()
-	if !st.Enabled || st.RestartNeeded != devtoolsBuiltIn {
-		t.Errorf("turned on after start: %+v (a restart is needed only in a build that has developer tools)", st)
+	if st.Enabled != devBuild {
+		t.Errorf("setting on: %+v (it counts only in a development build)", st)
 	}
-
-	// On at start and still on: nothing to restart.
-	a.developerToolsAtStart = true
-	if st = a.DeveloperToolsStatus(); st.RestartNeeded {
-		t.Errorf("on at start and still on: %+v", st)
-	}
-	// On at start, turned off since.
 	a.preferences.DeveloperTools = false
-	if st = a.DeveloperToolsStatus(); st.RestartNeeded != devtoolsBuiltIn {
-		t.Errorf("turned off after start: %+v", st)
+	if st = a.DeveloperToolsStatus(); st.Enabled {
+		t.Errorf("setting off: %+v", st)
 	}
 }
 
-func TestEnvironmentReportSaysWhetherDeveloperToolsAreOn(t *testing.T) {
+func TestEnvironmentReportMentionsDeveloperToolsOnlyInADevelopmentBuild(t *testing.T) {
 	a := &App{preferences: preferences.Defaults()}
 	joined := strings.Join(a.environmentReportLines(), "\n")
-	want := "developer tools off"
-	if !devtoolsBuiltIn {
-		want += " (not in this build)"
-	}
-	if !strings.Contains(joined, want) {
-		t.Errorf("the report lacks %q:\n%s", want, joined)
+	if got := strings.Contains(joined, "developer tools off"); got != devBuild {
+		t.Errorf("report mentions developer tools = %v, want %v (dev build):\n%s", got, devBuild, joined)
 	}
 }

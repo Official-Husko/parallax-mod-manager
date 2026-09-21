@@ -7,6 +7,7 @@ import {
     BrowseForGameInstall,
     ClearGamePath,
     DetectGames,
+    DeveloperToolsStatus,
     GetPreferences,
     ListPlaysets,
     OpenPath,
@@ -58,6 +59,11 @@ export function Settings({jumpToManageGames, jumpToBackup, onGamesChanged, onPre
     onPreferencesChanged?: () => void;
 }) {
     const [section, setSection] = useState<Section>('sort');
+    // The Debug tab exists in development builds only (wails dev, F5 in VS Code).
+    const [debugAvailable, setDebugAvailable] = useState(false);
+    useEffect(() => {
+        DeveloperToolsStatus().then((s) => setDebugAvailable(s.Available)).catch(() => undefined);
+    }, []);
 
     useEffect(() => {
         if (jumpToManageGames) setSection('manage');
@@ -71,7 +77,7 @@ export function Settings({jumpToManageGames, jumpToBackup, onGamesChanged, onPre
         <div className="settings">
             <div className="settings-nav">
                 <div className="sidebar-label">SETTINGS</div>
-                {settingsNav.map((s) => {
+                {settingsNav.filter((s) => s.key !== 'debug' || debugAvailable).map((s) => {
                     const clickable = s.key === 'manage' || s.key === 'paths' || s.key === 'launch' || s.key === 'playsets' || s.key === 'sort' || s.key === 'steam' || s.key === 'backup' || s.key === 'appearance' || s.key === 'advanced' || s.key === 'debug' || s.key === 'about';
                     const active = clickable && s.key === section;
                     return (
@@ -96,7 +102,7 @@ export function Settings({jumpToManageGames, jumpToBackup, onGamesChanged, onPre
             {section === 'backup' && <BackupPanel/>}
             {section === 'appearance' && <AppearancePanel onPreferencesChanged={onPreferencesChanged}/>}
             {section === 'advanced' && <AdvancedPanel/>}
-            {section === 'debug' && <DebugPanel/>}
+            {section === 'debug' && debugAvailable && <DebugPanel/>}
             {section === 'about' && <AboutPanel/>}
         </div>
     );

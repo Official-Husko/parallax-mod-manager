@@ -157,12 +157,10 @@ type Preferences struct {
 	// copies of the preferences and writes them back whole, so App.SetPreferences
 	// ignores whatever it sends for this field.
 	LastSeenGameVersions map[string]string `json:"lastSeenGameVersions"`
-	// DeveloperTools turns on the web inspector for the interface (Settings > Debug):
-	// the browser's own right-click menu (with Inspect Element) on Shift+right-click,
-	// and the buttons and hints for opening it. Off by default. Whether the native
-	// menu is available is decided when the window is created, so a change applies
-	// after a restart; a build made without developer tools ignores it (see
-	// devtools.go).
+	// DeveloperTools lets Shift+right-click through to the browser's own menu (with
+	// Inspect Element), from Settings > Debug. Off by default, and only development
+	// builds (wails dev) have the Debug tab or honour it - a release build ignores
+	// it (see devtools.go).
 	DeveloperTools bool `json:"developerTools"`
 }
 

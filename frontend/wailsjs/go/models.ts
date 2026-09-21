@@ -918,9 +918,8 @@ export namespace main {
 	    }
 	}
 	export class DeveloperToolsStatus {
-	    BuiltIn: boolean;
+	    Available: boolean;
 	    Enabled: boolean;
-	    RestartNeeded: boolean;
 	    OS: string;
 	
 	    static createFrom(source: any = {}) {
@@ -929,9 +928,8 @@ export namespace main {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.BuiltIn = source["BuiltIn"];
+	        this.Available = source["Available"];
 	        this.Enabled = source["Enabled"];
-	        this.RestartNeeded = source["RestartNeeded"];
 	        this.OS = source["OS"];
 	    }
 	}
