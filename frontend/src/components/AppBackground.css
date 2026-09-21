@@ -12,7 +12,14 @@
 
 .app-background-layer {
     position: absolute;
-    inset: 0;
+    /* A few pixels larger than the window on every side, so the image's outermost
+       rows and columns are always cropped off-screen. With background-size: cover
+       an image whose proportions match the window (16:9 art in a 16:9 or 4:3 window)
+       fits exactly, which puts its very last row on the window's bottom edge - and a
+       few of the images have a stray pale line on that row (artwork-stellaris_58,
+       _69, _71, _175, _39, _17), plus the last device pixel of a layer can be blended
+       with what is behind it at fractional display scales. Overscan hides both. */
+    inset: -3px;
     background-position: center;
     background-size: cover;
     background-repeat: no-repeat;
