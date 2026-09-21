@@ -8,6 +8,7 @@ import type {ViewKey} from './components/TopBar';
 import {NotificationStack} from './components/NotificationStack';
 import {ContextMenu} from './components/ContextMenu';
 import {installBackupNotifications} from './data/backups';
+import {installModStubNotifications} from './data/modStubs';
 import {ensureModUpdates} from './data/modUpdates';
 import {Tooltip} from './components/Tooltip';
 import {AppBackground} from './components/AppBackground';
@@ -109,6 +110,10 @@ export function App() {
     // The backend copies Workshop mods that are deleted or private in the background; this
     // is how the person hears about it.
     useEffect(() => installBackupNotifications(() => openBackupSettings()), []);
+
+    // Before a launch the backend repairs the links the game uses to find mods; this is how the
+    // person hears that a mod was not loading, or still cannot.
+    useEffect(() => installModStubNotifications(), []);
 
     useEffect(() => {
         setVisitedViews((prev) => (prev.has(view) ? prev : new Set(prev).add(view)));

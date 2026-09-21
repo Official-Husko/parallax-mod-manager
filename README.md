@@ -85,6 +85,15 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   launching writes the missing stub (mirroring the item's own descriptor, never overwriting one
   Steam or the launcher already wrote) so the game can actually find it - see
   [docs/mod-sources.md](docs/mod-sources.md).
+  The same launch-time step (`scan.EnsureStub`) also makes **mods in custom folders load in the
+  game**: the game only ever follows the stub in its own mod folder, so a mod this app finds
+  through an extra mod folder (no stub at all), or through a stub whose `path=` still names a
+  library that moved (another drive, another mount name), looked fine in the manager but was
+  never loaded. Every enabled mod now gets a stub that points at the folder it really is in - a
+  missing one is written, a stale `path=` line is rewritten in place (name, tags and comments
+  stay byte for byte; a stub that already works is never touched) - and the activity log and a
+  notification say what was repaired and which enabled mods could not be found anywhere. A stub
+  with no `path=` at all is no longer mistaken for content in the mod folder itself.
 - **Incremental cache** (`internal/cache`) - the stat → hash → parse layered, on-disk,
   versioned cache described above. This is the project's core performance thesis, and it's
   the one piece the research found nothing surveyed in this space (not the reference codebase,

@@ -582,7 +582,20 @@ func TestScanIncludesExtraFolders(t *testing.T) {
 	}
 }
 
-func TestEnsureWorkshopStubWritesMissingStub(t *testing.T) {
+func readStub(t *testing.T, path string) mod.Descriptor {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile(%s): %v", path, err)
+	}
+	desc, err := mod.ParseDescriptor(data, mod.DescriptorClassic)
+	if err != nil {
+		t.Fatalf("ParseDescriptor(%s): %v", path, err)
+	}
+	return desc
+}
+
+func TestEnsureStubWritesMissingWorkshopStub(t *testing.T) {
 	modDir := t.TempDir()
 	itemDir := t.TempDir()
 	m := mod.Mod{
@@ -596,23 +609,15 @@ func TestEnsureWorkshopStubWritesMissingStub(t *testing.T) {
 		},
 	}
 
-	wrote, err := EnsureWorkshopStub(m, modDir)
+	change, changed, err := EnsureStub(m, modDir)
 	if err != nil {
-		t.Fatalf("EnsureWorkshopStub: %v", err)
+		t.Fatalf("EnsureStub: %v", err)
 	}
-	if !wrote {
-		t.Fatal("expected EnsureWorkshopStub to report it wrote a file")
+	if !changed || !change.Created {
+		t.Fatalf("expected a created stub, got changed=%v %+v", changed, change)
 	}
 
-	stubPath := filepath.Join(modDir, "ugc_1121692237.mod")
-	data, err := os.ReadFile(stubPath)
-	if err != nil {
-		t.Fatalf("ReadFile: %v", err)
-	}
-	desc, err := mod.ParseDescriptor(data, mod.DescriptorClassic)
-	if err != nil {
-		t.Fatalf("ParseDescriptor(written stub): %v", err)
-	}
+	desc := readStub(t, filepath.Join(modDir, "ugc_1121692237.mod"))
 	if desc.Path != itemDir {
 		t.Errorf("written stub Path = %q, want %q", desc.Path, itemDir)
 	}
@@ -621,47 +626,185 @@ func TestEnsureWorkshopStubWritesMissingStub(t *testing.T) {
 	}
 }
 
-func TestEnsureWorkshopStubNeverOverwritesExisting(t *testing.T) {
+// A mod found in an extra mod folder has no stub at all, so the game cannot find it.
+func TestEnsureStubWritesStubForExtraFolderMod(t *testing.T) {
 	modDir := t.TempDir()
-	stubPath := filepath.Join(modDir, "ugc_1121692237.mod")
-	writeDescriptor(t, modDir, "ugc_1121692237.mod", `name="Original, written by Steam"`)
+	extraRoot := t.TempDir()
+	folder := filepath.Join(extraRoot, "My Mod")
+	if err := os.MkdirAll(folder, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeDescriptor(t, folder, "descriptor.mod", `name="My Mod"
+supported_version="v4.*"`)
 
-	m := mod.Mod{
-		ID:          "ugc_1121692237",
-		Source:      mod.SourceWorkshop,
-		ContentPath: t.TempDir(),
-		Descriptor:  mod.Descriptor{Name: "Should not be written", RemoteFileID: "1121692237"},
-	}
-	wrote, err := EnsureWorkshopStub(m, modDir)
-	if err != nil {
-		t.Fatalf("EnsureWorkshopStub: %v", err)
-	}
-	if wrote {
-		t.Fatal("expected EnsureWorkshopStub to report it did NOT write (stub already existed)")
+	mods, _ := ScanExtraFolder(mod.DescriptorClassic, extraRoot)
+	if len(mods) != 1 {
+		t.Fatalf("expected 1 extra mod, got %+v", mods)
 	}
 
-	data, err := os.ReadFile(stubPath)
-	if err != nil {
-		t.Fatalf("ReadFile: %v", err)
+	change, changed, err := EnsureStub(mods[0], modDir)
+	if err != nil || !changed || !change.Created {
+		t.Fatalf("EnsureStub: changed=%v change=%+v err=%v", changed, change, err)
 	}
-	if got := string(data); got != `name="Original, written by Steam"` {
-		t.Errorf("existing stub was modified: %q", got)
+	if want := filepath.Join(modDir, mods[0].ID+".mod"); change.File != want {
+		t.Errorf("stub file = %q, want %q", change.File, want)
+	}
+	if desc := readStub(t, change.File); desc.Path != folder || desc.Name != "My Mod" {
+		t.Errorf("stub = %+v, want path %q name My Mod", desc, folder)
+	}
+
+	// The next scan reads the stub it just wrote and must not list the folder a second time.
+	result, err := Scan(context.Background(), Options{Game: game.Stellaris, ModDir: modDir, ExtraFolders: []string{extraRoot}})
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	if len(result.Mods) != 1 || result.Mods[0].ContentPath != folder {
+		t.Fatalf("expected the one mod at %q, got %+v", folder, result.Mods)
+	}
+	if _, changed, err := EnsureStub(result.Mods[0], modDir); err != nil || changed {
+		t.Errorf("a second EnsureStub should have nothing to do, got changed=%v err=%v", changed, err)
 	}
 }
 
-func TestEnsureWorkshopStubNoopForNonWorkshopMod(t *testing.T) {
+// The stale-path case: the stub still names the library's old location, the mod was found
+// again in an extra folder. Only the path line changes.
+func TestEnsureStubRepairsStalePathKeepingTheRest(t *testing.T) {
 	modDir := t.TempDir()
-	m := mod.Mod{ID: "my_local_mod", Source: mod.SourceLocal, Descriptor: mod.Descriptor{Name: "Local"}}
-	wrote, err := EnsureWorkshopStub(m, modDir)
+	extraRoot := t.TempDir()
+	folder := filepath.Join(extraRoot, "Lustful Void")
+	if err := os.MkdirAll(folder, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	stale := "/run/media/someone/Project Drive/Projects/Stellaris/Lustful Void"
+	original := `name="Lustful Void"
+tags={
+	"No more tags!"
+}
+supported_version="v4.0.*"
+path="` + stale + `"
+`
+	writeDescriptor(t, modDir, "Lustful Void.mod", original)
+
+	result, err := Scan(context.Background(), Options{Game: game.Stellaris, ModDir: modDir, ExtraFolders: []string{extraRoot}})
 	if err != nil {
-		t.Fatalf("EnsureWorkshopStub: %v", err)
+		t.Fatalf("Scan: %v", err)
 	}
-	if wrote {
-		t.Fatal("expected no-op for a non-Workshop mod")
+	if len(result.Mods) != 1 || result.Mods[0].ContentPath != folder || result.Mods[0].ContentMissing {
+		t.Fatalf("scan should reconnect the mod to %q, got %+v", folder, result.Mods)
 	}
-	entries, _ := os.ReadDir(modDir)
-	if len(entries) != 0 {
-		t.Errorf("expected no file written, got %+v", entries)
+
+	change, changed, err := EnsureStub(result.Mods[0], modDir)
+	if err != nil || !changed || change.Created {
+		t.Fatalf("EnsureStub: changed=%v change=%+v err=%v", changed, change, err)
+	}
+	if change.OldPath != stale || change.NewPath != folder {
+		t.Errorf("change = %+v, want old %q new %q", change, stale, folder)
+	}
+
+	data, _ := os.ReadFile(filepath.Join(modDir, "Lustful Void.mod"))
+	if want := strings.Replace(original, stale, folder, 1); string(data) != want {
+		t.Errorf("stub after repair:\n%s\nwant:\n%s", data, want)
+	}
+	// What the game reads now points at a folder that exists.
+	if desc := readStub(t, filepath.Join(modDir, "Lustful Void.mod")); desc.Path != folder {
+		t.Errorf("repaired Path = %q, want %q", desc.Path, folder)
+	}
+}
+
+func TestEnsureStubNeverTouchesAWorkingStub(t *testing.T) {
+	modDir := t.TempDir()
+	folder := t.TempDir()
+	// Declared through a path that resolves (relative to the mod folder), unlike the mod's
+	// ContentPath spelling: nothing is broken, so nothing is rewritten.
+	content := filepath.Join(modDir, "kept")
+	if err := os.MkdirAll(content, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	original := "name=\"Kept\"\npath=\"kept\"\n"
+	writeDescriptor(t, modDir, "kept.mod", original)
+	before, _ := os.Stat(filepath.Join(modDir, "kept.mod"))
+
+	m := mod.Mod{
+		ID: "kept", Source: mod.SourceLocal, ContentPath: folder,
+		DescriptorPath: filepath.Join(modDir, "kept.mod"),
+		Descriptor:     mod.Descriptor{Name: "Kept", Path: "kept"},
+	}
+	if _, changed, err := EnsureStub(m, modDir); err != nil || changed {
+		t.Fatalf("EnsureStub: changed=%v err=%v, want untouched", changed, err)
+	}
+	data, _ := os.ReadFile(filepath.Join(modDir, "kept.mod"))
+	after, _ := os.Stat(filepath.Join(modDir, "kept.mod"))
+	if string(data) != original || !after.ModTime().Equal(before.ModTime()) {
+		t.Errorf("working stub was rewritten: %q", data)
+	}
+}
+
+// A stub with no path declares no content at all; it used to resolve to the mod folder itself.
+func TestEnsureStubGivesAPathlessStubItsPath(t *testing.T) {
+	modDir := t.TempDir()
+	extraRoot := t.TempDir()
+	folder := filepath.Join(extraRoot, "Pathless")
+	if err := os.MkdirAll(folder, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeDescriptor(t, modDir, "Pathless.mod", `name="Pathless"`)
+
+	// Without an extra folder holding it, the mod is reported missing, not "found" in the mod folder.
+	lone, err := Scan(context.Background(), Options{Game: game.Stellaris, ModDir: modDir})
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	if len(lone.Mods) != 1 || !lone.Mods[0].ContentMissing {
+		t.Fatalf("a path-less stub with nothing to find should be content-missing, got %+v", lone.Mods)
+	}
+
+	result, err := Scan(context.Background(), Options{Game: game.Stellaris, ModDir: modDir, ExtraFolders: []string{extraRoot}})
+	if err != nil {
+		t.Fatalf("Scan: %v", err)
+	}
+	if len(result.Mods) != 1 || result.Mods[0].ContentPath != folder {
+		t.Fatalf("expected the mod found at %q, got %+v", folder, result.Mods)
+	}
+	if _, changed, err := EnsureStub(result.Mods[0], modDir); err != nil || !changed {
+		t.Fatalf("EnsureStub: changed=%v err=%v", changed, err)
+	}
+	if desc := readStub(t, filepath.Join(modDir, "Pathless.mod")); desc.Path != folder || desc.Name != "Pathless" {
+		t.Errorf("stub = %+v, want path %q", desc, folder)
+	}
+}
+
+func TestEnsureStubDoesNothingWhenContentIsMissing(t *testing.T) {
+	modDir := t.TempDir()
+	original := `name="Gone"
+path="/nowhere/at/all"
+`
+	writeDescriptor(t, modDir, "Gone.mod", original)
+	m := mod.Mod{
+		ID: "Gone", Source: mod.SourceLocal, ContentPath: "/nowhere/at/all", ContentMissing: true,
+		DescriptorPath: filepath.Join(modDir, "Gone.mod"),
+	}
+	if _, changed, err := EnsureStub(m, modDir); err != nil || changed {
+		t.Fatalf("EnsureStub: changed=%v err=%v, want nothing to do", changed, err)
+	}
+	if data, _ := os.ReadFile(filepath.Join(modDir, "Gone.mod")); string(data) != original {
+		t.Errorf("stub was modified: %q", data)
+	}
+}
+
+func TestSetStubPath(t *testing.T) {
+	cases := []struct{ name, in, want string }{
+		{"replace", "name=\"A\"\npath=\"/old\"\nx=1\n", "name=\"A\"\npath=\"/new dir\"\nx=1\n"},
+		{"spaced and indented", "\tpath = \"/old\"\n", "\tpath = \"/new dir\"\n"},
+		{"crlf", "name=\"A\"\r\npath=\"/old\"\r\n", "name=\"A\"\r\npath=\"/new dir\"\r\n"},
+		{"add when absent", "name=\"A\"\n", "name=\"A\"\npath=\"/new dir\"\n"},
+		{"add when no trailing newline", "name=\"A\"", "name=\"A\"\npath=\"/new dir\"\n"},
+		{"archive is not path", "archive=\"/x.zip\"\n", "archive=\"/x.zip\"\npath=\"/new dir\"\n"},
+		{"a name containing path=", "name=\"path=\\\"x\\\"\"\n", "name=\"path=\\\"x\\\"\"\npath=\"/new dir\"\n"},
+	}
+	for _, c := range cases {
+		if got := string(setStubPath([]byte(c.in), "/new dir")); got != c.want {
+			t.Errorf("%s: got %q, want %q", c.name, got, c.want)
+		}
 	}
 }
 

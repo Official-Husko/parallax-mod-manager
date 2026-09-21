@@ -27,6 +27,10 @@ for security, privacy, reliability or performance is called out (see the last tw
   classifies each mod as Steam Workshop, Paradox Launcher or local.
 - **Workshop mods before the game links them** - finds subscribed Workshop items that have no stub yet
   and writes the missing stub when you launch with one enabled.
+- **Mods in custom folders load in the game** - launching gives every enabled mod a working link the game
+  can follow: a mod from an extra mod folder gets one, and a link still pointing at a moved or renamed
+  folder is repaired (only its path line, nothing else in the file). You are told what was fixed and which
+  enabled mods could not be found at all.
 - **Live folder watching** - the mod list updates as mods are added or removed, without losing the
   load order you are building.
 - **Mod detail panel** - real description, declared game version and dependencies, file tree, the mods

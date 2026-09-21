@@ -14,7 +14,7 @@ import (
 // Classic-descriptor games only - see docs/game-launching.md: DLC disabling
 // for Paradox-Launcher/JSON-format games isn't confirmed against a real
 // install yet, matching this project's other classic-only precedents
-// (GeneratePatch, EnsureWorkshopStub).
+// (GeneratePatch, scan.EnsureStub).
 //
 // A game that isn't currently detected as installed returns an empty list,
 // not an error - matching scan.Scan's own "nothing there yet is fine"

@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Official-Husko/parallax-mod-manager/internal/atomicfile"
 	"github.com/Official-Husko/parallax-mod-manager/internal/game"
 	"github.com/Official-Husko/parallax-mod-manager/internal/mod"
 	"github.com/Official-Husko/parallax-mod-manager/internal/steam"
@@ -134,8 +133,10 @@ func Scan(ctx context.Context, opts Options) (Result, error) {
 		source := mod.ClassifySource(entry.Name())
 		id := modID(entry.Name(), desc, opts.Game.DescriptorType)
 
+		// A stub with no path at all (a broken one) declares no content: left as "" it would
+		// resolve to the mod folder itself and pass for the mod's content.
 		contentPath := desc.Path
-		if !filepath.IsAbs(contentPath) {
+		if contentPath != "" && !filepath.IsAbs(contentPath) {
 			contentPath = filepath.Join(modDir, contentPath)
 		}
 
@@ -157,8 +158,16 @@ func Scan(ctx context.Context, opts Options) (Result, error) {
 			// real content, so pointing Parallax Mod Manager at wherever
 			// the library actually lives reconnects it instead of leaving
 			// it permanently broken - see findContentByName.
-			if found, ok := findContentByName(opts.ExtraFolders, filepath.Base(contentPath)); ok {
-				contentPath = found
+			names := []string{filepath.Base(contentPath)}
+			if desc.Path == "" {
+				// No declared path to take a folder name from: try what the mod is called.
+				names = []string{strings.TrimSuffix(entry.Name(), filepath.Ext(entry.Name())), desc.Name}
+			}
+			for _, name := range names {
+				if found, ok := findContentByName(opts.ExtraFolders, name); ok {
+					contentPath = found
+					break
+				}
 			}
 		}
 
@@ -202,11 +211,28 @@ func Scan(ctx context.Context, opts Options) (Result, error) {
 			continue
 		}
 		extra, errs := ScanExtraFolder(opts.Game.DescriptorType, folder)
-		result.Mods = append(result.Mods, extra...)
+		for _, m := range extra {
+			// EnsureStub gives an extra-folder mod a stub of the same name (extra_<hash>.mod)
+			// in the mod folder; once it exists the stub already lists the mod, and a second
+			// mod with the same id would collide with it everywhere ids are looked up.
+			if !hasModID(result.Mods, m.ID) {
+				result.Mods = append(result.Mods, m)
+			}
+		}
 		result.Errors = append(result.Errors, errs...)
 	}
 
 	return result, nil
+}
+
+// hasModID says whether one of mods already has the given id.
+func hasModID(mods []mod.Mod, id string) bool {
+	for _, m := range mods {
+		if m.ID == id {
+			return true
+		}
+	}
+	return false
 }
 
 // ScanExtraFolder recursively searches root for self-contained mod folders -
@@ -276,7 +302,7 @@ func ScanExtraFolder(kind mod.DescriptorType, root string) ([]mod.Mod, []ScanErr
 // resulting mod.Mod's ID follows the exact same "ugc_<id>" convention a
 // linked stub's filename would give it (see modID), so it round-trips
 // correctly through internal/launch's dlc_load.json writer once a stub
-// exists - see EnsureWorkshopStub.
+// exists - see EnsureStub.
 func discoverUnlinkedWorkshopItems(workshopDir string, knownRemoteIDs map[string]struct{}) ([]mod.Mod, []ScanError) {
 	entries, err := os.ReadDir(workshopDir)
 	if err != nil {
@@ -319,31 +345,6 @@ func discoverUnlinkedWorkshopItems(workshopDir string, knownRemoteIDs map[string
 		})
 	}
 	return mods, errs
-}
-
-// EnsureWorkshopStub writes m's descriptor as modDir's linking stub
-// ("ugc_<id>.mod") if one doesn't already exist there, so the game (which
-// reads dlc_load.json's "mod/ugc_<id>.mod" entries) can actually find
-// content this project discovered independently via
-// discoverUnlinkedWorkshopItems. Reports whether it wrote a file. Never
-// overwrites an existing stub - if Steam or the Paradox Launcher already
-// wrote one, that file is left alone untouched. A no-op, not an error, for
-// anything that isn't an identifiable Workshop mod.
-func EnsureWorkshopStub(m mod.Mod, modDir string) (bool, error) {
-	if m.Source != mod.SourceWorkshop || m.Descriptor.RemoteFileID == "" {
-		return false, nil
-	}
-	filename := mod.WorkshopFilePrefix + m.Descriptor.RemoteFileID + ".mod"
-	if _, err := os.Stat(filepath.Join(modDir, filename)); err == nil {
-		return false, nil
-	}
-
-	desc := m.Descriptor
-	desc.Path = m.ContentPath
-	if _, err := atomicfile.Write(modDir, filename, mod.WriteClassicDescriptor(desc)); err != nil {
-		return false, err
-	}
-	return true, nil
 }
 
 // modID derives a mod's stable identifier: the descriptor filename's stem

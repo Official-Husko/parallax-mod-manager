@@ -1284,7 +1284,7 @@ func (a *App) ListPlaysets(gameID string) ([]string, error) {
 // opened against them, and that's not a failure worth surfacing.
 //
 // Classic-descriptor games only, matching every other classic-only
-// precedent in this codebase (EnsureWorkshopStub, patch-mod generation) -
+// precedent in this codebase (EnsureStub, patch-mod generation) -
 // launcher-v2.sqlite's schema is confirmed for this format; JSON-launcher
 // games may use a differently-shaped database under the same filename,
 // which this project has no confirmed schema for yet.
@@ -1710,24 +1710,14 @@ func (a *App) launchGame(gameID, playsetName string) error {
 			return err
 		}
 
-		// Some subscribed Workshop mods may have been discovered without a
-		// game/mod/ linking stub yet (see scan.discoverUnlinkedWorkshopItems) -
-		// write one for anything this playset actually enables, so the game
-		// itself (which reads dlc_load.json's "mod/ugc_<id>.mod" entries) can
-		// find it. Only classic-descriptor games use this stub convention.
+		// The game finds each enabled mod through its stub in game/mod/ (dlc_load.json's
+		// "mod/<id>.mod" entries), not through the scan this app just did: a Workshop
+		// item found without a stub, a mod in an extra mod folder, or a stub whose folder
+		// moved would all look fine here and never load. Make sure every enabled mod has a
+		// stub that points at where the mod really is. Only classic-descriptor games use
+		// this stub convention.
 		if cfg.DescriptorType == mod.DescriptorClassic {
-			modsByID := make(map[string]mod.Mod, len(scanResult.Mods))
-			for _, m := range scanResult.Mods {
-				modsByID[m.ID] = m
-			}
-			modDir := filepath.Join(stateDir, "mod")
-			for _, id := range p.ModIDs {
-				if m, ok := modsByID[id]; ok {
-					if _, err := scan.EnsureWorkshopStub(m, modDir); err != nil {
-						return err
-					}
-				}
-			}
+			a.ensureModStubs(gameID, filepath.Join(stateDir, "mod"), p.ModIDs, scanResult.Mods)
 		}
 
 		order := conflict.LoadOrder(p.ModIDs)

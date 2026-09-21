@@ -178,6 +178,11 @@ func WriteClassicDescriptor(d Descriptor) []byte {
 	return []byte(b.String())
 }
 
+// QuoteClausewitz quotes s as a Clausewitz string literal, the way a descriptor's
+// values are written (see WriteClassicDescriptor) - for editing one value of an
+// existing descriptor in place.
+func QuoteClausewitz(s string) string { return quoteClausewitz(s) }
+
 // quoteClausewitz quotes s as a Clausewitz string literal, escaping the two
 // characters the lexer treats specially inside one (see internal/script's
 // lexString).
