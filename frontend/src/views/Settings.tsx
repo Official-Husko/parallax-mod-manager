@@ -23,8 +23,9 @@ import {DEFAULT_BACKGROUND_INTERVAL_SECONDS} from '../components/AppBackground';
 import {type PlaysetAutoloadMode, playsetAutoloadModeFor} from '../data/playsetAutoload';
 import {AboutPanel} from './About';
 import {BackgroundDownloadModal} from './BackgroundDownloadModal';
+import {SteamApiPanel} from './SteamApiPanel';
 
-type Section = 'manage' | 'paths' | 'launch' | 'playsets' | 'sort' | 'appearance' | 'advanced' | 'about';
+type Section = 'manage' | 'paths' | 'launch' | 'playsets' | 'sort' | 'steam' | 'appearance' | 'advanced' | 'about';
 
 export function Settings({jumpToManageGames, onGamesChanged, onPreferencesChanged}: {
     // Incremented by app.tsx (the TopBar's own "Manage games" entry) to
@@ -55,7 +56,7 @@ export function Settings({jumpToManageGames, onGamesChanged, onPreferencesChange
             <div className="settings-nav">
                 <div className="sidebar-label">SETTINGS</div>
                 {settingsNav.map((s) => {
-                    const clickable = s.key === 'manage' || s.key === 'paths' || s.key === 'launch' || s.key === 'playsets' || s.key === 'sort' || s.key === 'appearance' || s.key === 'advanced' || s.key === 'about';
+                    const clickable = s.key === 'manage' || s.key === 'paths' || s.key === 'launch' || s.key === 'playsets' || s.key === 'sort' || s.key === 'steam' || s.key === 'appearance' || s.key === 'advanced' || s.key === 'about';
                     const active = clickable && s.key === section;
                     return (
                         <div
@@ -75,6 +76,7 @@ export function Settings({jumpToManageGames, onGamesChanged, onPreferencesChange
             {section === 'launch' && <LaunchOptionsPanel/>}
             {section === 'playsets' && <PlaysetsSettingsPanel/>}
             {section === 'sort' && <SortRulesPanel/>}
+            {section === 'steam' && <SteamApiPanel/>}
             {section === 'appearance' && <AppearancePanel onPreferencesChanged={onPreferencesChanged}/>}
             {section === 'advanced' && <AdvancedPanel/>}
             {section === 'about' && <AboutPanel/>}

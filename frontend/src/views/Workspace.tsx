@@ -515,6 +515,17 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
         workshopDetailsStartedRef.current = false;
     }, [selectedGame]);
 
+    // Saving, removing or switching the Steam API key (Settings > Steam API) changes what
+    // Steam can return - an unlisted mod is "not found" to the free API and complete with a
+    // key - so the details are fetched again the new way.
+    useEffect(() => {
+        const off = EventsOn('steam-api-changed', () => {
+            workshopDetailsStartedRef.current = false;
+            setWorkshopDetailsRetryTick((t) => t + 1);
+        });
+        return () => { off(); };
+    }, []);
+
     useEffect(() => {
         if (!summary || workshopDetailsStartedRef.current) {
             return;
@@ -1553,6 +1564,18 @@ function matchesSearch(m: library.ModSummary, search: string): boolean {
     return m.Name.toLowerCase().includes(q) || m.ID.toLowerCase().includes(q);
 }
 
+// visibilityLabel names a Workshop item's visibility (0 public, 1 friends only, 2 private,
+// 3 unlisted). Only shown for the non-public ones; an unlisted item is fine, just not listed
+// on the Workshop, which is why the free Steam API cannot return it.
+function visibilityLabel(v: number): string {
+    switch (v) {
+        case 1: return 'Friends only';
+        case 2: return 'Private';
+        case 3: return 'Unlisted (reachable by link only)';
+        default: return 'Public';
+    }
+}
+
 // authorNameFor resolves a mod's real Steam Workshop author name, if it's
 // a Workshop mod and both its own Workshop metadata and that creator's
 // profile have been fetched - "" otherwise (a local mod, or data not
@@ -2046,6 +2069,12 @@ function OverviewTab({mod, files, filesLoading, allMods, conflicts, onOpenFolder
                     <span className="label">Subscribers</span><span className="value mono">{steamDetails.Subscriptions.toLocaleString()}</span>
                     <span className="label">Favorited</span><span className="value mono">{steamDetails.Favorited.toLocaleString()}</span>
                     <span className="label">Views</span><span className="value mono">{steamDetails.Views.toLocaleString()}</span>
+                    {steamDetails.Visibility > 0 && (
+                        <>
+                            <span className="label">Visibility</span>
+                            <span className="value">{visibilityLabel(steamDetails.Visibility)}</span>
+                        </>
+                    )}
                 </div>
             )}
             <div className="section">

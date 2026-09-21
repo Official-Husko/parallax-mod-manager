@@ -19,6 +19,7 @@ export const settingsNav = [
     {label: 'Sort rules', key: 'sort'},
     {label: 'Conflict scanning', key: 'conflict'},
     {label: 'Updates', key: 'updates'},
+    {label: 'Steam API', key: 'steam'},
     {label: 'Appearance', key: 'appearance'},
     {label: 'Advanced', key: 'advanced'},
     {label: 'About', key: 'about'},

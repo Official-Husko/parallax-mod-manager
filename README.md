@@ -543,7 +543,8 @@ This list grows as features land - see [Progress](#progress) below, which is kep
     tab for Workshop mods - real subscriber/favorite/view counts, last-updated time, and the
     author's own real description, closing a gap classic descriptors can't fill on their own
     (they have no description field at all). Every currently-scanned Workshop mod's id is
-    batched into a single request, fetched once, and kept in memory for the app's own runtime
+    batched (100 per request, since Steam is reported to fail above that; a failing batch no longer
+    discards the others), fetched once, and kept in memory for the app's own runtime
     (`library.WorkshopDetailsCache`) - confirmed against this project's real 86-mod Stellaris
     install: 81 real Workshop mods enriched in one request.
   - **Author details** (Steam Community's own profile XML endpoint) shows a Workshop mod's real
@@ -613,6 +614,49 @@ This list grows as features land - see [Progress](#progress) below, which is kep
     exactly): the id stays in the playset's real `disabledDlc` list either way, so it's shown as
     its own **NOT FOUND** row (dimmed, no working toggle - nothing to verify) with a one-click
     way to clear the stale reference, plus a footer count so it's never just invisible.
+- **Optional Steam Web API key** (`internal/steamapi`, `internal/secretbox`, `internal/steamconfig`,
+  `steamapi_settings.go`, Settings > Steam API) - the free Workshop API answers "not found" (result 9,
+  `FileNotFound`) for some mods whose page is up and which work fine in the game. The example that found
+  it, `2780180614`, is an **unlisted** item (visibility 3): reachable by its link, absent from search, and
+  invisible to the free API, so the app had no title, counts or update date for it. With a key of the
+  user's own (free at `steamcommunity.com/dev/apikey`) the app can also use Steam's keyed endpoint, which
+  returns such items in full. It is optional and off by default. Three modes, chosen in the new
+  **Steam API** settings tab:
+  - **Complete Steam API use (Recommended)** - the key is used for every Workshop details request; if
+    Steam says the key is out of requests (HTTP 429) the free API answers until it recovers (Steam's
+    `Retry-After`, else an hour), and a key Steam rejects is set aside until a new one is saved.
+  - **Backup Steam API use** - the free API first; the key only for what it could not answer (an item it
+    failed on or reported "not found" for, such as `2780180614`), counted and logged as "rescued".
+  - **Free API use only** (the default) - never uses a key. Choosing it **deletes the saved key from the
+    settings file** (after a confirmation) and locks the key field.
+
+  The key field is a password field, and the key is **checked with Steam before it is saved**, so a wrong
+  one is never stored. It is stored encrypted: AES-256-GCM under a key derived (HKDF-SHA256) from this
+  computer's machine id (`/etc/machine-id`, the registry's `MachineGuid`, or `IOPlatformUUID`; a random
+  per-install secret where there is none), in `steam_api.jsonc` written for its owner only, so the file
+  copied to another computer, pasted into a bug report or synced to a cloud drive cannot be opened. It is
+  decrypted into memory at startup, never sent to the interface (only a short fingerprint of it is, so the
+  panel can say which key is saved), never written to the activity log, and never appears in an error (the
+  key travels in the request URL, so every error is built from the status or network reason alone and
+  scrubbed of it). A hash would not do for the stored value, since it cannot be turned back into the key
+  Steam has to receive; the fingerprint is the only hash. This protects a copied or shared file, not a
+  program running as the same user on the same computer, which can ask the app for the key like the app
+  does - nothing on disk can prevent that. A key saved on another computer is set aside, not lost: the
+  panel says it cannot be read here and asks for it again. Saving, removing or switching the key drops
+  what was remembered and fetches Workshop details again the new way.
+  Alongside it: the **full Steamworks `EResult` table** (107 codes) is in the code, so a `result` reads
+  as `9 (FileNotFound)`, and update tracking uses the classes - a busy or failing Steam or a rate limit is
+  "unknown", never "deleted"; `86` (`ItemDeleted`, only the keyed API says it) is a deletion; "not found"
+  still has the item's own page checked first. The mod detail panel shows a **Visibility** row for
+  non-public items (an unlisted mod reads "Unlisted (reachable by link only)"). Tested with the race
+  detector against the real record the keyed API returned for `2780180614` (kept as the parser's test
+  fixture), the 401/403/429/5xx mappings, a sentinel key that must appear in no error, log line or status,
+  100/101/250-id chunking (in order, partial failure keeps what worked), the full free/complete/backup
+  matrix including exhaustion and recovery, encryption round trips and tampering, the settings file, and the
+  panel driven in a headless browser against a mocked backend. The real free API and the real 401 for a bad
+  key were confirmed live; the keyed request itself follows the documented method and could not be run
+  without a key, and the panel's **Check key** button reports at once whether a key works. See
+  [docs/steam-web-api.md](docs/steam-web-api.md).
 - **The rest of the design mockup's screens** (`frontend/src/views/Library.tsx`,
   `PlaysetsModal.tsx`) - a faithful, fully navigable visual preview of the
   mockup's cross-game library, built from the mockup's own example content.

@@ -90,6 +90,12 @@ for security, privacy, reliability or performance is called out (see the last tw
   description for Workshop mods.
 - **Author profiles** - real author name, avatar and profile link in the mod list and detail panel.
 - **Recent update notes** - the mod's own changelog entries, on demand.
+- **Optional Steam API key** - add your own Steam Web API key under Settings > Steam API to also see the
+  mods the free API cannot return (unlisted ones, for example): Complete use (recommended), Backup use
+  only when the free API cannot answer, or Free API use only (the default, which keeps no key). If the
+  key runs out of requests the app falls back to the free API by itself.
+- **Steam status codes understood** - Steam's own result codes are read properly, so a busy Steam or a
+  rate limit is never mistaken for a mod being deleted, and unlisted mods are shown as such.
 
 ## Appearance and interface
 
