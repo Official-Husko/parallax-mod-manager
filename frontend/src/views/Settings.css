@@ -48,6 +48,12 @@
     min-height: 0;
     overflow-y: auto;
     display: flex;
+    /* The main column next to .settings-nav - every other multi-pane view
+       (Workspace's list panes, DLC's own main column, Editor's detail pane)
+       gives its own main area a real panel fill of its own, same as its
+       side rail, rather than leaving it to sit bare against the app
+       background with only the rail looking like a contained surface. */
+    background: var(--bg-panel);
 }
 
 .settings-content.single {

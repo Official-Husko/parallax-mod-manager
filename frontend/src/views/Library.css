@@ -126,6 +126,10 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
+    /* The main column next to .library-sidebar, which already has a real panel
+       fill of its own; without this the mod table sat bare against the app
+       background instead of looking like the other half of one contained layout. */
+    background: var(--bg-panel);
 }
 
 .library-toolbar {
@@ -188,7 +192,9 @@
 .library-columns {
     height: 26px;
     border-bottom: 1px solid var(--border);
-    background: var(--bg-header);
+    /* --bg-header-on-panel, not --bg-header - .library-main (this sits inside it) now
+       applies --bg-panel of its own; see that variable's own comment in App.css. */
+    background: var(--bg-header-on-panel);
     font-size: 9.5px;
     letter-spacing: .09em;
     color: var(--text-muted);
@@ -296,7 +302,8 @@
     height: 30px;
     flex: none;
     border-top: 1px solid var(--border);
-    background: var(--bg-header);
+    /* --bg-header-on-panel - see .library-columns's own comment above. */
+    background: var(--bg-header-on-panel);
     display: flex;
     align-items: center;
     padding: 0 14px;

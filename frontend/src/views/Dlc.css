@@ -47,6 +47,10 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
+    /* The main column between .dlc-detail and .dlc-sidebar - both of those already
+       have a real panel fill of their own; without this the middle of the three just
+       sat bare against the app background, the only one of the three that did. */
+    background: var(--bg-panel);
 }
 
 .dlc-toolbar {
@@ -77,7 +81,9 @@
     height: 26px;
     flex: none;
     border-bottom: 1px solid var(--border);
-    background: var(--bg-header);
+    /* --bg-header-on-panel, not --bg-header - .dlc-main (this sits inside it) now
+       applies --bg-panel of its own; see that variable's own comment in App.css. */
+    background: var(--bg-header-on-panel);
     font-size: 9.5px;
     letter-spacing: .09em;
     color: var(--text-muted);
@@ -209,7 +215,8 @@
     height: 30px;
     flex: none;
     border-top: 1px solid var(--border);
-    background: var(--bg-header);
+    /* --bg-header-on-panel - see .dlc-columns's own comment above. */
+    background: var(--bg-header-on-panel);
     display: flex;
     align-items: center;
     padding: 0 14px;

@@ -70,6 +70,11 @@
     display: flex;
     flex-direction: column;
     overflow-y: auto;
+    /* The main column next to .editor-list-pane, which already has a real panel
+       fill of its own; without this the selected mod's own tabs sat bare against
+       the app background instead of looking like the other half of one contained
+       layout. */
+    background: var(--bg-panel);
 }
 
 .editor-detail-header {

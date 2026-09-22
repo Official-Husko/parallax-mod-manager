@@ -12,7 +12,10 @@
     padding: 24px 26px;
     border: 1px solid var(--border);
     border-radius: 8px;
-    background: var(--bg-panel);
+    /* --bg-inset, not --bg-panel - .settings-content (this always sits inside it, see
+       About.tsx) now applies --bg-panel of its own; see --bg-inset's own comment in
+       App.css for why reapplying --bg-panel here would compound towards opaque. */
+    background: var(--bg-inset);
 }
 
 .about-logo {
@@ -153,7 +156,8 @@
     padding: 16px 18px;
     border: 1px solid var(--border);
     border-radius: 7px;
-    background: var(--bg-panel);
+    /* --bg-inset - see .about-hero's own comment above. */
+    background: var(--bg-inset);
     min-width: 0;
 }
 
