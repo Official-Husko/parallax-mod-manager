@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/Official-Husko/parallax-mod-manager/internal/applog"
 	"github.com/Official-Husko/parallax-mod-manager/internal/credentials"
@@ -34,11 +35,19 @@ type loversLabState struct {
 	// a fresh App start has no reason to sign in before anything actually asks to
 	// browse.
 	client *loverslab.Client
+	// verifiedAt is when client was last confirmed still signed in server-side -
+	// ensureLoversLabSession only re-checks after sessionRecheckInterval passes,
+	// rather than on every single call.
+	verifiedAt time.Time
 	// login signs in and returns the authenticated client; loverslabLogin in
 	// production, replaced in tests with one that never makes a real request against
 	// the real site - the same swappable-verify-function pattern
 	// steamAPIState.verify (steamapi_settings.go) already uses for the same reason.
 	login func(ctx context.Context, auth, password string) (*loverslab.Client, error)
+	// verify checks a client is still signed in server-side; loverslabVerify in
+	// production (a thin wrapper around Client.VerifySession), replaced in tests with
+	// one that never makes a real request - same reason as login above.
+	verify func(ctx context.Context, client *loverslab.Client) (bool, error)
 }
 
 // loverslabLogin is loversLabState.login's real, production implementation.
@@ -51,6 +60,11 @@ func loverslabLogin(ctx context.Context, auth, password string) (*loverslab.Clie
 		return nil, err
 	}
 	return client, nil
+}
+
+// loverslabVerify is loversLabState.verify's real, production implementation.
+func loverslabVerify(ctx context.Context, client *loverslab.Client) (bool, error) {
+	return client.VerifySession(ctx)
 }
 
 // LoversLabStatus is what the Browsing Extensions panel shows for LoversLab. It never
@@ -85,6 +99,9 @@ func (a *App) initLoversLab(dir string) {
 	a.loverslab.mgr = &credentials.Manager{Service: loversLabService, Path: path, Box: box}
 	if a.loverslab.login == nil {
 		a.loverslab.login = loverslabLogin
+	}
+	if a.loverslab.verify == nil {
+		a.loverslab.verify = loverslabVerify
 	}
 }
 
@@ -157,6 +174,7 @@ func (a *App) SaveLoversLabCredentials(username, password string) (LoversLabStat
 	}
 
 	a.loverslab.client = client
+	a.loverslab.verifiedAt = time.Now()
 	applog.For("LoversLab").Infof("signed in as %s (member %s), saved encrypted", username, client.MemberID())
 	return a.loversLabStatusLocked(), nil
 }
@@ -171,6 +189,7 @@ func (a *App) ClearLoversLabCredentials() (LoversLabStatus, error) {
 			applog.For("LoversLab").Warnf("logging out of LoversLab failed (clearing the saved sign-in anyway): %v", err)
 		}
 		a.loverslab.client = nil
+		a.loverslab.verifiedAt = time.Time{}
 	}
 	if a.loverslab.mgr == nil {
 		return a.loversLabStatusLocked(), nil

@@ -32,11 +32,14 @@ func fakeLoversLabSession(t *testing.T) *loverslab.Client {
 	return client
 }
 
-// newLoversLabApp is an App whose LoversLab settings live in dir and whose login is
-// scripted (never a real request against the real site): auth/password matching
-// testLoversLabUser/testLoversLabPass succeeds, anything else is rejected - the same
-// swappable-verify pattern newSteamApp (steamapi_settings_test.go) uses for the same
-// reason.
+// newLoversLabApp is an App whose LoversLab settings live in dir and whose login and
+// session verification are both scripted (never a real request against the real site):
+// login succeeds only for auth/password matching testLoversLabUser/testLoversLabPass,
+// verify trusts whatever IsLoggedIn's own local, no-network cookie check already says -
+// the same swappable-verify pattern newSteamApp (steamapi_settings_test.go) uses for the
+// same reason. Individual tests that care about exactly when/how often verify runs
+// (ensureLoversLabSession's caching - see loverslab_test.go) replace this default with
+// their own counting fake afterward.
 func newLoversLabApp(t *testing.T, dir string) *App {
 	t.Helper()
 	a := &App{}
@@ -45,6 +48,9 @@ func newLoversLabApp(t *testing.T, dir string) *App {
 			return nil, errors.New("login: rejected (bad credentials, captcha, or 2FA challenge)")
 		}
 		return fakeLoversLabSession(t), nil
+	}
+	a.loverslab.verify = func(ctx context.Context, client *loverslab.Client) (bool, error) {
+		return client.IsLoggedIn(), nil
 	}
 	a.initLoversLab(dir)
 	return a

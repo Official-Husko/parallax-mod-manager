@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/Official-Husko/parallax-mod-manager/internal/loverslab"
 )
@@ -75,5 +77,119 @@ func TestBuildBrowseSidebarDropsTheSelfReferencingRow(t *testing.T) {
 	}
 	if got[1].Name != "Stellaris" {
 		t.Errorf("got[1] = %+v, want Stellaris", got[1])
+	}
+}
+
+// --- ensureLoversLabSession: reuse, caching, and the fallback chain ---
+// All scripted (newLoversLabApp), never a real request - see loverslab_settings_test.go.
+
+func TestEnsureLoversLabSessionReusesARecentlyVerifiedClientWithoutReVerifying(t *testing.T) {
+	a := newLoversLabApp(t, t.TempDir())
+	if _, err := a.SaveLoversLabCredentials(testLoversLabUser, testLoversLabPass); err != nil {
+		t.Fatalf("SaveLoversLabCredentials: %v", err)
+	}
+	firstClient := a.loverslab.client
+
+	verifyCalls := 0
+	a.loverslab.verify = func(ctx context.Context, c *loverslab.Client) (bool, error) {
+		verifyCalls++
+		return true, nil
+	}
+
+	client, err := a.ensureLoversLabSession(context.Background())
+	if err != nil {
+		t.Fatalf("ensureLoversLabSession: %v", err)
+	}
+	if client != firstClient {
+		t.Error("expected the same in-memory client to be reused")
+	}
+	if verifyCalls != 0 {
+		t.Errorf("verify called %d times, want 0 (still within sessionRecheckInterval)", verifyCalls)
+	}
+}
+
+func TestEnsureLoversLabSessionReVerifiesOnceTheRecheckIntervalHasPassed(t *testing.T) {
+	a := newLoversLabApp(t, t.TempDir())
+	if _, err := a.SaveLoversLabCredentials(testLoversLabUser, testLoversLabPass); err != nil {
+		t.Fatalf("SaveLoversLabCredentials: %v", err)
+	}
+	a.loverslab.verifiedAt = time.Now().Add(-sessionRecheckInterval - time.Minute)
+
+	verifyCalls := 0
+	a.loverslab.verify = func(ctx context.Context, c *loverslab.Client) (bool, error) {
+		verifyCalls++
+		return true, nil
+	}
+
+	if _, err := a.ensureLoversLabSession(context.Background()); err != nil {
+		t.Fatalf("ensureLoversLabSession: %v", err)
+	}
+	if verifyCalls != 1 {
+		t.Errorf("verify called %d times, want 1", verifyCalls)
+	}
+	if time.Since(a.loverslab.verifiedAt) > time.Minute {
+		t.Errorf("verifiedAt = %v, want it refreshed to roughly now", a.loverslab.verifiedAt)
+	}
+}
+
+func TestEnsureLoversLabSessionFallsBackToTheSavedSessionWhenTheLiveClientFailsVerification(t *testing.T) {
+	a := newLoversLabApp(t, t.TempDir())
+	if _, err := a.SaveLoversLabCredentials(testLoversLabUser, testLoversLabPass); err != nil {
+		t.Fatalf("SaveLoversLabCredentials: %v", err)
+	}
+	a.loverslab.verifiedAt = time.Now().Add(-sessionRecheckInterval - time.Minute)
+
+	// The in-memory client fails verification exactly once (simulating a session
+	// revoked server-side); the freshly re-imported saved session succeeds.
+	failedOnce := false
+	a.loverslab.verify = func(ctx context.Context, c *loverslab.Client) (bool, error) {
+		if !failedOnce {
+			failedOnce = true
+			return false, nil
+		}
+		return true, nil
+	}
+
+	client, err := a.ensureLoversLabSession(context.Background())
+	if err != nil {
+		t.Fatalf("ensureLoversLabSession: %v", err)
+	}
+	if client == nil || a.loverslab.client == nil {
+		t.Error("expected a freshly re-imported client to be cached")
+	}
+}
+
+func TestEnsureLoversLabSessionFallsBackToAFreshLoginWhenTheSavedSessionIsUnusable(t *testing.T) {
+	a := newLoversLabApp(t, t.TempDir())
+	if _, err := a.SaveLoversLabCredentials(testLoversLabUser, testLoversLabPass); err != nil {
+		t.Fatalf("SaveLoversLabCredentials: %v", err)
+	}
+	// Simulate a session that expired entirely (not just gone stale in memory): drop
+	// the in-memory client and corrupt the saved session, but keep username/password.
+	a.loverslab.client = nil
+	a.loverslab.verifiedAt = time.Time{}
+	if err := a.loverslab.mgr.Save(map[string]string{"session": "not a valid session at all"}); err != nil {
+		t.Fatalf("corrupting the saved session: %v", err)
+	}
+
+	loginCalls := 0
+	realLogin := a.loverslab.login
+	a.loverslab.login = func(ctx context.Context, auth, password string) (*loverslab.Client, error) {
+		loginCalls++
+		return realLogin(ctx, auth, password)
+	}
+
+	if _, err := a.ensureLoversLabSession(context.Background()); err != nil {
+		t.Fatalf("ensureLoversLabSession: %v", err)
+	}
+	if loginCalls != 1 {
+		t.Errorf("login called %d times, want 1", loginCalls)
+	}
+}
+
+func TestEnsureLoversLabSessionWithNothingEverSavedFails(t *testing.T) {
+	a := newLoversLabApp(t, t.TempDir())
+	if _, err := a.ensureLoversLabSession(context.Background()); err == nil {
+		t.Error("expected an error when nothing has ever been signed in")
 	}
 }

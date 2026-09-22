@@ -5,10 +5,20 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/Official-Husko/parallax-mod-manager/internal/applog"
 	"github.com/Official-Husko/parallax-mod-manager/internal/loverslab"
 )
+
+// sessionRecheckInterval is how long an already-verified LoversLab session is trusted before
+// ensureLoversLabSession checks it against the site again - browsing a page (categories, then
+// its files, then a changelog) makes several calls in quick succession, and re-verifying on
+// every single one would mean a burst of extra requests to loverslab.com for no real benefit;
+// the three "remember me" cookies that actually matter here are valid for weeks (see
+// docs/loverslab.md), so a session that was good a few minutes ago is still overwhelmingly
+// likely to be good now.
+const sessionRecheckInterval = 5 * time.Minute
 
 // LoversLabFileList is one page of a category's file listing, for the Browse tab -
 // see loverslab.Client.ListFiles, which returns the same pair as two separate values;
@@ -29,7 +39,11 @@ func (a *App) ensureLoversLabSession(ctx context.Context) (*loverslab.Client, er
 	defer a.loverslab.mu.Unlock()
 
 	if a.loverslab.client != nil {
-		if ok, err := a.loverslab.client.VerifySession(ctx); err == nil && ok {
+		if time.Since(a.loverslab.verifiedAt) < sessionRecheckInterval {
+			return a.loverslab.client, nil
+		}
+		if ok, err := a.loverslab.verify(ctx, a.loverslab.client); err == nil && ok {
+			a.loverslab.verifiedAt = time.Now()
 			return a.loverslab.client, nil
 		}
 		// Either revoked server-side or the check itself failed (network hiccup) -
@@ -49,8 +63,9 @@ func (a *App) ensureLoversLabSession(ctx context.Context) (*loverslab.Client, er
 
 	if session, err := a.loverslab.mgr.Open("session"); err == nil {
 		if err := client.ImportSession(session); err == nil {
-			if ok, err := client.VerifySession(ctx); err == nil && ok {
+			if ok, err := a.loverslab.verify(ctx, client); err == nil && ok {
 				a.loverslab.client = client
+				a.loverslab.verifiedAt = time.Now()
 				return client, nil
 			}
 		}
@@ -72,6 +87,7 @@ func (a *App) ensureLoversLabSession(ctx context.Context) (*loverslab.Client, er
 	}
 	applog.For("LoversLab").Infof("signed in to LoversLab again (member %s)", client.MemberID())
 	a.loverslab.client = client
+	a.loverslab.verifiedAt = time.Now()
 	return client, nil
 }
 
