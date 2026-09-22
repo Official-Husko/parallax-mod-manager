@@ -21,7 +21,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -29,6 +28,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/Official-Husko/parallax-mod-manager/internal/fsutil"
 )
 
 // itemIDPattern is what a Workshop item id looks like: it names the folder a mod's
@@ -92,6 +93,11 @@ var (
 
 // freeBytes is diskFree; a variable so tests can pretend the disk is full.
 var freeBytes = diskFree
+
+// DiskFree is diskFree, exported for callers outside this package that need a target folder's
+// free space (see App.PreviewDuplicateMod) without reimplementing the platform-specific check
+// this package already has.
+func DiskFree(path string) (uint64, bool) { return diskFree(path) }
 
 // spaceMargin is left free on the volume on top of the mod's own size.
 const spaceMargin = 64 << 20
@@ -178,7 +184,11 @@ func CopyWithLimits(ctx context.Context, root string, src Source, progress Progr
 	if err := os.RemoveAll(partial); err != nil {
 		return Result{}, fmt.Errorf("backup: clearing %s: %w", partial, err)
 	}
-	stats, err := copyTree(ctx, src.ContentPath, partial, fp.size, progress)
+	var fsProgress fsutil.Progress
+	if progress != nil {
+		fsProgress = func(_ string, done, total int64) { progress(done, total) }
+	}
+	stats, err := fsutil.CopyTree(ctx, src.ContentPath, partial, fp.size, fsProgress)
 	if err != nil {
 		_ = os.RemoveAll(partial)
 		return Result{}, err
@@ -186,14 +196,14 @@ func CopyWithLimits(ctx context.Context, root string, src Source, progress Progr
 
 	// Files that vanished between counting the source and walking it were never seen
 	// by the walk, so count them here.
-	if stats.files+stats.missing < fp.files {
-		stats.missing = fp.files - stats.files
+	if stats.Files+stats.Missing < fp.files {
+		stats.Missing = fp.files - stats.Files
 	}
-	incomplete := stats.missing > 0
+	incomplete := stats.Missing > 0
 	if incomplete {
 		if old, ok := idx.Mods[src.RemoteFileID]; ok && old.Complete {
 			_ = os.RemoveAll(partial)
-			return Result{}, fmt.Errorf("%w (%d of %d files); the earlier copy was kept", ErrIncomplete, stats.missing, stats.files+stats.missing)
+			return Result{}, fmt.Errorf("%w (%d of %d files); the earlier copy was kept", ErrIncomplete, stats.Missing, stats.Files+stats.Missing)
 		}
 	}
 
@@ -220,11 +230,11 @@ func CopyWithLimits(ctx context.Context, root string, src Source, progress Progr
 		Version:      src.Version,
 		BackedUpAt:   time.Now().Unix(),
 		Reason:       src.Reason,
-		Files:        stats.files,
-		Size:         stats.bytes,
+		Files:        stats.Files,
+		Size:         stats.Bytes,
 		Newest:       fp.newest,
 		Complete:     !incomplete,
-		Missing:      stats.missing,
+		Missing:      stats.Missing,
 	}
 	// An incomplete copy never matches the source's fingerprint, so the next check
 	// tries again; a complete one records the source's, to skip until it changes.
@@ -302,126 +312,6 @@ func fingerprint(root string) fingerprintResult {
 		return nil
 	})
 	return f
-}
-
-type copyStats struct {
-	files   int
-	bytes   int64
-	missing int // files that vanished while copying
-	skipped int // links and other non-regular files
-}
-
-// copyBufferSize is the read size for file copies: large, since mods hold big
-// textures and sound files.
-const copyBufferSize = 1 << 20
-
-// copyTree copies the regular files and folders under src into dst, keeping each
-// file's permissions and modification time. A file that disappears part-way is
-// counted as missing, not fatal.
-func copyTree(ctx context.Context, src, dst string, total int64, progress Progress) (copyStats, error) {
-	var stats copyStats
-	buf := make([]byte, copyBufferSize)
-	var done int64
-	if progress != nil {
-		progress(0, total)
-	}
-	walkErr := filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
-		if cerr := ctx.Err(); cerr != nil {
-			return cerr
-		}
-		if err != nil {
-			if errors.Is(err, fs.ErrNotExist) {
-				stats.missing++
-				return nil
-			}
-			return err
-		}
-		rel, err := filepath.Rel(src, path)
-		if err != nil {
-			return err
-		}
-		target := filepath.Join(dst, rel)
-		switch {
-		case d.IsDir():
-			return os.MkdirAll(target, 0o755)
-		case !d.Type().IsRegular():
-			stats.skipped++
-			return nil
-		}
-		n, err := copyFile(ctx, path, target, buf)
-		switch {
-		case errors.Is(err, fs.ErrNotExist):
-			stats.missing++
-			_ = os.Remove(target)
-			return nil
-		case err != nil:
-			return err
-		}
-		stats.files++
-		stats.bytes += n
-		done += n
-		if progress != nil {
-			progress(done, total)
-		}
-		return nil
-	})
-	if walkErr != nil {
-		return stats, walkErr
-	}
-	return stats, nil
-}
-
-// copyFile copies one file, checks the size arrived intact and restores its time and
-// permissions. A source that is gone (or vanishes while being read) is ErrNotExist.
-func copyFile(ctx context.Context, from, to string, buf []byte) (int64, error) {
-	in, err := os.Open(from)
-	if err != nil {
-		return 0, err
-	}
-	defer in.Close()
-	info, err := in.Stat()
-	if err != nil {
-		return 0, err
-	}
-	if err := os.MkdirAll(filepath.Dir(to), 0o755); err != nil {
-		return 0, err
-	}
-	out, err := os.OpenFile(to, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, info.Mode().Perm()|0o200)
-	if err != nil {
-		return 0, err
-	}
-	n, copyErr := io.CopyBuffer(out, &ctxReader{ctx: ctx, r: in}, buf)
-	closeErr := out.Close()
-	if copyErr != nil {
-		_ = os.Remove(to)
-		return 0, copyErr
-	}
-	if closeErr != nil {
-		_ = os.Remove(to)
-		return 0, closeErr
-	}
-	if n != info.Size() {
-		// The file changed size under us (a download still writing to it, or Steam
-		// removing it): it is not a faithful copy.
-		_ = os.Remove(to)
-		return 0, fmt.Errorf("%s changed while it was being copied: %w", from, fs.ErrNotExist)
-	}
-	_ = os.Chmod(to, info.Mode().Perm())
-	_ = os.Chtimes(to, time.Now(), info.ModTime())
-	return n, nil
-}
-
-// ctxReader makes a long copy stop promptly when its context is cancelled.
-type ctxReader struct {
-	ctx context.Context
-	r   io.Reader
-}
-
-func (c *ctxReader) Read(p []byte) (int, error) {
-	if err := c.ctx.Err(); err != nil {
-		return 0, err
-	}
-	return c.r.Read(p)
 }
 
 // humanBytes formats a size for messages.
