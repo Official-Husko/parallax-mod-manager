@@ -1,4 +1,4 @@
-import {h} from 'preact';
+import {Fragment, h} from 'preact';
 import {useEffect, useMemo, useRef, useState} from 'preact/hooks';
 import {
     CancelDuplicate,

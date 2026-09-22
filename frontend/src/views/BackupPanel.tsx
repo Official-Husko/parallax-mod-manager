@@ -1,5 +1,5 @@
 import './BackupPanel.css';
-import {h} from 'preact';
+import {Fragment, h} from 'preact';
 import {useEffect, useRef, useState} from 'preact/hooks';
 import {
     BackupOverview,

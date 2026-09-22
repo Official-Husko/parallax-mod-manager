@@ -1,5 +1,5 @@
 import './Settings.css';
-import {h} from 'preact';
+import {Fragment, h} from 'preact';
 import {useEffect, useState} from 'preact/hooks';
 import {
     BackgroundCatalog,

@@ -1,4 +1,4 @@
-import {h} from 'preact';
+import {Fragment, h} from 'preact';
 import {useEffect, useMemo, useState} from 'preact/hooks';
 import {
     ModEditInfo,

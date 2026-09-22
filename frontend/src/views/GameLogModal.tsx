@@ -1,6 +1,6 @@
 import '../components/LogView.css';
 import './GameLogModal.css';
-import {h} from 'preact';
+import {Fragment, h} from 'preact';
 import {useEffect, useMemo, useRef, useState} from 'preact/hooks';
 import {GameLogFiles, OpenPath, StopWatchingGameLog, WatchGameLog} from '../../wailsjs/go/main/App';
 import {EventsOn} from '../../wailsjs/runtime/runtime';

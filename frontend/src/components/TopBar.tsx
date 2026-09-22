@@ -1,4 +1,4 @@
-import {h} from 'preact';
+import {Fragment, h} from 'preact';
 import {useEffect, useRef, useState} from 'preact/hooks';
 import {APP_NAME} from '../data/mockData';
 import {colorFromName} from '../data/nameColor';

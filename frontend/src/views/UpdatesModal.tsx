@@ -1,5 +1,5 @@
 import './UpdatesModal.css';
-import {h} from 'preact';
+import {Fragment, h} from 'preact';
 import type {modupdates} from '../../wailsjs/go/models';
 import {BrowserOpenURL} from '../../wailsjs/runtime/runtime';
 import {EmptyState} from '../components/EmptyState';

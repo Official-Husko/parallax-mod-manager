@@ -1,4 +1,4 @@
-import {h} from 'preact';
+import {Fragment, h} from 'preact';
 import type {library} from '../../wailsjs/go/models';
 
 // The Publish tab: uploading a mod to the Steam Workshop as a new item, or pushing an update to

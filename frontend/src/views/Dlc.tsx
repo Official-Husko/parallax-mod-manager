@@ -1,5 +1,5 @@
 import './Dlc.css';
-import {h} from 'preact';
+import {Fragment, h} from 'preact';
 import {useEffect, useMemo, useState} from 'preact/hooks';
 import {DLCStoreData, ListDLC, ListPlaysets, LoadPlayset, SavePlayset} from '../../wailsjs/go/main/App';
 import {BrowserOpenURL, EventsOn} from '../../wailsjs/runtime/runtime';

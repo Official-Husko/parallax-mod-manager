@@ -1,5 +1,5 @@
 import './SteamApiPanel.css';
-import {h} from 'preact';
+import {Fragment, h} from 'preact';
 import {useEffect, useRef, useState} from 'preact/hooks';
 import {CheckSteamAPIKey, SaveSteamAPIKey, SetSteamAPIMode, SteamAPIStatus} from '../../wailsjs/go/main/App';
 import type {main} from '../../wailsjs/go/models';

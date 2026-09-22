@@ -1,5 +1,5 @@
 import './AccentSettings.css';
-import {h} from 'preact';
+import {Fragment, h} from 'preact';
 import {useEffect, useState} from 'preact/hooks';
 import {GameMedia, GetPreferences, ListGames} from '../../wailsjs/go/main/App';
 import type {preferences} from '../../wailsjs/go/models';
