@@ -220,7 +220,10 @@
     gap: 10px;
     padding: 8px 10px;
     border-radius: 8px;
-    background: var(--bg-panel);
+    /* --bg-highlight, not --bg-panel - .detail-panel (this sits inside it) already applies
+       --bg-rail once; see --bg-highlight's own comment in App.css for why reapplying a
+       second translucent surface here would compound towards opaque. */
+    background: var(--bg-highlight);
     cursor: pointer;
     transition: background .12s ease;
 }

@@ -2165,7 +2165,26 @@ function OverviewTab({mod, files, filesLoading, allMods, conflicts, onOpenFolder
 
     return (
         <>
-            {author && (
+            {/* The author card's own spot: a mod flagged unlisted, private, deleted or banned
+                on the Workshop is more important to see here than who made it (and Steam
+                rarely answers a usable author for one of those anyway) - showing the flag
+                notice where the author card would sit, instead of below the whole overview
+                grid with that spot simply left blank, is what actually explains what's going
+                on with this mod before anything else in the panel. */}
+            {workshopFlag ? (() => {
+                const style = workshopFlagStyle(workshopFlag);
+                const text = workshopFlagText(workshopFlag);
+                return (
+                    <div className="workshop-notice" style={{'--notice-color': style.color} as h.JSX.CSSProperties}>
+                        <i className={`fa-solid ${style.icon}`}/>
+                        <div>
+                            <div className="workshop-notice-title">{text.title}</div>
+                            <div className="workshop-notice-text">{text.detail}</div>
+                            {backupNote(workshopFlag) && <div className="workshop-notice-backup"><i className="fa-solid fa-box-archive"/> {backupNote(workshopFlag)}</div>}
+                        </div>
+                    </div>
+                );
+            })() : author && (
                 <div className="author-row" onClick={() => BrowserOpenURL(author.ProfileURL)}>
                     {author.AvatarURL
                         ? <img className="author-avatar" src={author.AvatarURL} alt={author.Name}/>
@@ -2207,20 +2226,6 @@ function OverviewTab({mod, files, filesLoading, allMods, conflicts, onOpenFolder
                 </span>
                 <span className="label">Tags</span><span className="value">{mod.Tags.length ? mod.Tags.join(', ') : '-'}</span>
             </div>
-            {workshopFlag && (() => {
-                const style = workshopFlagStyle(workshopFlag);
-                const text = workshopFlagText(workshopFlag);
-                return (
-                    <div className="workshop-notice" style={{'--notice-color': style.color} as h.JSX.CSSProperties}>
-                        <i className={`fa-solid ${style.icon}`}/>
-                        <div>
-                            <div className="workshop-notice-title">{text.title}</div>
-                            <div className="workshop-notice-text">{text.detail}</div>
-                            {backupNote(workshopFlag) && <div className="workshop-notice-backup"><i className="fa-solid fa-box-archive"/> {backupNote(workshopFlag)}</div>}
-                        </div>
-                    </div>
-                );
-            })()}
             {steamDetails && (
                 <div className="overview-grid">
                     <span className="label">Subscribers</span><span className="value mono">{steamDetails.Subscriptions.toLocaleString()}</span>
