@@ -8,14 +8,17 @@ import {
     ListPlaysets,
     LoadPlayset,
     ModSizes,
+    PinnedMods,
     SaveCollection,
     SavePlayset,
     ScanGame,
+    SetModPinned,
 } from '../../wailsjs/go/main/App';
 import type {collection, library, playset} from '../../wailsjs/go/models';
 import {Checkbox} from '../components/Checkbox';
 import {GameLogo} from '../components/GameLogo';
 import {SourceBadge} from '../components/SourceBadge';
+import {openContextMenu} from '../data/contextMenu';
 import {notify} from '../data/notifications';
 
 type LoadState =
@@ -50,6 +53,10 @@ export function Library() {
     const [state, setState] = useState<LoadState>({kind: 'loading'});
     const [rows, setRows] = useState<Row[]>([]);
     const [sizes, setSizes] = useState<Record<string, number>>({});
+    // Per-game pinned mod IDs - see internal/modpins. Pinning is per game (a bare modId alone
+    // isn't unique across games either), so this is keyed the same way sizes could have been but
+    // isn't: by game ID, holding that game's own set.
+    const [pinned, setPinned] = useState<Record<string, Set<string>>>({});
     const [filter, setFilter] = useState<LibraryFilter>({kind: 'all'});
     const [search, setSearch] = useState('');
     const [collections, setCollections] = useState<collection.Collection[]>([]);
@@ -88,6 +95,9 @@ export function Library() {
                     ModSizes(g.ID)
                         .then((s) => { if (!cancelled) setSizes((prev) => ({...prev, ...s})); })
                         .catch(() => undefined);
+                    PinnedMods(g.ID)
+                        .then((ids) => { if (!cancelled) setPinned((prev) => ({...prev, [g.ID]: new Set(ids)})); })
+                        .catch(() => undefined);
                 }
             })
             .catch((err) => { if (!cancelled) setState({kind: 'error', message: String(err)}); });
@@ -110,13 +120,28 @@ export function Library() {
         [activeCollection],
     );
 
+    function isPinned(r: Row): boolean {
+        return pinned[r.gameId]?.has(r.modId) ?? false;
+    }
+
+    function togglePin(r: Row) {
+        const next = !isPinned(r);
+        setPinned((prev) => {
+            const copy = new Set(prev[r.gameId] ?? []);
+            if (next) copy.add(r.modId); else copy.delete(r.modId);
+            return {...prev, [r.gameId]: copy};
+        });
+        SetModPinned(r.gameId, r.modId, next).catch((err) => notify('error', String(err)));
+    }
+
     const visibleRows = rows
         .filter((r) => {
             if (filter.kind === 'game') return r.gameId === filter.gameId;
             if (filter.kind === 'collection') return activeCollectionKeys?.has(rowKey(r.gameId, r.modId)) ?? false;
             return true;
         })
-        .filter((r) => !search.trim() || r.name.toLowerCase().includes(search.toLowerCase()));
+        .filter((r) => !search.trim() || r.name.toLowerCase().includes(search.toLowerCase()))
+        .sort((a, b) => Number(isPinned(b)) - Number(isPinned(a)));
 
     function toggleRow(key: string) {
         setSelected((prev) => {
@@ -336,14 +361,23 @@ export function Library() {
                     {visibleRows.map((r) => {
                         const key = rowKey(r.gameId, r.modId);
                         return (
-                            <div key={key} className="library-row">
+                            <div
+                                key={key}
+                                className="library-row"
+                                onContextMenu={(e) => openContextMenu(e, [
+                                    {label: isPinned(r) ? 'Unpin' : 'Pin', onClick: () => togglePin(r)},
+                                ])}
+                            >
                                 <span className="col-check">
                                     <Checkbox checked={selected.has(key)} onChange={() => toggleRow(key)}/>
                                 </span>
                                 <span className="col-src">
                                     <SourceBadge source={r.source} name={r.name}/>
                                 </span>
-                                <span className="col-name name">{r.name}</span>
+                                <span className="col-name name">
+                                    {r.name}
+                                    {isPinned(r) && <i className="fa-solid fa-thumbtack library-pin" title="Pinned"/>}
+                                </span>
                                 <span className="col-game">
                                     <span className="game-name">{r.gameName}</span>
                                 </span>

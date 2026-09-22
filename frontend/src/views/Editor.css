@@ -64,6 +64,38 @@
     flex: none;
 }
 
+.editor-list-pin {
+    color: var(--text-dim);
+    font-size: 10px;
+    flex: none;
+}
+
+.editor-list-new {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    height: 34px;
+    padding: 0 13px;
+    margin: 8px 10px;
+    border: 1px dashed var(--border-light);
+    border-radius: 6px;
+    font: 600 12px Barlow, sans-serif;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+.editor-list-new:hover {
+    border-color: var(--rust);
+    color: var(--text-bright);
+}
+
+.editor-list-new.active {
+    border-style: solid;
+    border-color: var(--rust);
+    background: var(--bg-highlight);
+    color: var(--text-bright);
+}
+
 .editor-detail-pane {
     flex: 1;
     min-width: 0;
@@ -573,6 +605,91 @@
 
 .editor-finding-row.warn i {
     color: var(--amber);
+}
+
+/* --- New tab: Create/Duplicate toggle, the big-mod warning and the duplicate progress overlay --- */
+
+.editor-pill-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+
+.editor-pill {
+    padding: 6px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    font: 600 11.5px Barlow, sans-serif;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+.editor-pill:hover {
+    color: var(--text);
+}
+
+.editor-pill.active {
+    border-color: var(--rust);
+    background: var(--bg-highlight);
+    color: var(--text-bright);
+}
+
+.editor-warn-screen,
+.editor-progress-screen {
+    width: 420px;
+    max-width: calc(100% - 32px);
+    background: var(--bg-panel-solid);
+    border: 1px solid var(--border-light);
+    border-radius: 10px;
+    padding: 22px;
+    text-align: center;
+}
+
+.editor-warn-screen > i {
+    font-size: 22px;
+    color: var(--amber);
+    margin-bottom: 8px;
+}
+
+.editor-warn-title {
+    font: 700 15px Barlow, sans-serif;
+    color: var(--text-bright);
+    margin-bottom: 10px;
+}
+
+.editor-warn-screen p {
+    font: 400 12.5px/1.6 Barlow, sans-serif;
+    color: var(--text-mid);
+    margin: 0 0 16px;
+}
+
+.editor-warn-actions {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+}
+
+.editor-progress-bar {
+    height: 8px;
+    border-radius: 4px;
+    background: var(--bg-inset);
+    overflow: hidden;
+    margin-bottom: 10px;
+}
+
+.editor-progress-fill {
+    height: 100%;
+    background: var(--rust);
+    transition: width .15s ease;
+}
+
+.editor-progress-file {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-bottom: 16px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .editor-finding-row.info i {

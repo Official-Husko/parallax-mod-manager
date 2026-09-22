@@ -40,6 +40,8 @@ export function BrowseForGameInstall(arg1:string):Promise<library.DetectedGame>;
 
 export function CancelBackgroundDownload():Promise<void>;
 
+export function CancelDuplicate(arg1:string):Promise<void>;
+
 export function CheckGameUpdates():Promise<Array<library.GameUpdate>>;
 
 export function CheckModUpdates(arg1:string,arg2:boolean):Promise<modupdates.Report>;
@@ -52,6 +54,8 @@ export function ClearLog():Promise<void>;
 
 export function ClearPatchOverrides(arg1:string):Promise<void>;
 
+export function CreateMod(arg1:string,arg2:main.NewModRequest):Promise<main.SaveResult>;
+
 export function DLCStoreData(arg1:string):Promise<Array<dlcstore.StoreData>>;
 
 export function DeleteBackups(arg1:string,arg2:string,arg3:Array<string>):Promise<main.BackupDeleteResult>;
@@ -63,6 +67,8 @@ export function DeletePlayset(arg1:string,arg2:string):Promise<void>;
 export function DetectGames():Promise<Array<library.DetectedGame>>;
 
 export function DeveloperToolsStatus():Promise<main.DeveloperToolsStatus>;
+
+export function DuplicateMod(arg1:string,arg2:string,arg3:string,arg4:main.DuplicateRequest):Promise<main.SaveResult>;
 
 export function FindEmptyMods(arg1:string):Promise<Array<library.EmptyModCandidate>>;
 
@@ -118,6 +124,8 @@ export function ModSizes(arg1:string):Promise<Record<string, number>>;
 
 export function ModThumbnail(arg1:string,arg2:string):Promise<string>;
 
+export function NewModLocations(arg1:string):Promise<Array<main.NewModLocation>>;
+
 export function OpenBackupFolder(arg1:string):Promise<void>;
 
 export function OpenModFolder(arg1:string,arg2:string):Promise<void>;
@@ -126,11 +134,17 @@ export function OpenPath(arg1:string):Promise<void>;
 
 export function PickThumbnailFile():Promise<string>;
 
+export function PinnedMods(arg1:string):Promise<Array<string>>;
+
 export function PlanBackupCleanup(arg1:string,arg2:string):Promise<main.BackupCleanupPlan>;
 
 export function PlaysetChecksum(arg1:string,arg2:string):Promise<main.PlaysetChecksumResult>;
 
+export function PreviewDuplicateMod(arg1:string,arg2:string,arg3:main.DuplicateRequest):Promise<main.DuplicatePreview>;
+
 export function PreviewModEdit(arg1:string,arg2:string,arg3:main.ModEdit):Promise<main.EditPreview>;
+
+export function PreviewNewMod(arg1:string,arg2:main.NewModRequest):Promise<main.EditPreview>;
 
 export function PreviewThumbnail(arg1:string):Promise<main.ThumbnailPreview>;
 
@@ -169,6 +183,8 @@ export function SetGameManaged(arg1:string,arg2:boolean):Promise<void>;
 export function SetModIncompatibilityIgnored(arg1:string,arg2:string,arg3:boolean):Promise<void>;
 
 export function SetModNote(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
+
+export function SetModPinned(arg1:string,arg2:string,arg3:boolean):Promise<void>;
 
 export function SetPatchOverride(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
 

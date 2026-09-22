@@ -341,8 +341,10 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
     );
 }
 
-// One file's part of the preview: which file it is and its changed lines.
-function FileChange({file}: {file: main.EditPreviewFile}) {
+// One file's part of the preview: which file it is and its changed lines. Exported for the New
+// tab (EditorNew.tsx), which shows the same shape of preview for a mod being created or
+// duplicated.
+export function FileChange({file}: {file: main.EditPreviewFile}) {
     const name = file.Path.split(/[\\/]/).pop() ?? file.Path;
     const diff = useMemo(() => (file.Changed ? diffText(file.Before, file.After) : null), [file.Before, file.After, file.Changed]);
     const what = file.Kind === 'stub' ? 'the file the game reads' : "in the mod's folder";

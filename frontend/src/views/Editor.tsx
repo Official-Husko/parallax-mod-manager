@@ -1,28 +1,32 @@
 import './Editor.css';
 import {h} from 'preact';
 import {useEffect, useMemo, useRef, useState} from 'preact/hooks';
-import {OpenModFolder, ScanGame} from '../../wailsjs/go/main/App';
+import {OpenModFolder, PinnedMods, ScanGame, SetModPinned} from '../../wailsjs/go/main/App';
 import type {library} from '../../wailsjs/go/models';
 import {EventsOn} from '../../wailsjs/runtime/runtime';
 import {EmptyState} from '../components/EmptyState';
 import {SourceBadge} from '../components/SourceBadge';
+import {openContextMenu} from '../data/contextMenu';
 import type {Draft} from '../data/editorDraft';
 import {EditorEdit} from './EditorEdit';
+import {EditorNew} from './EditorNew';
 import {EditorPublish} from './EditorPublish';
 import {EditorChecks} from './EditorChecks';
 
-type EditorTab = 'edit' | 'publish' | 'checks';
+type EditorTab = 'new' | 'edit' | 'checks' | 'publish';
 
 const TABS: { key: EditorTab; label: string; icon: string }[] = [
+    {key: 'new', label: 'New', icon: 'fa-file-circle-plus'},
     {key: 'edit', label: 'Edit', icon: 'fa-pen'},
-    {key: 'publish', label: 'Publish', icon: 'fa-cloud-arrow-up'},
     {key: 'checks', label: 'Checks', icon: 'fa-shield-halved'},
+    {key: 'publish', label: 'Publish', icon: 'fa-cloud-arrow-up'},
 ];
 
 // The Editor: change a mod's own name, versions, tags, dependencies and thumbnail, with a
 // preview of every file it would write before anything is saved. Only mods made by the person
 // (not Steam Workshop content, not the Paradox Launcher's own, not this app's generated patch)
-// can be changed here - see modedit.go's editTarget for exactly what that means.
+// can be changed here - see modedit.go's editTarget for exactly what that means. The New tab
+// creates a brand-new mod, or duplicates the one currently selected - see EditorNew.
 export function Editor({games, selectedGame, gameVersion}: {
     games: library.GameInfo[];
     selectedGame: string;
@@ -37,7 +41,12 @@ export function Editor({games, selectedGame, gameVersion}: {
     // Unsaved edits, per mod ID, kept while the Editor stays open - switching mods or tabs never
     // loses what was typed.
     const [drafts, setDrafts] = useState<Map<string, Draft>>(new Map());
+    const [pinned, setPinned] = useState<Set<string>>(new Set());
     const latestScan = useRef(0);
+    // Set by EditorNew right before a create/duplicate finishes, so the next load() selects the
+    // result by name (its ID may not be known yet - see internal/scan's modID()) and switches to
+    // Edit, matching how selecting any other mod always lands there.
+    const pendingSelectName = useRef<string | null>(null);
 
     function load() {
         if (!selectedGame) return;
@@ -48,17 +57,34 @@ export function Editor({games, selectedGame, gameVersion}: {
             .then((summary) => {
                 if (seq !== latestScan.current) return;
                 setMods(summary.Mods);
+                const pendingName = pendingSelectName.current;
+                if (pendingName) {
+                    const created = summary.Mods.find((m) => m.Name === pendingName);
+                    if (created) {
+                        pendingSelectName.current = null;
+                        setSelectedId(created.ID);
+                        return;
+                    }
+                }
                 setSelectedId((prev) => (prev && summary.Mods.some((m) => m.ID === prev) ? prev : summary.Mods[0]?.ID ?? null));
+                if (summary.Mods.length === 0) setTab('new');
             })
             .catch((err) => { if (seq === latestScan.current) setError(String(err)); })
             .finally(() => { if (seq === latestScan.current) setLoading(false); });
+    }
+
+    function loadPins() {
+        if (!selectedGame) return;
+        PinnedMods(selectedGame).then((ids) => setPinned(new Set(ids))).catch(() => undefined);
     }
 
     useEffect(() => {
         setDrafts(new Map());
         setSelectedId(null);
         setTab('edit');
+        pendingSelectName.current = null;
         load();
+        loadPins();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedGame]);
 
@@ -71,9 +97,10 @@ export function Editor({games, selectedGame, gameVersion}: {
 
     const visible = useMemo(() => {
         const q = search.trim().toLowerCase();
-        if (!q) return mods;
-        return mods.filter((m) => m.Name.toLowerCase().includes(q));
-    }, [mods, search]);
+        const filtered = q ? mods.filter((m) => m.Name.toLowerCase().includes(q)) : mods;
+        // Pinned mods first, stable otherwise.
+        return [...filtered].sort((a, b) => Number(pinned.has(b.ID)) - Number(pinned.has(a.ID)));
+    }, [mods, search, pinned]);
 
     const selected = mods.find((m) => m.ID === selectedId) ?? null;
 
@@ -83,6 +110,27 @@ export function Editor({games, selectedGame, gameVersion}: {
             if (draft) next.set(id, draft); else next.delete(id);
             return next;
         });
+    }
+
+    function togglePin(modId: string) {
+        const next = !pinned.has(modId);
+        setPinned((prev) => {
+            const copy = new Set(prev);
+            if (next) copy.add(modId); else copy.delete(modId);
+            return copy;
+        });
+        SetModPinned(selectedGame, modId, next).catch(() => loadPins());
+    }
+
+    function afterCreated(name: string) {
+        pendingSelectName.current = name;
+        setTab('edit');
+        load();
+    }
+
+    function selectMod(id: string) {
+        setSelectedId(id);
+        setTab('edit');
     }
 
     if (games.length === 0) {
@@ -99,6 +147,9 @@ export function Editor({games, selectedGame, gameVersion}: {
                     </div>
                 </div>
                 <div className="editor-list-rows">
+                    <div className={`editor-list-new ${tab === 'new' ? 'active' : ''}`} onClick={() => setTab('new')}>
+                        <i className="fa-solid fa-plus"/> New mod
+                    </div>
                     {loading && mods.length === 0 && (
                         <EmptyState icon="fa-spinner fa-spin" title="Scanning mods..."/>
                     )}
@@ -110,22 +161,23 @@ export function Editor({games, selectedGame, gameVersion}: {
                         <div
                             key={m.ID}
                             className={`editor-list-row ${m.ID === selectedId ? 'selected' : ''}`}
-                            onClick={() => setSelectedId(m.ID)}
+                            onClick={() => selectMod(m.ID)}
+                            onContextMenu={(e) => openContextMenu(e, [
+                                {label: pinned.has(m.ID) ? 'Unpin' : 'Pin', onClick: () => togglePin(m.ID)},
+                                {label: 'Open folder', onClick: () => OpenModFolder(selectedGame, m.ID), separatorBefore: true},
+                            ])}
                         >
                             <SourceBadge source={m.Source} name={m.Name}/>
                             <span className="editor-list-name">{m.Name}</span>
+                            {pinned.has(m.ID) && <i className="fa-solid fa-thumbtack editor-list-pin" title="Pinned"/>}
                             {drafts.has(m.ID) && <span className="editor-list-dot" title="Unsaved changes"/>}
                         </div>
                     ))}
                 </div>
             </div>
 
-            {!selected ? (
-                <div className="editor-detail-pane">
-                    <EmptyState icon="fa-pen-ruler" title="No mod selected" subtitle="Select a mod from the list to see and edit it."/>
-                </div>
-            ) : (
-                <div className="editor-detail-pane">
+            <div className="editor-detail-pane">
+                {selected ? (
                     <div className="editor-detail-header">
                         <div className="editor-detail-title">
                             <SourceBadge source={selected.Source} name={selected.Name}/>
@@ -135,31 +187,44 @@ export function Editor({games, selectedGame, gameVersion}: {
                             <i className="fa-solid fa-folder-open"/> Open folder
                         </span>
                     </div>
-                    <div className="editor-tabs">
-                        {TABS.map((t) => (
-                            <span key={t.key} className={`editor-tab ${tab === t.key ? 'active' : ''}`} onClick={() => setTab(t.key)}>
-                                <i className={`fa-solid ${t.icon}`}/> {t.label}
-                            </span>
-                        ))}
+                ) : (
+                    <div className="editor-detail-header">
+                        <div className="editor-detail-title">
+                            <i className="fa-solid fa-file-circle-plus"/>
+                            <span>New mod</span>
+                        </div>
                     </div>
-                    <div className="editor-tab-body">
-                        {tab === 'edit' && (
-                            <EditorEdit
-                                key={selected.ID}
-                                gameId={selectedGame}
-                                gameVersion={gameVersion}
-                                mod={selected}
-                                installedNames={mods.map((m) => m.Name)}
-                                initialDraft={drafts.get(selected.ID) ?? null}
-                                onDraft={(draft) => setDraftFor(selected.ID, draft)}
-                                onSaved={load}
-                            />
-                        )}
-                        {tab === 'publish' && <EditorPublish mod={selected}/>}
-                        {tab === 'checks' && <EditorChecks mod={selected}/>}
-                    </div>
+                )}
+                <div className="editor-tabs">
+                    {TABS.map((t) => (
+                        <span key={t.key} className={`editor-tab ${tab === t.key ? 'active' : ''}`} onClick={() => setTab(t.key)}>
+                            <i className={`fa-solid ${t.icon}`}/> {t.label}
+                        </span>
+                    ))}
                 </div>
-            )}
+                <div className="editor-tab-body">
+                    {tab === 'new' && (
+                        <EditorNew gameId={selectedGame} selected={selected} onCreated={afterCreated}/>
+                    )}
+                    {tab !== 'new' && !selected && (
+                        <EmptyState icon="fa-pen-ruler" title="No mod selected" subtitle="Select a mod from the list, or create one from New."/>
+                    )}
+                    {tab === 'edit' && selected && (
+                        <EditorEdit
+                            key={selected.ID}
+                            gameId={selectedGame}
+                            gameVersion={gameVersion}
+                            mod={selected}
+                            installedNames={mods.map((m) => m.Name)}
+                            initialDraft={drafts.get(selected.ID) ?? null}
+                            onDraft={(draft) => setDraftFor(selected.ID, draft)}
+                            onSaved={load}
+                        />
+                    )}
+                    {tab === 'checks' && selected && <EditorChecks mod={selected}/>}
+                    {tab === 'publish' && selected && <EditorPublish mod={selected}/>}
+                </div>
+            </div>
         </div>
     );
 }

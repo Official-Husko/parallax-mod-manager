@@ -933,6 +933,116 @@ export namespace main {
 	        this.OS = source["OS"];
 	    }
 	}
+	export class ThumbnailPreview {
+	    DataURI: string;
+	    Width: number;
+	    Height: number;
+	    SourceWidth: number;
+	    SourceHeight: number;
+	    Bytes: number;
+	    SourceBytes: number;
+	    Resized: boolean;
+	    Warnings: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ThumbnailPreview(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.DataURI = source["DataURI"];
+	        this.Width = source["Width"];
+	        this.Height = source["Height"];
+	        this.SourceWidth = source["SourceWidth"];
+	        this.SourceHeight = source["SourceHeight"];
+	        this.Bytes = source["Bytes"];
+	        this.SourceBytes = source["SourceBytes"];
+	        this.Resized = source["Resized"];
+	        this.Warnings = source["Warnings"];
+	    }
+	}
+	export class EditPreviewFile {
+	    Path: string;
+	    Kind: string;
+	    Create: boolean;
+	    Changed: boolean;
+	    Before: string;
+	    After: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new EditPreviewFile(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Path = source["Path"];
+	        this.Kind = source["Kind"];
+	        this.Create = source["Create"];
+	        this.Changed = source["Changed"];
+	        this.Before = source["Before"];
+	        this.After = source["After"];
+	    }
+	}
+	export class DuplicatePreview {
+	    Files: EditPreviewFile[];
+	    Thumbnail?: ThumbnailPreview;
+	    Problems: string[];
+	    Warnings: string[];
+	    Nothing: boolean;
+	    SourceFiles: number;
+	    SourceBytes: number;
+	    Big: boolean;
+	    FreeAtTarget: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DuplicatePreview(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Files = this.convertValues(source["Files"], EditPreviewFile);
+	        this.Thumbnail = this.convertValues(source["Thumbnail"], ThumbnailPreview);
+	        this.Problems = source["Problems"];
+	        this.Warnings = source["Warnings"];
+	        this.Nothing = source["Nothing"];
+	        this.SourceFiles = source["SourceFiles"];
+	        this.SourceBytes = source["SourceBytes"];
+	        this.Big = source["Big"];
+	        this.FreeAtTarget = source["FreeAtTarget"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class DuplicateRequest {
+	    Name: string;
+	    Location: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DuplicateRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Name = source["Name"];
+	        this.Location = source["Location"];
+	    }
+	}
 	export class EditFile {
 	    Path: string;
 	    Kind: string;
@@ -1013,56 +1123,6 @@ export namespace main {
 		    return a;
 		}
 	}
-	export class ThumbnailPreview {
-	    DataURI: string;
-	    Width: number;
-	    Height: number;
-	    SourceWidth: number;
-	    SourceHeight: number;
-	    Bytes: number;
-	    SourceBytes: number;
-	    Resized: boolean;
-	    Warnings: string[];
-	
-	    static createFrom(source: any = {}) {
-	        return new ThumbnailPreview(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.DataURI = source["DataURI"];
-	        this.Width = source["Width"];
-	        this.Height = source["Height"];
-	        this.SourceWidth = source["SourceWidth"];
-	        this.SourceHeight = source["SourceHeight"];
-	        this.Bytes = source["Bytes"];
-	        this.SourceBytes = source["SourceBytes"];
-	        this.Resized = source["Resized"];
-	        this.Warnings = source["Warnings"];
-	    }
-	}
-	export class EditPreviewFile {
-	    Path: string;
-	    Kind: string;
-	    Create: boolean;
-	    Changed: boolean;
-	    Before: string;
-	    After: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new EditPreviewFile(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.Path = source["Path"];
-	        this.Kind = source["Kind"];
-	        this.Create = source["Create"];
-	        this.Changed = source["Changed"];
-	        this.Before = source["Before"];
-	        this.After = source["After"];
-	    }
-	}
 	export class EditPreview {
 	    Files: EditPreviewFile[];
 	    Thumbnail?: ThumbnailPreview;
@@ -1116,6 +1176,54 @@ export namespace main {
 	        this.Fields = this.convertValues(source["Fields"], modedit.Fields);
 	        this.ThumbnailFrom = source["ThumbnailFrom"];
 	        this.CreateDescriptor = source["CreateDescriptor"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class NewModLocation {
+	    Path: string;
+	    Label: string;
+	    Default: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new NewModLocation(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Path = source["Path"];
+	        this.Label = source["Label"];
+	        this.Default = source["Default"];
+	    }
+	}
+	export class NewModRequest {
+	    Fields: modedit.Fields;
+	    Location: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new NewModRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Fields = this.convertValues(source["Fields"], modedit.Fields);
+	        this.Location = source["Location"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

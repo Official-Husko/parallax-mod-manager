@@ -247,6 +247,12 @@
     white-space: nowrap;
 }
 
+.library-pin {
+    margin-left: 6px;
+    font-size: 9px;
+    color: var(--text-dim);
+}
+
 .col-game {
     width: 120px;
     flex: none;

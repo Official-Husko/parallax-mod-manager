@@ -171,13 +171,24 @@ for security, privacy, reliability or performance is called out (see the last tw
 
 ## Editor
 
+- **Tabs read New, Edit, Checks, Publish** - the mod list's first row is always a dashed "+ New mod" tile, and
+  picking any existing mod always opens it on Edit, whatever tab was showing before.
+- **Create a mod from scratch** - name, version, made-for-game-version and tags, placed in the game's own mod
+  folder or a configured extra folder, previewed before anything is written.
+- **Duplicate a mod, including a Steam Workshop one** - copies its whole folder into a brand-new, independent
+  mod under a new name, keeping every other field, and never touches the mod it was copied from. A big copy
+  warns first (its size, and free space at the target) and shows a cancellable progress bar naming the file
+  currently being copied.
 - **Edit a mod's own descriptor and thumbnail** - change its name, version, made-for-game-version, tags,
   dependencies and replace paths, and choose a new thumbnail (resized to fit, never enlarged), for mods you
   made yourself. A live preview shows exactly which files change and how before you save.
 - **Previous versions kept, with Undo** - every save keeps what it replaced, so **Undo last save** can put it
-  back - unless a file changed since, which it refuses rather than overwrite silently.
+  back - unless a file changed since, which it refuses rather than overwrite silently. Creating or duplicating
+  a mod does not feed this history; removing an unwanted one is Open folder and delete, like any other mod.
 - **Steam and launcher mods stay read-only** - a subscribed Workshop mod, a Paradox Launcher mod and this app's
   own generated patch show their values but cannot be changed here.
+- **Pin mods to the top of the list** - in both the Editor and the Library, right-click a mod to pin or unpin
+  it.
 - **Publish and Checks tabs, coming later** - laid out with example content clearly marked as an example: Workshop
   publishing with an upload log, and checks for base-game conflicts, syntax errors and missing dependencies.
 
@@ -217,7 +228,8 @@ for security, privacy, reliability or performance is called out (see the last tw
   online backgrounds only, GitHub. The About page itself makes no network requests.
 - **Mod edits stay inside the mod's own folders** - the Editor only ever writes inside a mod's own folder and
   the game's mod folder; earlier versions it keeps for Undo live in the settings folder, and what you typed
-  into a field is never written to the activity log.
+  into a field is never written to the activity log. Duplicating a mod (including a Steam Workshop one) only
+  ever reads from the one being copied and writes the new one - the original is never touched.
 - **Notes stay private** - your mod notes live in the settings folder, are never sent anywhere or written to the
   activity log, and an unreadable notes file is never overwritten with an empty one.
 - **Checksums only read** - calculating the multiplayer checksum reads game and mod files and writes nothing.

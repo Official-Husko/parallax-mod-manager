@@ -50,6 +50,10 @@ export function CancelBackgroundDownload() {
   return window['go']['main']['App']['CancelBackgroundDownload']();
 }
 
+export function CancelDuplicate(arg1) {
+  return window['go']['main']['App']['CancelDuplicate'](arg1);
+}
+
 export function CheckGameUpdates() {
   return window['go']['main']['App']['CheckGameUpdates']();
 }
@@ -74,6 +78,10 @@ export function ClearPatchOverrides(arg1) {
   return window['go']['main']['App']['ClearPatchOverrides'](arg1);
 }
 
+export function CreateMod(arg1, arg2) {
+  return window['go']['main']['App']['CreateMod'](arg1, arg2);
+}
+
 export function DLCStoreData(arg1) {
   return window['go']['main']['App']['DLCStoreData'](arg1);
 }
@@ -96,6 +104,10 @@ export function DetectGames() {
 
 export function DeveloperToolsStatus() {
   return window['go']['main']['App']['DeveloperToolsStatus']();
+}
+
+export function DuplicateMod(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['DuplicateMod'](arg1, arg2, arg3, arg4);
 }
 
 export function FindEmptyMods(arg1) {
@@ -206,6 +218,10 @@ export function ModThumbnail(arg1, arg2) {
   return window['go']['main']['App']['ModThumbnail'](arg1, arg2);
 }
 
+export function NewModLocations(arg1) {
+  return window['go']['main']['App']['NewModLocations'](arg1);
+}
+
 export function OpenBackupFolder(arg1) {
   return window['go']['main']['App']['OpenBackupFolder'](arg1);
 }
@@ -222,6 +238,10 @@ export function PickThumbnailFile() {
   return window['go']['main']['App']['PickThumbnailFile']();
 }
 
+export function PinnedMods(arg1) {
+  return window['go']['main']['App']['PinnedMods'](arg1);
+}
+
 export function PlanBackupCleanup(arg1, arg2) {
   return window['go']['main']['App']['PlanBackupCleanup'](arg1, arg2);
 }
@@ -230,8 +250,16 @@ export function PlaysetChecksum(arg1, arg2) {
   return window['go']['main']['App']['PlaysetChecksum'](arg1, arg2);
 }
 
+export function PreviewDuplicateMod(arg1, arg2, arg3) {
+  return window['go']['main']['App']['PreviewDuplicateMod'](arg1, arg2, arg3);
+}
+
 export function PreviewModEdit(arg1, arg2, arg3) {
   return window['go']['main']['App']['PreviewModEdit'](arg1, arg2, arg3);
+}
+
+export function PreviewNewMod(arg1, arg2) {
+  return window['go']['main']['App']['PreviewNewMod'](arg1, arg2);
 }
 
 export function PreviewThumbnail(arg1) {
@@ -308,6 +336,10 @@ export function SetModIncompatibilityIgnored(arg1, arg2, arg3) {
 
 export function SetModNote(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['SetModNote'](arg1, arg2, arg3, arg4);
+}
+
+export function SetModPinned(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SetModPinned'](arg1, arg2, arg3);
 }
 
 export function SetPatchOverride(arg1, arg2, arg3, arg4) {

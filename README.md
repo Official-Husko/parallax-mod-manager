@@ -705,6 +705,27 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   the Workshop with a line-by-line log; conflicts with the base game, syntax errors, descriptor
   problems, missing dependencies) with clearly marked example content - neither is built yet, see
   "Not yet built" below.
+- **Creating and duplicating a mod** (the Editor's **New** tab, first of the four - `newmod.go`,
+  `internal/modedit`'s `FolderName`/`NewFiles`/`NewStub`, `frontend/src/views/EditorNew.tsx`) - the
+  mod list's first row is always a dashed "+ New mod" tile, and picking any existing mod always
+  opens it on Edit, whatever tab was showing. **Create** asks for a name, version, made-for-game-
+  version and tags, and where the mod's own folder goes: the game's own mod folder (the default) or
+  a folder already added as an extra one in Settings; a folder in the game's own mod folder also
+  gets the stub the game reads to find it. **Duplicate** (shown instead, once a mod is selected)
+  copies that mod's whole folder into a brand-new, independent mod under a new name, keeping every
+  other field - it never touches the mod it was copied from, which makes it a safe way to build on a
+  Steam Workshop mod without Steam ever overwriting the result. Either is previewed first the same
+  way an edit is; a copy over 1 GiB warns first with its size and the free space at the target
+  before it starts, and a running copy shows a cancellable progress bar naming the file it is on.
+  Neither feeds **Undo last save** - a fresh mod or copy has no earlier version to keep, and undoing
+  only part of a large copy would leave more of a mess than it solves - so removing an unwanted one
+  is Open folder and delete, the same as any other mod.
+- **Pinning a mod** (`internal/modpins`, the Editor's and the Library's own right-click menus) - pin
+  a mod to keep it at the top of either list; unpin the same way. Pinned per game, kept until you
+  change it.
+- **Every checkbox is themed** (`frontend/src/components/Checkbox.tsx`) - the app's own dark-themed
+  checkbox everywhere one appears (the Editor, the Library, Purge empty), instead of the browser's
+  own light-themed control that clashed with the rest of the interface.
 - **Minimum window size** (`main.go`, `Workspace.css`) - the window can no longer be dragged smaller
   than **1200 x 640** (it opens at 1280 x 700, where 1024 x 768 used to be the default). Those numbers
   are where the interface was checked and found right, not a guess: at 1024 x 768 the Workspace's mod

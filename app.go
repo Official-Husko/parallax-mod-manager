@@ -31,6 +31,7 @@ import (
 	"github.com/Official-Husko/parallax-mod-manager/internal/library"
 	"github.com/Official-Husko/parallax-mod-manager/internal/mod"
 	"github.com/Official-Husko/parallax-mod-manager/internal/modnotes"
+	"github.com/Official-Husko/parallax-mod-manager/internal/modpins"
 	"github.com/Official-Husko/parallax-mod-manager/internal/modupdates"
 	"github.com/Official-Husko/parallax-mod-manager/internal/patchoverride"
 	"github.com/Official-Husko/parallax-mod-manager/internal/playset"
@@ -86,6 +87,10 @@ type App struct {
 	// Dir is empty (methods degrade gracefully) when configDir couldn't
 	// be resolved.
 	versionIgnore versionignore.Store
+	// modPins persists which mods are pinned to the top of the Editor's and the
+	// Library's mod lists - see internal/modpins. Dir is empty (methods degrade
+	// gracefully) when configDir couldn't be resolved.
+	modPins modpins.Store
 	// resolvedConflicts persists which contested conflict keys a user has
 	// manually marked reviewed in the Conflict Resolver - a bookkeeping
 	// flag only, see internal/resolvedconflicts. Dir is empty (methods
@@ -117,6 +122,12 @@ type App struct {
 	modNotesMu     sync.Mutex
 	checksumMu     sync.Mutex
 	checksumCancel map[string]context.CancelFunc
+	// duplicateMu guards duplicateCancel: the copy running for each Duplicate request, so an
+	// explicit CancelDuplicate call (see newmod.go) can reach and stop it. Unlike
+	// checksumCancel, which only ever cancels an older run when a newer one starts, this one
+	// is reached from a user-facing Cancel button while the copy is still running.
+	duplicateMu     sync.Mutex
+	duplicateCancel map[string]context.CancelFunc
 	// checksumCache lets repeated PlaysetChecksum calls for the same game and mod set skip
 	// reading and hashing file content that has not changed since the last call - see
 	// checksum.ResultCache. The zero value is ready to use.
@@ -226,6 +237,7 @@ func (a *App) startup(ctx context.Context) {
 		a.patchOverrides = patchoverride.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "patch_overrides")}
 		a.modNotes = modnotes.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "mod_notes")}
 		a.versionIgnore = versionignore.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "version_ignore")}
+		a.modPins = modpins.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "mod_pins")}
 		a.resolvedConflicts = resolvedconflicts.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "resolved_conflicts")}
 		a.modUpdates.Store = modupdates.Store{Dir: modUpdatesDir(filepath.Join(configDir, "parallax-mod-manager"))}
 		a.initBackgrounds(filepath.Join(configDir, "parallax-mod-manager"))
@@ -1234,6 +1246,41 @@ func (a *App) SetModIncompatibilityIgnored(gameID, modID string, ignored bool) e
 // reviewed key in green instead of red.
 func (a *App) ResolvedConflicts(gameID string) []string {
 	return a.resolvedConflicts.Load(gameID)
+}
+
+// PinnedMods returns gameID's set of mod IDs pinned to the top of the mod list - see
+// internal/modpins.
+func (a *App) PinnedMods(gameID string) []string {
+	return a.modPins.Load(gameID)
+}
+
+// SetModPinned adds or removes modID from gameID's pinned set - the Editor's and the Library's
+// own "Pin"/"Unpin" context menu items.
+func (a *App) SetModPinned(gameID, modID string, pinned bool) error {
+	existing := a.modPins.Load(gameID)
+	set := make(map[string]bool, len(existing))
+	for _, id := range existing {
+		set[id] = true
+	}
+	if pinned {
+		set[modID] = true
+	} else {
+		delete(set, modID)
+	}
+	ids := make([]string, 0, len(set))
+	for id := range set {
+		ids = append(ids, id)
+	}
+	if err := a.modPins.Save(gameID, ids); err != nil {
+		applog.For("Library").Errorf("couldn't save the pinned mods for '%s': %v", a.gameLabel(gameID), err)
+		return err
+	}
+	if pinned {
+		applog.For("Library").Infof("pinned mod '%s' in '%s'", modID, a.gameLabel(gameID))
+	} else {
+		applog.For("Library").Infof("unpinned mod '%s' in '%s'", modID, a.gameLabel(gameID))
+	}
+	return nil
 }
 
 // SetConflictResolved adds or removes one conflict (identified the same
