@@ -2,9 +2,9 @@ import type {library} from '../../wailsjs/go/models';
 
 // The Active list's per-row colored segments (see data/mockData.ts's own
 // `domains`) reduce every genuine conflict a mod is a candidate in, within
-// one top-level content folder, to one of three states - mirroring the
+// one top-level content folder, to one of four states - mirroring the
 // legend under the list (.active-legend):
-export type DomainState = 'overwritten' | 'partial' | 'clean';
+export type DomainState = 'overwritten' | 'partial' | 'won' | 'clean';
 
 // A conflict's own Key.Type is the definition's containing folder path,
 // relative to the mod's content root (see internal/pipeline's own
@@ -45,8 +45,10 @@ function domainLetterForType(type: string): string | undefined {
 //   it loses - none of its own content there actually takes effect.
 // - "partial": a mix - it wins some contested keys in that domain and
 //   loses others.
-// - "clean": no contested keys there at all, or it wins every one it has
-//   (nothing of its own is actually overwritten).
+// - "won": it is contested in that domain and wins every key it touches -
+//   its own content is what actually takes effect, distinct from "clean"
+//   below, which never went through a conflict there in the first place.
+// - "clean": no contested keys there at all.
 //
 // A mod absent from the returned map has no conflicts anywhere and should
 // be treated as "clean" in every domain - callers default to that rather
@@ -79,7 +81,7 @@ export function computeDomainOverlap(conflicts: library.ConflictSummary[]): Map<
     for (const [modId, byDomain] of tally) {
         const states: Partial<Record<string, DomainState>> = {};
         for (const [letter, {won, lost}] of byDomain) {
-            states[letter] = won && lost ? 'partial' : lost ? 'overwritten' : 'clean';
+            states[letter] = won && lost ? 'partial' : lost ? 'overwritten' : won ? 'won' : 'clean';
         }
         result.set(modId, states);
     }

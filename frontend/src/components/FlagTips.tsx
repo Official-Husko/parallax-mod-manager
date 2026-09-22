@@ -110,11 +110,12 @@ export function flagLegendTip(): ComponentChild {
     );
 }
 
-// The three colors a domain bar can be, as the bar itself is drawn.
+// The four colors a domain bar can be, as the bar itself is drawn.
 const STATE_STYLE: Record<DomainState, {color: string; title: string; detail: string}> = {
     overwritten: {color: 'var(--red)', title: 'Overwritten', detail: 'Every contested key it defines here is won by another mod.'},
     partial: {color: 'var(--amber)', title: 'Partly overwritten', detail: 'Wins some contested keys here and loses others.'},
-    clean: {color: '#2f3b49', title: 'Clean', detail: 'No contested keys here, or it wins every one.'},
+    won: {color: 'var(--green)', title: 'Winning', detail: 'Contested here, and wins every key it defines - its own content is what actually takes effect.'},
+    clean: {color: '#2f3b49', title: 'Clean', detail: 'No contested keys here at all.'},
 };
 
 // One domain bar's tooltip: the bar itself, which domain it is, and what its
@@ -147,7 +148,7 @@ export function domainLegendTip(): ComponentChild {
                 ))}
             </div>
             <TipHeading>Colors</TipHeading>
-            {(['overwritten', 'partial', 'clean'] as DomainState[]).map((state) => (
+            {(['overwritten', 'partial', 'won', 'clean'] as DomainState[]).map((state) => (
                 <TipItem key={state} lead={<span className={`segment ${state}`}/>} color={STATE_STYLE[state].color} title={STATE_STYLE[state].title}>
                     {STATE_STYLE[state].detail}
                 </TipItem>

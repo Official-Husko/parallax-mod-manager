@@ -1439,6 +1439,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                             <div className="legend-keys">
                                 <span><span className="swatch overwritten"/>overwritten</span>
                                 <span><span className="swatch partial"/>partial</span>
+                                <span><span className="swatch won"/>winning</span>
                                 <span><span className="swatch clean"/>clean</span>
                             </div>
                         </div>

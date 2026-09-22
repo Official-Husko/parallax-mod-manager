@@ -1004,6 +1004,12 @@
     background: var(--amber);
 }
 
+/* Contested here, but wins every key it touches - its own content is what actually takes
+   effect, unlike .segment.clean below which was never contested here at all. */
+.segment.won {
+    background: var(--green);
+}
+
 /* The letters: 5 x 7 pixel glyphs on a 1.4px grid, drawn as holes in an 11 x 16
    solid rectangle (fill-rule evenodd), as data-URI SVGs so they don't depend on
    any font being available. */
@@ -1265,6 +1271,10 @@
 
 .swatch.partial {
     background: var(--amber);
+}
+
+.swatch.won {
+    background: var(--green);
 }
 
 .swatch.clean {
