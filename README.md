@@ -1,4 +1,18 @@
-# Parallax Mod Manager
+<p align="center">
+  <img src="icon.png" width="120" alt="Parallax Mod Manager icon">
+</p>
+
+<h1 align="center">Parallax Mod Manager</h1>
+<p align="center"><strong>A from-scratch Paradox mod manager, built with a Go backend to fix the performance problems the existing ones are known for.</strong></p>
+
+<p align="center">
+  <a href="https://github.com/Official-Husko/parallax-mod-manager/actions/workflows/build.yml"><img alt="Build" src="https://github.com/Official-Husko/parallax-mod-manager/actions/workflows/build.yml/badge.svg"></a>
+  <img alt="Version" src="https://img.shields.io/badge/version-1.0.0-6c5ce7">
+  <img alt="Status" src="https://img.shields.io/badge/status-early%20development-orange">
+  <a href="LICENCE.md"><img alt="Licence" src="https://img.shields.io/badge/licence-PMM--NCSL--1.0-blue"></a>
+  <img alt="Go version" src="https://img.shields.io/badge/go-1.27-00ADD8?logo=go&amp;logoColor=white">
+  <img alt="Platform" src="https://img.shields.io/badge/platform-linux%20%7C%20windows%20%7C%20macos-lightgrey">
+</p>
 
 A mod manager for Paradox Interactive grand strategy games (Stellaris, EU4, HOI4, CK3,
 Victoria 3, and friends) - a from-scratch reimplementation built on a Go backend instead of
@@ -18,6 +32,76 @@ auto-detection misses. DLC toggling per playset is real too. The rest of the app
 cross-game library, playset sharing) exist as a faithful visual preview of where this is headed,
 but aren't functional yet - see [Progress](#progress) for exactly which parts are real and which
 are still a mockup. Nothing here is ready to fully replace your existing mod manager yet.
+
+The screenshots below are real UI, driven with sample data for the shots (not a live install) -
+Stellaris is the only game verified against a real one so far.
+
+<table>
+<tr>
+<td width="50%">
+<img src=".github/readme/screenshots/workspace.png" alt="Workspace: an active load order, per-mod domains and flags, and pre-flight checks before launch">
+<br><sub>Workspace - build a load order, see conflicts and dependency issues before you launch</sub>
+</td>
+<td width="50%">
+<img src=".github/readme/screenshots/conflicts.png" alt="Conflict Resolver: contested keys, a side-by-side diff, and patch generation">
+<br><sub>Conflict Resolver - side-by-side diffs and one-click patch generation</sub>
+</td>
+</tr>
+<tr>
+<td width="50%">
+<img src=".github/readme/screenshots/dlc.png" alt="DLC screen: per-playset DLC toggling with Steam Store details">
+<br><sub>DLC - toggle installed DLC per playset, with Steam Store details</sub>
+</td>
+<td width="50%">
+<img src=".github/readme/screenshots/editor.png" alt="Editor: descriptor and thumbnail editing with a live diff preview before saving">
+<br><sub>Editor - edit a mod's descriptor and thumbnail, previewed before you save</sub>
+</td>
+</tr>
+</table>
+
+## Highlights
+
+A quick tour - see [Progress](#progress) below for exactly what's real today versus still a
+mockup, and [features.md](features.md) for the full, one-line-each list.
+
+**Mods and load order**
+- Discovers Workshop, Paradox Launcher and local mods, with live folder watching and personal
+  per-mod notes.
+- Drag-and-drop load order with autosort (dependencies first, fixes and patches last) and
+  pre-flight checks before you launch.
+- A cross-game library with search, sizes, and collections for bulk actions.
+
+**Conflicts and patching**
+- Real load-order conflict detection, dependency-aware suppression, and a resolver with
+  side-by-side diffs and an overlap matrix.
+- A generated patch mod with the winning content of every conflict, byte for byte, with
+  staleness detection when a source mod changes.
+
+**DLC and multiplayer**
+- Per-playset DLC toggling, including DLC you do not own, shown honestly as not installed.
+- The four-character multiplayer checksum (Stellaris, Hearts of Iron IV), calculated offline
+  whenever a playset is saved or loaded.
+
+**Launching and Workshop data**
+- Launches with the playset active through Steam or directly, with a live, filterable game log.
+- Real Workshop details (subscribers, author, changelog) and an optional Steam Web API key for
+  what the free API cannot see.
+
+**Mod preservation**
+- Copies a Workshop mod's files the moment it is found deleted or private, before Steam removes
+  them for good.
+
+**Editor**
+- Edit a mod's own descriptor and thumbnail with a live preview of exactly what changes, and
+  Undo last save if you change your mind. Steam and launcher mods stay read-only.
+
+**Trust and performance**
+- No account, no telemetry - the only outside services are Steam and, for background art,
+  GitHub.
+- Incremental caching throughout: unchanged mods and unchanged checksums cost almost nothing on
+  the next run.
+- Settings, playsets and caches are always written atomically - a crash never leaves a
+  half-written file.
 
 ## Why not just use Irony?
 
@@ -51,6 +135,9 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   of this codebase. See [CLAUDE.md](CLAUDE.md).
 
 ## Progress
+
+<details>
+<summary><strong>Full progress log</strong> - every feature, done and not yet built (click to expand, kept current with every change)</summary>
 
 ### Done
 
@@ -1197,6 +1284,8 @@ that legitimately does rewrite the file's `modsOrder`).
   cloud sync - just not built yet. See `mockup/Mod Manager.dc.html` (local reference file,
   git-ignored) for the full original design.
 
+</details>
+
 ## Development
 
 ```sh
@@ -1227,3 +1316,13 @@ donations are welcome; shared copies must include the source and stay under the 
 their own distinguishing name. That is a summary - the licence text is what applies.
 
 Official project: <https://github.com/Official-Husko/parallax-mod-manager>
+
+## Star History
+
+<a href="https://star-history.com/#Official-Husko/parallax-mod-manager&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Official-Husko/parallax-mod-manager&type=Date&theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Official-Husko/parallax-mod-manager&type=Date" />
+    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=Official-Husko/parallax-mod-manager&type=Date" />
+  </picture>
+</a>
