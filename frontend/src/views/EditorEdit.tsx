@@ -48,11 +48,6 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
     // false on every mod switch, since Editor.tsx remounts this component per mod.
     const [forced, setForced] = useState(false);
 
-    function setDraft(next: Draft | null) {
-        setDraftState(next);
-        onDraft(next);
-    }
-
     useEffect(() => {
         let cancelled = false;
         setLoadError('');
@@ -127,7 +122,12 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
 
     function change(patch: Partial<Draft>) {
         if (readOnly || !draft) return;
-        setDraft({...draft, ...patch});
+        const next = {...draft, ...patch};
+        setDraftState(next);
+        // Report "nothing unsaved" once the draft is back to exactly what is saved - ticking a
+        // checkbox (or typing into a field) and then undoing just that one change must never
+        // leave the mod list's dot lit for a net-zero edit.
+        onDraft(isChanged(next, info.Fields) ? next : null);
     }
 
     async function chooseThumbnail() {
@@ -180,10 +180,14 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
     }
 
     function revert() {
-        setDraftState(null);
+        if (!info) return;
+        // Nothing on disk changed, so there is no need to ask the backend again - going straight
+        // back to a fresh draftFromSaved(info.Fields) (rather than nulling the draft and waiting
+        // for a reload to rebuild it) means the fields never disappear behind the "loading"
+        // spinner for a frame, which is what caused the flicker.
+        setDraftState(draftFromSaved(info.Fields));
         onDraft(null);
         setNewThumb(null);
-        setReload((n) => n + 1);
     }
 
     return (
