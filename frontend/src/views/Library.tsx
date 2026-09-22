@@ -13,6 +13,7 @@ import {
     ScanGame,
 } from '../../wailsjs/go/main/App';
 import type {collection, library, playset} from '../../wailsjs/go/models';
+import {Checkbox} from '../components/Checkbox';
 import {GameLogo} from '../components/GameLogo';
 import {SourceBadge} from '../components/SourceBadge';
 import {notify} from '../data/notifications';
@@ -321,7 +322,7 @@ export function Library() {
                 </div>
                 <div className="library-columns mono">
                     <span className="col-check">
-                        <input type="checkbox" checked={allVisibleSelected} onChange={toggleAllVisible} disabled={visibleRows.length === 0}/>
+                        <Checkbox checked={allVisibleSelected} onChange={toggleAllVisible} disabled={visibleRows.length === 0}/>
                     </span>
                     <span className="col-src">SRC</span>
                     <span className="col-name">NAME</span>
@@ -337,7 +338,7 @@ export function Library() {
                         return (
                             <div key={key} className="library-row">
                                 <span className="col-check">
-                                    <input type="checkbox" checked={selected.has(key)} onChange={() => toggleRow(key)}/>
+                                    <Checkbox checked={selected.has(key)} onChange={() => toggleRow(key)}/>
                                 </span>
                                 <span className="col-src">
                                     <SourceBadge source={r.source} name={r.name}/>

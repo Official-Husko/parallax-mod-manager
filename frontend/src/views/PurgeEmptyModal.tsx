@@ -3,6 +3,7 @@ import {h} from 'preact';
 import {useEffect, useMemo, useState} from 'preact/hooks';
 import {FindEmptyMods, PurgeMods} from '../../wailsjs/go/main/App';
 import type {library} from '../../wailsjs/go/models';
+import {Checkbox} from '../components/Checkbox';
 import {notify} from '../data/notifications';
 
 // PurgeEmptyModal reviews every local mod with no usable content (missing
@@ -77,7 +78,7 @@ export function PurgeEmptyModal({gameId, onClose, onPurged}: {
                     )}
                     {candidates?.map((c) => (
                         <div key={c.ID} className={`purge-row ${excluded.has(c.ID) ? 'excluded' : ''}`}>
-                            <input type="checkbox" checked={!excluded.has(c.ID)} onChange={() => toggle(c.ID)}/>
+                            <Checkbox checked={!excluded.has(c.ID)} onChange={() => toggle(c.ID)}/>
                             <div className="purge-row-main">
                                 <div className="purge-row-name">{c.Name}</div>
                                 <div className="purge-row-reason">{c.Reason}</div>

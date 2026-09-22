@@ -325,7 +325,7 @@
     color: var(--text-mid);
 }
 
-.editor-check input {
+.editor-check .checkbox {
     margin-top: 3px;
 }
 

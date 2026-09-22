@@ -11,6 +11,7 @@ import {
 } from '../../wailsjs/go/main/App';
 import type {library, main} from '../../wailsjs/go/models';
 import {ChipList} from '../components/ChipList';
+import {Checkbox} from '../components/Checkbox';
 import {diffText} from '../data/editorDiff';
 import {draftFromSaved, isChanged, toEdit, unknownDependencies} from '../data/editorDraft';
 import type {Draft} from '../data/editorDraft';
@@ -284,7 +285,7 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
 
                     {!readOnly && info.CanCreateDescriptor && (
                         <label className="editor-check">
-                            <input type="checkbox" checked={draft.createDescriptor} disabled={readOnly} onChange={(e) => change({createDescriptor: (e.target as HTMLInputElement).checked})}/>
+                            <Checkbox checked={draft.createDescriptor} disabled={readOnly} onChange={(createDescriptor) => change({createDescriptor})}/>
                             <span>
                                 Also create a <span className="mono">descriptor.mod</span> in the mod's folder. This mod only has the file the game reads;
                                 one in the folder is what publishing to the Workshop will use.

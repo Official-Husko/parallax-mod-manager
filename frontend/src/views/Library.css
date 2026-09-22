@@ -216,10 +216,9 @@
     display: flex;
 }
 
-.col-check input {
+.col-check .checkbox-box {
     width: 13px;
     height: 13px;
-    margin: 0;
 }
 
 .col-src {
