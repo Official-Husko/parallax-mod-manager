@@ -359,11 +359,18 @@
 }
 
 .topbar-nav-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     font: 500 11.5px Barlow, sans-serif;
     color: var(--text-muted);
     padding: 5px 10px;
     border-radius: 4px;
     cursor: pointer;
+}
+
+.topbar-nav-item i {
+    font-size: 10.5px;
 }
 
 .topbar-nav-item.active {

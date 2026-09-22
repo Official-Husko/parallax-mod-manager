@@ -4,13 +4,18 @@ import {APP_NAME} from '../data/mockData';
 import {colorFromName} from '../data/nameColor';
 import {displayVersion} from '../data/versionCompat';
 
-export type ViewKey = 'library' | 'workspace' | 'dlc' | 'editor' | 'settings';
+export type ViewKey = 'library' | 'workspace' | 'dlc' | 'editor' | 'extensions' | 'settings';
 
-const NAV_ITEMS: { key: ViewKey; label: string }[] = [
+// icon is optional and, for now, only set for Browsing Extensions - a new kind of tab (an
+// added, unofficial source of content, not a core view of this app's own data the way the
+// others are), worth setting apart at a glance. The others stay plain text on purpose,
+// matching how this bar has always looked.
+const NAV_ITEMS: { key: ViewKey; label: string; icon?: string }[] = [
     {key: 'library', label: 'Library'},
     {key: 'workspace', label: 'Workspace'},
     {key: 'dlc', label: 'DLC'},
     {key: 'editor', label: 'Editor'},
+    {key: 'extensions', label: 'Extensions', icon: 'fa-puzzle-piece'},
     {key: 'settings', label: 'Settings'},
 ];
 
@@ -154,6 +159,7 @@ export function TopBar({view, onNavigate, gamePicker}: {
                         className={`topbar-nav-item ${view === item.key ? 'active' : ''}`}
                         onClick={() => onNavigate(item.key)}
                     >
+                        {item.icon && <i className={`fa-solid ${item.icon}`}/>}
                         {item.label}
                     </span>
                 ))}

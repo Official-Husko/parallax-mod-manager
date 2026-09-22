@@ -85,6 +85,15 @@ for security, privacy, reliability or performance is called out (see the last tw
 - **Stale references shown, not dropped** - a disabled DLC that is no longer found is listed with a
   one-click clear.
 
+## Browsing Extensions
+
+- **A place for unofficial mod sources beyond the Steam Workshop, coming later** - LoversLab is the
+  first placeholder source, laid out as a browsing card grid with clearly marked example content;
+  nothing on it is a real listing yet.
+- **Signing in to LoversLab is real** - a username/email and password, saved encrypted and bound to
+  this computer (Settings > Steam API's key uses the same underlying `internal/credentials`
+  package), ready for whenever browsing itself is built. Nothing is sent anywhere yet.
+
 ## Multiplayer checksum
 
 - **Checksum of the saved playset** - the four-character code the game shows on its main menu (Stellaris and
@@ -255,6 +264,9 @@ for security, privacy, reliability or performance is called out (see the last tw
   Steam before it is saved, encrypted with a key derived from your computer so the settings file is
   useless on any other machine, never shown again, never written to the activity log, and deleted from
   the file when you choose Free API use only.
+- **LoversLab sign-in kept encrypted the same way** - a saved username/email and password (Browsing
+  Extensions) are encrypted with the same per-computer key as the Steam API key above; your password
+  is never shown again and never written to the activity log.
 - **The start-up report is anonymous** - it never includes your computer or user name, serial numbers, addresses, a Steam
   key or account id, or mod names, and it stays in your local log.
 - **Nothing is uploaded** - the activity log stays on your computer.

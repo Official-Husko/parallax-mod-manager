@@ -1196,6 +1196,24 @@ export namespace main {
 		}
 	}
 	
+	export class LoversLabStatus {
+	    SignedIn: boolean;
+	    Username: string;
+	    Unreadable: boolean;
+	    Protection: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new LoversLabStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.SignedIn = source["SignedIn"];
+	        this.Username = source["Username"];
+	        this.Unreadable = source["Unreadable"];
+	        this.Protection = source["Protection"];
+	    }
+	}
 	export class ModEdit {
 	    Fields: modedit.Fields;
 	    ThumbnailFrom: string;

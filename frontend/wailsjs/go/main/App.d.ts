@@ -54,6 +54,8 @@ export function ClearGamePath(arg1:string):Promise<library.DetectedGame>;
 
 export function ClearLog():Promise<void>;
 
+export function ClearLoversLabCredentials():Promise<main.LoversLabStatus>;
+
 export function ClearPatchOverrides(arg1:string):Promise<void>;
 
 export function CreateMod(arg1:string,arg2:main.NewModRequest):Promise<main.SaveResult>;
@@ -114,6 +116,8 @@ export function LogEntries():Promise<Array<applog.Entry>>;
 
 export function LogEvent(arg1:string,arg2:string,arg3:string):Promise<void>;
 
+export function LoversLabStatus():Promise<main.LoversLabStatus>;
+
 export function MarkModUpdatesSeen(arg1:string):Promise<modupdates.Report>;
 
 export function ModChangelog(arg1:string):Promise<Array<steamapi.ChangelogEntry>>;
@@ -165,6 +169,8 @@ export function RenamePlayset(arg1:string,arg2:string,arg3:string):Promise<void>
 export function ResolvedConflicts(arg1:string):Promise<Array<string>>;
 
 export function SaveCollection(arg1:collection.Collection):Promise<void>;
+
+export function SaveLoversLabCredentials(arg1:string,arg2:string):Promise<main.LoversLabStatus>;
 
 export function SaveModEdit(arg1:string,arg2:string,arg3:main.ModEdit):Promise<main.SaveResult>;
 

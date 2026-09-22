@@ -21,6 +21,7 @@ import {Workspace} from './views/Workspace';
 import {Library} from './views/Library';
 import {Dlc} from './views/Dlc';
 import {Editor} from './views/Editor';
+import {Extensions} from './views/Extensions';
 import {Settings} from './views/Settings';
 import {UpdatesModal} from './views/UpdatesModal';
 import {FirstRunWizard} from './views/FirstRunWizard';
@@ -326,7 +327,9 @@ export function App() {
             onSelectGame: selectGame,
             onManageGames: openManageGames,
         }
-        : view === 'dlc'
+        // DLC, Editor and Extensions are all per-game views with no playset concept of
+        // their own - same shape, just without Workspace's own playset pill.
+        : view === 'dlc' || view === 'editor' || view === 'extensions'
             ? {
                 gameLabel: gameName,
                 gameVersion,
@@ -335,16 +338,7 @@ export function App() {
                 onSelectGame: selectGame,
                 onManageGames: openManageGames,
             }
-            : view === 'editor'
-                ? {
-                    gameLabel: gameName,
-                    gameVersion,
-                    gameVersions,
-                    games: games.map((g) => ({ID: g.ID, DisplayName: g.DisplayName})),
-                    onSelectGame: selectGame,
-                    onManageGames: openManageGames,
-                }
-                : undefined;
+            : undefined;
 
     // Which accent draws the interface: the game's own (from its icon), a custom colour, or the
     // app's default - see data/accentPick.ts.
@@ -415,6 +409,11 @@ export function App() {
             {!gamesUnavailable && visitedViews.has('editor') && (
                 <div style={{display: view === 'editor' ? 'contents' : 'none'}}>
                     <Editor games={games} selectedGame={selectedGame} gameVersion={gameVersion}/>
+                </div>
+            )}
+            {!gamesUnavailable && visitedViews.has('extensions') && (
+                <div style={{display: view === 'extensions' ? 'contents' : 'none'}}>
+                    <Extensions games={games} selectedGame={selectedGame}/>
                 </div>
             )}
             {/* Settings isn't gated on gamesUnavailable like the views above - unlike

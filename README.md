@@ -929,6 +929,26 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   key were confirmed live; the keyed request itself follows the documented method and could not be run
   without a key, and the panel's **Check key** button reports at once whether a key works. See
   [docs/steam-web-api.md](docs/steam-web-api.md).
+- **Browsing Extensions** (`internal/credentials`, `loverslab_settings.go`,
+  `frontend/src/views/Extensions.tsx`) - a new top-bar tab (its own icon, unlike every other tab's
+  plain text - an added, unofficial source of content, not a core view of the app's own data) for
+  browsing mods from places other than the Steam Workshop. LoversLab is the first placeholder
+  source: signing in with a username/email and password is real, but browsing itself is not built
+  yet, so the card grid below the sign-in panel is clearly marked example content, the same
+  "coming later, marked as an example" treatment the Editor's own Checks and Publish tabs used
+  before they were real. The one genuinely new, reusable piece is `internal/credentials`: pulled
+  out of what the Steam Web API key's own settings code (`internal/steamconfig`, predates this) did
+  by hand - seal a named field with `internal/secretbox`, keep a fingerprint or the value itself for
+  fields allowed to be shown again, write it to a JSONC file with an explanation that it is
+  encrypted - so the *next* service that needs a saved sign-in (or just an API key) does not
+  reimplement that by hand a second time. A `Manager` handles one external service's arbitrarily
+  named fields (LoversLab's are `username` and `password`); every seal is bound to both the service
+  and the field name, so one service's saved password can never be opened as another's, or as a
+  different field of the same service, even from the same file. LoversLab's own username is shown
+  again once saved (a username is not a secret the way a password is - Settings > Steam API's own
+  fingerprint-only convention would tell the person nothing useful here), while the password never
+  is, matching the Steam key's own "never shown again" rule exactly. Nothing about a saved LoversLab
+  sign-in is ever sent anywhere: there is no real LoversLab integration yet for it to be sent to.
 - **Unlisted, private and deleted Workshop mods get their own flags** (`internal/steamapi/availability.go`,
   `workshopavailability.go`, `frontend/src/data/workshopAvailability.ts`, `FlagTips.tsx`) - what became of a
   Workshop mod is now worked out and shown, since it decides whether the mod can still update. Three flags,
@@ -1323,6 +1343,9 @@ that legitimately does rewrite the file's `modsOrder`).
 - **Publishing to the Steam Workshop** - the Editor's **Publish** tab is laid out (upload as a new
   item or update one you own, a change note, visibility, tags, an upload log) but not connected to
   Steam; every control is disabled and its example log line content is clearly marked as an example.
+- **Browsing LoversLab** - the new Extensions tab's card grid is laid out and signing in to it is
+  real (see [Progress](#progress) above), but nothing actually browses LoversLab yet; every card
+  shown is example content, clearly marked as an example, the same way Publish's own log line is.
 - **Playset sharing via codes** - the Library screen's collections and bulk actions are now real
   (see [Progress](#progress) above); encoding/decoding a playset as a shareable local code
   ("Import code"/"Share"/"Join a friend's playset" in the Playsets modal) is still a static

@@ -170,6 +170,9 @@ type App struct {
 	// Steam API answers Workshop details - see steamapi_settings.go. Set up by
 	// initSteamAPI in startup.
 	steam steamAPIState
+	// loverslab is the optional saved LoversLab sign-in for the Browsing Extensions
+	// page - see loverslab_settings.go. Set up by initLoversLab in startup.
+	loverslab loversLabState
 	// authorProfiles holds real Steam Community profiles for Workshop mod
 	// authors in memory for the app's runtime - see
 	// library.AuthorProfileCache. Zero-value usable.
@@ -245,6 +248,7 @@ func (a *App) startup(ctx context.Context) {
 		a.configAppDir = filepath.Join(configDir, "parallax-mod-manager")
 	}
 	a.initSteamAPI(a.configAppDir)
+	a.initLoversLab(a.configAppDir)
 	a.initBackups(a.configAppDir)
 
 	mediaFS, err := fs.Sub(embeddedGameMedia, "data/game_media")

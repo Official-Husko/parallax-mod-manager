@@ -78,6 +78,10 @@ export function ClearLog() {
   return window['go']['main']['App']['ClearLog']();
 }
 
+export function ClearLoversLabCredentials() {
+  return window['go']['main']['App']['ClearLoversLabCredentials']();
+}
+
 export function ClearPatchOverrides(arg1) {
   return window['go']['main']['App']['ClearPatchOverrides'](arg1);
 }
@@ -198,6 +202,10 @@ export function LogEvent(arg1, arg2, arg3) {
   return window['go']['main']['App']['LogEvent'](arg1, arg2, arg3);
 }
 
+export function LoversLabStatus() {
+  return window['go']['main']['App']['LoversLabStatus']();
+}
+
 export function MarkModUpdatesSeen(arg1) {
   return window['go']['main']['App']['MarkModUpdatesSeen'](arg1);
 }
@@ -300,6 +308,10 @@ export function ResolvedConflicts(arg1) {
 
 export function SaveCollection(arg1) {
   return window['go']['main']['App']['SaveCollection'](arg1);
+}
+
+export function SaveLoversLabCredentials(arg1, arg2) {
+  return window['go']['main']['App']['SaveLoversLabCredentials'](arg1, arg2);
 }
 
 export function SaveModEdit(arg1, arg2, arg3) {
