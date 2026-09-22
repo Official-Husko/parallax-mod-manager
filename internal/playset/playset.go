@@ -23,6 +23,11 @@ type Playset struct {
 	GameKey     string   `json:"gameKey"`
 	ModIDs      []string `json:"modIds"` // ordered - this is the load order
 	DisabledDLC []string `json:"disabledDlc"`
+	// LockedModIDs is the subset of ModIDs whose position in the load order Workspace won't
+	// move - not by dragging, Move up/down, or Autosort. Position-only: a locked mod can still
+	// be turned off normally, which drops it from here too (a lock on a mod no longer in
+	// ModIDs would be stale state), so this is always a subset of ModIDs.
+	LockedModIDs []string `json:"lockedModIds"`
 }
 
 // FormatVersion guards the on-disk shape. Unlike internal/cache's
@@ -154,6 +159,9 @@ func (s FileStore) Load(ctx context.Context, gameKey, name string) (Playset, err
 	}
 	if stored.Playset.ModIDs == nil {
 		stored.Playset.ModIDs = []string{}
+	}
+	if stored.Playset.LockedModIDs == nil {
+		stored.Playset.LockedModIDs = []string{}
 	}
 	return stored.Playset, nil
 }

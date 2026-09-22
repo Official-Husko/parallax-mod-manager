@@ -204,13 +204,14 @@ export function findMissingActiveDependencies(
     return {resolvable, unresolved};
 }
 
-// putBack returns sorted with the generated patch mods from original re-added:
-// each one directly after the nearest mod that preceded it in original (or at
-// the start if nothing did) - "loads right after the same mod as before".
-function putBack(sorted: string[], original: string[], patchIds: Set<string>): string[] {
+// putBack returns sorted with each id from idsToRestore (the generated patch mods, or the locked
+// ones - see autosort below) re-added from original: each one directly after the nearest mod
+// that preceded it in original (or at the start if nothing did) - "loads right after the same
+// mod as before".
+function putBack(sorted: string[], original: string[], idsToRestore: Set<string>): string[] {
     const result = [...sorted];
     original.forEach((id, i) => {
-        if (!patchIds.has(id)) return;
+        if (!idsToRestore.has(id)) return;
         let anchor = -1;
         for (let j = i - 1; j >= 0; j--) {
             const at = result.indexOf(original[j]);
@@ -224,14 +225,19 @@ function putBack(sorted: string[], original: string[], patchIds: Set<string>): s
     return result;
 }
 
-export function autosort(order: string[], modsById: Map<string, library.ModSummary>, opts: AutosortOptions): AutosortResult {
+// locked (a Workspace playset's own LockedModIDs) sits a mod out of every rule below the same
+// way the generated patch already does - a deliberate manual override of Autosort, not a
+// promise every other rule keeps resolving perfectly around it (see the Known limit noted where
+// this is called from Workspace.tsx).
+export function autosort(order: string[], modsById: Map<string, library.ModSummary>, opts: AutosortOptions, locked: Set<string>): AutosortResult {
     const knownNames = new Set([...modsById.values()].map((m) => m.Name));
 
     // The generated patch sits out the sorting below entirely - see the
     // generated-patch rule at the top of this file.
     const patchIds = new Set(order.filter((id) => modsById.get(id)?.GeneratedPatch === true));
+    const lockedIds = new Set(order.filter((id) => locked.has(id) && !patchIds.has(id)));
 
-    let working = order.filter((id) => !patchIds.has(id));
+    let working = order.filter((id) => !patchIds.has(id) && !lockedIds.has(id));
     let cycleMods: string[] = [];
     if (opts.fixesLast) {
         working = moveTaggedToEnd(working, modsById);
@@ -241,6 +247,10 @@ export function autosort(order: string[], modsById: Map<string, library.ModSumma
         working = result.order;
         cycleMods = result.cycleMods;
     }
+    // Locked mods go back first, so the generated patch's own rule - append it unconditionally
+    // at the very end, or put it back exactly where it was - always gets the last word and can
+    // never be pushed off the end by a locked mod reinserting itself near it.
+    working = putBack(working, order, lockedIds);
     working = opts.patchLast ? [...working, ...order.filter((id) => patchIds.has(id))] : putBack(working, order, patchIds);
 
     const moves: AutosortMove[] = [];
@@ -257,6 +267,8 @@ export function autosort(order: string[], modsById: Map<string, library.ModSumma
             reasons.push(opts.patchLast
                 ? 'Generated patch - kept at the end so its resolutions win'
                 : 'Left in place while the other mods were sorted around it');
+        } else if (lockedIds.has(id)) {
+            reasons.push('Locked - left in place while the other mods were sorted around it');
         } else {
             if (opts.fixesLast && isLateTagged(mod)) {
                 reasons.push('Tagged Fixes/Utilities/Patch - moved to the end');

@@ -69,6 +69,10 @@ export function Dlc({games, selectedGame}: {
     const [selectedPlayset, setSelectedPlayset] = useState('');
     const [modIds, setModIds] = useState<string[]>([]);
     const [disabled, setDisabled] = useState<Set<string>>(new Set());
+    // Kept only to save back unchanged - the DLC screen has no UI of its own for locking a
+    // mod's position (that's Workspace's job), so a save here must never silently wipe
+    // whatever Workspace really set.
+    const [lockedModIds, setLockedModIds] = useState<string[]>([]);
     const [storeData, setStoreData] = useState<Map<string, dlcstore.StoreData>>(new Map());
     const [saving, setSaving] = useState(false);
     const [selectedDLCId, setSelectedDLCId] = useState('');
@@ -110,6 +114,7 @@ export function Dlc({games, selectedGame}: {
         if (!selectedGame || !selectedPlayset) {
             setModIds([]);
             setDisabled(new Set());
+            setLockedModIds([]);
             return;
         }
         let cancelled = false;
@@ -118,6 +123,7 @@ export function Dlc({games, selectedGame}: {
                 if (cancelled) return;
                 setModIds(p.modIds ?? []);
                 setDisabled(new Set(p.disabledDlc ?? []));
+                setLockedModIds(p.lockedModIds ?? []);
             })
             .catch((err) => { if (!cancelled) notify('error', `Couldn't load "${selectedPlayset}": ${String(err)}`); });
         return () => { cancelled = true; };
@@ -169,6 +175,7 @@ export function Dlc({games, selectedGame}: {
             gameKey: selectedGame,
             modIds,
             disabledDlc: [...disabled],
+            lockedModIds,
         } as playset.Playset;
         await trackTask(`Saving "${selectedPlayset}"...`, () => SavePlayset(p), {
             success: `Saved "${selectedPlayset}".`,

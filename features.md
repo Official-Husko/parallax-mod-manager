@@ -53,6 +53,9 @@ for security, privacy, reliability or performance is called out (see the last tw
   insertion line.
 - **Autosort** - fixes and utility mods to the end, and every mod after its declared dependencies,
   with dependency cycles detected and reported.
+- **Lock a mod's position** - right-click a mod in the load order to lock it in place: it can't be
+  dragged, moved up/down, or touched by Autosort, though turning it off still works normally. Saved
+  with the playset; a mod turned off drops its lock rather than saving stale, confusing state.
 - **Pre-flight checks** - missing mods, hard conflicts and dependency problems, computed from your
   real load order before you launch.
 - **Import from the Paradox Launcher** - reads the launcher's own playsets, read-only, and loads one as

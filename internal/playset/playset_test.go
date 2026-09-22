@@ -15,10 +15,11 @@ func TestSaveThenLoadRoundTrips(t *testing.T) {
 	ctx := context.Background()
 
 	p := Playset{
-		Name:        "Vanilla+ Historical",
-		GameKey:     "stellaris",
-		ModIDs:      []string{"mod_a", "mod_b"},
-		DisabledDLC: []string{"some_dlc"},
+		Name:         "Vanilla+ Historical",
+		GameKey:      "stellaris",
+		ModIDs:       []string{"mod_a", "mod_b"},
+		DisabledDLC:  []string{"some_dlc"},
+		LockedModIDs: []string{"mod_a"},
 	}
 	if err := store.Save(ctx, p); err != nil {
 		t.Fatalf("Save: %v", err)
@@ -62,6 +63,9 @@ func TestLoadNormalizesMissingSlicesToRealEmptySlices(t *testing.T) {
 	}
 	if got.ModIDs == nil {
 		t.Error("ModIDs is nil, want a real empty slice (marshals as JSON null, not [])")
+	}
+	if got.LockedModIDs == nil {
+		t.Error("LockedModIDs is nil, want a real empty slice (marshals as JSON null, not [])")
 	}
 }
 
@@ -266,6 +270,25 @@ func TestRenameKeepsEverythingButTheName(t *testing.T) {
 	names, _ := s.List(ctx, "g")
 	if len(names) != 1 || names[0] != "New Name" {
 		t.Errorf("List = %v, want just the renamed playset", names)
+	}
+}
+
+func TestRenameKeepsLockedModIDs(t *testing.T) {
+	s := FileStore{Dir: t.TempDir()}
+	ctx := context.Background()
+	if err := s.Save(ctx, Playset{Name: "Old Name", GameKey: "g", ModIDs: []string{"a", "b"}, LockedModIDs: []string{"b"}}); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	if err := s.Rename(ctx, "g", "Old Name", "New Name"); err != nil {
+		t.Fatalf("Rename: %v", err)
+	}
+	got, err := s.Load(ctx, "g", "New Name")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(got.LockedModIDs) != 1 || got.LockedModIDs[0] != "b" {
+		t.Errorf("LockedModIDs = %v, want [\"b\"] kept across the rename", got.LockedModIDs)
 	}
 }
 

@@ -1457,6 +1457,7 @@ export namespace playset {
 	    gameKey: string;
 	    modIds: string[];
 	    disabledDlc: string[];
+	    lockedModIds: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new Playset(source);
@@ -1468,6 +1469,7 @@ export namespace playset {
 	        this.gameKey = source["gameKey"];
 	        this.modIds = source["modIds"];
 	        this.disabledDlc = source["disabledDlc"];
+	        this.lockedModIds = source["lockedModIds"];
 	    }
 	}
 

@@ -184,7 +184,7 @@ export function Library() {
         const ids = selectedRows.map((r) => r.modId);
         try {
             if (isNew) {
-                await SavePlayset({name, gameKey: gameId, modIds: ids, disabledDlc: []} as playset.Playset);
+                await SavePlayset({name, gameKey: gameId, modIds: ids, disabledDlc: [], lockedModIds: []} as playset.Playset);
             } else {
                 const existing = await LoadPlayset(gameId, name);
                 const merged = [...existing.modIds, ...ids.filter((id) => !existing.modIds.includes(id))];

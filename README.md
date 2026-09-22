@@ -563,6 +563,13 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   isn't just correct in theory, it does real, useful work on a real modlist. In-memory only
   (reorders the current load order; the user still has to Save the playset), so there's nothing
   destructive to undo it - close without saving.
+- **Lock a mod's position in the load order** (`internal/playset`'s `LockedModIDs`, the Active
+  list's own right-click menu) - locking a mod stops it being dragged, moved up/down, or touched
+  by Autosort, which excludes a locked mod from every rule the same way it already excludes its
+  own generated patch, then puts it back exactly where it was. Position-only: turning a locked mod
+  off still works normally, and doing so drops its lock right away, since a lock on a mod no
+  longer in the order would just be stale state waiting to resurface confusingly later. Saved as
+  part of the playset, alongside its disabled DLC.
 - **Mod update tracking: what changed since the last startup** (`internal/modupdates`,
   `modupdates.go`, `frontend/src/data/modUpdates.ts`, `UpdatesModal.tsx`, `UpdatesCard.tsx`) - the
   sidebar's UPDATES card and its **Review** window, formerly mockup data, are real. Every startup

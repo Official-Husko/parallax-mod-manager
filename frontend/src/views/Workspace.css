@@ -1102,6 +1102,13 @@
     color: var(--flag-deleted);
 }
 
+.row-lock {
+    flex: none;
+    font-size: 10px;
+    margin: 0 8px 0 2px;
+    color: var(--text-dim);
+}
+
 .row-note {
     flex: none;
     font-size: 11px;

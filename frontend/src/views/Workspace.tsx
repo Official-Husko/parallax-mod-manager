@@ -145,6 +145,22 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
     // Workspace never silently wipes what the DLC screen set. Empty for a
     // brand-new, unsaved playset; loaded from the real file otherwise.
     const [disabledDlc, setDisabledDlc] = useState<string[]>([]);
+    // Mods whose position in order is locked - can't be dragged, moved up/down, or touched by
+    // Autosort (see data/autosort.ts). Position-only: turning a locked mod off still works
+    // normally, and the effect below drops its lock the moment that happens, so a lock on a mod
+    // no longer in order never lingers into a save.
+    const [locked, setLocked] = useState<Set<string>>(new Set());
+    useEffect(() => {
+        setLocked((prev) => {
+            const next = new Set([...prev].filter((id) => order.includes(id)));
+            return next.size === prev.size ? prev : next;
+        });
+    }, [order]);
+    // dragMove's onDrop below is captured once at mount (see data/listDragMove.ts's own
+    // comment) and can only read state fresh through a functional setState update or a ref -
+    // never a closed-over variable - so it reads this ref rather than `locked` directly.
+    const lockedRef = useRef(locked);
+    useEffect(() => { lockedRef.current = locked; }, [locked]);
     const [showPreflight, setShowPreflight] = useState(false);
     const [showGameLog, setShowGameLog] = useState(false);
     // The multiplayer checksum of the saved playset: worked out whenever one is saved or
@@ -863,8 +879,12 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
             setAvailableOrder((prev) => reorderInsert(prev, ids, target));
             setSelectedActive(new Set());
         } else if (source === 'active' && target.list === 'active') {
-            // Reorder within Active.
-            setOrder((prev) => reorderInsert(prev, ids, target));
+            // Reorder within Active - a locked mod among the dragged ids just doesn't move,
+            // even when it was dragged as part of a bigger selection; the rest still does.
+            setOrder((prev) => {
+                const moving = ids.filter((id) => !lockedRef.current.has(id));
+                return moving.length === 0 ? prev : reorderInsert(prev, moving, target);
+            });
         } else if (source === 'available' && target.list === 'available') {
             // Reorder within Available: same idea, against the user's own
             // temporary arrangement rather than a real persisted order.
@@ -896,13 +916,15 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
 
     function onActiveRowMouseDown(index: number, e: MouseEvent) {
         const id = activeIds[index];
+        // A locked row never visually lifts as if it were being dragged - dropping it
+        // wouldn't move it anyway (see the dragMove callback above).
         if (e.button === 0 && !e.shiftKey && selectedActive.has(id) && selectedActive.size > 1) {
             e.preventDefault();
-            dragMove.startDrag(activeIds.filter((x) => selectedActive.has(x)), 'active', e);
+            dragMove.startDrag(activeIds.filter((x) => selectedActive.has(x) && !locked.has(x)), 'active', e);
             return;
         }
         const ids = activeDrag.onRowMouseDown(index, e);
-        dragMove.startDrag(ids, 'active', e);
+        dragMove.startDrag(ids.filter((x) => !locked.has(x)), 'active', e);
     }
 
     function addSelectedToOrder() {
@@ -919,9 +941,20 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
         const i = order.indexOf(id);
         const j = i + delta;
         if (i < 0 || j < 0 || j >= order.length) return;
+        // Moving either position's own mod is a change to a locked mod's position - the swap
+        // below touches both, so either one being locked refuses the whole move.
+        if (locked.has(order[i]) || locked.has(order[j])) return;
         const next = order.slice();
         [next[i], next[j]] = [next[j], next[i]];
         setOrder(next);
+    }
+
+    function toggleLocked(id: string) {
+        setLocked((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id); else next.add(id);
+            return next;
+        });
     }
 
     // addToOrder adds one specific mod directly - distinct from
@@ -964,10 +997,12 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
 
     function modContextMenuItems(m: library.ModSummary): ContextMenuItem[] {
         const inOrder = order.includes(m.ID);
+        const i = order.indexOf(m.ID);
         const items: ContextMenuItem[] = inOrder
             ? [
-                {label: 'Move up', onClick: () => moveInOrder(m.ID, -1), disabled: order.indexOf(m.ID) <= 0},
-                {label: 'Move down', onClick: () => moveInOrder(m.ID, 1), disabled: order.indexOf(m.ID) < 0 || order.indexOf(m.ID) >= order.length - 1},
+                {label: 'Move up', onClick: () => moveInOrder(m.ID, -1), disabled: i <= 0 || locked.has(order[i]) || locked.has(order[i - 1])},
+                {label: 'Move down', onClick: () => moveInOrder(m.ID, 1), disabled: i < 0 || i >= order.length - 1 || locked.has(order[i]) || locked.has(order[i + 1])},
+                {label: locked.has(m.ID) ? 'Unlock position' : 'Lock position', onClick: () => toggleLocked(m.ID)},
                 {label: 'Remove from load order', onClick: () => removeFromOrder(m.ID), danger: true},
             ]
             : [
@@ -1006,7 +1041,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
             dependencies: prefs.autosortDependencies,
             fixesLast: prefs.autosortFixesLast,
             patchLast: prefs.autosortPatchLast,
-        });
+        }, locked);
         setOrder(result.order);
         logEvent('info', 'Autosort', `sorted ${withOrder.length} mods: ${result.moves.length} moved (dependencies ${prefs.autosortDependencies ? 'on' : 'off'}, fixes last ${prefs.autosortFixesLast ? 'on' : 'off'}, patch last ${prefs.autosortPatchLast ? 'on' : 'off'})`);
         if (result.cycleMods.length > 0) {
@@ -1095,7 +1130,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
             // not reset - Workspace edits the load order, not DLC toggles
             // (that's the DLC screen's job), so a save here must never
             // silently wipe whatever was really set there.
-            const p = {name, gameKey: selectedGame, modIds: order, disabledDlc: disabledDlc} as playset.Playset;
+            const p = {name, gameKey: selectedGame, modIds: order, disabledDlc: disabledDlc, lockedModIds: [...locked]} as playset.Playset;
             await SavePlayset(p);
             setSavedOrder(order);
             checksum.calculate(p.name);
@@ -1111,6 +1146,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
             setSavedOrder(p.modIds ?? []);
             setPlaysetName(p.name);
             setDisabledDlc(p.disabledDlc ?? []);
+            setLocked(new Set(p.lockedModIds ?? []));
             rememberActivePlayset(p.name);
             checksum.calculate(p.name);
             const seq = ++latestScanRef.current;
@@ -1161,7 +1197,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
         setShowPreflight(false);
         const launched = await trackTask('Launching...', async () => {
             if (playsetName.trim()) {
-                const p = {name: playsetName.trim(), gameKey: selectedGame, modIds: order, disabledDlc: disabledDlc} as playset.Playset;
+                const p = {name: playsetName.trim(), gameKey: selectedGame, modIds: order, disabledDlc: disabledDlc, lockedModIds: [...locked]} as playset.Playset;
                 await SavePlayset(p);
                 setSavedOrder(order);
                 checksum.calculate(p.name);
@@ -1395,6 +1431,9 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                                         <span className="position mono">{positionById.get(m.ID)}</span>
                                         <SourceBadge source={m.Source} name={m.Name}/>
                                         <span className="name">{m.Name}</span>
+                                        {locked.has(m.ID) && (
+                                            <i className="fa-solid fa-lock row-lock" title="Locked - won't be moved by dragging, Move up/down or Autosort"/>
+                                        )}
                                         {notes.has(m.ID) && (
                                             <i className="fa-solid fa-note-sticky row-note" {...tip(() => noteTip(notes.get(m.ID) ?? ''))}/>
                                         )}
