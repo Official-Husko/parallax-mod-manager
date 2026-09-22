@@ -95,7 +95,7 @@
 
 .sidebar-collection-create input {
     width: 100%;
-    background: #161d27;
+    background: var(--bg-inset);
     border: 1px solid var(--border-light);
     border-radius: 4px;
     padding: 5px 8px;
@@ -142,7 +142,7 @@
     gap: 7px;
     font: 500 11.5px Barlow, sans-serif;
     color: var(--text-mid);
-    background: #1b232e;
+    background: var(--bg-highlight);
     border: 1px solid var(--border-light);
     border-radius: 5px;
     padding: 5px 10px;
@@ -373,7 +373,7 @@
 .library-action-picker-create input {
     flex: 1;
     min-width: 0;
-    background: #161d27;
+    background: var(--bg-inset);
     border: 1px solid var(--border-light);
     border-radius: 4px;
     padding: 5px 8px;

@@ -18,7 +18,9 @@
     align-items: center;
     height: 42px;
     padding: 0 16px;
-    background: var(--bg-header);
+    /* --bg-header-on-panel, not --bg-header - .game-log-modal (this sits inside it) already
+       applies --bg-panel once; see that variable's own comment in App.css. */
+    background: var(--bg-header-on-panel);
     border-bottom: 1px solid var(--border);
     gap: 11px;
     flex: none;

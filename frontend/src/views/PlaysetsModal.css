@@ -14,7 +14,9 @@
     align-items: center;
     height: 42px;
     padding: 0 16px;
-    background: var(--bg-header);
+    /* --bg-header-on-panel, not --bg-header - .playsets-modal (this sits inside it) already
+       applies --bg-panel once; see that variable's own comment in App.css. */
+    background: var(--bg-header-on-panel);
     border-bottom: 1px solid var(--border);
     gap: 11px;
     flex: none;
@@ -52,7 +54,9 @@
     border: 1px solid var(--border);
     border-radius: 6px;
     padding: 12px 14px;
-    background: var(--bg-rail);
+    /* --bg-header-on-panel, not --bg-rail - .playsets-modal (this sits inside it) already
+       applies --bg-panel once; see that variable's own comment in App.css. */
+    background: var(--bg-header-on-panel);
     display: flex;
     gap: 14px;
     align-items: center;
@@ -132,7 +136,7 @@
     padding: 3px 8px;
     border: 1px solid var(--amber);
     border-radius: 4px;
-    background: #10151c;
+    background: var(--bg-inset);
     color: var(--text-bright);
     font: 600 14px Barlow, sans-serif;
     outline: none;
@@ -172,7 +176,7 @@
 .playset-join-row .code-input {
     flex: 1;
     color: var(--text-muted);
-    background: #161d27;
+    background: var(--bg-inset);
     border: 1px solid var(--border-light);
     border-radius: 4px;
     padding: 6px 10px;

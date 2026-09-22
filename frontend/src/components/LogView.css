@@ -43,7 +43,7 @@
 }
 
 .log-level-btn.active {
-    background: #1e2734;
+    background: var(--bg-highlight);
     color: var(--text-bright);
 }
 
@@ -86,7 +86,7 @@
     height: 26px;
     border: 1px solid var(--border-light);
     border-radius: 4px;
-    background: #10151c;
+    background: var(--bg-inset);
     color: var(--text-mid);
     font: 500 11px Barlow, sans-serif;
 }
@@ -134,7 +134,7 @@
     padding: 4px 9px;
     border: 1px solid var(--border-light);
     border-radius: 4px;
-    background: #161d27;
+    background: var(--bg-inset);
     color: var(--text-muted);
     cursor: pointer;
 }

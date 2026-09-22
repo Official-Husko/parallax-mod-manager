@@ -238,7 +238,7 @@ export function Library() {
                     <>
                         <div
                             className="sidebar-game"
-                            style={{background: filter.kind === 'all' ? '#1e2734' : 'transparent', cursor: 'pointer'}}
+                            style={{background: filter.kind === 'all' ? 'var(--bg-highlight)' : 'transparent', cursor: 'pointer'}}
                             onClick={() => setFilter({kind: 'all'})}
                         >
                             <span className="swatch all-games"><i className="fa-solid fa-layer-group"/></span>
@@ -249,7 +249,7 @@ export function Library() {
                             <div
                                 key={g.ID}
                                 className="sidebar-game"
-                                style={{background: filter.kind === 'game' && filter.gameId === g.ID ? '#1e2734' : 'transparent', cursor: 'pointer'}}
+                                style={{background: filter.kind === 'game' && filter.gameId === g.ID ? 'var(--bg-highlight)' : 'transparent', cursor: 'pointer'}}
                                 onClick={() => setFilter({kind: 'game', gameId: g.ID})}
                             >
                                 <GameLogo gameId={g.ID} className="swatch"/>
@@ -265,7 +265,7 @@ export function Library() {
                         key={c.name}
                         className="sidebar-collection"
                         style={{
-                            background: filter.kind === 'collection' && filter.name === c.name ? '#1e2734' : 'transparent',
+                            background: filter.kind === 'collection' && filter.name === c.name ? 'var(--bg-highlight)' : 'transparent',
                             color: filter.kind === 'collection' && filter.name === c.name ? 'var(--text-bright)' : 'var(--text-muted)',
                             cursor: 'pointer',
                         }}

@@ -340,7 +340,7 @@
 }
 
 .source-toggle span.active {
-    background: #1b232e;
+    background: var(--bg-highlight);
     color: var(--text-bright);
     cursor: default;
 }
@@ -377,7 +377,7 @@
 .interval-stepper {
     display: flex;
     align-items: stretch;
-    background: #161d27;
+    background: var(--bg-inset);
     border: 1px solid var(--border-light);
     border-radius: 4px;
     overflow: hidden;
@@ -443,7 +443,7 @@
 }
 
 .interval-stepper-btn:active:not(:disabled) {
-    background: #1b232e;
+    background: var(--bg-highlight);
 }
 
 .interval-stepper-btn:disabled {

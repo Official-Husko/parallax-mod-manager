@@ -284,7 +284,7 @@ function ConflictRow({conflict, selected, resolved, onSelect}: {
         <div
             className="file-item conflict-row"
             style={{
-                background: selected ? '#1b232e' : 'transparent',
+                background: selected ? 'var(--bg-highlight)' : 'transparent',
                 borderLeftColor: patchOutdated ? 'var(--amber)' : resolved ? 'var(--green)' : 'var(--red)',
                 cursor: 'pointer',
             }}

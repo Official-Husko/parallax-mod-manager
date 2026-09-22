@@ -656,7 +656,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    background: #161d27;
+    background: var(--bg-inset);
     border: 1px solid var(--border-light);
     border-radius: 5px;
     padding: 6px 9px;
@@ -857,7 +857,7 @@
 }
 
 .mod-row.selected {
-    background: #1a222e;
+    background: var(--bg-highlight);
 }
 
 /* Dragging an Available row (or the current multi-selection, if the
@@ -1298,7 +1298,7 @@
 }
 
 .playset-card {
-    background: #1b232e;
+    background: var(--bg-highlight);
     border: 1px solid var(--border-light);
     border-radius: 5px;
     padding: 10px 11px;
@@ -1420,7 +1420,7 @@
    the last startup, a row of per-kind counts, and the button that opens the full
    list (views/UpdatesModal.tsx). */
 .updates-card {
-    background: #1b232e;
+    background: var(--bg-highlight);
     border: 1px solid var(--border-light);
     border-radius: 5px;
     padding: 9px 11px;
@@ -1679,11 +1679,11 @@
 
 @keyframes save-blink {
     0%, 100% {
-        background: #1b232e;
+        background: var(--bg-highlight);
         box-shadow: 0 0 0 0 color-mix(in srgb, var(--rust) 0%, transparent);
     }
     50% {
-        background: color-mix(in srgb, var(--rust) 26%, #1b232e);
+        background: color-mix(in srgb, var(--rust) 26%, var(--bg-highlight));
         box-shadow: 0 0 0 3px color-mix(in srgb, var(--rust) 38%, transparent);
     }
 }
@@ -1693,7 +1693,7 @@
 @media (prefers-reduced-motion: reduce) {
     .btn-ghost.unsaved {
         animation: none;
-        background: color-mix(in srgb, var(--rust) 22%, #1b232e);
+        background: color-mix(in srgb, var(--rust) 22%, var(--bg-highlight));
         box-shadow: 0 0 0 2px color-mix(in srgb, var(--rust) 40%, transparent);
     }
 }

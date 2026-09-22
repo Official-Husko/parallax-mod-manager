@@ -42,7 +42,7 @@
 }
 
 .editor-list-row.selected {
-    background: #1a222e;
+    background: var(--bg-highlight);
     box-shadow: inset 2px 0 0 var(--rust);
 }
 
@@ -150,7 +150,7 @@
 }
 
 .editor-card {
-    background: #161d27;
+    background: var(--bg-inset);
     border: 1px solid var(--border);
     border-radius: 6px;
     padding: 13px 15px;
@@ -364,7 +364,7 @@
     align-items: center;
     gap: 9px;
     padding: 7px 10px;
-    background: #1b232e;
+    background: var(--bg-highlight);
     font-size: 11.5px;
     color: var(--text-mid);
 }
@@ -468,7 +468,7 @@
     border: 1px solid var(--border-light);
     border-radius: 6px;
     padding: 12px 14px;
-    background: #161d27;
+    background: var(--bg-inset);
     font: 400 12px/1.5 Barlow, sans-serif;
     color: var(--text-muted);
 }
@@ -546,7 +546,7 @@
     grid-template-columns: 20px 1fr 2fr;
     gap: 10px;
     padding: 6px 10px;
-    background: #1b232e;
+    background: var(--bg-highlight);
     font: 600 9.5px "Azeret Mono", monospace;
     letter-spacing: .08em;
     color: var(--text-dim);

@@ -91,7 +91,9 @@
     height: 42px;
     flex: none;
     padding: 0 14px;
-    background: var(--bg-header);
+    /* --bg-header-on-panel, not --bg-header - .resolver (this sits inside it) already
+       applies --bg-panel once; see that variable's own comment in App.css. */
+    background: var(--bg-header-on-panel);
     border-bottom: 1px solid var(--border);
 }
 
@@ -149,7 +151,7 @@
 }
 
 .mode-toggle span.active {
-    background: #1b232e;
+    background: var(--bg-highlight);
     color: var(--text-bright);
 }
 
@@ -254,7 +256,7 @@
 
 .patch-stale-note.muted {
     border-color: var(--border-light);
-    background: #161d27;
+    background: var(--bg-inset);
     color: var(--text-muted);
 }
 
@@ -287,7 +289,7 @@
     border: 1px solid var(--border-light);
     border-radius: 5px;
     padding: 10px 11px;
-    background: #161d27;
+    background: var(--bg-inset);
     cursor: pointer;
 }
 
@@ -702,7 +704,8 @@
     overflow-x: auto;
     overflow-y: hidden;
     border-top: 1px solid var(--border);
-    background: var(--bg-header);
+    /* --bg-header-on-panel - see .resolver-header's own comment above. */
+    background: var(--bg-header-on-panel);
 }
 
 .diff-hscroll-spacer {
@@ -713,7 +716,8 @@
     height: 34px;
     flex: none;
     border-top: 1px solid var(--border);
-    background: var(--bg-header);
+    /* --bg-header-on-panel - see .resolver-header's own comment above. */
+    background: var(--bg-header-on-panel);
     display: flex;
     align-items: center;
     padding: 0 13px;
@@ -874,7 +878,7 @@
 }
 
 .matrix-highlight {
-    background: #161d27;
+    background: var(--bg-inset);
     border: 1px solid var(--border-light);
     border-radius: 5px;
     padding: 11px 13px;

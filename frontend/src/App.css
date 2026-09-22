@@ -37,15 +37,39 @@
        still show the art through it, with the sticky element's own backdrop-filter blur
        doing most of the real work of obscuring whatever text scrolls behind it. */
     --bg-rail-sticky: rgba(19, 25, 35, .35);
-    /* Same idea, for a header/footer bar that sits inside a --bg-panel surface (Workspace's
-       .column-header and .list-pane-footer chief among them) rather than directly against
-       the art the way --bg-header's other use sites (the top bar, a modal's own header) do.
-       --bg-header itself is tuned for that direct case; stacked on top of --bg-panel's own
-       .74 it compounds to roughly .95 - close enough to opaque that the row right below it
-       (single-layer --bg-panel, clearly art-tinted) looks like a different, inconsistent kind
-       of surface next to it. Composited on top of --bg-panel this comes to about .85 total -
-       close to --bg-panel's own .74, so the two read as the same kind of surface. */
+    /* Same idea, for a header/footer bar or a rail-like sidebar that sits inside a --bg-panel
+       surface (Workspace's .column-header and .list-pane-footer, the Conflict Resolver's own
+       header/footer bars, several modals' header bars, and PlaysetsModal's own playset rows
+       and FirstRunWizard's own sidebar - a --bg-rail nested the same way --bg-header is,
+       chief among them) rather than directly against the art the way --bg-header/--bg-rail's
+       other use sites (the top bar, a modal's own outer box, Workspace's own rail) do.
+       --bg-header and --bg-rail are both tuned for that direct case, and share the same .8
+       alpha, so the same replacement serves either one once nested; stacked on top of
+       --bg-panel's own .74 either compounds to roughly .95 - close enough to opaque that the
+       row right below it (single-layer --bg-panel, clearly art-tinted) looks like a
+       different, inconsistent kind of surface next to it. Composited on top of --bg-panel
+       this comes to about .85 total - close to --bg-panel's own .74, so the two read as the
+       same kind of surface. */
     --bg-header-on-panel: rgba(17, 22, 30, .42);
+    /* The rest of a widespread, pre-existing pattern this codebase never finished migrating
+       to the translucent scheme above (see this file's very first comment): a search box, a
+       real text input, a small card or a button/chip/active-tab/selected-row was, in a large
+       number of places across the app, simply given a flat, fully opaque hex instead of one
+       of the variables above - not a deliberate design choice, just never converted. The two
+       below replace that handful of hand-picked, endlessly repeated hex values (mostly
+       #161d27 and #1b232e/#1a222e/#1e2734, all close enough to be the same two intended
+       colors) with their translucent equivalents, at an alpha chosen for how they are
+       actually used: nearly always nested inside an already-tinted --bg-panel/--bg-rail/
+       --bg-header, so - exactly like --bg-rail-sticky and --bg-header-on-panel above - their
+       own alpha has to be low enough that the composited result does not compound back
+       towards opaque. --bg-highlight is a little stronger than --bg-inset on purpose: a
+       button, chip, active tab or selected row needs to read as a distinct, clickable thing,
+       not just a passive surface. Neither applies to an element that has to fully occlude
+       whatever sits behind it to stay legible on its own (a tooltip, a context menu, an open
+       dropdown's menu, a slider/toggle knob) - those keep their own opaque fill; see each
+       one's own comment. */
+    --bg-inset: rgba(22, 29, 39, .55);
+    --bg-highlight: rgba(27, 35, 46, .55);
     --border: #27313f;
     --border-light: #2d3846;
     --text-bright: #e4e8ee;
@@ -212,7 +236,7 @@
     font: 600 11.5px Barlow, sans-serif;
     /* The game's own colour (see data/accentPick.ts, which keeps it readable on the dark bar). */
     color: var(--rust);
-    background: #1b232e;
+    background: var(--bg-highlight);
     padding: 5px 11px;
 }
 
@@ -265,7 +289,7 @@
 
 .topbar-game-option.active {
     color: var(--text-bright);
-    background: #1b232e;
+    background: var(--bg-highlight);
 }
 
 /* Same color/font language the closed pill's own version segment uses
@@ -341,7 +365,7 @@
 .topbar-nav-item.active {
     font-weight: 600;
     color: var(--text-bright);
-    background: #1b232e;
+    background: var(--bg-highlight);
 }
 
 /* --- Shared primitives --- */
@@ -349,7 +373,7 @@
 .btn-ghost {
     font: 500 11px Barlow, sans-serif;
     color: var(--text-muted);
-    background: #1b232e;
+    background: var(--bg-highlight);
     border: 1px solid var(--border-light);
     border-radius: 4px;
     padding: 5px 11px;
@@ -401,7 +425,7 @@
 .chip {
     font: 500 10.5px Barlow, sans-serif;
     color: var(--text-muted);
-    background: #1b232e;
+    background: var(--bg-highlight);
     border: 1px solid var(--border-light);
     border-radius: 11px;
     padding: 3px 9px;

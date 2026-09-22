@@ -78,7 +78,7 @@
 
 /* The multiplayer checksum: the code every player in a multiplayer game has to share. */
 .preflight-checksum {
-    background: #161d27;
+    background: var(--bg-inset);
     border: 1px solid var(--border-light);
     border-radius: 5px;
     padding: 10px 12px;

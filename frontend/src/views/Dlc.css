@@ -99,7 +99,7 @@
 }
 
 .dlc-row.active {
-    background: #1a222e;
+    background: var(--bg-highlight);
 }
 
 /* A playset disables an id that isn't among the currently discovered
@@ -254,7 +254,7 @@
 
 .dlc-type-row.active {
     color: var(--text-bright);
-    background: #1e2734;
+    background: var(--bg-highlight);
 }
 
 .dlc-type-row .n {
@@ -274,7 +274,7 @@
 
 .dlc-playset-row.active {
     color: var(--text-bright);
-    background: #1e2734;
+    background: var(--bg-highlight);
 }
 
 .sidebar-footer {
