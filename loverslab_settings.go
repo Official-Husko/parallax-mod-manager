@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/Official-Husko/parallax-mod-manager/internal/applog"
 	"github.com/Official-Husko/parallax-mod-manager/internal/credentials"
+	"github.com/Official-Husko/parallax-mod-manager/internal/loverslab"
 	"github.com/Official-Husko/parallax-mod-manager/internal/secretbox"
 )
 
@@ -19,14 +21,36 @@ const loversLabFileName = "loverslab.jsonc"
 // credentials.Manager.Service.
 const loversLabService = "loverslab"
 
-// loversLabState is the optional LoversLab sign-in for the Browsing Extensions page's
-// first source (see internal/credentials): a username/email and password, saved
-// encrypted the same way the Steam Web API key already is (steamapi_settings.go).
-// Browsing itself is mockup content for now - nothing here is ever sent anywhere; this
-// only saves what a real sign-in will need once that part is built.
+// loversLabState is the LoversLab sign-in for the Browse tab's first source: a
+// username/email and password, saved encrypted the same way the Steam Web API key
+// already is (steamapi_settings.go), plus the live, authenticated client that sign-in
+// unlocks - see loverslab.go for the actual browsing (categories, file listings,
+// changelogs) built on top of it.
 type loversLabState struct {
 	mu  sync.Mutex
 	mgr *credentials.Manager
+	// client is the current run's authenticated session, once one exists - lazily
+	// created and signed in by ensureLoversLabSession (loverslab.go), not here, since
+	// a fresh App start has no reason to sign in before anything actually asks to
+	// browse.
+	client *loverslab.Client
+	// login signs in and returns the authenticated client; loverslabLogin in
+	// production, replaced in tests with one that never makes a real request against
+	// the real site - the same swappable-verify-function pattern
+	// steamAPIState.verify (steamapi_settings.go) already uses for the same reason.
+	login func(ctx context.Context, auth, password string) (*loverslab.Client, error)
+}
+
+// loverslabLogin is loversLabState.login's real, production implementation.
+func loverslabLogin(ctx context.Context, auth, password string) (*loverslab.Client, error) {
+	client, err := loverslab.New()
+	if err != nil {
+		return nil, err
+	}
+	if err := client.Login(ctx, auth, password); err != nil {
+		return nil, err
+	}
+	return client, nil
 }
 
 // LoversLabStatus is what the Browsing Extensions panel shows for LoversLab. It never
@@ -59,12 +83,15 @@ func (a *App) initLoversLab(dir string) {
 		applog.For("LoversLab").Warnf("could not set up encryption for a saved sign-in: %v", err)
 	}
 	a.loverslab.mgr = &credentials.Manager{Service: loversLabService, Path: path, Box: box}
+	if a.loverslab.login == nil {
+		a.loverslab.login = loverslabLogin
+	}
 }
 
 func (a *App) loversLabStatusLocked() LoversLabStatus {
 	out := LoversLabStatus{
-		Protection: "Stored encrypted, bound to this computer. Your password is never shown again, never " +
-			"written to the activity log, and is never sent anywhere - browsing LoversLab isn't built yet.",
+		Protection: "Stored encrypted, bound to this computer. Your password is never shown again and never " +
+			"written to the activity log.",
 	}
 	mgr := a.loverslab.mgr
 	if mgr == nil {
@@ -91,10 +118,13 @@ func (a *App) LoversLabStatus() LoversLabStatus {
 	return a.loversLabStatusLocked()
 }
 
-// SaveLoversLabCredentials saves a username/email and password, encrypted and bound to
-// this computer (see internal/credentials). Nothing is checked against LoversLab
-// itself: browsing isn't built yet, so there is nothing real to verify a sign-in
-// against - unlike SaveSteamAPIKey, which does check the real Steam API before saving.
+// SaveLoversLabCredentials checks a username/email and password against LoversLab
+// itself and, only if the sign-in succeeds, saves them encrypted and bound to this
+// computer (see internal/credentials) - the same "checked with the real service
+// before it is saved" rule SaveSteamAPIKey already follows, so a wrong password is
+// never stored. The session the successful sign-in produces is saved alongside them
+// (also encrypted), so browsing doesn't need to sign in again every time the app
+// restarts.
 func (a *App) SaveLoversLabCredentials(username, password string) (LoversLabStatus, error) {
 	a.loverslab.mu.Lock()
 	defer a.loverslab.mu.Unlock()
@@ -110,17 +140,38 @@ func (a *App) SaveLoversLabCredentials(username, password string) (LoversLabStat
 		return a.loversLabStatusLocked(), errors.New("the settings folder could not be found, so this cannot be saved")
 	}
 
-	if err := a.loverslab.mgr.Save(map[string]string{"username": username, "password": password}); err != nil {
-		return a.loversLabStatusLocked(), fmt.Errorf("could not save: %w", err)
+	client, err := a.loverslab.login(a.baseContext(), username, password)
+	if err != nil {
+		applog.For("LoversLab").Warnf("sign-in rejected, so it was not saved: %v", err)
+		return a.loversLabStatusLocked(), errors.New("LoversLab rejected that username/email and password")
 	}
-	applog.For("LoversLab").Infof("saved sign-in (encrypted)")
+
+	fields := map[string]string{"username": username, "password": password}
+	if session, err := client.ExportSession(); err == nil {
+		fields["session"] = session
+	} else {
+		applog.For("LoversLab").Warnf("signed in, but could not export the session to save alongside it: %v", err)
+	}
+	if err := a.loverslab.mgr.Save(fields); err != nil {
+		return a.loversLabStatusLocked(), fmt.Errorf("signed in, but could not save: %w", err)
+	}
+
+	a.loverslab.client = client
+	applog.For("LoversLab").Infof("signed in as %s (member %s), saved encrypted", username, client.MemberID())
 	return a.loversLabStatusLocked(), nil
 }
 
-// ClearLoversLabCredentials deletes the saved sign-in.
+// ClearLoversLabCredentials signs out of the current session (best effort - a failed
+// logout request never blocks clearing the saved sign-in) and deletes it.
 func (a *App) ClearLoversLabCredentials() (LoversLabStatus, error) {
 	a.loverslab.mu.Lock()
 	defer a.loverslab.mu.Unlock()
+	if a.loverslab.client != nil {
+		if err := a.loverslab.client.Logout(a.baseContext()); err != nil {
+			applog.For("LoversLab").Warnf("logging out of LoversLab failed (clearing the saved sign-in anyway): %v", err)
+		}
+		a.loverslab.client = nil
+	}
 	if a.loverslab.mgr == nil {
 		return a.loversLabStatusLocked(), nil
 	}

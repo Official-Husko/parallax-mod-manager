@@ -750,6 +750,71 @@ export namespace library {
 
 }
 
+export namespace loverslab {
+	
+	export class Category {
+	    ID: number;
+	    Name: string;
+	    URL: string;
+	    Files: number;
+	    Depth: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new Category(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.Name = source["Name"];
+	        this.URL = source["URL"];
+	        this.Files = source["Files"];
+	        this.Depth = source["Depth"];
+	    }
+	}
+	export class ChangelogEntry {
+	    Version: string;
+	    Released: string;
+	    Description: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ChangelogEntry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Version = source["Version"];
+	        this.Released = source["Released"];
+	        this.Description = source["Description"];
+	    }
+	}
+	export class FileSummary {
+	    ID: number;
+	    Title: string;
+	    URL: string;
+	    Author: string;
+	    AuthorURL: string;
+	    Updated: string;
+	    ThumbnailURL: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new FileSummary(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.Title = source["Title"];
+	        this.URL = source["URL"];
+	        this.Author = source["Author"];
+	        this.AuthorURL = source["AuthorURL"];
+	        this.Updated = source["Updated"];
+	        this.ThumbnailURL = source["ThumbnailURL"];
+	    }
+	}
+
+}
+
 export namespace main {
 	
 	export class BackgroundPack {
@@ -1196,6 +1261,38 @@ export namespace main {
 		}
 	}
 	
+	export class LoversLabFileList {
+	    Files: loverslab.FileSummary[];
+	    TotalPages: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new LoversLabFileList(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Files = this.convertValues(source["Files"], loverslab.FileSummary);
+	        this.TotalPages = source["TotalPages"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class LoversLabStatus {
 	    SignedIn: boolean;
 	    Username: string;

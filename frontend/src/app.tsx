@@ -21,7 +21,7 @@ import {Workspace} from './views/Workspace';
 import {Library} from './views/Library';
 import {Dlc} from './views/Dlc';
 import {Editor} from './views/Editor';
-import {Extensions} from './views/Extensions';
+import {Browse} from './views/Browse';
 import {Settings} from './views/Settings';
 import {UpdatesModal} from './views/UpdatesModal';
 import {FirstRunWizard} from './views/FirstRunWizard';
@@ -327,9 +327,9 @@ export function App() {
             onSelectGame: selectGame,
             onManageGames: openManageGames,
         }
-        // DLC, Editor and Extensions are all per-game views with no playset concept of
+        // DLC, Editor and Browse are all per-game views with no playset concept of
         // their own - same shape, just without Workspace's own playset pill.
-        : view === 'dlc' || view === 'editor' || view === 'extensions'
+        : view === 'dlc' || view === 'editor' || view === 'browse'
             ? {
                 gameLabel: gameName,
                 gameVersion,
@@ -411,9 +411,9 @@ export function App() {
                     <Editor games={games} selectedGame={selectedGame} gameVersion={gameVersion}/>
                 </div>
             )}
-            {!gamesUnavailable && visitedViews.has('extensions') && (
-                <div style={{display: view === 'extensions' ? 'contents' : 'none'}}>
-                    <Extensions games={games} selectedGame={selectedGame}/>
+            {!gamesUnavailable && visitedViews.has('browse') && (
+                <div style={{display: view === 'browse' ? 'contents' : 'none'}}>
+                    <Browse games={games} selectedGame={selectedGame}/>
                 </div>
             )}
             {/* Settings isn't gated on gamesUnavailable like the views above - unlike

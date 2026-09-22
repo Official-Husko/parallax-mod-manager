@@ -1,0 +1,457 @@
+.browse {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+}
+
+/* Which source is browsed, and (once signed in) which of its games - on the left,
+   matching DLC's own left-side picker. Only one real entry (LoversLab) for now; the
+   rest of the layout already reads as a list so a second source is just another row,
+   not a redesign. */
+.browse-sources {
+    width: 210px;
+    flex: none;
+    border-right: 1px solid var(--border);
+    background: var(--bg-rail);
+    padding: 14px 0;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+}
+
+.browse-source-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    font: 500 12.5px Barlow, sans-serif;
+    color: var(--text-mid);
+}
+
+.browse-source-row.active {
+    color: var(--text-bright);
+    background: var(--bg-highlight);
+}
+
+.browse-source-row.disabled {
+    color: var(--text-dim);
+    cursor: default;
+}
+
+.browse-source-icon {
+    width: 16px;
+    text-align: center;
+    flex: none;
+}
+
+/* LoversLab's own placeholder icon - a plain heart rather than the site's real logo (this
+   app names no other mod site outside README.md's competitor table, and doesn't reproduce
+   anyone else's branding either), colored distinctly from every severity/status color
+   elsewhere so a source's own identity never reads as a status. */
+.browse-source-icon.loverslab {
+    color: var(--flag-private);
+}
+
+.games-label {
+    margin-top: 10px;
+}
+
+.browse-games {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.browse-games-note {
+    padding: 6px 14px;
+    font: 400 11.5px/1.5 Barlow, sans-serif;
+    color: var(--text-dim);
+}
+
+.browse-games-note.error {
+    color: var(--red);
+}
+
+.browse-category-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    cursor: pointer;
+    font: 500 12px Barlow, sans-serif;
+    color: var(--text-mid);
+}
+
+.browse-category-row:hover {
+    color: var(--text-bright);
+}
+
+.browse-category-row.active {
+    color: var(--text-bright);
+    background: var(--bg-highlight);
+}
+
+/* Depth mirrors loverslab.Category.Depth (0 = a top-level game/franchise section, 1 =
+   one of its subcategories) - indented so the tree reads the same way the real
+   sidebar on loverslab.com does. */
+.browse-category-row.depth-1 {
+    padding-left: 26px;
+    font-weight: 400;
+}
+
+.browse-category-row .cat-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.browse-category-row .cat-count {
+    font-size: 10.5px;
+    color: var(--text-dim);
+}
+
+.browse-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-panel);
+    overflow-y: auto;
+}
+
+/* Shown in place of the grid whenever there's nothing to browse yet - not signed in,
+   or signed in but no game picked. Deliberately plain, matching EmptyState's own
+   centered, muted look elsewhere without pulling that component in for one-off text. */
+.browse-gate {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    text-align: center;
+    color: var(--text-dim);
+    font: 400 12.5px/1.5 Barlow, sans-serif;
+    padding: 0 40px;
+}
+
+.browse-gate > i {
+    font-size: 26px;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+}
+
+.browse-gate-title {
+    font: 700 14px Barlow, sans-serif;
+    color: var(--text-bright);
+}
+
+.browse-toolbar {
+    padding: 11px 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.browse-toolbar .search-box {
+    flex: 1;
+    max-width: 380px;
+}
+
+.browse-toolbar .spacer {
+    flex: 1;
+}
+
+.browse-pager {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 11.5px;
+    color: var(--text-muted);
+}
+
+.browse-pager i {
+    cursor: pointer;
+    color: var(--text-mid);
+}
+
+.browse-pager i.inert {
+    color: var(--text-dim);
+    cursor: not-allowed;
+}
+
+.browse-status-note {
+    padding: 20px 14px;
+    text-align: center;
+    font: 400 12px/1.5 Barlow, sans-serif;
+    color: var(--text-dim);
+}
+
+.browse-status-note.error {
+    color: var(--red);
+}
+
+/* The card grid itself - what makes this read as a browsing page (Steam Workshop, a mod
+   site's own listing) rather than a table like DLC's own row list. auto-fill keeps cards a
+   sensible, consistent width and wraps naturally at any window size, rather than stretching
+   two or three cards to fill whatever space is left. */
+.browse-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    gap: 14px;
+    padding: 0 14px 14px;
+}
+
+.browse-card {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--bg-inset);
+    cursor: pointer;
+}
+
+.browse-card:hover {
+    border-color: var(--border-light);
+}
+
+.browse-card-thumb {
+    height: 100px;
+    background-size: cover;
+    background-position: center;
+    background-color: #141c27;
+    position: relative;
+}
+
+/* A file with no screenshot on LoversLab - common, not an error - gets a plain,
+   centered placeholder instead of an empty rectangle. */
+.browse-card-thumb.placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-dim);
+    font-size: 22px;
+    background: linear-gradient(135deg, #1b2532, #10161f);
+}
+
+.browse-card-body {
+    padding: 9px 11px 11px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.browse-card-title {
+    font: 600 12.5px Barlow, sans-serif;
+    color: var(--text-bright);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.browse-card-meta {
+    font-size: 10.5px;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.browse-card-meta:hover {
+    color: var(--text-mid);
+    text-decoration: underline;
+}
+
+.browse-card-stats {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 3px;
+    font-size: 10.5px;
+    color: var(--text-dim);
+}
+
+.browse-card-stats i {
+    width: auto;
+    margin-right: 3px;
+}
+
+.browse-card-changelog {
+    margin-left: auto;
+    cursor: pointer;
+}
+
+.browse-card-changelog:hover {
+    color: var(--text-mid);
+}
+
+/* The saved LoversLab sign-in - real, on the right, the same rhythm as DLC's own right-side
+   sidebar. Deliberately styled close to Settings' own .steam-key-* (SteamApiPanel.css): same
+   concept (a secret, saved encrypted, never shown again once it is a password), so it should
+   feel like the same feature used a second time, not a different one. */
+.browse-account {
+    width: 260px;
+    flex: none;
+    border-left: 1px solid var(--border);
+    background: var(--bg-rail);
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow-y: auto;
+}
+
+.browse-account-status {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 9px 11px;
+    font: 500 11.5px/1.5 Barlow, sans-serif;
+    color: var(--text-mid);
+    background: rgba(255, 255, 255, .02);
+}
+
+.browse-account-status i {
+    margin-top: 2px;
+    flex: none;
+}
+
+.browse-account-status.good i {
+    color: var(--green);
+}
+
+.browse-account-status.warn i {
+    color: var(--amber);
+}
+
+.browse-account-status.neutral i {
+    color: var(--text-dim);
+}
+
+.browse-account-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.browse-account-label {
+    font: 600 11px Barlow, sans-serif;
+    color: var(--text-bright);
+}
+
+.browse-account-input {
+    font: 500 12px Barlow, sans-serif;
+    color: var(--text);
+    background: var(--bg-inset);
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    padding: 6px 10px;
+}
+
+.browse-account-input:disabled {
+    cursor: not-allowed;
+    opacity: .6;
+}
+
+.browse-account-error {
+    font: 500 11.5px/1.5 Barlow, sans-serif;
+    color: var(--red);
+}
+
+.browse-account-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.browse-account-actions .btn-primary:disabled,
+.browse-account-actions .btn-ghost:disabled {
+    opacity: .5;
+    cursor: not-allowed;
+}
+
+.browse-account-note {
+    font: 400 11px/1.5 Barlow, sans-serif;
+    color: var(--text-muted);
+}
+
+/* A file's changelog, opened on top of everything else - see .overlay in App.css for the
+   dimmed backdrop this sits on. Styled close to UpdatesModal.css's own modal, since it's
+   the same idea (a focused read-only panel over the app) used a second time. */
+.browse-changelog-modal {
+    width: 480px;
+    max-height: 70%;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.browse-changelog-header {
+    display: flex;
+    align-items: center;
+    height: 42px;
+    padding: 0 16px;
+    background: var(--bg-header-on-panel);
+    border-bottom: 1px solid var(--border);
+    gap: 10px;
+    flex: none;
+}
+
+.browse-changelog-header .title {
+    font: 600 13px Barlow, sans-serif;
+    color: var(--text-bright);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.browse-changelog-header .spacer {
+    flex: 1;
+}
+
+.browse-changelog-header i {
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.browse-changelog-body {
+    padding: 12px 16px 16px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.browse-changelog-entry {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.browse-changelog-version {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    font-size: 12.5px;
+    color: var(--text-bright);
+}
+
+.browse-changelog-released {
+    font-size: 10.5px;
+    color: var(--text-dim);
+}
+
+.browse-changelog-description {
+    font: 400 12px/1.6 Barlow, sans-serif;
+    color: var(--text-mid);
+    white-space: pre-wrap;
+}

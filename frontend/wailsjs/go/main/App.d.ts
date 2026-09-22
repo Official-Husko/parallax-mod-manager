@@ -14,6 +14,7 @@ import {collection} from '../models';
 import {dlc} from '../models';
 import {playset} from '../models';
 import {applog} from '../models';
+import {loverslab} from '../models';
 import {steamapi} from '../models';
 
 export function AboutInfo():Promise<about.Info>;
@@ -115,6 +116,12 @@ export function LoadPlayset(arg1:string,arg2:string):Promise<playset.Playset>;
 export function LogEntries():Promise<Array<applog.Entry>>;
 
 export function LogEvent(arg1:string,arg2:string,arg3:string):Promise<void>;
+
+export function LoversLabCategories():Promise<Array<loverslab.Category>>;
+
+export function LoversLabChangelog(arg1:string):Promise<Array<loverslab.ChangelogEntry>>;
+
+export function LoversLabFiles(arg1:string,arg2:number):Promise<main.LoversLabFileList>;
 
 export function LoversLabStatus():Promise<main.LoversLabStatus>;
 

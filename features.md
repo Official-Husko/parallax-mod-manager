@@ -85,14 +85,20 @@ for security, privacy, reliability or performance is called out (see the last tw
 - **Stale references shown, not dropped** - a disabled DLC that is no longer found is listed with a
   one-click clear.
 
-## Browsing Extensions
+## Browse
 
-- **A place for unofficial mod sources beyond the Steam Workshop, coming later** - LoversLab is the
-  first placeholder source, laid out as a browsing card grid with clearly marked example content;
-  nothing on it is a real listing yet.
+- **A place for unofficial mod sources beyond the Steam Workshop** - LoversLab is the first real
+  source: sign in once, then browse "All" (every Paradox game's mods together) or one of its
+  real per-game sections (Crusader Kings II, Crusader Kings III, Stellaris) as a paginated card
+  grid, the same way the Steam Workshop already is elsewhere.
 - **Signing in to LoversLab is real** - a username/email and password, saved encrypted and bound to
   this computer (Settings > Steam API's key uses the same underlying `internal/credentials`
-  package), ready for whenever browsing itself is built. Nothing is sent anywhere yet.
+  package).
+- **A file's changelog, when it has one** - most files never had release notes written for them, so
+  no changelog is a normal result, not an error.
+- **Every card links out, nothing is mirrored here** - opening a file or its author goes straight to
+  its real LoversLab page in your browser; thumbnails load straight off LoversLab's own public
+  image CDN.
 
 ## Multiplayer checksum
 
@@ -264,9 +270,11 @@ for security, privacy, reliability or performance is called out (see the last tw
   Steam before it is saved, encrypted with a key derived from your computer so the settings file is
   useless on any other machine, never shown again, never written to the activity log, and deleted from
   the file when you choose Free API use only.
-- **LoversLab sign-in kept encrypted the same way** - a saved username/email and password (Browsing
-  Extensions) are encrypted with the same per-computer key as the Steam API key above; your password
-  is never shown again and never written to the activity log.
+- **LoversLab sign-in kept encrypted the same way** - a saved username/email and password (Browse)
+  are encrypted with the same per-computer key as the Steam API key above; your password is never
+  shown again and never written to the activity log. The saved session is encrypted too, so
+  browsing after a restart never needs a second, unencrypted copy of what is just as much a live
+  credential.
 - **The start-up report is anonymous** - it never includes your computer or user name, serial numbers, addresses, a Steam
   key or account id, or mod names, and it stays in your local log.
 - **Nothing is uploaded** - the activity log stays on your computer.

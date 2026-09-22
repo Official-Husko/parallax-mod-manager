@@ -202,6 +202,18 @@ export function LogEvent(arg1, arg2, arg3) {
   return window['go']['main']['App']['LogEvent'](arg1, arg2, arg3);
 }
 
+export function LoversLabCategories() {
+  return window['go']['main']['App']['LoversLabCategories']();
+}
+
+export function LoversLabChangelog(arg1) {
+  return window['go']['main']['App']['LoversLabChangelog'](arg1);
+}
+
+export function LoversLabFiles(arg1, arg2) {
+  return window['go']['main']['App']['LoversLabFiles'](arg1, arg2);
+}
+
 export function LoversLabStatus() {
   return window['go']['main']['App']['LoversLabStatus']();
 }

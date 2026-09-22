@@ -1,17 +1,51 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/Official-Husko/parallax-mod-manager/internal/loverslab"
 	"github.com/Official-Husko/parallax-mod-manager/internal/secretbox"
 )
 
+const (
+	testLoversLabUser = "someone@example.com"
+	testLoversLabPass = "hunter2"
+)
+
+// fakeLoversLabSession builds a client that looks authenticated (IsLoggedIn/MemberID
+// work, since those are pure local cookie checks) without making any real request -
+// used as the successful result of a scripted login in tests.
+func fakeLoversLabSession(t *testing.T) *loverslab.Client {
+	t.Helper()
+	client, err := loverslab.New()
+	if err != nil {
+		t.Fatalf("loverslab.New: %v", err)
+	}
+	if err := client.ImportSession(`[{"name":"ips4_member_id","value":"1"},{"name":"ips4_login_key","value":"test"},{"name":"ips4_device_key","value":"test"}]`); err != nil {
+		t.Fatalf("ImportSession: %v", err)
+	}
+	return client
+}
+
+// newLoversLabApp is an App whose LoversLab settings live in dir and whose login is
+// scripted (never a real request against the real site): auth/password matching
+// testLoversLabUser/testLoversLabPass succeeds, anything else is rejected - the same
+// swappable-verify pattern newSteamApp (steamapi_settings_test.go) uses for the same
+// reason.
 func newLoversLabApp(t *testing.T, dir string) *App {
 	t.Helper()
 	a := &App{}
+	a.loverslab.login = func(ctx context.Context, auth, password string) (*loverslab.Client, error) {
+		if auth != testLoversLabUser || password != testLoversLabPass {
+			return nil, errors.New("login: rejected (bad credentials, captcha, or 2FA challenge)")
+		}
+		return fakeLoversLabSession(t), nil
+	}
 	a.initLoversLab(dir)
 	return a
 }
@@ -29,28 +63,38 @@ func TestLoversLabStatusStartsSignedOut(t *testing.T) {
 
 func TestSaveLoversLabCredentialsRoundTrips(t *testing.T) {
 	a := newLoversLabApp(t, t.TempDir())
-	s, err := a.SaveLoversLabCredentials("someone@example.com", "hunter2")
+	s, err := a.SaveLoversLabCredentials(testLoversLabUser, testLoversLabPass)
 	if err != nil {
 		t.Fatalf("SaveLoversLabCredentials: %v", err)
 	}
-	if !s.SignedIn || s.Username != "someone@example.com" {
-		t.Errorf("status after saving = %+v, want signed in as someone@example.com", s)
+	if !s.SignedIn || s.Username != testLoversLabUser {
+		t.Errorf("status after saving = %+v, want signed in as %s", s, testLoversLabUser)
 	}
 
 	// A fresh status call (mirroring what a reload of the panel would do) sees the
 	// same thing.
 	again := a.LoversLabStatus()
-	if !again.SignedIn || again.Username != "someone@example.com" {
+	if !again.SignedIn || again.Username != testLoversLabUser {
 		t.Errorf("LoversLabStatus after save = %+v, want it to persist", again)
+	}
+}
+
+func TestSaveLoversLabCredentialsRejectedLoginIsNotSaved(t *testing.T) {
+	a := newLoversLabApp(t, t.TempDir())
+	if _, err := a.SaveLoversLabCredentials(testLoversLabUser, "wrong password entirely"); err == nil {
+		t.Error("expected an error for a login the scripted check rejects")
+	}
+	if s := a.LoversLabStatus(); s.SignedIn {
+		t.Error("a rejected login should not have signed anything in")
 	}
 }
 
 func TestSaveLoversLabCredentialsRejectsEmptyFields(t *testing.T) {
 	a := newLoversLabApp(t, t.TempDir())
-	if _, err := a.SaveLoversLabCredentials("", "hunter2"); err == nil {
+	if _, err := a.SaveLoversLabCredentials("", testLoversLabPass); err == nil {
 		t.Error("expected an error for an empty username")
 	}
-	if _, err := a.SaveLoversLabCredentials("someone@example.com", ""); err == nil {
+	if _, err := a.SaveLoversLabCredentials(testLoversLabUser, ""); err == nil {
 		t.Error("expected an error for an empty password")
 	}
 	if s := a.LoversLabStatus(); s.SignedIn {
@@ -60,18 +104,18 @@ func TestSaveLoversLabCredentialsRejectsEmptyFields(t *testing.T) {
 
 func TestSaveLoversLabCredentialsTrimsUsername(t *testing.T) {
 	a := newLoversLabApp(t, t.TempDir())
-	s, err := a.SaveLoversLabCredentials("  someone@example.com  ", "hunter2")
+	s, err := a.SaveLoversLabCredentials("  "+testLoversLabUser+"  ", testLoversLabPass)
 	if err != nil {
 		t.Fatalf("SaveLoversLabCredentials: %v", err)
 	}
-	if s.Username != "someone@example.com" {
+	if s.Username != testLoversLabUser {
 		t.Errorf("Username = %q, want it trimmed", s.Username)
 	}
 }
 
 func TestClearLoversLabCredentials(t *testing.T) {
 	a := newLoversLabApp(t, t.TempDir())
-	if _, err := a.SaveLoversLabCredentials("someone@example.com", "hunter2"); err != nil {
+	if _, err := a.SaveLoversLabCredentials(testLoversLabUser, testLoversLabPass); err != nil {
 		t.Fatalf("SaveLoversLabCredentials: %v", err)
 	}
 	s, err := a.ClearLoversLabCredentials()
@@ -81,11 +125,14 @@ func TestClearLoversLabCredentials(t *testing.T) {
 	if s.SignedIn || s.Username != "" {
 		t.Errorf("status after clearing = %+v, want signed out", s)
 	}
+	if a.loverslab.client != nil {
+		t.Error("expected the live client to be dropped on clear")
+	}
 }
 
 func TestSaveLoversLabCredentialsWithNoConfigDirFails(t *testing.T) {
 	a := newLoversLabApp(t, "")
-	if _, err := a.SaveLoversLabCredentials("someone@example.com", "hunter2"); err == nil {
+	if _, err := a.SaveLoversLabCredentials(testLoversLabUser, testLoversLabPass); err == nil {
 		t.Error("expected an error when there is no settings folder to save into")
 	}
 }
@@ -93,7 +140,7 @@ func TestSaveLoversLabCredentialsWithNoConfigDirFails(t *testing.T) {
 func TestLoversLabFileNeverContainsThePlaintext(t *testing.T) {
 	dir := t.TempDir()
 	a := newLoversLabApp(t, dir)
-	if _, err := a.SaveLoversLabCredentials("someone@example.com", "hunter2"); err != nil {
+	if _, err := a.SaveLoversLabCredentials(testLoversLabUser, testLoversLabPass); err != nil {
 		t.Fatalf("SaveLoversLabCredentials: %v", err)
 	}
 	data, err := os.ReadFile(filepath.Join(dir, loversLabFileName))
@@ -101,7 +148,7 @@ func TestLoversLabFileNeverContainsThePlaintext(t *testing.T) {
 		t.Fatalf("reading the saved file: %v", err)
 	}
 	text := string(data)
-	if strings.Contains(text, "someone@example.com") || strings.Contains(text, "hunter2") {
+	if strings.Contains(text, testLoversLabUser) || strings.Contains(text, testLoversLabPass) {
 		t.Errorf("the saved file contains a plaintext credential:\n%s", text)
 	}
 }
@@ -109,7 +156,7 @@ func TestLoversLabFileNeverContainsThePlaintext(t *testing.T) {
 func TestLoversLabUnreadableOnAnotherComputer(t *testing.T) {
 	dir := t.TempDir()
 	a := newLoversLabApp(t, dir)
-	if _, err := a.SaveLoversLabCredentials("someone@example.com", "hunter2"); err != nil {
+	if _, err := a.SaveLoversLabCredentials(testLoversLabUser, testLoversLabPass); err != nil {
 		t.Fatalf("SaveLoversLabCredentials: %v", err)
 	}
 
