@@ -24,11 +24,23 @@ export function blurPixels(strength: number): number {
 
 // scrimAlphas maps a darken strength (0-100) to the opacity of the layer's top and bottom
 // edges. Scaled from the shipped look, so DEFAULT_BACKGROUND_DARKEN gives exactly 0.8 and
-// 0.88, 0 gives no layer at all, and it saturates at fully opaque.
+// 0.88, 0 gives no layer at all, and 100 always reaches fully opaque - two straight segments
+// (0 to the default, then the default to 100) meeting at the shipped look's own value, rather
+// than one straight line through 0 and the default extended to 100: a single line through
+// (0, 0) and (84, 0.8) only reaches 0.952 by strength 100, never the full 1.0 the top edge
+// needs to actually hide the image - 100 on the slider read as "fully dark" while a genuinely
+// bright part of the picture (a ship's hull, say) stayed faintly visible right through it,
+// nowhere near "no layer at all"'s counterpart at the other end.
+function scrimAlpha(base: number, strength: number): number {
+    const s = clampPercent(strength);
+    const raw = s <= DEFAULT_BACKGROUND_DARKEN
+        ? base * (s / DEFAULT_BACKGROUND_DARKEN)
+        : base + (1 - base) * ((s - DEFAULT_BACKGROUND_DARKEN) / (100 - DEFAULT_BACKGROUND_DARKEN));
+    return Math.round(Math.min(1, Math.max(0, raw)) * 1000) / 1000;
+}
+
 export function scrimAlphas(strength: number): {top: number; bottom: number} {
-    const k = clampPercent(strength) / DEFAULT_BACKGROUND_DARKEN;
-    const round = (v: number) => Math.round(Math.min(1, v) * 1000) / 1000;
-    return {top: round(SCRIM_TOP_ALPHA * k), bottom: round(SCRIM_BOTTOM_ALPHA * k)};
+    return {top: scrimAlpha(SCRIM_TOP_ALPHA, strength), bottom: scrimAlpha(SCRIM_BOTTOM_ALPHA, strength)};
 }
 
 export interface BackgroundLook {
