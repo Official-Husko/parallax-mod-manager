@@ -3,7 +3,6 @@ import {useEffect, useMemo, useState} from 'preact/hooks';
 import {
     ModEditInfo,
     ModThumbnail,
-    OpenModFolder,
     PickThumbnailFile,
     PreviewModEdit,
     PreviewThumbnail,
@@ -333,7 +332,6 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
                         <div className="editor-files-note">
                             A save changes {info.Files.map((f) => f.Path.split(/[\\/]/).pop()).join(' and ')}
                             {' '}and keeps the earlier {info.Files.length === 1 ? 'version' : 'versions'} in the app's settings folder, never in the mod's own folder.
-                            {' '}<span className="link-btn" onClick={() => OpenModFolder(gameId, mod.ID)}>Open the mod's folder</span>
                         </div>
                     )}
                 </div>
