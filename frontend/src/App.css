@@ -27,6 +27,25 @@
     --bg-header: rgba(17, 22, 30, .8);
     --bg-rail: rgba(19, 25, 35, .8);
     --bg-row-alt: rgba(20, 27, 37, .62);
+    /* For a sticky element that already sits inside a --bg-rail surface (Workspace's
+       .play-block, pinned in view while the rest of the rail scrolls behind it) and only
+       needs a little extra so scrolled-past content doesn't show through it - not a second
+       coat of --bg-rail itself. Stacking that same .8-alpha color on top of the ancestor's
+       own .8 layer compounds to roughly .96, which reads as flatly opaque instead of tinted
+       like every other surface - the exact bug this was written to avoid. Composited on top
+       of --bg-rail this comes to about .87 total, close enough to the rest of the rail to
+       still show the art through it, with the sticky element's own backdrop-filter blur
+       doing most of the real work of obscuring whatever text scrolls behind it. */
+    --bg-rail-sticky: rgba(19, 25, 35, .35);
+    /* Same idea, for a header/footer bar that sits inside a --bg-panel surface (Workspace's
+       .column-header and .list-pane-footer chief among them) rather than directly against
+       the art the way --bg-header's other use sites (the top bar, a modal's own header) do.
+       --bg-header itself is tuned for that direct case; stacked on top of --bg-panel's own
+       .74 it compounds to roughly .95 - close enough to opaque that the row right below it
+       (single-layer --bg-panel, clearly art-tinted) looks like a different, inconsistent kind
+       of surface next to it. Composited on top of --bg-panel this comes to about .85 total -
+       close to --bg-panel's own .74, so the two read as the same kind of surface. */
+    --bg-header-on-panel: rgba(17, 22, 30, .42);
     --border: #27313f;
     --border-light: #2d3846;
     --text-bright: #e4e8ee;

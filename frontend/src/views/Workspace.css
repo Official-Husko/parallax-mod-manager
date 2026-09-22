@@ -734,7 +734,10 @@
        column out of alignment. */
     padding: 0 24px 0 13px;
     border-bottom: 1px solid var(--border);
-    background: var(--bg-header);
+    /* --bg-header-on-panel, not --bg-header - .list-pane (this sits inside it) already
+       applies --bg-panel once; see its own comment in App.css for why reapplying --bg-header
+       here read as a flatly opaque bar instead of tinted like the rows right below it. */
+    background: var(--bg-header-on-panel);
     flex: none;
     font: 600 9px "Azeret Mono", monospace;
     color: var(--text-muted);
@@ -1177,7 +1180,9 @@
     align-items: center;
     padding: 0 13px;
     gap: 12px;
-    background: var(--bg-header);
+    /* --bg-header-on-panel - see .column-header's own comment above; the same doubling
+       happens here, nested in the same .list-pane. */
+    background: var(--bg-header-on-panel);
 }
 
 .list-pane-footer .mono {
@@ -1236,7 +1241,8 @@
     display: flex;
     align-items: center;
     padding: 0 13px;
-    background: var(--bg-header);
+    /* --bg-header-on-panel - see .column-header's own comment further up. */
+    background: var(--bg-header-on-panel);
 }
 
 .legend-keys {
@@ -1492,7 +1498,10 @@
     bottom: -13px;
     margin: 0 -14px -13px;
     padding: 8px 14px 13px;
-    background: var(--bg-rail);
+    /* --bg-rail-sticky, not --bg-rail - .actions-rail (this sits inside it) already applies
+       that once; see its own comment in App.css for why reapplying it here read as an
+       opaque block instead of tinted like the rest of the rail. */
+    background: var(--bg-rail-sticky);
     backdrop-filter: blur(6px);
 }
 
@@ -1553,6 +1562,12 @@
 
 .play-checksum i {
     margin-right: 6px;
+}
+
+/* Matches checksumPreflightItem's own colors for the same two states (data/preflight.ts) -
+   ready to share is worth a real green, not the same muted gray as everything else here. */
+.play-checksum.ok .play-checksum-value {
+    color: var(--green);
 }
 
 .play-checksum.warn .play-checksum-value {
