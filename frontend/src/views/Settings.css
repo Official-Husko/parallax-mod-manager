@@ -568,6 +568,11 @@
     color: var(--amber);
 }
 
+.mode-option-not-recommended {
+    font: 500 11px Barlow, sans-serif;
+    color: var(--text-dim);
+}
+
 .playset-autoload-targets {
     display: flex;
     flex-wrap: wrap;

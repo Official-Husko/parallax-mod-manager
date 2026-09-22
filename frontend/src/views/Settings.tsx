@@ -365,6 +365,9 @@ function launchModeFor(prefs: preferences.Preferences | null, gameId: string): L
 
 function LaunchOptionsPanel() {
     const [prefs, setPrefs] = useState<preferences.Preferences | null>(null);
+    // Asked before switching TO Steam / Paradox Launcher (never shown for switching
+    // away from it, or if it's already chosen) - see pickSteam below.
+    const [confirmSteam, setConfirmSteam] = useState(false);
 
     useEffect(() => {
         GetPreferences().then(setPrefs).catch(() => undefined);
@@ -372,11 +375,27 @@ function LaunchOptionsPanel() {
 
     const {state, managedGames, selectedGame, selectedGameId, setSelectedGameId} = useManagedGamePicker(prefs);
 
+    useEffect(() => { setConfirmSteam(false); }, [selectedGameId]);
+
     function setMode(mode: LaunchMode) {
         if (!prefs || !selectedGame) return;
         const next = {...prefs, launchModes: {...prefs.launchModes, [selectedGame.ID]: mode}};
         setPrefs(next);
         SetPreferences(next).catch(() => setPrefs(prefs));
+    }
+
+    // Steam / Paradox Launcher is the one option with a real, known downside (an extra
+    // launcher window, on top of Steam itself, every single time) that the other two
+    // don't have - worth a second look before switching to it, not just picking it by
+    // habit because it's the old default.
+    function pickSteam(currentMode: LaunchMode) {
+        if (currentMode === 'steam') return;
+        setConfirmSteam(true);
+    }
+
+    function confirmPickSteam() {
+        setConfirmSteam(false);
+        setMode('steam');
     }
 
     return (
@@ -409,14 +428,20 @@ function LaunchOptionsPanel() {
                                 Paths & folders before switching it to Parallax Direct.
                             </p>
                         )}
-                        <div className={`mode-option ${mode === 'steam' ? 'active' : ''}`} onClick={() => setMode('steam')}>
-                            <i className={`fa-solid ${mode === 'steam' ? 'fa-circle-dot' : 'fa-circle'} mode-option-radio ${mode === 'steam' ? 'on' : 'off'}`}/>
+                        <div className="mode-option disabled">
+                            <i className="fa-solid fa-circle mode-option-radio off"/>
                             <div className="mode-option-main">
-                                <div className="mode-option-name">Steam / Paradox Launcher</div>
+                                <div className="mode-option-name">
+                                    Steam Direct
+                                    <span className="mode-option-recommended">(Recommended)</span>
+                                    <span className="chip">Planned</span>
+                                </div>
                                 <div className="mode-option-desc">
-                                    The normal path - Steam opens the Paradox Launcher, which starts
-                                    the game. Keeps full Steam integration: overlay, achievements, DLC
-                                    ownership checks.
+                                    Replaces the launcher's own entry point so Steam launches the game
+                                    directly while keeping Steam's full process context - overlay,
+                                    achievements, and DLC checks all intact, unlike Parallax Direct
+                                    below. Will become the default launch mode once it's built, since
+                                    it keeps the most Steam integration of any bypass here.
                                 </div>
                             </div>
                         </div>
@@ -435,23 +460,34 @@ function LaunchOptionsPanel() {
                                 </div>
                             </div>
                         </div>
-                        <div className="mode-option disabled">
-                            <i className="fa-solid fa-circle mode-option-radio off"/>
+                        <div className={`mode-option ${mode === 'steam' ? 'active' : ''}`} onClick={() => pickSteam(mode)}>
+                            <i className={`fa-solid ${mode === 'steam' ? 'fa-circle-dot' : 'fa-circle'} mode-option-radio ${mode === 'steam' ? 'on' : 'off'}`}/>
                             <div className="mode-option-main">
                                 <div className="mode-option-name">
-                                    Steam Direct
-                                    <span className="mode-option-recommended">(Recommended)</span>
-                                    <span className="chip">Planned</span>
+                                    Steam / Paradox Launcher
+                                    <span className="mode-option-not-recommended">(Not recommended)</span>
                                 </div>
                                 <div className="mode-option-desc">
-                                    Replaces the launcher's own entry point so Steam launches the game
-                                    directly while keeping Steam's full process context - overlay,
-                                    achievements, and DLC checks all intact, unlike Parallax Direct
-                                    above. Will become the default launch mode once it's built, since
-                                    it keeps the most Steam integration of any bypass here.
+                                    The normal path - Steam opens the Paradox Launcher, which starts
+                                    the game. Keeps full Steam integration: overlay, achievements, DLC
+                                    ownership checks - but an extra step and window Steam Direct (above)
+                                    will skip once it's built.
                                 </div>
                             </div>
                         </div>
+                        {confirmSteam && (
+                            <div className="steam-confirm">
+                                <span>
+                                    Steam / Paradox Launcher opens an extra window on top of Steam itself
+                                    every time - Parallax Direct above skips it, and Steam Direct will too
+                                    once it's built. Switch anyway?
+                                </span>
+                                <span className="steam-confirm-actions">
+                                    <button className="btn-primary" onClick={confirmPickSteam}>Switch anyway</button>
+                                    <button className="btn-ghost" onClick={() => setConfirmSteam(false)}>Cancel</button>
+                                </span>
+                            </div>
+                        )}
                     </div>
                 );
             })()}

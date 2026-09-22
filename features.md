@@ -100,7 +100,9 @@ for security, privacy, reliability or performance is called out (see the last tw
 - **Launch with the playset active** - writes the game's own load files and starts the game through
   Steam, or directly for non-Steam installs.
 - **Parallax Direct launch mode** - opt in per game to start the real executable and skip the
-  launcher.
+  launcher. Settings > Launch options lists it and the planned Steam Direct ahead of the classic
+  Steam / Paradox Launcher path, and asks for a confirmation before switching back to it (an
+  extra launcher window every time, on top of Steam itself).
 - **Play without a playset** - launching with nothing loaded touches no state and just starts the game.
 - **Stop playing** - a two-step stop button that works however the game was started.
 - **Live game log** - a filterable, colored window on the game's own `error.log` and other logs while
