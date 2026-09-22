@@ -2,6 +2,10 @@
 @import './assets/fontawesome/css/solid.css';
 @import './assets/fontawesome/css/regular.css';
 @import './assets/fontawesome/css/brands.css';
+/* Duotone (Pro-only): a two-tone rendering of the same glyph set, used sparingly - see the
+   Editor Checks tab's CHECKS list, where it gives that column's icons a distinct weight from
+   FINDINGS' flat solid ones without needing a second icon shape vocabulary. */
+@import './assets/fontawesome/css/duotone.css';
 
 /* Visual language from mockup/Mod Manager.dc.html: dark slate ground,
    Barlow for UI text, Azeret Mono for anything machine-generated

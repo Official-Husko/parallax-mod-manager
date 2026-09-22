@@ -711,10 +711,27 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   **Undo last save** can put them back - but only when a file still holds exactly what that save
   wrote, so an edit made by hand or another program afterwards is never silently thrown away.
   Unsaved edits for several mods are kept while the Editor stays open, so switching mods loses
-  nothing. Two more tabs, **Publish** and **Checks**, are laid out as they will look (uploading to
-  the Workshop with a line-by-line log; conflicts with the base game, syntax errors, descriptor
-  problems, missing dependencies) with clearly marked example content - neither is built yet, see
-  "Not yet built" below.
+  nothing. One more tab, **Publish**, is laid out as it will look (uploading to the Workshop with a
+  line-by-line log) with clearly marked example content - not built yet, see "Not yet built" below.
+- **Checks for a mod's own problems** (the Editor's **Checks** tab, `internal/modcheck`,
+  `checks.go`, `frontend/src/views/EditorChecks.tsx`) - four things worth knowing about a mod
+  before you publish or share it: files and script keys it overwrites from the base game instead
+  of another mod (parsing the game's own install folder once as a lowest-priority baseline and
+  running it through the same conflict detection as any other mod, so identical content is never
+  flagged, only a genuine difference is); syntax errors in its own script files, with the exact
+  file and line; a descriptor problem (no `supported_version`, one not shaped like the game's own
+  versions, a `picture=` naming a file that does not exist); and a declared dependency matching no
+  installed mod, the same exact-name matching the Edit tab's own dependency field already flags as
+  you type. Checking is on request (a **Check now** button), not automatic on opening the tab,
+  since the base game's own files can be thousands of script files the first time any mod is
+  checked for a game - both the mod's own files and the base game's go through the same
+  incremental cache every mod scan already uses, so only what actually changed since the last
+  scan or check is ever re-parsed. A mod's last result is kept for the rest of the session -
+  switching tabs or to another mod and back shows it again at once, rather than asking you to
+  check again; only a mod that has never been checked this session shows "not checked yet". A
+  save, or any other change to the game's mods, clears every cached result at once, since it may
+  no longer hold for files that just changed. A game that could not be found skips only the
+  base-game category, named as the reason instead of a false "clean".
 - **Creating and duplicating a mod** (the Editor's **New** tab, first of the four - `newmod.go`,
   `internal/modedit`'s `FolderName`/`NewFiles`/`NewStub`, `frontend/src/views/EditorNew.tsx`) - the
   mod list's first row is always a dashed "+ New mod" tile, and picking any existing mod always
@@ -1305,9 +1322,6 @@ that legitimately does rewrite the file's `modsOrder`).
 - **Publishing to the Steam Workshop** - the Editor's **Publish** tab is laid out (upload as a new
   item or update one you own, a change note, visibility, tags, an upload log) but not connected to
   Steam; every control is disabled and its example log line content is clearly marked as an example.
-- **Checks for a mod's own problems** - the Editor's **Checks** tab lists what it will check (base-game
-  conflicts, syntax errors, descriptor problems, missing dependencies) with example findings clearly
-  marked as an example; nothing is scanned yet.
 - **Playset sharing via codes** - the Library screen's collections and bulk actions are now real
   (see [Progress](#progress) above); encoding/decoding a playset as a shareable local code
   ("Import code"/"Share"/"Join a friend's playset" in the Playsets modal) is still a static

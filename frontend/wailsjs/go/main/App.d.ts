@@ -44,6 +44,8 @@ export function CancelDuplicate(arg1:string):Promise<void>;
 
 export function CheckGameUpdates():Promise<Array<library.GameUpdate>>;
 
+export function CheckMod(arg1:string,arg2:string,arg3:Array<string>):Promise<main.CheckResult>;
+
 export function CheckModUpdates(arg1:string,arg2:boolean):Promise<modupdates.Report>;
 
 export function CheckSteamAPIKey():Promise<main.SteamAPIStatus>;

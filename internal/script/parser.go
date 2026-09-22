@@ -75,7 +75,7 @@ func Parse(src []byte) (*File, error) {
 		return nil, err
 	}
 	if tok := p.peek(); tok.Kind != TokenEOF {
-		return nil, fmt.Errorf("script: unexpected %q at line %d col %d", tok.Text, tok.Pos.Line, tok.Pos.Col)
+		return nil, &SyntaxError{Pos: tok.Pos, Msg: fmt.Sprintf("unexpected %q", tok.Text)}
 	}
 
 	f := &File{Root: root, Variables: map[string]Value{}}
@@ -171,7 +171,7 @@ func (p *parser) parseValue() (Value, error) {
 		}
 		close := p.peek()
 		if close.Kind != TokenRBrace {
-			return Value{}, fmt.Errorf("script: expected '}' at line %d col %d", close.Pos.Line, close.Pos.Col)
+			return Value{}, &SyntaxError{Pos: close.Pos, Msg: "expected '}'"}
 		}
 		p.advance()
 		return Value{Kind: KindBlock, Block: &block, Pos: tok.Pos}, nil
@@ -193,7 +193,7 @@ func (p *parser) parseScalarHead() (text string, kind ValueKind, pos Position, e
 		p.advance()
 		ident := p.peek()
 		if ident.Kind != TokenIdent {
-			return "", 0, tok.Pos, fmt.Errorf("script: expected identifier after '@' at line %d col %d", tok.Pos.Line, tok.Pos.Col)
+			return "", 0, tok.Pos, &SyntaxError{Pos: tok.Pos, Msg: "expected identifier after '@'"}
 		}
 		p.advance()
 		return "@" + ident.Text, KindIdent, tok.Pos, nil
@@ -207,7 +207,7 @@ func (p *parser) parseScalarHead() (text string, kind ValueKind, pos Position, e
 		p.advance()
 		return tok.Text, KindIdent, tok.Pos, nil
 	default:
-		return "", 0, tok.Pos, fmt.Errorf("script: unexpected token %q at line %d col %d", tok.Text, tok.Pos.Line, tok.Pos.Col)
+		return "", 0, tok.Pos, &SyntaxError{Pos: tok.Pos, Msg: fmt.Sprintf("unexpected token %q", tok.Text)}
 	}
 }
 

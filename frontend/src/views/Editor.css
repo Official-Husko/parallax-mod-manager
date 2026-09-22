@@ -202,6 +202,12 @@
     letter-spacing: .12em;
 }
 
+.editor-card-count {
+    font: 600 9.5px "Azeret Mono", monospace;
+    color: var(--text-muted);
+    letter-spacing: normal;
+}
+
 .editor-muted {
     font: 400 12px/1.5 Barlow, sans-serif;
     color: var(--text-muted);
@@ -509,7 +515,32 @@
     color: var(--text-dim);
 }
 
-/* --- Publish / Checks: "coming later" placeholders --- */
+/* --- Checks tab --- */
+
+/* The same plain-list idiom as Workspace's own PRE-FLIGHT (.preflight-mini-row): one row per
+   check, an icon carrying the only color (status, not category), the count baked into the
+   row's own sentence rather than a badge - no per-row card or border. */
+.check-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.check-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font: 400 12px Barlow, sans-serif;
+    color: var(--text-mid);
+}
+
+.check-row i {
+    font-size: 11px;
+    width: 14px;
+    flex: none;
+}
+
+/* --- Publish: "coming later" placeholder --- */
 
 .editor-soon-banner {
     display: flex;
@@ -588,36 +619,56 @@
 .editor-findings {
     border: 1px solid var(--border);
     border-radius: 5px;
-    overflow: hidden;
-}
-
-.editor-findings-head {
-    display: grid;
-    grid-template-columns: 20px 1fr 2fr;
-    gap: 10px;
-    padding: 6px 10px;
-    background: var(--bg-highlight);
-    font: 600 9.5px "Azeret Mono", monospace;
-    letter-spacing: .08em;
-    color: var(--text-dim);
+    overflow-y: auto;
+    overflow-x: hidden;
+    /* Caps how tall the list gets before it scrolls, so a heavily-flagged mod doesn't
+       push the rest of the tab down indefinitely - see FINDINGS' own count in the card
+       title for how many rows that hides. */
+    max-height: 420px;
 }
 
 .editor-finding-row {
-    display: grid;
-    grid-template-columns: 20px 1fr 2fr;
+    display: flex;
+    align-items: flex-start;
     gap: 10px;
-    padding: 7px 10px;
+    padding: 8px 10px 8px 8px;
     font: 400 11.5px/1.4 Barlow, sans-serif;
     color: var(--text-mid);
     border-top: 1px solid #1a212b;
+    /* Same idiom as the Conflict Resolver's own file rows (border-left-color set by
+       status, no separate icon needed there) - here it doubles up with the severity
+       icon rather than replacing it, since a row's icon alone is easy to miss in a
+       narrow first column. Both the border and the icon get their color inline, from
+       EditorChecks.tsx's own SEVERITY_STYLE - the single place that vocabulary is
+       defined, rather than a parallel set of CSS modifier classes to keep in sync with it. */
+    border-left: 2px solid transparent;
 }
 
-.editor-finding-row.error i {
-    color: var(--red);
+.editor-finding-row:first-child {
+    border-top: none;
 }
 
-.editor-finding-row.warn i {
-    color: var(--amber);
+.editor-finding-row > i {
+    flex: none;
+    width: 12px;
+    margin-top: 2px;
+    text-align: center;
+}
+
+.editor-finding-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.editor-finding-file {
+    color: var(--text-dim);
+    font-size: 10.5px;
+}
+
+.editor-finding-message {
+    color: var(--text-mid);
 }
 
 /* --- New tab: Create/Duplicate toggle, the big-mod warning and the duplicate progress overlay --- */
@@ -703,8 +754,4 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-}
-
-.editor-finding-row.info i {
-    color: var(--text-dim);
 }

@@ -1,6 +1,9 @@
 package script
 
-import "testing"
+import (
+	"errors"
+	"testing"
+)
 
 func findEntry(t *testing.T, b Block, key string) Entry {
 	t.Helper()
@@ -196,12 +199,23 @@ func TestParseUnterminatedStringErrors(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected an error for an unterminated string")
 	}
+	var syn *SyntaxError
+	if !errors.As(err, &syn) {
+		t.Fatalf("expected a *SyntaxError, got %T", err)
+	}
+	if syn.Pos.Line != 1 {
+		t.Errorf("expected line 1, got %d", syn.Pos.Line)
+	}
 }
 
 func TestParseUnbalancedBraceErrors(t *testing.T) {
 	_, err := Parse([]byte(`block = { key = value`))
 	if err == nil {
 		t.Fatal("expected an error for a missing closing brace")
+	}
+	var syn *SyntaxError
+	if !errors.As(err, &syn) {
+		t.Fatalf("expected a *SyntaxError, got %T", err)
 	}
 }
 

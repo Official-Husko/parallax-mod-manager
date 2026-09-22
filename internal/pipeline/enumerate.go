@@ -17,12 +17,14 @@ var parsableExtensions = map[string]bool{
 	".gui": true,
 }
 
-// enumerateFiles walks each of scanFolders (in the given order) under root,
+// EnumerateFiles walks each of scanFolders (in the given order) under root,
 // returning parsable files as root-relative paths. Order is deterministic:
 // scanFolders in the order given, and within each folder, filepath.WalkDir's
 // stable lexical order - this is what lets LoadMod's worker-pool results
-// land at fixed slice indices and still merge deterministically.
-func enumerateFiles(root string, scanFolders []string) ([]string, error) {
+// land at fixed slice indices and still merge deterministically. Exported
+// for internal/modcheck, which walks a mod's own files itself (rather than
+// through LoadMod's cache) to attach parse findings to a specific file.
+func EnumerateFiles(root string, scanFolders []string) ([]string, error) {
 	var files []string
 	for _, folder := range scanFolders {
 		folderRoot := filepath.Join(root, folder)

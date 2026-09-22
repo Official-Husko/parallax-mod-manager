@@ -157,7 +157,7 @@ type Store interface {
 // load-order semantics depend on processing files/mods in a stable order, so
 // that step must never run concurrently.
 func LoadMod(ctx context.Context, m mod.Mod, cfg game.GameConfig, opts Options) ([]definition.Definition, error) {
-	files, err := enumerateFiles(m.ContentPath, cfg.ScanFolders)
+	files, err := EnumerateFiles(m.ContentPath, cfg.ScanFolders)
 	if err != nil {
 		return nil, err
 	}

@@ -2,7 +2,7 @@ import './Editor.css';
 import {h} from 'preact';
 import {useEffect, useMemo, useRef, useState} from 'preact/hooks';
 import {OpenModFolder, PinnedMods, ScanGame, SetModPinned} from '../../wailsjs/go/main/App';
-import type {library} from '../../wailsjs/go/models';
+import type {library, main} from '../../wailsjs/go/models';
 import {EventsOn} from '../../wailsjs/runtime/runtime';
 import {EmptyState} from '../components/EmptyState';
 import {SourceBadge} from '../components/SourceBadge';
@@ -41,6 +41,12 @@ export function Editor({games, selectedGame, gameVersion}: {
     // Unsaved edits, per mod ID, kept while the Editor stays open - switching mods or tabs never
     // loses what was typed.
     const [drafts, setDrafts] = useState<Map<string, Draft>>(new Map());
+    // The Checks tab's own last result, per mod ID, kept the same way as drafts above - the
+    // Checks tab itself unmounts whenever another Editor tab is showing (see the conditional
+    // render below), so without this a result would otherwise vanish the moment you looked at
+    // Edit and came back. Cleared on a "mods-changed" event (a save, or any other on-disk
+    // change) since a cached result is a snapshot of files that may have just changed.
+    const [checkResults, setCheckResults] = useState<Map<string, main.CheckResult>>(new Map());
     const [pinned, setPinned] = useState<Set<string>>(new Set());
     const latestScan = useRef(0);
     // Set by EditorNew right before a create/duplicate finishes, so the next load() selects the
@@ -80,6 +86,7 @@ export function Editor({games, selectedGame, gameVersion}: {
 
     useEffect(() => {
         setDrafts(new Map());
+        setCheckResults(new Map());
         setSelectedId(null);
         setTab('edit');
         pendingSelectName.current = null;
@@ -90,7 +97,13 @@ export function Editor({games, selectedGame, gameVersion}: {
 
     useEffect(() => {
         if (!selectedGame) return;
-        const off = EventsOn('mods-changed', (gameId: string) => { if (gameId === selectedGame) load(); });
+        const off = EventsOn('mods-changed', (gameId: string) => {
+            if (gameId !== selectedGame) return;
+            load();
+            // A cached check result is a snapshot of what was on disk when it ran; anything
+            // that just changed the mods (a save, an external edit) may have made it stale.
+            setCheckResults(new Map());
+        });
         return () => off();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [selectedGame]);
@@ -108,6 +121,14 @@ export function Editor({games, selectedGame, gameVersion}: {
         setDrafts((prev) => {
             const next = new Map(prev);
             if (draft) next.set(id, draft); else next.delete(id);
+            return next;
+        });
+    }
+
+    function setCheckResultFor(id: string, result: main.CheckResult | null) {
+        setCheckResults((prev) => {
+            const next = new Map(prev);
+            if (result) next.set(id, result); else next.delete(id);
             return next;
         });
     }
@@ -221,7 +242,16 @@ export function Editor({games, selectedGame, gameVersion}: {
                             onSaved={load}
                         />
                     )}
-                    {tab === 'checks' && selected && <EditorChecks mod={selected}/>}
+                    {tab === 'checks' && selected && (
+                        <EditorChecks
+                            key={selected.ID}
+                            gameId={selectedGame}
+                            mod={selected}
+                            installedNames={mods.map((m) => m.Name)}
+                            initialResult={checkResults.get(selected.ID) ?? null}
+                            onResult={(result) => setCheckResultFor(selected.ID, result)}
+                        />
+                    )}
                     {tab === 'publish' && selected && <EditorPublish mod={selected}/>}
                 </div>
             </div>

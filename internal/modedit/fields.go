@@ -114,13 +114,17 @@ func (f Fields) Validate() error {
 // Warnings lists things worth telling the person that do not stop the edit.
 func (f Fields) Warnings() []string {
 	var w []string
-	if f.SupportedVersion != "" && !supportedVersionShape.MatchString(f.SupportedVersion) {
+	if f.SupportedVersion != "" && !SupportedVersionShape.MatchString(f.SupportedVersion) {
 		w = append(w, fmt.Sprintf("The supported version %q is not shaped like the game's versions (for example v4.*), so the game may treat the mod as made for another version.", f.SupportedVersion))
 	}
 	return w
 }
 
-var supportedVersionShape = regexp.MustCompile(`^v?\d+(\.(\d+|\*))*$`)
+// SupportedVersionShape is what a supported_version value should look like
+// (e.g. "v4.*", "1.2.3"). Exported so internal/modcheck can flag the same
+// shape problem for a mod's *saved* descriptor, not just a field being
+// edited here.
+var SupportedVersionShape = regexp.MustCompile(`^v?\d+(\.(\d+|\*))*$`)
 
 // Plan works out what changes in each file for the wanted fields (and picture, when it is not
 // empty; "" leaves picture= as it is). A file that does not exist is created (with every field, and

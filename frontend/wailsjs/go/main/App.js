@@ -58,6 +58,10 @@ export function CheckGameUpdates() {
   return window['go']['main']['App']['CheckGameUpdates']();
 }
 
+export function CheckMod(arg1, arg2, arg3) {
+  return window['go']['main']['App']['CheckMod'](arg1, arg2, arg3);
+}
+
 export function CheckModUpdates(arg1, arg2) {
   return window['go']['main']['App']['CheckModUpdates'](arg1, arg2);
 }

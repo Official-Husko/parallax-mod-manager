@@ -194,8 +194,14 @@ for security, privacy, reliability or performance is called out (see the last tw
   This app's own generated patch always stays read-only - there is no "anyway" for it.
 - **Pin mods to the top of the list** - in both the Editor and the Library, right-click a mod to pin or unpin
   it.
-- **Publish and Checks tabs, coming later** - laid out with example content clearly marked as an example: Workshop
-  publishing with an upload log, and checks for base-game conflicts, syntax errors and missing dependencies.
+- **Check a mod for problems before publishing or sharing it** - the Checks tab, on request: files and script
+  keys it overwrites from the base game (not just another mod), syntax errors in its own script files with the
+  exact file and line, a descriptor problem (no supported_version, a badly shaped one, a missing picture file),
+  and a declared dependency that matches no installed mod. A mod's last result stays put while you look at
+  something else and come back, until you save or something else changes the mods; a game that couldn't be
+  found only skips the base-game part, named as the reason.
+- **Publish tab, coming later** - laid out with example content clearly marked as an example: Workshop
+  publishing with an upload log.
 
 ## Window
 
@@ -224,6 +230,10 @@ for security, privacy, reliability or performance is called out (see the last tw
 - **The multiplayer checksum only recomputes what changed** - a fingerprint of every relevant file's path,
   size and time skips the expensive read-and-hash pass when nothing on disk has changed since the last call
   (about 4x faster on a real install), and always recomputes for real when something did.
+- **Checking a mod reuses the same incremental cache as any mod scan** - both the mod's own files and, the
+  first time for a game, the base game's own files: unchanged files cost no re-parse, on the first check or
+  any later one. Its result is also kept for the rest of the session, so switching tabs or mods and back
+  shows it again at once instead of asking you to check again.
 - **Small executable** - the artwork is not bundled, so the app is no longer a roughly 400 MB download
   (the interface itself is 2.5 MB).
 

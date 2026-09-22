@@ -1,7 +1,6 @@
 package script
 
 import (
-	"fmt"
 	"strings"
 	"unicode/utf8"
 )
@@ -114,7 +113,7 @@ func (l *lexer) lexString(offset, line, col int) error {
 	var sb strings.Builder
 	for {
 		if l.pos >= len(l.src) {
-			return fmt.Errorf("script: unterminated string starting at line %d col %d", line, col)
+			return &SyntaxError{Pos: Position{Line: line, Col: col}, Msg: "unterminated string starting"}
 		}
 		switch b := l.peek(); {
 		case b == '"':
