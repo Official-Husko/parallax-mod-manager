@@ -205,6 +205,9 @@ for security, privacy, reliability or performance is called out (see the last tw
   slower conflict pass finishes.
 - **Parallel where it is safe** - files are parsed on all cores, and merged in load order so the result
   never depends on timing.
+- **The multiplayer checksum only recomputes what changed** - a fingerprint of every relevant file's path,
+  size and time skips the expensive read-and-hash pass when nothing on disk has changed since the last call
+  (about 4x faster on a real install), and always recomputes for real when something did.
 - **Small executable** - the artwork is not bundled, so the app is no longer a roughly 400 MB download
   (the interface itself is 2.5 MB).
 

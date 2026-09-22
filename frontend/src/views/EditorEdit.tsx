@@ -65,7 +65,11 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
         return () => { cancelled = true; };
     }, [gameId, mod.ID, reload]);
 
-    // The picture chosen earlier (a draft remembered from before) is read again for showing.
+    // Resolves the chosen picture into a resized preview - both right after it is picked, and
+    // again for a draft (with a picture already chosen) restored by switching back to this mod.
+    // The single effect covers both: choosing a picture only ever changes thumbnailFrom (see
+    // chooseThumbnail below), so there is exactly one PreviewThumbnail call per picture chosen,
+    // not two - resizing a large source image is real, avoidable work to duplicate.
     useEffect(() => {
         let cancelled = false;
         if (!draft?.thumbnailFrom) {
@@ -74,7 +78,11 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
         }
         PreviewThumbnail(draft.thumbnailFrom)
             .then((t) => { if (!cancelled) setNewThumb(t); })
-            .catch(() => { if (!cancelled) setNewThumb(null); });
+            .catch((err) => {
+                if (cancelled) return;
+                setNewThumb(null);
+                notify('error', String(err));
+            });
         return () => { cancelled = true; };
     }, [draft?.thumbnailFrom]);
 
@@ -119,8 +127,8 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
         try {
             const path = await PickThumbnailFile();
             if (!path) return;
-            const t = await PreviewThumbnail(path);
-            setNewThumb(t);
+            // The effect above resolves it into newThumb (and reports an error if the picture
+            // cannot be used) - nothing further to do here.
             change({thumbnailFrom: path});
         } catch (err) {
             notify('error', String(err));

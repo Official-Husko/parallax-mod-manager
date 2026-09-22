@@ -122,13 +122,13 @@ func (a *App) playsetChecksum(ctx context.Context, cfg game.GameConfig, playsetN
 	if err != nil {
 		return PlaysetChecksumResult{}, err
 	}
-	return computePlaysetChecksum(ctx, cfg, installDir, modDir, p.ModIDs, scanned.Mods)
+	return computePlaysetChecksum(ctx, cfg, installDir, modDir, p.ModIDs, scanned.Mods, &a.checksumCache)
 }
 
 // computePlaysetChecksum calculates the checksum of the game with the mods named by ids (in
 // load order) laid over it. Anything that makes the result untrustworthy - a mod that is not
 // installed, one whose folder is missing - is reported as unavailable rather than left out.
-func computePlaysetChecksum(ctx context.Context, cfg game.GameConfig, installDir, modDir string, ids []string, scanned []mod.Mod) (PlaysetChecksumResult, error) {
+func computePlaysetChecksum(ctx context.Context, cfg game.GameConfig, installDir, modDir string, ids []string, scanned []mod.Mod, cache *checksum.ResultCache) (PlaysetChecksumResult, error) {
 	byID := make(map[string]mod.Mod, len(scanned))
 	for _, m := range scanned {
 		byID[m.ID] = m
@@ -169,6 +169,7 @@ func computePlaysetChecksum(ctx context.Context, cfg game.GameConfig, installDir
 		LauncherSettings: filepath.Join(installDir, filepath.FromSlash(cfg.LauncherSettingsPath)),
 		ModDir:           modDir,
 		Mods:             mods,
+		Cache:            cache,
 	})
 	var missing *checksum.MissingContentError
 	switch {

@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 )
 
 // The Stellaris scheme. Every file the manifest names is taken from the game folder, then each
@@ -26,6 +27,10 @@ type sfile struct {
 	source string
 	path   string    // on disk, or
 	entry  *zip.File // inside an archive
+	// modTime and size are the file's own, straight from the same stat (or, for an archive entry,
+	// the same zip header) the walk already had to do to find it - see ResultCache.
+	modTime time.Time
+	size    int64
 }
 
 func (f *sfile) writeTo(w io.Writer) error {
@@ -67,6 +72,7 @@ func computeStellaris(ctx context.Context, in Input) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
+	key := cacheKey(in)
 
 	vfs := map[string]*sfile{}
 	var archives []*zip.ReadCloser
@@ -108,6 +114,18 @@ func computeStellaris(ctx context.Context, in Input) (Result, error) {
 	}
 
 	items := stellarisItems(vfs, rules)
+
+	// Every file that will be hashed is already known here, with its size and modification time
+	// (nothing extra was read to get them) - enough to tell whether the expensive part below,
+	// reading and hashing every one's real bytes, would produce anything different from last
+	// time. See ResultCache.
+	fp := fingerprintOf(salt, items, func(it sitem) (string, int64, time.Time) {
+		return it.path, it.file.size, it.file.modTime
+	})
+	if cached, ok := in.Cache.lookup(key, fp); ok {
+		return cached, nil
+	}
+
 	h := md5.New()
 	for _, it := range items {
 		if err := ctx.Err(); err != nil {
@@ -125,6 +143,7 @@ func computeStellaris(ctx context.Context, in Input) (Result, error) {
 	res.Full = full
 	res.Checksum = full[len(full)-4:]
 	res.Files = len(items)
+	in.Cache.store(key, fp, res)
 	return res, nil
 }
 
@@ -162,12 +181,12 @@ func stellarisSalt(launcherSettings string) (string, error) {
 func mountDir(ctx context.Context, base, source string, rules []Rule, vfs map[string]*sfile) error {
 	for i, rule := range rules {
 		root := filepath.Join(base, filepath.FromSlash(rule.Directory))
-		err := walkFiles(ctx, root, rule.Extension, rule.Recursive, 0, func(phys string) {
+		err := walkFiles(ctx, root, rule.Extension, rule.Recursive, 0, func(phys string, info os.FileInfo) {
 			rel, err := filepath.Rel(base, phys)
 			if err != nil {
 				return
 			}
-			vfs[normalizeVirtual(filepath.ToSlash(rel))] = &sfile{rule: i, source: source, path: phys}
+			vfs[normalizeVirtual(filepath.ToSlash(rel))] = &sfile{rule: i, source: source, path: phys, modTime: info.ModTime(), size: info.Size()}
 		})
 		if err != nil {
 			return err
@@ -181,7 +200,7 @@ const maxWalkDepth = 64
 
 // walkFiles calls fn for every file below dir whose path ends in suffix, descending when
 // recursive. A folder that cannot be read is skipped, as the game skips it.
-func walkFiles(ctx context.Context, dir, suffix string, recursive bool, depth int, fn func(string)) error {
+func walkFiles(ctx context.Context, dir, suffix string, recursive bool, depth int, fn func(path string, info os.FileInfo)) error {
 	if depth > maxWalkDepth {
 		return nil
 	}
@@ -201,7 +220,7 @@ func walkFiles(ctx context.Context, dir, suffix string, recursive bool, depth in
 		switch {
 		case info.Mode().IsRegular():
 			if strings.HasSuffix(p, suffix) {
-				fn(p)
+				fn(p, info)
 			}
 		case info.IsDir() && recursive:
 			if err := walkFiles(ctx, p, suffix, recursive, depth+1, fn); err != nil {
@@ -228,7 +247,7 @@ func mountArchive(zr *zip.ReadCloser, source string, rules []Rule, vfs map[strin
 		if idx < 0 {
 			continue
 		}
-		vfs[virtual] = &sfile{rule: idx, source: source, entry: f}
+		vfs[virtual] = &sfile{rule: idx, source: source, entry: f, modTime: f.Modified, size: int64(f.UncompressedSize64)}
 	}
 }
 

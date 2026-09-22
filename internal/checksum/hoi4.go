@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 	"unicode/utf16"
 )
 
@@ -37,6 +38,12 @@ type hfile struct {
 	path        string
 	entry       *zip.File
 	placeholder bool
+	// modTime and size are the file's own, straight from the same stat (or, for an archive
+	// entry, the same zip header) the walk already had to do to find it - see ResultCache. Zero
+	// for a placeholder, which is fine: whether a path is a placeholder is itself derived from
+	// the same walk, so it is exactly as stable a signal as a real file's size and time.
+	modTime time.Time
+	size    int64
 }
 
 func computeHOI4(ctx context.Context, in Input) (Result, error) {
@@ -55,6 +62,7 @@ func computeHOI4(ctx context.Context, in Input) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
+	key := cacheKey(in)
 
 	res := Result{Algorithm: HOI4, Salt: salt}
 	mods, dropped := hoi4DropDuplicateNames(in.Mods, in.ModDir)
@@ -106,6 +114,18 @@ func computeHOI4(ctx context.Context, in Input) (Result, error) {
 	}
 
 	items := tree.items()
+
+	// Every file that will be hashed is already known here, with its size and modification time
+	// (nothing extra was read to get them) - enough to tell whether the expensive part below,
+	// reading and hashing every one's real bytes, would produce anything different from last
+	// time. See ResultCache.
+	fp := fingerprintOf(salt, items, func(it hitem) (string, int64, time.Time) {
+		return it.path, it.file.size, it.file.modTime
+	})
+	if cached, ok := in.Cache.lookup(key, fp); ok {
+		return cached, nil
+	}
+
 	digests := make([][md5.Size]byte, len(items))
 	if err := hashAll(ctx, items, digests); err != nil {
 		return Result{}, err
@@ -119,6 +139,7 @@ func computeHOI4(ctx context.Context, in Input) (Result, error) {
 	res.Full = hexUpper(outer.Sum(nil))
 	res.Checksum = res.Full[len(res.Full)-4:]
 	res.Files = len(items)
+	in.Cache.store(key, fp, res)
 	return res, nil
 }
 
@@ -237,7 +258,7 @@ func (t *htree) applyReplacePath(rp string, manifestLevel bool) {
 func (t *htree) mountDir(ctx context.Context, base, source string, rules []Rule, replacePaths []string) error {
 	for i, rule := range rules {
 		root := filepath.Join(base, filepath.FromSlash(rule.Directory))
-		err := walkRuleFiles(ctx, root, rule, func(phys string) {
+		err := walkRuleFiles(ctx, root, rule, func(phys string, info os.FileInfo) {
 			rel, err := filepath.Rel(base, phys)
 			if err != nil {
 				return
@@ -248,7 +269,7 @@ func (t *htree) mountDir(ctx context.Context, base, source string, rules []Rule,
 				return
 			}
 			if old := t.exact[virtual]; old == nil || !old.placeholder {
-				t.set(virtual, &hfile{rule: i, source: source, path: phys})
+				t.set(virtual, &hfile{rule: i, source: source, path: phys, modTime: info.ModTime(), size: info.Size()})
 			}
 		})
 		if err != nil {
@@ -260,7 +281,7 @@ func (t *htree) mountDir(ctx context.Context, base, source string, rules []Rule,
 
 // walkRuleFiles calls fn for the files of a rule below root, an extension compared without regard
 // to case. A link to a folder is not entered; a link to a file counts as the file.
-func walkRuleFiles(ctx context.Context, root string, rule Rule, fn func(string)) error {
+func walkRuleFiles(ctx context.Context, root string, rule Rule, fn func(path string, info os.FileInfo)) error {
 	if info, err := os.Stat(root); err != nil || !info.IsDir() {
 		return nil
 	}
@@ -280,15 +301,24 @@ func walkRuleFiles(ctx context.Context, root string, rule Rule, fn func(string))
 			}
 			return nil
 		}
+		var info os.FileInfo
 		if d.Type()&fs.ModeSymlink != 0 {
-			if info, err := os.Stat(p); err != nil || info.IsDir() {
+			st, err := os.Stat(p)
+			if err != nil || st.IsDir() {
 				return nil
 			}
+			info = st
 		} else if !d.Type().IsRegular() {
 			return nil
+		} else {
+			st, err := d.Info()
+			if err != nil {
+				return nil
+			}
+			info = st
 		}
 		if strings.HasSuffix(strings.ToLower(d.Name()), rule.Extension) {
-			fn(p)
+			fn(p, info)
 		}
 		return nil
 	})
@@ -319,7 +349,7 @@ func (t *htree) mountArchive(zr *zip.ReadCloser, source string, rules []Rule, re
 			continue
 		}
 		if old := t.exact[virtual]; old == nil || !old.placeholder {
-			t.set(virtual, &hfile{rule: idx, source: source, entry: f})
+			t.set(virtual, &hfile{rule: idx, source: source, entry: f, modTime: f.Modified, size: int64(f.UncompressedSize64)})
 		}
 	}
 }

@@ -68,6 +68,12 @@ type Input struct {
 	ModDir string
 	// Mods are the enabled mods in load order.
 	Mods []Mod
+	// Cache, when set, lets Compute skip reading and hashing file content that has not changed
+	// since the last call - see ResultCache. nil (the default) means every call does the full
+	// work; a caller that computes the same Input more than once (this app's own PlaysetChecksum
+	// does, on every playset save, load, mod-folder change and click) should own one and pass it
+	// on every call.
+	Cache *ResultCache
 }
 
 // Result is a finished calculation.

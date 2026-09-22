@@ -19,6 +19,7 @@ import (
 
 	"github.com/Official-Husko/parallax-mod-manager/internal/about"
 	"github.com/Official-Husko/parallax-mod-manager/internal/applog"
+	"github.com/Official-Husko/parallax-mod-manager/internal/checksum"
 	"github.com/Official-Husko/parallax-mod-manager/internal/collection"
 	"github.com/Official-Husko/parallax-mod-manager/internal/conflict"
 	"github.com/Official-Husko/parallax-mod-manager/internal/dlc"
@@ -116,8 +117,12 @@ type App struct {
 	modNotesMu     sync.Mutex
 	checksumMu     sync.Mutex
 	checksumCancel map[string]context.CancelFunc
-	modWatcher     *watch.FolderWatcher
-	watchedGameID  string
+	// checksumCache lets repeated PlaysetChecksum calls for the same game and mod set skip
+	// reading and hashing file content that has not changed since the last call - see
+	// checksum.ResultCache. The zero value is ready to use.
+	checksumCache checksum.ResultCache
+	modWatcher    *watch.FolderWatcher
+	watchedGameID string
 	// watchMute silences modWatcher while the app is itself writing into the
 	// mod folder (generating the patch, purging mods): those operations
 	// refresh the mod list on their own. Zero-value usable.
