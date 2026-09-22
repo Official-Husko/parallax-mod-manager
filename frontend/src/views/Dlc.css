@@ -27,6 +27,24 @@
     margin: -14px -14px 0;
 }
 
+/* Sits over the app's own placeholder art (see data/defaultThumbnail.ts) so a pack Steam
+   hasn't sent a header image for yet still reads as "no real preview" rather than looking like
+   art for the pack itself. */
+.dlc-no-preview-badge {
+    position: absolute;
+    bottom: 9px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1;
+    background: rgba(6, 8, 11, .7);
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 9.5px;
+    letter-spacing: .1em;
+    color: var(--text-muted);
+}
+
 .dlc-detail-name {
     font: 700 15px/1.25 Barlow, sans-serif;
     color: var(--text-bright);

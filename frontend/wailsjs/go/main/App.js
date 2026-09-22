@@ -86,6 +86,10 @@ export function DLCStoreData(arg1) {
   return window['go']['main']['App']['DLCStoreData'](arg1);
 }
 
+export function DefaultThumbnail() {
+  return window['go']['main']['App']['DefaultThumbnail']();
+}
+
 export function DeleteBackups(arg1, arg2, arg3) {
   return window['go']['main']['App']['DeleteBackups'](arg1, arg2, arg3);
 }

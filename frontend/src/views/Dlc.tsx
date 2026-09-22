@@ -5,6 +5,7 @@ import {DLCStoreData, ListDLC, ListPlaysets, LoadPlayset, SavePlayset} from '../
 import {BrowserOpenURL, EventsOn} from '../../wailsjs/runtime/runtime';
 import type {dlc, dlcstore, library, playset} from '../../wailsjs/go/models';
 import {Toggle} from '../components/Toggle';
+import {defaultThumbnail} from '../data/defaultThumbnail';
 import {formatBytes} from '../data/format';
 import {notify, trackTask} from '../data/notifications';
 import {type ContextMenuItem, openContextMenu} from '../data/contextMenu';
@@ -78,6 +79,10 @@ export function Dlc({games, selectedGame}: {
     const [selectedDLCId, setSelectedDLCId] = useState('');
     const [selectedType, setSelectedType] = useState('');
     const [search, setSearch] = useState('');
+    // The app's own placeholder art, for a pack Steam hasn't sent a header image for yet - see
+    // data/defaultThumbnail.ts.
+    const [placeholder, setPlaceholder] = useState('');
+    useEffect(() => { defaultThumbnail().then(setPlaceholder); }, []);
 
     useEffect(() => {
         if (!selectedGame) return;
@@ -238,12 +243,20 @@ export function Dlc({games, selectedGame}: {
                 {selectedEntry && (
                     <>
                         <div className="thumbnail dlc-detail-image">
-                            {selectedStoreData?.HeaderImage
-                                ? <>
+                            {selectedStoreData?.HeaderImage ? (
+                                <>
                                     <div className="thumbnail-backdrop" style={{backgroundImage: `url(${selectedStoreData.HeaderImage})`}}/>
                                     <img className="thumbnail-fg" src={selectedStoreData.HeaderImage} alt=""/>
                                 </>
-                                : <span className="mono">NO PREVIEW</span>}
+                            ) : placeholder ? (
+                                <>
+                                    <div className="thumbnail-backdrop" style={{backgroundImage: `url(${placeholder})`}}/>
+                                    <img className="thumbnail-fg" src={placeholder} alt=""/>
+                                    <span className="mono dlc-no-preview-badge">NO PREVIEW</span>
+                                </>
+                            ) : (
+                                <span className="mono">NO PREVIEW</span>
+                            )}
                         </div>
                         <div className="dlc-detail-name">{selectedEntry.Name}</div>
                         <div className="dlc-detail-meta mono">

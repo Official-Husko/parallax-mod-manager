@@ -58,6 +58,8 @@ export function CreateMod(arg1:string,arg2:main.NewModRequest):Promise<main.Save
 
 export function DLCStoreData(arg1:string):Promise<Array<dlcstore.StoreData>>;
 
+export function DefaultThumbnail():Promise<string>;
+
 export function DeleteBackups(arg1:string,arg2:string,arg3:Array<string>):Promise<main.BackupDeleteResult>;
 
 export function DeleteCollection(arg1:string):Promise<void>;

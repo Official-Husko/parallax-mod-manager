@@ -1161,6 +1161,14 @@ func (a *App) patchThumbnail() []byte {
 	return embeddedPatchThumbnail
 }
 
+// DefaultThumbnail is the app's own placeholder art - the same image a newly generated patch mod
+// gets as its thumbnail (see patchThumbnail) - for anywhere else in the interface that needs a
+// "no preview available" image instead of a plain empty box, such as the DLC detail panel for a
+// pack Steam hasn't sent a header image for yet.
+func (a *App) DefaultThumbnail() string {
+	return "data:image/png;base64," + base64.StdEncoding.EncodeToString(a.patchThumbnail())
+}
+
 // SetPatchOverride persists a manual winner override for one specific
 // conflict, identified by its Type and ID (library.ConflictSummary's own
 // fields) - modID must be one of that conflict's real candidates to take
