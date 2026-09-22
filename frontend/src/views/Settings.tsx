@@ -37,7 +37,7 @@ import {BackupPanel} from './BackupPanel';
 import {DebugPanel} from './DebugPanel';
 import {AccentSettings} from './AccentSettings';
 
-type Section = 'manage' | 'paths' | 'launch' | 'playsets' | 'sort' | 'steam' | 'backup' | 'appearance' | 'advanced' | 'debug' | 'about';
+type Section = 'manage' | 'launch' | 'playsets' | 'sort' | 'steam' | 'backup' | 'appearance' | 'advanced' | 'debug' | 'about';
 
 export function Settings({jumpToManageGames, jumpToBackup, onGamesChanged, onPreferencesChanged}: {
     // Incremented by app.tsx (the TopBar's own "Manage games" entry) to
@@ -79,7 +79,7 @@ export function Settings({jumpToManageGames, jumpToBackup, onGamesChanged, onPre
             <div className="settings-nav">
                 <div className="sidebar-label">SETTINGS</div>
                 {settingsNav.filter((s) => s.key !== 'debug' || debugAvailable).map((s) => {
-                    const clickable = s.key === 'manage' || s.key === 'paths' || s.key === 'launch' || s.key === 'playsets' || s.key === 'sort' || s.key === 'steam' || s.key === 'backup' || s.key === 'appearance' || s.key === 'advanced' || s.key === 'debug' || s.key === 'about';
+                    const clickable = s.key === 'manage' || s.key === 'launch' || s.key === 'playsets' || s.key === 'sort' || s.key === 'steam' || s.key === 'backup' || s.key === 'appearance' || s.key === 'advanced' || s.key === 'debug' || s.key === 'about';
                     const active = clickable && s.key === section;
                     return (
                         <div
@@ -95,7 +95,6 @@ export function Settings({jumpToManageGames, jumpToBackup, onGamesChanged, onPre
             </div>
 
             {section === 'manage' && <ManageGamesPanel onGamesChanged={onGamesChanged}/>}
-            {section === 'paths' && <PathsPanel/>}
             {section === 'launch' && <LaunchOptionsPanel/>}
             {section === 'playsets' && <PlaysetsSettingsPanel/>}
             {section === 'sort' && <SortRulesPanel/>}
@@ -109,11 +108,22 @@ export function Settings({jumpToManageGames, jumpToBackup, onGamesChanged, onPre
     );
 }
 
+// ManageGamesPanel combines what used to be two separate panels ("Manage games" and "Paths &
+// folders"): which games are managed, and - expand a card for it - where each is installed and
+// every folder searched for its mods. They shared one DetectGames() call's worth of state and
+// the same per-game card styling already (see the .paths-card comment below), so splitting them
+// only meant fetching the same games twice and making the person hunt across two tabs for what
+// is really one "this game, configured" concern.
 function ManageGamesPanel({onGamesChanged}: { onGamesChanged?: () => void }) {
     const [state, setState] = useState<ManageGamesState>({kind: 'loading'});
-    const [browsing, setBrowsing] = useState<Set<string>>(new Set());
-    const [togglingManaged, setTogglingManaged] = useState<Set<string>>(new Set());
     const [prefs, setPrefs] = useState<preferences.Preferences | null>(null);
+    const [busy, setBusy] = useState<Set<string>>(new Set());
+    const [togglingManaged, setTogglingManaged] = useState<Set<string>>(new Set());
+    // Every card starts collapsed (showing just its install path, mod count and the managed
+    // toggle) - with all 6+ registered games always rendered here regardless of detection
+    // state, showing every one's mod folder and extra-folders section by default wastes most
+    // of the panel on games most people aren't even using. Expanding is per-game and explicit.
+    const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
     useEffect(() => {
         DetectGames()
@@ -121,139 +131,6 @@ function ManageGamesPanel({onGamesChanged}: { onGamesChanged?: () => void }) {
             .catch((err) => setState({kind: 'error', message: String(err)}));
         GetPreferences().then(setPrefs).catch(() => undefined);
     }, []);
-
-    function togglePref(key: 'scanForNewMods' | 'closeAfterLaunch' | 'warnOnPatchMismatch') {
-        if (!prefs) return;
-        const next = {...prefs, [key]: !prefs[key]};
-        setPrefs(next);
-        SetPreferences(next).catch(() => setPrefs(prefs));
-    }
-
-    async function setPath(gameId: string) {
-        setBrowsing((prev) => new Set(prev).add(gameId));
-        try {
-            const updated = await BrowseForGameInstall(gameId);
-            setState((prev) => prev.kind === 'ready'
-                ? {kind: 'ready', games: prev.games.map((g) => (g.ID === gameId ? updated : g))}
-                : prev);
-            onGamesChanged?.();
-        } catch {
-            // A bad pick or a cancelled dialog just leaves the row as it was.
-        } finally {
-            setBrowsing((prev) => {
-                const next = new Set(prev);
-                next.delete(gameId);
-                return next;
-            });
-        }
-    }
-
-    async function toggleManaged(gameId: string, managed: boolean) {
-        if (!prefs) return;
-        setTogglingManaged((prev) => new Set(prev).add(gameId));
-        const existing = prefs.managedGames ?? [];
-        const optimistic = {
-            ...prefs,
-            managedGames: managed ? Array.from(new Set([...existing, gameId])) : existing.filter((id) => id !== gameId),
-        };
-        setPrefs(optimistic);
-        try {
-            await SetGameManaged(gameId, managed);
-            onGamesChanged?.();
-        } catch {
-            setPrefs(prefs);
-        } finally {
-            setTogglingManaged((prev) => {
-                const next = new Set(prev);
-                next.delete(gameId);
-                return next;
-            });
-        }
-    }
-
-    return (
-        <div className="settings-content wide">
-            <div>
-                <div className="settings-title">Manage games</div>
-                <div className="settings-subtitle">
-                    Only games marked managed here show up in the game switcher, Library, DLC, and
-                    Workspace - each one keeps its own paths, playsets and sort rules.
-                </div>
-            </div>
-            {state.kind === 'loading' && <p className="status-page">Checking installed games...</p>}
-            {state.kind === 'error' && <p className="status-page error">{state.message}</p>}
-            {state.kind === 'ready' && (
-                <div className="profile-list">
-                    {state.games.map((g) => {
-                        const managed = prefs?.managedGames?.includes(g.ID) ?? false;
-                        return (
-                            <div
-                                key={g.ID}
-                                className="profile-row"
-                                style={{borderColor: g.Installed ? '#4a3826' : 'var(--border)', background: g.Installed ? '#191510' : 'var(--bg-rail)'}}
-                            >
-                                <GameLogo gameId={g.ID} className="profile-swatch"/>
-                                <div className="profile-main">
-                                    <div className="profile-name">{g.DisplayName}</div>
-                                    <div className="mono profile-path">{g.Installed ? g.InstallPath : 'not detected'}</div>
-                                </div>
-                                {g.Installed ? (
-                                    <span className="mono profile-state" style={{color: 'var(--green)'}}>
-                                        {g.ModCount} mod{g.ModCount === 1 ? '' : 's'}
-                                    </span>
-                                ) : (
-                                    <span
-                                        className="mono profile-state actionable"
-                                        style={{color: 'var(--amber)'}}
-                                        onClick={() => setPath(g.ID)}
-                                    >
-                                        {browsing.has(g.ID) ? 'looking...' : 'set path'}
-                                    </span>
-                                )}
-                                <Toggle
-                                    on={managed}
-                                    onClick={g.Installed && !togglingManaged.has(g.ID) ? () => toggleManaged(g.ID, !managed) : undefined}
-                                />
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
-            {prefs && (
-                <div className="profile-toggles">
-                    <div className="profile-toggle-row">
-                        <span>Scan for new mods automatically</span>
-                        <Toggle on={prefs.scanForNewMods} onClick={() => togglePref('scanForNewMods')}/>
-                    </div>
-                    <div className="profile-toggle-row">
-                        <span>Warn on patch mismatch</span>
-                        <Toggle on={prefs.warnOnPatchMismatch} onClick={() => togglePref('warnOnPatchMismatch')}/>
-                    </div>
-                    <div className="profile-toggle-row">
-                        <span>Close manager after launch</span>
-                        <Toggle on={prefs.closeAfterLaunch} onClick={() => togglePref('closeAfterLaunch')}/>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-}
-
-type PathsState =
-    | { kind: 'loading' }
-    | { kind: 'error'; message: string }
-    | { kind: 'ready'; games: library.DetectedGame[] };
-
-function PathsPanel() {
-    const [state, setState] = useState<PathsState>({kind: 'loading'});
-    const [busy, setBusy] = useState<Set<string>>(new Set());
-    const [prefs, setPrefs] = useState<preferences.Preferences | null>(null);
-    // Every card starts collapsed (showing just its install-path row) -
-    // with all 6+ registered games always rendered here regardless of
-    // detection state, showing every one's mod folder and extra-folders
-    // section by default wastes most of the panel on games most people
-    // aren't even using. Expanding is per-game and explicit.
-    const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
     function toggleExpanded(gameId: string) {
         setExpanded((prev) => {
@@ -262,13 +139,6 @@ function PathsPanel() {
             return next;
         });
     }
-
-    useEffect(() => {
-        DetectGames()
-            .then((games) => setState({kind: 'ready', games}))
-            .catch((err) => setState({kind: 'error', message: String(err)}));
-        GetPreferences().then(setPrefs).catch(() => undefined);
-    }, []);
 
     function updateGame(updated: library.DetectedGame) {
         setState((prev) => prev.kind === 'ready'
@@ -288,6 +158,7 @@ function PathsPanel() {
         setBusyFlag(key, true);
         try {
             updateGame(await fn());
+            onGamesChanged?.();
         } catch {
             // A bad pick, a cancelled dialog, or a failed clear just
             // leaves the row as it was.
@@ -322,14 +193,45 @@ function PathsPanel() {
         }
     }
 
+    function togglePref(key: 'scanForNewMods' | 'closeAfterLaunch' | 'warnOnPatchMismatch') {
+        if (!prefs) return;
+        const next = {...prefs, [key]: !prefs[key]};
+        setPrefs(next);
+        SetPreferences(next).catch(() => setPrefs(prefs));
+    }
+
+    async function toggleManaged(gameId: string, managed: boolean) {
+        if (!prefs) return;
+        setTogglingManaged((prev) => new Set(prev).add(gameId));
+        const existing = prefs.managedGames ?? [];
+        const optimistic = {
+            ...prefs,
+            managedGames: managed ? Array.from(new Set([...existing, gameId])) : existing.filter((id) => id !== gameId),
+        };
+        setPrefs(optimistic);
+        try {
+            await SetGameManaged(gameId, managed);
+            onGamesChanged?.();
+        } catch {
+            setPrefs(prefs);
+        } finally {
+            setTogglingManaged((prev) => {
+                const next = new Set(prev);
+                next.delete(gameId);
+                return next;
+            });
+        }
+    }
+
     return (
         <div className="settings-content wide">
             <div>
-                <div className="settings-title">Paths & folders</div>
+                <div className="settings-title">Manage games</div>
                 <div className="settings-subtitle">
-                    Where each game is actually installed, and every folder Parallax Mod Manager
-                    searches for its mods - its own managed mod folder, plus any extra folders you
-                    add below, searched recursively for more.
+                    Only games marked managed here show up in the game switcher, Library, DLC, and
+                    Workspace - each one keeps its own paths, playsets and sort rules. Expand a
+                    game for its install path, mod folder and extra mod folders (searched
+                    recursively alongside it).
                 </div>
             </div>
             {state.kind === 'loading' && <p className="status-page">Checking installed games...</p>}
@@ -337,6 +239,7 @@ function PathsPanel() {
             {state.kind === 'ready' && (
                 <div className="profile-list">
                     {state.games.map((g) => {
+                        const managed = prefs?.managedGames?.includes(g.ID) ?? false;
                         const extra = prefs?.extraModFolders?.[g.ID] ?? [];
                         const isExpanded = expanded.has(g.ID);
                         return (
@@ -359,20 +262,42 @@ function PathsPanel() {
                                             {extra.length} extra folder{extra.length === 1 ? '' : 's'}
                                         </span>
                                     )}
-                                    <div className="paths-card-actions" onClick={(e) => e.stopPropagation()}>
-                                        {g.Installed && (
-                                            <span className="link-btn" onClick={() => openFolder(g.InstallPath)}>Open</span>
-                                        )}
-                                        <span className="link-btn" onClick={() => withBusy(g.ID, () => BrowseForGameInstall(g.ID))}>
-                                            {busy.has(g.ID) ? 'Looking...' : g.Installed ? 'Change...' : 'Browse...'}
-                                        </span>
-                                        {g.PathOverridden && (
-                                            <span className="link-btn" onClick={() => withBusy(g.ID, () => ClearGamePath(g.ID))}>
-                                                Reset
+                                    <div className="paths-card-status" onClick={(e) => e.stopPropagation()}>
+                                        {g.Installed ? (
+                                            <span className="mono profile-state" style={{color: 'var(--green)'}}>
+                                                {g.ModCount} mod{g.ModCount === 1 ? '' : 's'}
+                                            </span>
+                                        ) : (
+                                            <span
+                                                className="mono profile-state actionable"
+                                                style={{color: 'var(--amber)'}}
+                                                onClick={() => withBusy(g.ID, () => BrowseForGameInstall(g.ID))}
+                                            >
+                                                {busy.has(g.ID) ? 'looking...' : 'set path'}
                                             </span>
                                         )}
+                                        <Toggle
+                                            on={managed}
+                                            onClick={g.Installed && !togglingManaged.has(g.ID) ? () => toggleManaged(g.ID, !managed) : undefined}
+                                        />
                                     </div>
                                 </div>
+
+                                {isExpanded && (
+                                <div className="paths-card-actions" onClick={(e) => e.stopPropagation()}>
+                                    {g.Installed && (
+                                        <span className="link-btn" onClick={() => openFolder(g.InstallPath)}>Open</span>
+                                    )}
+                                    <span className="link-btn" onClick={() => withBusy(g.ID, () => BrowseForGameInstall(g.ID))}>
+                                        {busy.has(g.ID) ? 'Looking...' : g.Installed ? 'Change...' : 'Browse...'}
+                                    </span>
+                                    {g.PathOverridden && (
+                                        <span className="link-btn" onClick={() => withBusy(g.ID, () => ClearGamePath(g.ID))}>
+                                            Reset
+                                        </span>
+                                    )}
+                                </div>
+                                )}
 
                                 {isExpanded && (
                                 <div className="paths-modfolder">
@@ -407,6 +332,22 @@ function PathsPanel() {
                             </div>
                         );
                     })}
+                </div>
+            )}
+            {prefs && (
+                <div className="profile-toggles">
+                    <div className="profile-toggle-row">
+                        <span>Scan for new mods automatically</span>
+                        <Toggle on={prefs.scanForNewMods} onClick={() => togglePref('scanForNewMods')}/>
+                    </div>
+                    <div className="profile-toggle-row">
+                        <span>Warn on patch mismatch</span>
+                        <Toggle on={prefs.warnOnPatchMismatch} onClick={() => togglePref('warnOnPatchMismatch')}/>
+                    </div>
+                    <div className="profile-toggle-row">
+                        <span>Close manager after launch</span>
+                        <Toggle on={prefs.closeAfterLaunch} onClick={() => togglePref('closeAfterLaunch')}/>
+                    </div>
                 </div>
             )}
         </div>

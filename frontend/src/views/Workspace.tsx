@@ -1312,7 +1312,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
                                 <EmptyState
                                     icon="fa-box-open"
                                     title="No mods found"
-                                    subtitle="Install some mods for this game, or add an extra folder to search under Settings → Paths & folders."
+                                    subtitle="Install some mods for this game, or add an extra folder to search under Settings → Manage games."
                                 />
                             )}
                             {available.length === 0 && allMods.length > 0 && search.trim() !== '' && (

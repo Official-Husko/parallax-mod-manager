@@ -1073,27 +1073,28 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   real per-game detection as the first-run wizard, with a working "set path" for anything not
   auto-detected and a per-game "managed by Parallax" toggle - the same choice made in the
   wizard, kept in sync with it (toggling a game here takes effect immediately, live, without a
-  restart) rather than the wizard being the only place that choice could ever be made. Its
-  "Paths & folders" panel is the fuller per-game path reference, styled to match "Manage games"
-  (the same swatch/name/path row) and, like it, a list of per-game cards that start collapsed
-  (install path and quick actions only) so registering six-plus games doesn't turn the panel
-  into a wall of detail nobody asked to see - expand a card for its mod folder path and extra
-  mod folders. Each game's install folder has change/reset-to-auto-detect and "open in file
-  manager" actions, backed by the same path-override persistence the wizard's own "Browse..."
-  already used - a manually-picked install path now survives a restart instead of needing to be
-  re-picked every launch. It also manages a per-game list of **extra mod folders** - any
-  additional location (a shared network drive, a manually curated collection) searched
-  recursively for more mods alongside the game's own managed mod folder, two ways at once
-  (`internal/scan.ScanExtraFolder` and the stale-path fallback below): a self-contained mod
-  folder (its own `descriptor.mod` inside, the same convention Steam Workshop content uses) is
-  discovered as a new mod outright, and separately, a mod whose *existing* descriptor in the
-  game's own mod folder points at a path that no longer exists (the library moved to a new
-  drive or folder without the stub being updated) gets reconnected if any extra folder turns
-  out to have a same-named subfolder - so pointing Parallax Mod Manager at wherever the mods
-  really live now can repair a mod that previously showed up broken/empty, not just add
-  entirely new ones. The three real preference toggles described above live on the "Manage
-  games" panel, and its "Sort rules" panel is the real autosort configuration described
-  above; and the
+  restart) rather than the wizard being the only place that choice could ever be made. Its list
+  of per-game cards starts collapsed (install path, mod count and the managed toggle only) so
+  registering six-plus games doesn't turn the panel into a wall of detail nobody asked to see -
+  expand a card for its install-path actions, mod folder and extra mod folders (this used to be
+  a separate "Paths & folders" panel, fetching and rendering the same per-game list a second
+  time; folded into one panel and one `DetectGames()` call, since where a game's files live is
+  as much a part of "managing" it as the toggle is). Each game's install folder has
+  change/reset-to-auto-detect and "open in file manager" actions, backed by the same
+  path-override persistence the wizard's own "Browse..." already used - a manually-picked
+  install path now survives a restart instead of needing to be re-picked every launch. It also
+  manages a per-game list of **extra mod folders** - any additional location (a shared network
+  drive, a manually curated collection) searched recursively for more mods alongside the game's
+  own managed mod folder, two ways at once (`internal/scan.ScanExtraFolder` and the stale-path
+  fallback below): a self-contained mod folder (its own `descriptor.mod` inside, the same
+  convention Steam Workshop content uses) is discovered as a new mod outright, and separately, a
+  mod whose *existing* descriptor in the game's own mod folder points at a path that no longer
+  exists (the library moved to a new drive or folder without the stub being updated) gets
+  reconnected if any extra folder turns out to have a same-named subfolder - so pointing Parallax
+  Mod Manager at wherever the mods really live now can repair a mod that previously showed up
+  broken/empty, not just add entirely new ones. The three real preference toggles described
+  above live on the "Manage games" panel too, and its "Sort rules" panel is the real autosort
+  configuration described above; and the
   Library screen is real, including its own "collections" and bulk actions now, not just the
   games sidebar and mod table - it scans every managed game and lists its actual mods (name,
   source, version, real on-disk size - computed in parallel across every mod at once,

@@ -42,7 +42,7 @@ export function describeModStubs(r: ModStubsReport): {kind: NotificationKind; me
     if (missing.length > 0) {
         out.push({
             kind: 'warning',
-            message: `${missing.length} enabled ${mods(missing.length)} could not be found on disk and will not load in the game: ${nameList(missing)}. Add the folder they moved to under Settings > Paths & folders > Extra mod folders.`,
+            message: `${missing.length} enabled ${mods(missing.length)} could not be found on disk and will not load in the game: ${nameList(missing)}. Add the folder they moved to under Settings > Manage games > Extra mod folders.`,
         });
     }
     if (failed.length > 0) {
