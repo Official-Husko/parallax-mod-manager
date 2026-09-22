@@ -161,9 +161,16 @@
     flex: none;
 }
 
+/* flex: 1 lets a real pack name have all the room it needs, but without a cap it also
+   soaks up every pixel of a very wide window - on an ultrawide monitor that stretched this
+   column until TYPE/RELEASED/SIZE sat hundreds of pixels away from the name they describe,
+   reading as a broken layout rather than a spacious one. max-width keeps the columns
+   visually together regardless of window width; a real pack name comfortably fits well
+   under it, so this only ever trims dead space, never real content. */
 .col-name {
     flex: 1;
     min-width: 0;
+    max-width: 480px;
     font: 500 12.5px Barlow, sans-serif;
     overflow: hidden;
     text-overflow: ellipsis;

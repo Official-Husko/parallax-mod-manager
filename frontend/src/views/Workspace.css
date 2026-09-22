@@ -763,9 +763,16 @@
     text-align: right;
 }
 
+/* max-width matches .mod-row .name's own below - both need to agree, same reason the
+   comment on .column-header-ver above already explains for that column: a mismatch drifts
+   the header out of alignment with the real column beneath it. Without a cap at all, flex: 1
+   soaks up every pixel of a very wide window, stretching this column until the trailing
+   columns sat hundreds of pixels away from the names they describe - a real mod name
+   comfortably fits well under 480px, so this only ever trims dead space, never real content. */
 .column-header-name {
     flex: 1;
     min-width: 0;
+    max-width: 480px;
 }
 
 /* Active-only: one label over the six domain bars. The letters themselves are
@@ -870,6 +877,8 @@
 .mod-row .name {
     flex: 1;
     min-width: 0;
+    /* Matches .column-header-name's own max-width - see its comment. */
+    max-width: 480px;
     font: 500 12.5px Barlow, sans-serif;
     color: var(--text);
     overflow: hidden;
