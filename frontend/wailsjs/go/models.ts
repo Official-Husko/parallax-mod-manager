@@ -1078,6 +1078,7 @@ export namespace main {
 	    Name: string;
 	    Editable: boolean;
 	    Reason: string;
+	    Overridable: boolean;
 	    ContentPath: string;
 	    Fields: modedit.Fields;
 	    Picture: string;
@@ -1096,6 +1097,7 @@ export namespace main {
 	        this.Name = source["Name"];
 	        this.Editable = source["Editable"];
 	        this.Reason = source["Reason"];
+	        this.Overridable = source["Overridable"];
 	        this.ContentPath = source["ContentPath"];
 	        this.Fields = this.convertValues(source["Fields"], modedit.Fields);
 	        this.Picture = source["Picture"];
@@ -1166,6 +1168,7 @@ export namespace main {
 	    Fields: modedit.Fields;
 	    ThumbnailFrom: string;
 	    CreateDescriptor: boolean;
+	    Force: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new ModEdit(source);
@@ -1176,6 +1179,7 @@ export namespace main {
 	        this.Fields = this.convertValues(source["Fields"], modedit.Fields);
 	        this.ThumbnailFrom = source["ThumbnailFrom"];
 	        this.CreateDescriptor = source["CreateDescriptor"];
+	        this.Force = source["Force"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

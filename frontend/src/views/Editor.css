@@ -229,6 +229,19 @@
     margin-bottom: 2px;
 }
 
+.editor-readonly button {
+    margin-top: 8px;
+}
+
+.editor-readonly.warn {
+    border-color: var(--amber);
+    background: color-mix(in srgb, var(--amber) 8%, transparent);
+}
+
+.editor-readonly.warn i {
+    color: var(--amber);
+}
+
 /* --- Thumbnail --- */
 
 .editor-thumb-row {

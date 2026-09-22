@@ -684,9 +684,12 @@ This list grows as features land - see [Progress](#progress) below, which is kep
 - **A mod Editor** (**Editor** in the top bar, `internal/modedit`, `modedit.go`,
   `frontend/src/views/Editor.tsx`) - change a mod's own name, version, made-for-game-version, tags,
   dependencies, replace paths and thumbnail, for mods you made yourself: a local mod, or one found
-  through an extra mod folder. It never touches a subscribed Steam Workshop mod (Steam rewrites its
-  files whenever it updates), a Paradox Launcher mod, or the patch this app generates - those show
-  their values read-only with the reason. A classic-format mod is described by up to two files this
+  through an extra mod folder. A subscribed Steam Workshop mod (Steam rewrites its files whenever it
+  updates), a Paradox Launcher mod, or the patch this app generates show their values read-only with
+  the reason - for a Workshop or Launcher mod, a **Continue anyway** button unlocks editing for that
+  visit once the risk is read, since it is the person's own informed choice to make; the app's own
+  generated patch has no such override, since it is rewritten every time the patch is generated
+  regardless. A classic-format mod is described by up to two files this
   app knows about, the `descriptor.mod` inside the mod's own folder (which some mods, including
   library conventions this project has actually seen, do not have) and the stub in the game's own
   mod folder that the game actually reads - a save updates every one that exists, in place, so

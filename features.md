@@ -185,8 +185,10 @@ for security, privacy, reliability or performance is called out (see the last tw
 - **Previous versions kept, with Undo** - every save keeps what it replaced, so **Undo last save** can put it
   back - unless a file changed since, which it refuses rather than overwrite silently. Creating or duplicating
   a mod does not feed this history; removing an unwanted one is Open folder and delete, like any other mod.
-- **Steam and launcher mods stay read-only** - a subscribed Workshop mod, a Paradox Launcher mod and this app's
-  own generated patch show their values but cannot be changed here.
+- **Steam and launcher mods stay read-only, but you can continue anyway** - a subscribed Workshop mod and a
+  Paradox Launcher mod show their values read-only by default, with a **Continue anyway** button and the risk
+  stated (Steam or the launcher may overwrite the edit on its next update) to unlock editing for that visit.
+  This app's own generated patch always stays read-only - there is no "anyway" for it.
 - **Pin mods to the top of the list** - in both the Editor and the Library, right-click a mod to pin or unpin
   it.
 - **Publish and Checks tabs, coming later** - laid out with example content clearly marked as an example: Workshop

@@ -43,6 +43,10 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
     const [busy, setBusy] = useState(false);
     // Bumped after a save or undo, so what is on disk is read again.
     const [reload, setReload] = useState(0);
+    // Set by "Continue anyway" for a mod that is Overridable (a Steam Workshop or Paradox
+    // Launcher mod) - unlocks editing for this visit only, never persisted. Naturally resets to
+    // false on every mod switch, since Editor.tsx remounts this component per mod.
+    const [forced, setForced] = useState(false);
 
     function setDraft(next: Draft | null) {
         setDraftState(next);
@@ -87,21 +91,24 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
     }, [draft?.thumbnailFrom]);
 
     const changed = !!info && !!draft && isChanged(draft, info.Fields);
+    // Editable outright, or Overridable and the person has said Continue anyway for this visit -
+    // see modedit.go's editTarget.effectiveEditable, which this mirrors.
+    const effectivelyEditable = !!info && (info.Editable || (info.Overridable && forced));
 
     // What saving would do, worked out a moment after the last change.
     useEffect(() => {
-        if (!info || !info.Editable || !draft || !changed) {
+        if (!info || !effectivelyEditable || !draft || !changed) {
             setPreview(null);
             return;
         }
         let cancelled = false;
         const timer = window.setTimeout(() => {
-            PreviewModEdit(gameId, mod.ID, toEdit(draft) as unknown as main.ModEdit)
+            PreviewModEdit(gameId, mod.ID, {...toEdit(draft), Force: forced} as unknown as main.ModEdit)
                 .then((p) => { if (!cancelled) setPreview(p); })
                 .catch((err) => { if (!cancelled) setPreview({Files: [], Problems: [String(err)], Warnings: [], Nothing: true} as unknown as main.EditPreview); });
         }, 300);
         return () => { cancelled = true; window.clearTimeout(timer); };
-    }, [info, draft, changed]);
+    }, [info, draft, changed, effectivelyEditable, forced]);
 
     const installed = useMemo(() => new Set(installedNames), [installedNames]);
 
@@ -112,9 +119,9 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
         return <div className="editor-empty"><i className="fa-solid fa-spinner fa-spin"/></div>;
     }
 
-    const readOnly = !info.Editable;
+    const readOnly = !effectivelyEditable;
     const problems = preview?.Problems ?? [];
-    const canSave = info.Editable && changed && !busy && problems.length === 0 && preview !== null && !preview.Nothing;
+    const canSave = effectivelyEditable && changed && !busy && problems.length === 0 && preview !== null && !preview.Nothing;
     const unknownDeps = new Set(unknownDependencies(draft.dependencies, installed));
     const compat = draft.supportedVersion && gameVersion ? checkVersionCompatibility(draft.supportedVersion.trim(), gameVersion) : null;
 
@@ -139,7 +146,7 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
         if (!draft) return;
         setBusy(true);
         try {
-            const result = await SaveModEdit(gameId, mod.ID, toEdit(draft) as unknown as main.ModEdit);
+            const result = await SaveModEdit(gameId, mod.ID, {...toEdit(draft), Force: forced} as unknown as main.ModEdit);
             const names = (result.Files ?? []).map((p) => p.split(/[\\/]/).pop());
             notify('success', `Saved '${draft.name.trim() || mod.Name}': ${names.join(', ') || 'nothing needed changing'}.`);
             setDraftState(null);
@@ -182,11 +189,23 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
     return (
         <div className="editor-columns">
             <div className="editor-column">
-                {readOnly && (
+                {!info.Editable && !forced && (
                     <div className="editor-readonly">
                         <i className="fa-solid fa-lock"/>
                         <div>
                             <div className="editor-readonly-title">This mod can't be edited here</div>
+                            <div>{info.Reason}</div>
+                            {info.Overridable && (
+                                <button type="button" className="btn-ghost" onClick={() => setForced(true)}>Continue anyway</button>
+                            )}
+                        </div>
+                    </div>
+                )}
+                {!info.Editable && forced && (
+                    <div className="editor-readonly warn">
+                        <i className="fa-solid fa-triangle-exclamation"/>
+                        <div>
+                            <div className="editor-readonly-title">Editing anyway</div>
                             <div>{info.Reason}</div>
                         </div>
                     </div>
