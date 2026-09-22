@@ -169,6 +169,18 @@ for security, privacy, reliability or performance is called out (see the last tw
   buttons to open them.
 - **Licence in the app** - the full non-commercial licence, readable inside the About page.
 
+## Editor
+
+- **Edit a mod's own descriptor and thumbnail** - change its name, version, made-for-game-version, tags,
+  dependencies and replace paths, and choose a new thumbnail (resized to fit, never enlarged), for mods you
+  made yourself. A live preview shows exactly which files change and how before you save.
+- **Previous versions kept, with Undo** - every save keeps what it replaced, so **Undo last save** can put it
+  back - unless a file changed since, which it refuses rather than overwrite silently.
+- **Steam and launcher mods stay read-only** - a subscribed Workshop mod, a Paradox Launcher mod and this app's
+  own generated patch show their values but cannot be changed here.
+- **Publish and Checks tabs, coming later** - laid out with example content clearly marked as an example: Workshop
+  publishing with an upload log, and checks for base-game conflicts, syntax errors and missing dependencies.
+
 ## Window
 
 - **Settings use the whole window** - on a wide window each Settings tab spreads into side-by-side columns
@@ -200,6 +212,9 @@ for security, privacy, reliability or performance is called out (see the last tw
 
 - **No account, no telemetry** - the only outside services are Steam (Workshop and Store data) and, for
   online backgrounds only, GitHub. The About page itself makes no network requests.
+- **Mod edits stay inside the mod's own folders** - the Editor only ever writes inside a mod's own folder and
+  the game's mod folder; earlier versions it keeps for Undo live in the settings folder, and what you typed
+  into a field is never written to the activity log.
 - **Notes stay private** - your mod notes live in the settings folder, are never sent anywhere or written to the
   activity log, and an unreadable notes file is never overwritten with an empty one.
 - **Checksums only read** - calculating the multiplayer checksum reads game and mod files and writes nothing.

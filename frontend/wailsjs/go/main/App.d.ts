@@ -108,6 +108,10 @@ export function MarkModUpdatesSeen(arg1:string):Promise<modupdates.Report>;
 
 export function ModChangelog(arg1:string):Promise<Array<steamapi.ChangelogEntry>>;
 
+export function ModEditHistory(arg1:string,arg2:string):Promise<main.EditHistory>;
+
+export function ModEditInfo(arg1:string,arg2:string):Promise<main.EditInfo>;
+
 export function ModNotes(arg1:string):Promise<Record<string, string>>;
 
 export function ModSizes(arg1:string):Promise<Record<string, number>>;
@@ -120,9 +124,15 @@ export function OpenModFolder(arg1:string,arg2:string):Promise<void>;
 
 export function OpenPath(arg1:string):Promise<void>;
 
+export function PickThumbnailFile():Promise<string>;
+
 export function PlanBackupCleanup(arg1:string,arg2:string):Promise<main.BackupCleanupPlan>;
 
 export function PlaysetChecksum(arg1:string,arg2:string):Promise<main.PlaysetChecksumResult>;
+
+export function PreviewModEdit(arg1:string,arg2:string,arg3:main.ModEdit):Promise<main.EditPreview>;
+
+export function PreviewThumbnail(arg1:string):Promise<main.ThumbnailPreview>;
 
 export function PurgeMods(arg1:string,arg2:Array<string>):Promise<library.PurgeResult>;
 
@@ -137,6 +147,8 @@ export function RenamePlayset(arg1:string,arg2:string,arg3:string):Promise<void>
 export function ResolvedConflicts(arg1:string):Promise<Array<string>>;
 
 export function SaveCollection(arg1:collection.Collection):Promise<void>;
+
+export function SaveModEdit(arg1:string,arg2:string,arg3:main.ModEdit):Promise<main.SaveResult>;
 
 export function SavePlayset(arg1:playset.Playset):Promise<void>;
 
@@ -175,6 +187,8 @@ export function SteamAPIStatus():Promise<main.SteamAPIStatus>;
 export function StopGame(arg1:string):Promise<number>;
 
 export function StopWatchingGameLog():Promise<void>;
+
+export function UndoModEdit(arg1:string,arg2:string):Promise<main.SaveResult>;
 
 export function WatchGameLog(arg1:string,arg2:string):Promise<number>;
 

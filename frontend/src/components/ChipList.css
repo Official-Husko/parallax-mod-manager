@@ -1,0 +1,75 @@
+/* A row of removable chips followed by a box for adding another. */
+.chip-list {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    min-height: 34px;
+    padding: 5px 7px;
+    background: rgba(255, 255, 255, .03);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+}
+
+.chip-list:focus-within {
+    border-color: var(--rust);
+}
+
+.chip-list.disabled {
+    opacity: .6;
+}
+
+.chip-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 8px;
+    background: #1b232e;
+    border: 1px solid var(--border-light);
+    border-radius: 11px;
+    font: 500 11.5px Barlow, sans-serif;
+    color: var(--text-mid);
+}
+
+.chip-item.mono {
+    font-family: "Azeret Mono", monospace;
+    font-size: 10.5px;
+}
+
+.chip-item.flagged {
+    border-color: var(--amber);
+    color: var(--amber);
+}
+
+.chip-item i {
+    font-size: 9px;
+}
+
+.chip-item-remove {
+    cursor: pointer;
+    color: var(--text-dim);
+}
+
+.chip-item-remove:hover {
+    color: var(--red);
+}
+
+.chip-list-input {
+    flex: 1;
+    min-width: 110px;
+    background: none;
+    border: none;
+    outline: none;
+    padding: 2px 2px;
+    font: 400 12px Barlow, sans-serif;
+    color: var(--text);
+}
+
+.chip-list-input.mono {
+    font-family: "Azeret Mono", monospace;
+    font-size: 11px;
+}
+
+.chip-list-input::placeholder {
+    color: var(--text-dim);
+}

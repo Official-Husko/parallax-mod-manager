@@ -583,6 +583,30 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   the two places that hard-coded the rust as a tint now follow whichever accent is in use. Checked
   against the six real game logos in a headless browser (colorthief extraction, saving, live preview,
   the three modes, bad input) and by unit tests of the colour rules.
+- **A mod Editor** (**Editor** in the top bar, `internal/modedit`, `modedit.go`,
+  `frontend/src/views/Editor.tsx`) - change a mod's own name, version, made-for-game-version, tags,
+  dependencies, replace paths and thumbnail, for mods you made yourself: a local mod, or one found
+  through an extra mod folder. It never touches a subscribed Steam Workshop mod (Steam rewrites its
+  files whenever it updates), a Paradox Launcher mod, or the patch this app generates - those show
+  their values read-only with the reason. A classic-format mod is described by up to two files this
+  app knows about, the `descriptor.mod` inside the mod's own folder (which some mods, including
+  library conventions this project has actually seen, do not have) and the stub in the game's own
+  mod folder that the game actually reads - a save updates every one that exists, in place, so
+  nothing the edit does not name (other keys, `path=`, `remote_file_id`, comments, the byte order
+  mark, line endings) is disturbed, and a `descriptor.mod` a mod lacks can be created alongside the
+  stub. Every field is validated and every result is read back through the real descriptor parser
+  before anything is written, and the **What will change** panel shows a real line diff of every
+  file a save would touch before you save it. A new thumbnail is decoded (PNG, JPEG or GIF),
+  downscaled to at most 512 pixels on its longest side (never enlarged) and saved as
+  `thumbnail.png`, with a warning past Steam's 1 MB Workshop preview limit. Every save keeps the
+  files it replaced in the settings folder (never inside the mod, which is what gets uploaded), so
+  **Undo last save** can put them back - but only when a file still holds exactly what that save
+  wrote, so an edit made by hand or another program afterwards is never silently thrown away.
+  Unsaved edits for several mods are kept while the Editor stays open, so switching mods loses
+  nothing. Two more tabs, **Publish** and **Checks**, are laid out as they will look (uploading to
+  the Workshop with a line-by-line log; conflicts with the base game, syntax errors, descriptor
+  problems, missing dependencies) with clearly marked example content - neither is built yet, see
+  "Not yet built" below.
 - **Minimum window size** (`main.go`, `Workspace.css`) - the window can no longer be dragged smaller
   than **1200 x 640** (it opens at 1280 x 700, where 1024 x 768 used to be the default). Those numbers
   are where the interface was checked and found right, not a guess: at 1024 x 768 the Workspace's mod
@@ -1149,6 +1173,12 @@ that legitimately does rewrite the file's `modsOrder`).
   computer details" option (CPU, GPU, OS, mod counts, whether a patch has been generated, and so on)
   to help with statistics and investigating bugs. Never uploads without a confirmation, never sends mod
   names or account IDs. No code behind the button yet; see [docs/log-sharing.md](docs/log-sharing.md).
+- **Publishing to the Steam Workshop** - the Editor's **Publish** tab is laid out (upload as a new
+  item or update one you own, a change note, visibility, tags, an upload log) but not connected to
+  Steam; every control is disabled and its example log line content is clearly marked as an example.
+- **Checks for a mod's own problems** - the Editor's **Checks** tab lists what it will check (base-game
+  conflicts, syntax errors, descriptor problems, missing dependencies) with example findings clearly
+  marked as an example; nothing is scanned yet.
 - **Playset sharing via codes** - the Library screen's collections and bulk actions are now real
   (see [Progress](#progress) above); encoding/decoding a playset as a shareable local code
   ("Import code"/"Share"/"Join a friend's playset" in the Playsets modal) is still a static

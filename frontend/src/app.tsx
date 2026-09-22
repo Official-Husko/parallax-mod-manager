@@ -20,6 +20,7 @@ import {displayVersion} from './data/versionCompat';
 import {Workspace} from './views/Workspace';
 import {Library} from './views/Library';
 import {Dlc} from './views/Dlc';
+import {Editor} from './views/Editor';
 import {Settings} from './views/Settings';
 import {UpdatesModal} from './views/UpdatesModal';
 import {FirstRunWizard} from './views/FirstRunWizard';
@@ -334,7 +335,16 @@ export function App() {
                 onSelectGame: selectGame,
                 onManageGames: openManageGames,
             }
-            : undefined;
+            : view === 'editor'
+                ? {
+                    gameLabel: gameName,
+                    gameVersion,
+                    gameVersions,
+                    games: games.map((g) => ({ID: g.ID, DisplayName: g.DisplayName})),
+                    onSelectGame: selectGame,
+                    onManageGames: openManageGames,
+                }
+                : undefined;
 
     // Which accent draws the interface: the game's own (from its icon), a custom colour, or the
     // app's default - see data/accentPick.ts.
@@ -400,6 +410,11 @@ export function App() {
             {!gamesUnavailable && visitedViews.has('dlc') && (
                 <div style={{display: view === 'dlc' ? 'contents' : 'none'}}>
                     <Dlc games={games} selectedGame={selectedGame}/>
+                </div>
+            )}
+            {!gamesUnavailable && visitedViews.has('editor') && (
+                <div style={{display: view === 'editor' ? 'contents' : 'none'}}>
+                    <Editor games={games} selectedGame={selectedGame} gameVersion={gameVersion}/>
                 </div>
             )}
             {/* Settings isn't gated on gamesUnavailable like the views above - unlike

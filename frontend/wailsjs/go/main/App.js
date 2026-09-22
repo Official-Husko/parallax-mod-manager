@@ -186,6 +186,14 @@ export function ModChangelog(arg1) {
   return window['go']['main']['App']['ModChangelog'](arg1);
 }
 
+export function ModEditHistory(arg1, arg2) {
+  return window['go']['main']['App']['ModEditHistory'](arg1, arg2);
+}
+
+export function ModEditInfo(arg1, arg2) {
+  return window['go']['main']['App']['ModEditInfo'](arg1, arg2);
+}
+
 export function ModNotes(arg1) {
   return window['go']['main']['App']['ModNotes'](arg1);
 }
@@ -210,12 +218,24 @@ export function OpenPath(arg1) {
   return window['go']['main']['App']['OpenPath'](arg1);
 }
 
+export function PickThumbnailFile() {
+  return window['go']['main']['App']['PickThumbnailFile']();
+}
+
 export function PlanBackupCleanup(arg1, arg2) {
   return window['go']['main']['App']['PlanBackupCleanup'](arg1, arg2);
 }
 
 export function PlaysetChecksum(arg1, arg2) {
   return window['go']['main']['App']['PlaysetChecksum'](arg1, arg2);
+}
+
+export function PreviewModEdit(arg1, arg2, arg3) {
+  return window['go']['main']['App']['PreviewModEdit'](arg1, arg2, arg3);
+}
+
+export function PreviewThumbnail(arg1) {
+  return window['go']['main']['App']['PreviewThumbnail'](arg1);
 }
 
 export function PurgeMods(arg1, arg2) {
@@ -244,6 +264,10 @@ export function ResolvedConflicts(arg1) {
 
 export function SaveCollection(arg1) {
   return window['go']['main']['App']['SaveCollection'](arg1);
+}
+
+export function SaveModEdit(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SaveModEdit'](arg1, arg2, arg3);
 }
 
 export function SavePlayset(arg1) {
@@ -320,6 +344,10 @@ export function StopGame(arg1) {
 
 export function StopWatchingGameLog() {
   return window['go']['main']['App']['StopWatchingGameLog']();
+}
+
+export function UndoModEdit(arg1, arg2) {
+  return window['go']['main']['App']['UndoModEdit'](arg1, arg2);
 }
 
 export function WatchGameLog(arg1, arg2) {

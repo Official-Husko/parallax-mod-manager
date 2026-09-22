@@ -1,0 +1,575 @@
+/* --- Layout: a mod list on the left, the selected mod's tabs on the right --- */
+
+.editor-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+}
+
+.editor-list-pane {
+    width: 300px;
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border);
+    background: var(--bg-panel);
+}
+
+.editor-list-header {
+    padding: 11px 13px;
+    border-bottom: 1px solid var(--border);
+    flex: none;
+}
+
+.editor-list-rows {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.editor-list-row {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    height: 34px;
+    padding: 0 13px;
+    border-bottom: 1px solid #1a212b;
+    cursor: pointer;
+}
+
+.editor-list-row:hover {
+    background: var(--bg-row-alt);
+}
+
+.editor-list-row.selected {
+    background: #1a222e;
+    box-shadow: inset 2px 0 0 var(--rust);
+}
+
+.editor-list-name {
+    flex: 1;
+    min-width: 0;
+    font: 500 12.5px Barlow, sans-serif;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.editor-list-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--rust);
+    flex: none;
+}
+
+.editor-detail-pane {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+}
+
+.editor-detail-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 13px 18px;
+    border-bottom: 1px solid var(--border);
+    flex: none;
+}
+
+.editor-detail-title {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font: 700 15px Barlow, sans-serif;
+    color: var(--text-bright);
+}
+
+.editor-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 9px 18px 0;
+    border-bottom: 1px solid var(--border);
+    flex: none;
+}
+
+.editor-tab {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 13px;
+    font: 600 12px Barlow, sans-serif;
+    color: var(--text-muted);
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+}
+
+.editor-tab:hover {
+    color: var(--text);
+}
+
+.editor-tab.active {
+    color: var(--text-bright);
+    border-bottom-color: var(--rust);
+}
+
+.editor-tab-body {
+    flex: 1;
+    padding: 16px 18px 24px;
+}
+
+.editor-empty {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-dim);
+    font-size: 20px;
+    padding: 40px;
+    text-align: center;
+}
+
+/* --- The Edit / Publish / Checks tabs share this two-column shape --- */
+
+.editor-columns {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    gap: 16px;
+    align-items: start;
+}
+
+.editor-column {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+}
+
+.editor-card {
+    background: #161d27;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 13px 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.editor-card-title {
+    font: 600 9.5px "Azeret Mono", monospace;
+    color: var(--text-dim);
+    letter-spacing: .12em;
+}
+
+.editor-muted {
+    font: 400 12px/1.5 Barlow, sans-serif;
+    color: var(--text-muted);
+}
+
+.editor-readonly {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 11px 13px;
+    font: 400 12.5px/1.5 Barlow, sans-serif;
+    color: var(--text-mid);
+}
+
+.editor-readonly i {
+    color: var(--text-dim);
+    margin-top: 2px;
+}
+
+.editor-readonly-title {
+    font: 600 12.5px Barlow, sans-serif;
+    color: var(--text-bright);
+    margin-bottom: 2px;
+}
+
+/* --- Thumbnail --- */
+
+.editor-thumb-row {
+    display: flex;
+    gap: 14px;
+}
+
+.editor-thumb {
+    width: 140px;
+    height: 105px;
+    flex: none;
+    border-radius: 5px;
+    overflow: hidden;
+    background: repeating-linear-gradient(115deg, #1b2330 0 9px, #19202c 9px 18px);
+    border: 1px solid var(--border-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.editor-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.editor-thumb.changed {
+    border-color: var(--rust);
+}
+
+.editor-thumb-none {
+    color: var(--text-dim);
+    font: 500 11px Barlow, sans-serif;
+}
+
+.editor-thumb-side {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    justify-content: center;
+}
+
+.editor-thumb-note {
+    font: 400 11.5px/1.5 Barlow, sans-serif;
+    color: var(--text-muted);
+}
+
+.editor-thumb-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+/* --- Fields --- */
+
+.editor-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.editor-field-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.editor-label {
+    font: 500 10.5px Barlow, sans-serif;
+    color: var(--text-muted);
+}
+
+.editor-input {
+    width: 100%;
+    box-sizing: border-box;
+    background: rgba(255, 255, 255, .03);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 7px 9px;
+    font: 400 12.5px Barlow, sans-serif;
+    color: var(--text);
+    outline: none;
+}
+
+.editor-input:focus {
+    border-color: var(--rust);
+}
+
+.editor-input:disabled {
+    opacity: .55;
+    cursor: not-allowed;
+}
+
+.editor-input.mono {
+    font-family: "Azeret Mono", monospace;
+    font-size: 11.5px;
+}
+
+.editor-input.invalid {
+    border-color: var(--red);
+}
+
+.editor-hint {
+    font: 400 11px Barlow, sans-serif;
+    color: var(--text-dim);
+}
+
+.editor-hint.bad {
+    color: var(--red);
+}
+
+.editor-hint.warn {
+    color: var(--amber);
+}
+
+.editor-hint.good {
+    color: var(--green);
+}
+
+.editor-check {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    font: 400 12px/1.5 Barlow, sans-serif;
+    color: var(--text-mid);
+}
+
+.editor-check input {
+    margin-top: 3px;
+}
+
+/* --- What will change --- */
+
+.editor-changes {
+    position: sticky;
+    top: 0;
+}
+
+.editor-problem {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    font: 400 12px/1.5 Barlow, sans-serif;
+    padding: 8px 10px;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+}
+
+.editor-problem.bad {
+    color: var(--red);
+    border-color: var(--red);
+    background: color-mix(in srgb, var(--red) 8%, transparent);
+}
+
+.editor-problem.warn {
+    color: var(--amber);
+    border-color: var(--amber);
+    background: color-mix(in srgb, var(--amber) 8%, transparent);
+}
+
+.editor-file {
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+.editor-file-head {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 7px 10px;
+    background: #1b232e;
+    font-size: 11.5px;
+    color: var(--text-mid);
+}
+
+.editor-file-what {
+    color: var(--text-dim);
+    font: 400 11px Barlow, sans-serif;
+}
+
+.editor-file-tag {
+    font: 600 9.5px "Azeret Mono", monospace;
+    letter-spacing: .06em;
+    color: var(--green);
+    text-transform: uppercase;
+}
+
+.editor-file-tag.same {
+    color: var(--text-dim);
+}
+
+.editor-file-count {
+    margin-left: auto;
+    font-size: 10.5px;
+}
+
+.editor-file-count .add {
+    color: var(--green);
+}
+
+.editor-file-count .del {
+    color: var(--red);
+}
+
+.editor-file-note {
+    padding: 7px 10px;
+    font: 400 11.5px Barlow, sans-serif;
+    color: var(--text-muted);
+}
+
+.editor-diff {
+    margin: 0;
+    max-height: 260px;
+    overflow-y: auto;
+    font: 400 11px/1.5 "Azeret Mono", monospace;
+    white-space: pre-wrap;
+}
+
+.editor-diff-row {
+    display: flex;
+    gap: 6px;
+    padding: 0 10px;
+}
+
+.editor-diff-row.add {
+    background: color-mix(in srgb, var(--green) 12%, transparent);
+    color: #b9e3c7;
+}
+
+.editor-diff-row.del {
+    background: color-mix(in srgb, var(--red) 12%, transparent);
+    color: #f0b8b3;
+}
+
+.editor-diff-row.gap {
+    color: var(--text-dim);
+    justify-content: center;
+}
+
+.editor-diff-sign {
+    flex: none;
+    width: 10px;
+    opacity: .7;
+}
+
+.editor-diff-text {
+    overflow-wrap: anywhere;
+}
+
+.editor-actions {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    margin-top: 4px;
+}
+
+.editor-actions-spacer {
+    flex: 1;
+}
+
+.editor-files-note {
+    font: 400 11px/1.5 Barlow, sans-serif;
+    color: var(--text-dim);
+}
+
+/* --- Publish / Checks: "coming later" placeholders --- */
+
+.editor-soon-banner {
+    display: flex;
+    gap: 11px;
+    align-items: flex-start;
+    border: 1px solid var(--border-light);
+    border-radius: 6px;
+    padding: 12px 14px;
+    background: #161d27;
+    font: 400 12px/1.5 Barlow, sans-serif;
+    color: var(--text-muted);
+}
+
+.editor-soon-banner > i {
+    color: var(--text-dim);
+    font-size: 16px;
+    margin-top: 2px;
+}
+
+.editor-soon-title {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font: 700 14px Barlow, sans-serif;
+    color: var(--text-bright);
+    margin-bottom: 3px;
+}
+
+.editor-check-icon {
+    color: var(--text-dim);
+    font-size: 14px;
+    margin-top: 2px;
+}
+
+.editor-example-log {
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+.editor-log-line {
+    display: flex;
+    gap: 10px;
+    padding: 5px 10px;
+    font: 400 11.5px Barlow, sans-serif;
+    color: var(--text-mid);
+    border-bottom: 1px solid #1a212b;
+}
+
+.editor-log-line:last-child {
+    border-bottom: none;
+}
+
+.editor-log-time {
+    flex: none;
+    color: var(--text-dim);
+    font-size: 10.5px;
+}
+
+.editor-log-line.success .editor-log-text {
+    color: var(--green);
+}
+
+.editor-log-line.warn .editor-log-text {
+    color: var(--amber);
+}
+
+.editor-example-tag {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font: 500 10.5px Barlow, sans-serif;
+    color: var(--text-dim);
+}
+
+.editor-findings {
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+.editor-findings-head {
+    display: grid;
+    grid-template-columns: 20px 1fr 2fr;
+    gap: 10px;
+    padding: 6px 10px;
+    background: #1b232e;
+    font: 600 9.5px "Azeret Mono", monospace;
+    letter-spacing: .08em;
+    color: var(--text-dim);
+}
+
+.editor-finding-row {
+    display: grid;
+    grid-template-columns: 20px 1fr 2fr;
+    gap: 10px;
+    padding: 7px 10px;
+    font: 400 11.5px/1.4 Barlow, sans-serif;
+    color: var(--text-mid);
+    border-top: 1px solid #1a212b;
+}
+
+.editor-finding-row.error i {
+    color: var(--red);
+}
+
+.editor-finding-row.warn i {
+    color: var(--amber);
+}
+
+.editor-finding-row.info i {
+    color: var(--text-dim);
+}

@@ -933,6 +933,209 @@ export namespace main {
 	        this.OS = source["OS"];
 	    }
 	}
+	export class EditFile {
+	    Path: string;
+	    Kind: string;
+	    Exists: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new EditFile(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Path = source["Path"];
+	        this.Kind = source["Kind"];
+	        this.Exists = source["Exists"];
+	    }
+	}
+	export class EditHistory {
+	    Count: number;
+	    LastSavedAt: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new EditHistory(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Count = source["Count"];
+	        this.LastSavedAt = source["LastSavedAt"];
+	    }
+	}
+	export class EditInfo {
+	    ModID: string;
+	    Name: string;
+	    Editable: boolean;
+	    Reason: string;
+	    ContentPath: string;
+	    Fields: modedit.Fields;
+	    Picture: string;
+	    Files: EditFile[];
+	    CanCreateDescriptor: boolean;
+	    HistoryCount: number;
+	    LastSavedAt: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new EditInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ModID = source["ModID"];
+	        this.Name = source["Name"];
+	        this.Editable = source["Editable"];
+	        this.Reason = source["Reason"];
+	        this.ContentPath = source["ContentPath"];
+	        this.Fields = this.convertValues(source["Fields"], modedit.Fields);
+	        this.Picture = source["Picture"];
+	        this.Files = this.convertValues(source["Files"], EditFile);
+	        this.CanCreateDescriptor = source["CanCreateDescriptor"];
+	        this.HistoryCount = source["HistoryCount"];
+	        this.LastSavedAt = source["LastSavedAt"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class ThumbnailPreview {
+	    DataURI: string;
+	    Width: number;
+	    Height: number;
+	    SourceWidth: number;
+	    SourceHeight: number;
+	    Bytes: number;
+	    SourceBytes: number;
+	    Resized: boolean;
+	    Warnings: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ThumbnailPreview(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.DataURI = source["DataURI"];
+	        this.Width = source["Width"];
+	        this.Height = source["Height"];
+	        this.SourceWidth = source["SourceWidth"];
+	        this.SourceHeight = source["SourceHeight"];
+	        this.Bytes = source["Bytes"];
+	        this.SourceBytes = source["SourceBytes"];
+	        this.Resized = source["Resized"];
+	        this.Warnings = source["Warnings"];
+	    }
+	}
+	export class EditPreviewFile {
+	    Path: string;
+	    Kind: string;
+	    Create: boolean;
+	    Changed: boolean;
+	    Before: string;
+	    After: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new EditPreviewFile(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Path = source["Path"];
+	        this.Kind = source["Kind"];
+	        this.Create = source["Create"];
+	        this.Changed = source["Changed"];
+	        this.Before = source["Before"];
+	        this.After = source["After"];
+	    }
+	}
+	export class EditPreview {
+	    Files: EditPreviewFile[];
+	    Thumbnail?: ThumbnailPreview;
+	    Problems: string[];
+	    Warnings: string[];
+	    Nothing: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new EditPreview(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Files = this.convertValues(source["Files"], EditPreviewFile);
+	        this.Thumbnail = this.convertValues(source["Thumbnail"], ThumbnailPreview);
+	        this.Problems = source["Problems"];
+	        this.Warnings = source["Warnings"];
+	        this.Nothing = source["Nothing"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class ModEdit {
+	    Fields: modedit.Fields;
+	    ThumbnailFrom: string;
+	    CreateDescriptor: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new ModEdit(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Fields = this.convertValues(source["Fields"], modedit.Fields);
+	        this.ThumbnailFrom = source["ThumbnailFrom"];
+	        this.CreateDescriptor = source["CreateDescriptor"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class PlaysetChecksumResult {
 	    Status: string;
 	    Checksum: string;
@@ -953,6 +1156,20 @@ export namespace main {
 	        this.Mods = source["Mods"];
 	        this.Reason = source["Reason"];
 	        this.Warnings = source["Warnings"];
+	    }
+	}
+	export class SaveResult {
+	    Files: string[];
+	    SavedAt: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SaveResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Files = source["Files"];
+	        this.SavedAt = source["SavedAt"];
 	    }
 	}
 	export class SteamAPIStatus {
@@ -985,6 +1202,7 @@ export namespace main {
 	        this.Protection = source["Protection"];
 	    }
 	}
+	
 	export class WorkshopAvailability {
 	    RemoteFileID: string;
 	    State: string;
@@ -1003,6 +1221,33 @@ export namespace main {
 	        this.Reason = source["Reason"];
 	        this.BackedUpAt = source["BackedUpAt"];
 	        this.BackupState = source["BackupState"];
+	    }
+	}
+
+}
+
+export namespace modedit {
+	
+	export class Fields {
+	    Name: string;
+	    Version: string;
+	    SupportedVersion: string;
+	    Tags: string[];
+	    Dependencies: string[];
+	    ReplacePaths: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Fields(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Name = source["Name"];
+	        this.Version = source["Version"];
+	        this.SupportedVersion = source["SupportedVersion"];
+	        this.Tags = source["Tags"];
+	        this.Dependencies = source["Dependencies"];
+	        this.ReplacePaths = source["ReplacePaths"];
 	    }
 	}
 
