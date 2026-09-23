@@ -153,14 +153,16 @@ func parseFileListing(doc *html.Node) ([]FileSummary, int) {
 
 	files := make([]FileSummary, 0, len(items))
 	for _, item := range items {
-		titleHeading := findOne(item, func(n *html.Node) bool { return isElement(n, "h4") && hasClass(n, "ipsDataItem_title") })
-		if titleHeading == nil {
-			continue
-		}
-		// A file with a "prefix" tag (e.g. "immersion") renders that tag as
-		// its own <a> before the real title, so the title link must be
-		// found by its specific wrapping span rather than "first <a>".
-		titleSpan := findOne(titleHeading, func(n *html.Node) bool {
+		// The title's own <h4> used to carry an "ipsDataItem_title" class
+		// (confirmed live it no longer does - the site dropped it from this
+		// listing's markup at some point, silently emptying every listing
+		// page's results since nothing else here ever matched), so the title
+		// is found directly by its own wrapping span instead of gating on
+		// that heading class first. A file with a "prefix" tag (e.g.
+		// "immersion") renders that tag as its own <a> right before the real
+		// title, in a plain <span> with neither of this span's two classes,
+		// so it's never mistaken for the title itself.
+		titleSpan := findOne(item, func(n *html.Node) bool {
 			return isElement(n, "span") && hasClass(n, "ipsType_break") && hasClass(n, "ipsContained")
 		})
 		if titleSpan == nil {

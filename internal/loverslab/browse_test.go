@@ -73,28 +73,34 @@ func TestParseCategoriesExcludesAndMoreExpander(t *testing.T) {
 
 // The prefix-tag trap documented in docs/browsing.md: a tag link appears
 // before the real title inside the same <h4>, and must not be mistaken for
-// it.
+// it. This fixture also matches the real, current markup confirmed live on
+// https://www.loverslab.com/files/category/192-stellaris/ (this app's own
+// listing came back completely empty on every real page until this was
+// fixed): the title's own <h4> no longer carries an "ipsDataItem_title"
+// class at all (just "ipsContained_container"), and the listing no longer
+// has a <time> element anywhere - the site dropped the per-file "updated"
+// timestamp from this view entirely, so FileSummary.Updated is legitimately
+// blank now rather than something still parseable here.
 const fileListingFixture = `<html><body>
 <ul class='ipsPagination' data-pages='49' data-ipsPagination-perPage='25'></ul>
 <li class="ipsDataItem">
-  <h4 class='ipsDataItem_title ipsType_sectionHead ipsContained_container'>
+  <h4 class='ipsContained_container'>
     <span><span class='ipsItemStatus'>status</span></span>
     <span>
       <a href="/tags/immersion/" class='ipsTag_prefix'><span>immersion</span></a>
     </span>
-    <span class='ipsType_break ipsContained'>
+    <span class='ipsType_semiBold ipsType_normal ipsType_break ipsContained'>
       <a href='/files/file/50948-sit-with-me-.../'>Sit With Me - sit with your buddies</a>
     </span>
   </h4>
-  <a href="/profile/12345-someauthor/">SomeAuthor</a>
-  <time datetime="2026-08-15T04:56:33Z">Sunday at 03:07 AM</time>
-  <a class="ipsThumb" href="/files/file/50948-sit-with-me-.../">
+  <a class="ipsType_break" href="/profile/12345-someauthor/">SomeAuthor</a>
+  <a class=" ipsThumb ipsThumb_large ipsThumb_bg" href="/files/file/50948-sit-with-me-.../">
     <img src="https://static.loverslab.com/screenshots/monthly_2026_08/thumb.gif">
   </a>
 </li>
 <li class="ipsDataItem">
-  <h4 class='ipsDataItem_title ipsType_sectionHead ipsContained_container'>
-    <span class='ipsType_break ipsContained'>
+  <h4 class='ipsContained_container'>
+    <span class='ipsType_semiBold ipsType_normal ipsType_break ipsContained'>
       <a href='/files/file/12-plain-file/'>A Plain File With No Prefix Tag</a>
     </span>
   </h4>
@@ -125,8 +131,8 @@ func TestParseFileListingSkipsThePrefixTagLink(t *testing.T) {
 	if f.Author != "SomeAuthor" || f.AuthorURL != "/profile/12345-someauthor/" {
 		t.Errorf("author = %q / %q, want SomeAuthor / /profile/12345-someauthor/", f.Author, f.AuthorURL)
 	}
-	if f.Updated != "Sunday at 03:07 AM" {
-		t.Errorf("Updated = %q", f.Updated)
+	if f.Updated != "" {
+		t.Errorf("Updated = %q, want empty - the real listing no longer has a <time> element at all", f.Updated)
 	}
 	if f.ThumbnailURL != "https://static.loverslab.com/screenshots/monthly_2026_08/thumb.gif" {
 		t.Errorf("ThumbnailURL = %q", f.ThumbnailURL)
