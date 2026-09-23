@@ -99,8 +99,8 @@ function mergeTopicAuthor(existing: string, fetched: string): string {
 // comments (read and, per Phase 1, write).
 type DetailTab = 'overview' | 'files' | 'changelog' | 'comments';
 
-// The Files tab's own list of what's downloadable for the open file - loaded once,
-// lazily, the first time that tab is opened.
+// The Files tab's own list of what's downloadable for the open file - loaded
+// eagerly, the moment a mod's detail is opened, the same as the other tabs.
 type FilesTabState =
     | { kind: 'idle' }
     | { kind: 'loading' }
@@ -536,6 +536,13 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
         setSelectedCategory(cat);
         setPage(1);
         setSearch('');
+        // A CATEGORIES filter picked while browsing one game is about that
+        // game's own files - carrying it over silently narrowed a
+        // freshly-selected game's real, full page of results down to
+        // whichever small slice happened to still match, which is exactly
+        // what looked like "only a few mods" for an otherwise perfectly
+        // real 25-per-page response.
+        setSelectedTagFilter(null);
     }
 
     function selectInstalled() {
@@ -585,13 +592,18 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
     // three independent requests shown as three independent sections below, so a slow or
     // failed one (a file with no changelog, or no support topic at all) never blocks the
     // others from showing up.
+    // Opening a card fetches everything the overlay can show - detail,
+    // changelog, and the downloads list - together, up front, rather than
+    // waiting for whichever tab a person happens to click first. Each is its
+    // own independent request/state, so a slow or failed one (a file with no
+    // changelog, or no support topic at all) never blocks the others from
+    // showing up, and each tab's own label can show a real count immediately.
     function openDetail(file: loverslab.FileSummary) {
         setDetailFor(file);
         setDetailTab('overview');
         setScreenshotIndex(0);
         setCommentsPage(1);
         setInstallState({kind: 'idle'});
-        setFilesTabState({kind: 'idle'});
 
         setDetailState({kind: 'loading'});
         LoversLabFileDetail(file.URL)
@@ -602,6 +614,11 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
         LoversLabChangelog(file.URL)
             .then((entries) => setChangelogState({kind: 'ready', entries: entries ?? []}))
             .catch((err) => setChangelogState({kind: 'error', message: errorText(err)}));
+
+        setFilesTabState({kind: 'loading'});
+        LoversLabDownloadDialog(file.URL)
+            .then((downloads) => setFilesTabState({kind: 'ready', downloads: downloads ?? []}))
+            .catch((err) => setFilesTabState({kind: 'error', message: errorText(err)}));
     }
 
     useEffect(() => {
@@ -621,17 +638,6 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
             .catch((err) => { if (!cancelled) setCommentsState({kind: 'error', message: errorText(err)}); });
         return () => { cancelled = true; };
     }, [detailFor, commentsPage]);
-
-    // The Files tab's own list of what's downloadable, loaded once the first time that
-    // tab is opened (not eagerly with the rest of the detail, since most visits to a
-    // mod's page never need it).
-    useEffect(() => {
-        if (!detailFor || detailTab !== 'files' || filesTabState.kind !== 'idle') return;
-        setFilesTabState({kind: 'loading'});
-        LoversLabDownloadDialog(detailFor.URL)
-            .then((downloads) => setFilesTabState({kind: 'ready', downloads: downloads ?? []}))
-            .catch((err) => setFilesTabState({kind: 'error', message: errorText(err)}));
-    }, [detailFor, detailTab, filesTabState.kind]);
 
     // Opening a mod straight from the Installed list: only FileID/Title/FileURL are
     // known there (see LoversLabInstalledMod) - the rest (author, screenshots,
@@ -1240,10 +1246,10 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                                         Overview
                                     </span>
                                     <span className={`browse-detail-tab ${detailTab === 'files' ? 'active' : ''}`} onClick={() => setDetailTab('files')}>
-                                        Files
+                                        Files{filesTabState.kind === 'ready' ? ` (${filesTabState.downloads.length})` : ''}
                                     </span>
                                     <span className={`browse-detail-tab ${detailTab === 'changelog' ? 'active' : ''}`} onClick={() => setDetailTab('changelog')}>
-                                        Changelog
+                                        Changelog{changelogState?.kind === 'ready' ? ` (${changelogState.entries.length})` : ''}
                                     </span>
                                     <span className={`browse-detail-tab ${detailTab === 'comments' ? 'active' : ''}`} onClick={() => setDetailTab('comments')}>
                                         Comments{commentsState?.kind === 'ready' && commentsState.hasTopic ? ` (${commentsState.posts.length})` : ''}
