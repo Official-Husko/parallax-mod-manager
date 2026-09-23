@@ -1,0 +1,36 @@
+What is this file?
+===================
+
+This is the launcher shim from Parallax Mod Manager (a mod manager for Paradox
+Interactive grand strategy games - Stellaris, EU4, HOI4, CK3, Victoria 3, and others).
+
+Normally, Steam launches a small Paradox program called "dowser" (dowser.exe on
+Windows), whose only job is to check the real Paradox Launcher is installed and
+up to date, then open it. This file replaces that dowser in place: when Steam
+launches it, it reads this game's own launcher-settings.json and starts the real
+game executable directly - so the Paradox Launcher itself never opens, while Steam
+still launches, tracks, and integrates with the game exactly as it normally would
+(overlay, achievements, DLC ownership checks all keep working).
+
+Is this safe? What did it replace?
+===================================
+
+Parallax Mod Manager only ever installs this with your explicit say-so, from its own
+Settings. Before installing it, Parallax backs up the real dowser it replaced, right
+next to this file. You can ask Parallax to remove this shim and restore the original
+dowser at any time from the same place you installed it, or repair the install if
+something (like Steam's own "Verify integrity of game files") reset it.
+
+Where's the actual source code?
+================================
+
+Nowhere near this file - on purpose. This program never carries a copy of its own
+source code. The real thing, and everything else this project does, is published at:
+
+    https://github.com/Official-Husko/parallax-mod-manager
+
+Running this program with the "--source" command-line flag prints this same URL.
+
+This file itself is under companions/launcher-shim/ in that repository, along with
+its own tests and build setup - see that folder's own README.md-equivalent context
+in the parent project's CLAUDE.md/docs/ for how it fits into the rest of the app.

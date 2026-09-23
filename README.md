@@ -302,9 +302,24 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   pointed outside the install for those three. A second bypass strategy - replacing the
   launcher's own binary with a small shim so Steam keeps owning the process, shown in the UI
   today as "Steam Direct (Recommended)" - is designed for (`LaunchMode` is a named string, not a
-  bool, specifically so it can be added later) but not yet built; once it is, it's intended to
-  become the default, since it keeps Steam integration Parallax Direct can't promise on every
-  game. See [docs/game-launching.md](docs/game-launching.md).
+  bool, specifically so it can be added later); once fully wired up, it's intended to become the
+  default, since it keeps Steam integration Parallax Direct can't promise on every game.
+- **The Steam Direct shim itself is now real** (`companions/launcher-shim/`) - its own, separate
+  Go module (own `go.mod`, standard library only) rather than part of this app's own build,
+  since it has to stay small and easy to audit on its own merits: it replaces a game's own
+  `dowser`/`dowser.exe` (confirmed, by disassembling a real, unstripped copy of it from this
+  machine's own Stellaris and Hearts of Iron IV installs, to be nothing more than a bootstrapper
+  for the Paradox Launcher itself, with no "skip the launcher" mode of its own - a replacement
+  really is the only way), reads that game's `launcher-settings.json`, and execs the real
+  executable in its place (`syscall.Exec` on Linux - true process-image replacement, so Steam's
+  own environment and process context carry through exactly as it set them up; confirmed live
+  against a scratch fixture standing in for a real install). Reports its own outcome to a small
+  status file Parallax can read later, and makes one best-effort, bounded live ping to Parallax
+  if it happens to already be running. Never carries a copy of its own source - `--source`
+  prints a link to this repository instead. **Not yet built**: Parallax's own side (installing
+  it in place of a real game's `dowser`, detecting and repairing a stale install, removing it on
+  request, and the Settings UI for all of that) - see
+  [docs/game-launching.md](docs/game-launching.md).
 - **Play never depends on a playset being loaded** (`app.go`'s `LaunchGame`) - launching with no
   playset name selected skips every one of this project's own state writes (`dlc_load.json`,
   `mods_registry.json`, `game_data.json`) entirely and starts the game against whatever's already

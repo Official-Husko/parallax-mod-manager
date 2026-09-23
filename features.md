@@ -142,6 +142,10 @@ for security, privacy, reliability or performance is called out (see the last tw
   launcher. Settings > Launch options lists it and the planned Steam Direct ahead of the classic
   Steam / Paradox Launcher path, and asks for a confirmation before switching back to it (an
   extra launcher window every time, on top of Steam itself).
+- **A standalone launcher shim for Steam Direct** (`companions/launcher-shim/`) - a small,
+  separate companion executable (not installed into a game yet - that's still planned) that
+  replaces a game's own `dowser`/`dowser.exe`, letting Steam launch the game directly without
+  ever opening the Paradox Launcher.
 - **Play without a playset** - launching with nothing loaded touches no state and just starts the game.
 - **Stop playing** - a two-step stop button that works however the game was started.
 - **Live game log** - a filterable, colored window on the game's own `error.log` and other logs while

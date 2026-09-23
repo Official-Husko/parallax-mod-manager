@@ -1,6 +1,12 @@
 # Wails build output
 build/bin
 
+# Companion executables' own build output (see companions/*/build.sh), and the same
+# stray-binary-from-a-plain-`go build` case /parallax-mod-manager above guards against,
+# one per companion since each is named after its own folder
+companions/*/dist
+companions/launcher-shim/launcher-shim
+
 # stray binary from `go build ./...` at repo root
 /parallax-mod-manager
 

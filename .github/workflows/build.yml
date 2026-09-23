@@ -58,3 +58,41 @@ jobs:
 
       - run: npm ci
       - run: npm run build
+
+  # Each folder under companions/ is its own small, standalone executable with its
+  # own go.mod - a separate module from the main app on purpose (see
+  # companions/launcher-shim/main.go's own doc comment), so it gets its own build/
+  # vet/test/cross-compile here rather than being swept up in the "backend" job
+  # above, which never even sees these (a nested go.mod carves out its own module,
+  # excluded from the main module's own `./...`).
+  companions:
+    strategy:
+      matrix:
+        companion: [launcher-shim]
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: companions/${{ matrix.companion }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: companions/${{ matrix.companion }}/go.mod
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test -race ./...
+
+      - name: Build (linux/amd64)
+        run: GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dist/${{ matrix.companion }}-linux-amd64 .
+
+      - name: Build (windows/amd64)
+        run: GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dist/${{ matrix.companion }}-windows-amd64.exe .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.companion }}
+          path: companions/${{ matrix.companion }}/dist/*
