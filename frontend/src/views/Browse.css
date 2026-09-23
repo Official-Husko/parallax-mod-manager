@@ -305,6 +305,43 @@
     overflow-y: auto;
 }
 
+.browse-account-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+/* The real LoversLab notifications bell - clicking it opens the real page in the
+   system browser (see data/loversLabNotifications.ts: a populated notification's own
+   markup was never confirmed, so this app only ever shows the real unread count). */
+.browse-notifications-bell {
+    position: relative;
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: 13px;
+    padding: 2px 4px;
+}
+
+.browse-notifications-bell:hover {
+    color: var(--text-mid);
+}
+
+.browse-notifications-badge {
+    position: absolute;
+    top: -5px;
+    right: -6px;
+    min-width: 14px;
+    height: 14px;
+    padding: 0 3px;
+    border-radius: 7px;
+    background: var(--red);
+    color: #fff;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 14px;
+    text-align: center;
+}
+
 .browse-account-status {
     display: flex;
     align-items: flex-start;

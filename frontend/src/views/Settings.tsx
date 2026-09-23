@@ -731,6 +731,10 @@ const MIN_LOVERSLAB_CHECK_INTERVAL_HOURS = 1;
 const MAX_LOVERSLAB_CHECK_INTERVAL_HOURS = 24;
 const DEFAULT_LOVERSLAB_CHECK_INTERVAL_HOURS = 4;
 
+const MIN_LOVERSLAB_NOTIFICATION_INTERVAL_MINUTES = 1;
+const MAX_LOVERSLAB_NOTIFICATION_INTERVAL_MINUTES = 120;
+const DEFAULT_LOVERSLAB_NOTIFICATION_INTERVAL_MINUTES = 10;
+
 // Browse-related settings: currently just whether (and how often) this app checks
 // mods installed from LoversLab for a newer version - see data/modUpdates.ts's own
 // ensureLoversLabUpdates, and loverslabupdates.go on the backend. Anything else about
@@ -743,11 +747,15 @@ function BrowseSettingsPanel() {
     // background interval field works this way: typing "12" would otherwise fire a
     // save for "1" and another for "12".
     const [intervalInput, setIntervalInput] = useState('4');
+    // Same "own local text copy, committed on blur" reason as intervalInput above,
+    // just for the notification check's own, much shorter interval.
+    const [notificationIntervalInput, setNotificationIntervalInput] = useState('10');
 
     useEffect(() => {
         GetPreferences().then((p) => {
             setPrefs(p);
             setIntervalInput(String(p.loversLabCheckIntervalHours || DEFAULT_LOVERSLAB_CHECK_INTERVAL_HOURS));
+            setNotificationIntervalInput(String(p.loversLabNotificationIntervalMinutes || DEFAULT_LOVERSLAB_NOTIFICATION_INTERVAL_MINUTES));
         }).catch(() => undefined);
     }, []);
 
@@ -774,6 +782,33 @@ function BrowseSettingsPanel() {
         const clamped = Math.min(MAX_LOVERSLAB_CHECK_INTERVAL_HOURS, Math.max(MIN_LOVERSLAB_CHECK_INTERVAL_HOURS, (Number(intervalInput) || DEFAULT_LOVERSLAB_CHECK_INTERVAL_HOURS) + delta));
         setIntervalInput(String(clamped));
         const next = {...prefs, loversLabCheckIntervalHours: clamped};
+        setPrefs(next);
+        SetPreferences(next).catch(() => setPrefs(prefs));
+    }
+
+    function toggleNotifications() {
+        if (!prefs) return;
+        const next = {...prefs, loversLabNotifications: !prefs.loversLabNotifications};
+        setPrefs(next);
+        SetPreferences(next).catch(() => setPrefs(prefs));
+    }
+
+    function commitNotificationInterval() {
+        if (!prefs) return;
+        const parsed = Math.round(Number(notificationIntervalInput));
+        const clamped = Math.min(MAX_LOVERSLAB_NOTIFICATION_INTERVAL_MINUTES, Math.max(MIN_LOVERSLAB_NOTIFICATION_INTERVAL_MINUTES, Number.isFinite(parsed) ? parsed : DEFAULT_LOVERSLAB_NOTIFICATION_INTERVAL_MINUTES));
+        setNotificationIntervalInput(String(clamped));
+        if (clamped === prefs.loversLabNotificationIntervalMinutes) return;
+        const next = {...prefs, loversLabNotificationIntervalMinutes: clamped};
+        setPrefs(next);
+        SetPreferences(next).catch(() => setPrefs(prefs));
+    }
+
+    function stepNotificationInterval(delta: number) {
+        if (!prefs) return;
+        const clamped = Math.min(MAX_LOVERSLAB_NOTIFICATION_INTERVAL_MINUTES, Math.max(MIN_LOVERSLAB_NOTIFICATION_INTERVAL_MINUTES, (Number(notificationIntervalInput) || DEFAULT_LOVERSLAB_NOTIFICATION_INTERVAL_MINUTES) + delta));
+        setNotificationIntervalInput(String(clamped));
+        const next = {...prefs, loversLabNotificationIntervalMinutes: clamped};
         setPrefs(next);
         SetPreferences(next).catch(() => setPrefs(prefs));
     }
@@ -836,6 +871,55 @@ function BrowseSettingsPanel() {
                                 </span>
                             </span>
                             <span className="mono unit">hours</span>
+                        </span>
+                    </div>
+                    <div className="sort-rule-row">
+                        <div className="sort-rule-main">
+                            <div className="sort-rule-name">Check for LoversLab notifications</div>
+                            <div className="sort-rule-desc">
+                                Your account's own real notifications on loverslab.com (replies, reactions),
+                                not just this app's own alerts - click the bell in Browse to open them.
+                            </div>
+                        </div>
+                        <Toggle on={prefs.loversLabNotifications} onClick={toggleNotifications}/>
+                    </div>
+                    <div className={`profile-toggle-row ${prefs.loversLabNotifications ? '' : 'disabled'}`}>
+                        <span>Check every</span>
+                        <span className="appearance-interval">
+                            <span className={`interval-stepper ${!prefs.loversLabNotifications ? 'disabled' : ''}`}>
+                                <input
+                                    type="number"
+                                    step={1}
+                                    min={MIN_LOVERSLAB_NOTIFICATION_INTERVAL_MINUTES}
+                                    max={MAX_LOVERSLAB_NOTIFICATION_INTERVAL_MINUTES}
+                                    value={notificationIntervalInput}
+                                    disabled={!prefs.loversLabNotifications}
+                                    onInput={(e) => setNotificationIntervalInput((e.target as HTMLInputElement).value)}
+                                    onBlur={commitNotificationInterval}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                                />
+                                <span className="interval-stepper-buttons">
+                                    <button
+                                        type="button"
+                                        className="interval-stepper-btn up"
+                                        tabIndex={-1}
+                                        disabled={!prefs.loversLabNotifications}
+                                        onClick={() => stepNotificationInterval(1)}
+                                    >
+                                        <i className="fa-solid fa-chevron-up"/>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="interval-stepper-btn down"
+                                        tabIndex={-1}
+                                        disabled={!prefs.loversLabNotifications}
+                                        onClick={() => stepNotificationInterval(-1)}
+                                    >
+                                        <i className="fa-solid fa-chevron-down"/>
+                                    </button>
+                                </span>
+                            </span>
+                            <span className="mono unit">minutes</span>
                         </span>
                     </div>
                 </div>

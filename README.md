@@ -998,6 +998,16 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   took (recognizing the pattern, then not over-matching it against an ordinary flat-root archive
   that just happens to also have a subfolder). Only `.zip` archives are supported; anything else
   is refused with a clear message rather than failing silently.
+- **Real LoversLab notifications, not just this app's own alerts** (`internal/loverslab/notifications.go`,
+  `LoversLabUnreadNotifications`, `data/loversLabNotifications.ts`) - a bell next to the sign-in panel
+  shows the signed-in account's actual unread count, read straight from the site's own bell badge
+  (present on every real page fetch), checked periodically. The site's own live-updating bell turned
+  out to have its AJAX polling disabled server-side - confirmed live, not assumed - so there is no
+  real endpoint to poll instead of an ordinary page fetch, the same as everything else this app reads
+  from LoversLab. A populated notification's own markup was never observed (the research account has
+  had zero notifications through every research pass), so this deliberately shows only the real,
+  confirmed count rather than guessing at a list's rendering; clicking the bell opens the real
+  notifications page on loverslab.com. Configurable in Settings > Browse, alongside the update check.
 - **Checking LoversLab mods for updates** (`loverslabupdates.go`, `internal/preferences`,
   `data/modUpdates.ts`, `BrowseSettingsPanel` in `Settings.tsx`) - on startup and every
   `LoversLabCheckIntervalHours` (Settings > Browse, default 4, on by default) while the app stays

@@ -17,6 +17,7 @@ import {
 } from '../../wailsjs/go/main/App';
 import type {library, loverslab, main} from '../../wailsjs/go/models';
 import {BrowserOpenURL, EventsOn} from '../../wailsjs/runtime/runtime';
+import {checkLoversLabNotifications, loversLabNotificationsURL, useLoversLabUnreadCount} from '../data/loversLabNotifications';
 import {checkLoversLabUpdates} from '../data/modUpdates';
 import {notify} from '../data/notifications';
 
@@ -91,6 +92,7 @@ export function Browse({games, selectedGame}: {
     games: library.GameInfo[];
     selectedGame: string;
 }) {
+    const unreadNotifications = useLoversLabUnreadCount();
     const [status, setStatus] = useState<main.LoversLabStatus | null>(null);
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
@@ -173,6 +175,7 @@ export function Browse({games, selectedGame}: {
             // possible - don't make signing in and then waiting up to
             // loversLabCheckIntervalHours the only way to see it.
             void checkLoversLabUpdates(selectedGame);
+            void checkLoversLabNotifications();
         } catch (err) {
             setError(errorText(err));
         } finally {
@@ -447,7 +450,21 @@ export function Browse({games, selectedGame}: {
             </div>
 
             <div className="browse-account">
-                <div className="sidebar-label">LOVERSLAB SIGN-IN</div>
+                <div className="browse-account-head">
+                    <div className="sidebar-label">LOVERSLAB SIGN-IN</div>
+                    {status?.SignedIn && (
+                        <span
+                            className="browse-notifications-bell"
+                            title={unreadNotifications > 0
+                                ? `${unreadNotifications} unread on LoversLab - open notifications`
+                                : 'No unread LoversLab notifications - open notifications'}
+                            onClick={() => BrowserOpenURL(loversLabNotificationsURL())}
+                        >
+                            <i className="fa-solid fa-bell"/>
+                            {unreadNotifications > 0 && <span className="browse-notifications-badge">{unreadNotifications}</span>}
+                        </span>
+                    )}
+                </div>
                 {!status ? (
                     <p className="status-page">Loading...</p>
                 ) : (

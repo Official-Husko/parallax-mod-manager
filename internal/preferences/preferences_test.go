@@ -326,6 +326,36 @@ func TestLoversLabUpdateCheckDefaultsOnWithA4HourIntervalAndSurvivesASave(t *tes
 	}
 }
 
+func TestLoversLabNotificationsDefaultOnWithA10MinuteIntervalAndSurviveASave(t *testing.T) {
+	d := Defaults()
+	if !d.LoversLabNotifications {
+		t.Error("LoversLabNotifications must default to on")
+	}
+	if d.LoversLabNotificationIntervalMinutes != DefaultLoversLabNotificationIntervalMinutes {
+		t.Errorf("LoversLabNotificationIntervalMinutes = %d, want %d", d.LoversLabNotificationIntervalMinutes, DefaultLoversLabNotificationIntervalMinutes)
+	}
+
+	path := filepath.Join(t.TempDir(), "preferences.jsonc")
+	if err := os.WriteFile(path, []byte(`{"scanForNewMods": false}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	loaded := Load(path)
+	if !loaded.LoversLabNotifications || loaded.LoversLabNotificationIntervalMinutes != DefaultLoversLabNotificationIntervalMinutes {
+		t.Error("a file from before the setting existed must keep the default, not read as off/zero")
+	}
+
+	p := Defaults()
+	p.LoversLabNotifications = false
+	p.LoversLabNotificationIntervalMinutes = 30
+	if err := Save(path, p); err != nil {
+		t.Fatal(err)
+	}
+	got := Load(path)
+	if got.LoversLabNotifications || got.LoversLabNotificationIntervalMinutes != 30 {
+		t.Errorf("the settings were lost by a save and load: %+v", got)
+	}
+}
+
 func TestAccentDefaultsToTheGamesOwnColour(t *testing.T) {
 	if Defaults().AccentMode != AccentModeGame || Defaults().AccentColor != "" {
 		t.Errorf("defaults: mode %q colour %q, want the game's own colour and none custom", Defaults().AccentMode, Defaults().AccentColor)

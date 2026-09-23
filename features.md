@@ -106,6 +106,9 @@ for security, privacy, reliability or performance is called out (see the last tw
   (Settings > Browse), shown in the exact same Updates list Steam Workshop mods already appear in,
   with their own badge. Signing in or installing also checks right away, rather than only up to
   that interval later.
+- **Your real LoversLab notifications, not just this app's own alerts** - a bell in Browse shows
+  your account's actual unread count from loverslab.com, checked periodically (configurable in
+  Settings > Browse); clicking it opens your real notifications on the site.
 - **A file's changelog, when it has one** - most files never had release notes written for them, so
   no changelog is a normal result, not an error.
 - **Opening a file's own page, an author, or a comment still links out** - this app never mirrors a

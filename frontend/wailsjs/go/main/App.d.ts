@@ -139,6 +139,8 @@ export function LoversLabPostComment(arg1:string,arg2:string):Promise<void>;
 
 export function LoversLabStatus():Promise<main.LoversLabStatus>;
 
+export function LoversLabUnreadNotifications():Promise<number>;
+
 export function MarkModUpdatesSeen(arg1:string):Promise<modupdates.Report>;
 
 export function ModChangelog(arg1:string):Promise<Array<steamapi.ChangelogEntry>>;

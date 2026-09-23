@@ -246,6 +246,10 @@ export function LoversLabStatus() {
   return window['go']['main']['App']['LoversLabStatus']();
 }
 
+export function LoversLabUnreadNotifications() {
+  return window['go']['main']['App']['LoversLabUnreadNotifications']();
+}
+
 export function MarkModUpdatesSeen(arg1) {
   return window['go']['main']['App']['MarkModUpdatesSeen'](arg1);
 }

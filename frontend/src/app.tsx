@@ -10,6 +10,7 @@ import {ContextMenu} from './components/ContextMenu';
 import {installBackupNotifications} from './data/backups';
 import {installModStubNotifications} from './data/modStubs';
 import {setShiftRightClickNative, wantsNativeContextMenu} from './data/developerTools';
+import {ensureLoversLabNotifications} from './data/loversLabNotifications';
 import {ensureLoversLabUpdates, ensureModUpdates} from './data/modUpdates';
 import {Tooltip} from './components/Tooltip';
 import {AppBackground} from './components/AppBackground';
@@ -303,6 +304,15 @@ export function App() {
             ensureLoversLabUpdates(selectedGame, prefs.loversLabCheckUpdates, prefs.loversLabCheckIntervalHours || 4);
         }
     }, [onboarded, selectedGame, prefs?.loversLabCheckUpdates, prefs?.loversLabCheckIntervalHours]);
+
+    // The signed-in LoversLab account's own real notifications - account-wide, not
+    // per-game, so this isn't gated on a selected game the way the mod-update checks
+    // above are, just on having finished onboarding.
+    useEffect(() => {
+        if (onboarded && prefs) {
+            ensureLoversLabNotifications(prefs.loversLabNotifications, prefs.loversLabNotificationIntervalMinutes || 10);
+        }
+    }, [onboarded, prefs?.loversLabNotifications, prefs?.loversLabNotificationIntervalMinutes]);
 
     if (!onboarded) {
         return (

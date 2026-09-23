@@ -272,6 +272,24 @@ func (a *App) LoversLabPostComment(filePageURL, content string) error {
 	return nil
 }
 
+// LoversLabUnreadNotifications reports how many unread notifications the signed-in
+// LoversLab account currently has, read straight from the site's own bell badge
+// (see docs/loverslab.md's Notifications section) - the site's own live-updating
+// bell has its AJAX polling disabled server-side, confirmed live, so this is a
+// normal page fetch, the same as everything else this app reads from the site, not
+// an invented endpoint. Meant to be called periodically, not on every render.
+func (a *App) LoversLabUnreadNotifications() (int, error) {
+	client, err := a.ensureLoversLabSession(a.baseContext())
+	if err != nil {
+		return 0, err
+	}
+	count, err := a.loverslab.unreadNotifications(a.baseContext(), client)
+	if err != nil {
+		applog.For("LoversLab").Warnf("checking notifications failed: %v", err)
+	}
+	return count, err
+}
+
 // paragraphsToHTML turns plain text typed into this app's own comment box into the
 // simple HTML the site's real rich text editor submits for an ordinary reply (see
 // docs/loverslab.md's Notifications/Comments research) - blank-line-separated

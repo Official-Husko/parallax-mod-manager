@@ -178,11 +178,25 @@ type Preferences struct {
 	// LoversLabCheckIntervalHours is how often that check repeats while the app is
 	// open. DefaultLoversLabCheckIntervalHours is what the app shipped with.
 	LoversLabCheckIntervalHours int `json:"loversLabCheckIntervalHours"`
+	// LoversLabNotifications gates the periodic check for the signed-in LoversLab
+	// account's own real site notifications (see loverslab.go's
+	// LoversLabUnreadNotifications) - a separate, much shorter interval from the mod
+	// update check above, since a notification (a reply, a reaction) is worth
+	// noticing sooner than a mod update is. On by default.
+	LoversLabNotifications bool `json:"loversLabNotifications"`
+	// LoversLabNotificationIntervalMinutes is how often that check repeats while the
+	// app is open. DefaultLoversLabNotificationIntervalMinutes is what the app
+	// shipped with.
+	LoversLabNotificationIntervalMinutes int `json:"loversLabNotificationIntervalMinutes"`
 }
 
 // DefaultLoversLabCheckIntervalHours is what the app shipped with - see
 // Preferences.LoversLabCheckIntervalHours.
 const DefaultLoversLabCheckIntervalHours = 4
+
+// DefaultLoversLabNotificationIntervalMinutes is what the app shipped with - see
+// Preferences.LoversLabNotificationIntervalMinutes.
+const DefaultLoversLabNotificationIntervalMinutes = 10
 
 // VersionChange is one game whose installed version differs from the last one
 // seen.
@@ -298,16 +312,18 @@ func (p Preferences) normalized() Preferences {
 // Defaults returns the preferences a fresh install starts with.
 func Defaults() Preferences {
 	return Preferences{
-		ScanForNewMods:              true,
-		WarnOnPatchMismatch:         true,
-		AutosortDependencies:        true,
-		AutosortFixesLast:           true,
-		AutosortPatchLast:           true,
-		BackgroundSource:            BackgroundSourceOnline,
-		BackgroundDarken:            DefaultBackgroundDarken,
-		AccentMode:                  AccentModeGame,
-		LoversLabCheckUpdates:       true,
-		LoversLabCheckIntervalHours: DefaultLoversLabCheckIntervalHours,
+		ScanForNewMods:                       true,
+		WarnOnPatchMismatch:                  true,
+		AutosortDependencies:                 true,
+		AutosortFixesLast:                    true,
+		AutosortPatchLast:                    true,
+		BackgroundSource:                     BackgroundSourceOnline,
+		BackgroundDarken:                     DefaultBackgroundDarken,
+		AccentMode:                           AccentModeGame,
+		LoversLabCheckUpdates:                true,
+		LoversLabCheckIntervalHours:          DefaultLoversLabCheckIntervalHours,
+		LoversLabNotifications:               true,
+		LoversLabNotificationIntervalMinutes: DefaultLoversLabNotificationIntervalMinutes,
 	}
 }
 

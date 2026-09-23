@@ -58,6 +58,11 @@ type loversLabState struct {
 	// Client.PostComment), replaced in tests with one that never makes a real
 	// request - same reason as login/verify/getFileDetail above.
 	postComment func(ctx context.Context, client *loverslab.Client, filePageURL, content string) error
+	// unreadNotifications reads the real, current unread-notification count;
+	// loverslabUnreadNotifications in production (a thin wrapper around
+	// Client.UnreadNotificationCount), replaced in tests with one that never makes
+	// a real request - same reason as everything else above.
+	unreadNotifications func(ctx context.Context, client *loverslab.Client) (int, error)
 }
 
 // loverslabLogin is loversLabState.login's real, production implementation.
@@ -95,6 +100,12 @@ func loverslabPostComment(ctx context.Context, client *loverslab.Client, filePag
 		return errors.New("this mod has no support topic to comment on")
 	}
 	return client.PostComment(ctx, topicURL, content)
+}
+
+// loverslabUnreadNotifications is loversLabState.unreadNotifications's real,
+// production implementation.
+func loverslabUnreadNotifications(ctx context.Context, client *loverslab.Client) (int, error) {
+	return client.UnreadNotificationCount(ctx)
 }
 
 // LoversLabStatus is what the Browsing Extensions panel shows for LoversLab. It never
@@ -138,6 +149,9 @@ func (a *App) initLoversLab(dir string) {
 	}
 	if a.loverslab.postComment == nil {
 		a.loverslab.postComment = loverslabPostComment
+	}
+	if a.loverslab.unreadNotifications == nil {
+		a.loverslab.unreadNotifications = loverslabUnreadNotifications
 	}
 }
 

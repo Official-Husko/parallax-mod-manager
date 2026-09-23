@@ -1862,6 +1862,8 @@ export namespace preferences {
 	    developerTools: boolean;
 	    loversLabCheckUpdates: boolean;
 	    loversLabCheckIntervalHours: number;
+	    loversLabNotifications: boolean;
+	    loversLabNotificationIntervalMinutes: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new Preferences(source);
@@ -1896,6 +1898,8 @@ export namespace preferences {
 	        this.developerTools = source["developerTools"];
 	        this.loversLabCheckUpdates = source["loversLabCheckUpdates"];
 	        this.loversLabCheckIntervalHours = source["loversLabCheckIntervalHours"];
+	        this.loversLabNotifications = source["loversLabNotifications"];
+	        this.loversLabNotificationIntervalMinutes = source["loversLabNotificationIntervalMinutes"];
 	    }
 	}
 
