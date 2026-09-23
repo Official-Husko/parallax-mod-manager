@@ -1003,6 +1003,23 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   rendered the same way a changelog entry's is, except an attachment's own link is dropped from the
   rendered text entirely rather than trailing the sentence as a raw upload URL, since the attachment
   already gets its own chip right below - showing the same URL twice would just be noise.
+- **Real formatting for a description, changelog entry, or comment - not a flat text blob**
+  (`internal/loverslab/detail.go`'s `DescriptionBlock`/`DescriptionRun`, shared by `FileDetail`,
+  `ChangelogEntry`, and `Post`): real paragraphs, bold/italic/underline, links, embedded images,
+  and - confirmed live against a real Downloads file whose entire "About This File" turned out to
+  be written in literal Markdown pasted straight into the rich-text editor rather than using its
+  own formatting toolbar - real headings, blockquotes, list items, and dividers recovered from
+  that plain-text syntax ("# Heading", "**bold**", "> quote", "* item", "---") instead of showing
+  the punctuation itself inertly. A forum reply's own real "Quote" of an earlier one
+  (`<blockquote class="ipsQuote">`) is parsed as its own attributed block - who's being quoted,
+  and their quoted text rendered with the same real formatting - rather than flattened into the
+  replying member's own new text.
+- **Real per-comment metadata, not a placeholder** (`internal/loverslab/topics.go`'s `Post`) - a
+  reply's own real membership status ("Members"), real site-wide post count, a custom tagline
+  when the member set one, the site's own real "Popular Post" badge and reaction count, an
+  "(edited)" note when the site shows one, and a real "Author" badge confirmed to appear on every
+  later reply the topic's own starter posts in it (not just their opening one, which never
+  carries the badge itself - already covered separately by `LoversLabCommentList.TopicAuthor`).
 - **Posting a reply from Browse's detail view** (`internal/loverslab/comments.go`,
   `LoversLabPostComment`) - the write side of the comments above: a plain-text box that gets
   escaped and wrapped into the simple `<p>`/`<br>` HTML the site's own rich text editor actually

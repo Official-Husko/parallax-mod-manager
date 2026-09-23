@@ -11,9 +11,20 @@ import (
 // ChangelogEntry is one version's release notes, as shown in a Downloads
 // file's "What's New in Version X" section.
 type ChangelogEntry struct {
-	Version     string
-	Released    string // as displayed by the site, e.g. "August 15"
+	Version  string
+	Released string // as displayed by the site, e.g. "August 15"
+	// Description is the entry's release notes as flattened plain text - kept as
+	// a fallback for whatever DescriptionBlocks doesn't cover, the same
+	// real/fallback pairing FileDetail.Description and .DescriptionBlocks
+	// already have.
 	Description string
+	// DescriptionBlocks is the same entry, parsed the same way FileDetail's own
+	// "About This File" body is (real paragraphs, bold/italic/underline runs,
+	// links, embedded images) - confirmed live that a changelog entry's rich
+	// text is exactly the same IPS markup as the description's, just in its own
+	// container. Never nil - see FileDetail's own comment on why that matters
+	// once this crosses the JSON wire.
+	DescriptionBlocks []DescriptionBlock
 }
 
 func isChangelogSection(n *html.Node) bool {
@@ -79,10 +90,21 @@ func parseChangelogSection(section *html.Node) (ChangelogEntry, bool) {
 		released = strings.TrimSpace(text(t))
 	}
 
-	description := ""
-	if rt := findOne(dataNode, func(n *html.Node) bool { return isElement(n, "div") && hasClass(n, "ipsType_richText") }); rt != nil {
-		description = richText(rt)
+	// The same "can hold lightboxed images" controller the description body
+	// uses, confirmed live to wrap a changelog entry's own rich text too - fall
+	// back to the first plain .ipsType_richText div for whatever older/simpler
+	// entry doesn't have it, rather than losing the entry's content entirely.
+	richBody := findOne(dataNode, isDescriptionBody)
+	if richBody == nil {
+		richBody = findOne(dataNode, func(n *html.Node) bool { return isElement(n, "div") && hasClass(n, "ipsType_richText") })
 	}
 
-	return ChangelogEntry{Version: version, Released: released, Description: description}, true
+	description := ""
+	blocks := []DescriptionBlock{}
+	if richBody != nil {
+		description = richText(richBody)
+		blocks = parseDescriptionBlocks(richBody)
+	}
+
+	return ChangelogEntry{Version: version, Released: released, Description: description, DescriptionBlocks: blocks}, true
 }

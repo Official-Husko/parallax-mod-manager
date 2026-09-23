@@ -122,7 +122,16 @@ for security, privacy, reliability or performance is called out (see the last tw
   your account's actual unread count from loverslab.com, checked periodically (configurable in
   Settings > Browse); clicking it opens your real notifications on the site.
 - **A file's changelog, when it has one** - most files never had release notes written for them, so
-  no changelog is a normal result, not an error.
+  no changelog is a normal result, not an error. Rendered with the same real formatting as the
+  description (headings, bold, blockquotes, list items, dividers - including literal Markdown
+  syntax some authors paste straight into the editor as plain text, e.g. "# Heading" or
+  "**bold**", interpreted properly instead of shown as inert punctuation), and each version's own
+  entry gets its own distinct colored edge.
+- **Real per-comment detail, not a placeholder** - a reply's own membership status ("Members"),
+  real site-wide post count, custom tagline (when the person set one), Topic Author/Popular Post
+  badges, reaction count, and an "(edited)" note are all read from the real page, the same as the
+  reply's own text - not invented. Quoting an earlier reply (LoversLab's own "Quote" feature)
+  shows the quoted excerpt with who said it, exactly as it appears on the site.
 - **Opening a file's own page, an author, or a comment still links out** - this app never mirrors a
   foreign site's content beyond what the detail view shows; thumbnails and screenshots load straight
   off LoversLab's own public image CDN.

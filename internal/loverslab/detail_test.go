@@ -245,3 +245,142 @@ func runsText(runs []DescriptionRun) string {
 	}
 	return sb.String()
 }
+
+// The rest of these cover literal Markdown syntax pasted directly into the
+// rich-text editor as plain text, confirmed live against a real Downloads
+// file whose whole "About This File" is written this way
+// (https://www.loverslab.com/files/file/49547-the-knights-of-the-brothel-
+// english-translation/) rather than using the editor's own formatting
+// toolbar - see DescriptionBlock's own comment.
+
+func TestParseDescriptionBlocksRecognizesAtxHeadings(t *testing.T) {
+	doc := parseFixture(t, `<div><p># Mod Translation &amp; Documentation</p><p>## Mod Description</p></div>`)
+	body := findOne(doc, func(n *html.Node) bool { return isElement(n, "div") })
+	blocks := parseDescriptionBlocks(body)
+	if len(blocks) != 2 {
+		t.Fatalf("got %d blocks, want 2: %+v", len(blocks), blocks)
+	}
+	if blocks[0].Heading != 1 || runsText(blocks[0].Runs) != "Mod Translation & Documentation" {
+		t.Errorf("blocks[0] = %+v, want Heading 1 with the '#' stripped", blocks[0])
+	}
+	if blocks[1].Heading != 2 || runsText(blocks[1].Runs) != "Mod Description" {
+		t.Errorf("blocks[1] = %+v, want Heading 2 with the '##' stripped", blocks[1])
+	}
+}
+
+func TestParseDescriptionBlocksRecognizesABlockquote(t *testing.T) {
+	doc := parseFixture(t, `<div><p>&gt; <strong>Warning:</strong> read this first.</p></div>`)
+	body := findOne(doc, func(n *html.Node) bool { return isElement(n, "div") })
+	blocks := parseDescriptionBlocks(body)
+	if len(blocks) != 1 {
+		t.Fatalf("got %d blocks, want 1: %+v", len(blocks), blocks)
+	}
+	if !blocks[0].Quote {
+		t.Errorf("blocks[0] = %+v, want Quote true", blocks[0])
+	}
+	if got := runsText(blocks[0].Runs); got != "Warning: read this first." {
+		t.Errorf("text = %q, want the '> ' stripped", got)
+	}
+}
+
+func TestParseDescriptionBlocksRecognizesAPlainTextListMarker(t *testing.T) {
+	doc := parseFixture(t, `<div><p>* First point.</p><p>- Second point.</p></div>`)
+	body := findOne(doc, func(n *html.Node) bool { return isElement(n, "div") })
+	blocks := parseDescriptionBlocks(body)
+	if len(blocks) != 2 {
+		t.Fatalf("got %d blocks, want 2: %+v", len(blocks), blocks)
+	}
+	if !blocks[0].ListItem || runsText(blocks[0].Runs) != "First point." {
+		t.Errorf("blocks[0] = %+v, want ListItem true with the '* ' stripped", blocks[0])
+	}
+	if !blocks[1].ListItem || runsText(blocks[1].Runs) != "Second point." {
+		t.Errorf("blocks[1] = %+v, want ListItem true with the '- ' stripped", blocks[1])
+	}
+}
+
+func TestParseDescriptionBlocksMarksARealListItemToo(t *testing.T) {
+	doc := parseFixture(t, `<div><ul><li>Real HTML list item.</li></ul></div>`)
+	body := findOne(doc, func(n *html.Node) bool { return isElement(n, "div") })
+	blocks := parseDescriptionBlocks(body)
+	if len(blocks) != 1 || !blocks[0].ListItem {
+		t.Fatalf("got %+v, want exactly one ListItem block", blocks)
+	}
+}
+
+func TestParseDescriptionBlocksRecognizesADivider(t *testing.T) {
+	doc := parseFixture(t, `<div><p>Before.</p><p>---</p><p>After.</p></div>`)
+	body := findOne(doc, func(n *html.Node) bool { return isElement(n, "div") })
+	blocks := parseDescriptionBlocks(body)
+	if len(blocks) != 3 {
+		t.Fatalf("got %d blocks, want 3: %+v", len(blocks), blocks)
+	}
+	if !blocks[1].Divider || len(blocks[1].Runs) != 0 {
+		t.Errorf("blocks[1] = %+v, want a plain Divider block with no text", blocks[1])
+	}
+}
+
+func TestParseDescriptionBlocksSplitsInlineBoldMarkdown(t *testing.T) {
+	doc := parseFixture(t, `<div><p>**The Grand Master:** leads the order.</p></div>`)
+	body := findOne(doc, func(n *html.Node) bool { return isElement(n, "div") })
+	blocks := parseDescriptionBlocks(body)
+	if len(blocks) != 1 {
+		t.Fatalf("got %d blocks, want 1: %+v", len(blocks), blocks)
+	}
+	runs := blocks[0].Runs
+	if len(runs) < 2 {
+		t.Fatalf("got %d runs, want at least 2 (the bold span split from the rest): %+v", len(runs), runs)
+	}
+	if runs[0].Text != "The Grand Master:" || !runs[0].Bold {
+		t.Errorf("runs[0] = %+v, want the bold span with the ** markers stripped", runs[0])
+	}
+	if got := runsText(runs); got != "The Grand Master: leads the order." {
+		t.Errorf("full text = %q, want the ** markers gone from the joined text too", got)
+	}
+}
+
+// A real forum "Quote" of another post - confirmed live on a real topic
+// reply (a Lustful Void support-topic post quoting an earlier one):
+// <blockquote class="ipsQuote" data-ipsquote-username="...">
+//   <div class="ipsQuote_citation">2 hours ago, X said:</div>
+//   <div class="ipsQuote_contents"><p>...</p></div>
+// </blockquote>
+// followed by the replying member's own new text.
+func TestParseDescriptionBlocksExtractsARealForumQuote(t *testing.T) {
+	doc := parseFixture(t, `<div>
+<blockquote class="ipsQuote" data-ipsquote="" data-ipsquote-username="darkspleen" data-ipsquote-contentcommentid="2575105">
+	<div class="ipsQuote_citation">2 hours ago, darkspleen said:</div>
+	<div class="ipsQuote_contents"><p>We have arrived at the promised land.</p></div>
+</blockquote>
+<p>masha allah, comrades</p>
+</div>`)
+	body := findOne(doc, func(n *html.Node) bool { return isElement(n, "div") })
+	blocks := parseDescriptionBlocks(body)
+	if len(blocks) != 2 {
+		t.Fatalf("got %d blocks, want 2 (the quote, then the reply's own text): %+v", len(blocks), blocks)
+	}
+	quote := blocks[0]
+	if quote.QuotedAuthor != "darkspleen" {
+		t.Errorf("QuotedAuthor = %q, want darkspleen", quote.QuotedAuthor)
+	}
+	if len(quote.QuotedBlocks) != 1 || runsText(quote.QuotedBlocks[0].Runs) != "We have arrived at the promised land." {
+		t.Errorf("QuotedBlocks = %+v, want the quoted excerpt's own real text", quote.QuotedBlocks)
+	}
+	// The citation's own "2 hours ago, darkspleen said:" text is never
+	// surfaced as a run anywhere - QuotedAuthor is the real, reusable signal
+	// instead of that page-relative, unreformattable phrasing.
+	if runsText(blocks[1].Runs) != "masha allah, comrades" {
+		t.Errorf("blocks[1] = %+v, want the reply's own new text, unaffected by the quote above it", blocks[1])
+	}
+}
+
+func TestParseDescriptionBlocksNeverTreatsARealLinksLabelAsMarkdownBold(t *testing.T) {
+	doc := parseFixture(t, `<div><p><a href="https://example.com/**weird**">a link</a></p></div>`)
+	body := findOne(doc, func(n *html.Node) bool { return isElement(n, "div") })
+	blocks := parseDescriptionBlocks(body)
+	if len(blocks) != 1 || len(blocks[0].Runs) != 1 {
+		t.Fatalf("got %+v, want exactly one run", blocks)
+	}
+	if blocks[0].Runs[0].Text != "a link" || blocks[0].Runs[0].Bold {
+		t.Errorf("runs[0] = %+v, want the link's own label left untouched", blocks[0].Runs[0])
+	}
+}

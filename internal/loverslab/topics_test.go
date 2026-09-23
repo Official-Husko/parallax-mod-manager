@@ -125,6 +125,111 @@ func TestParseTopicPostsExtractsTheAuthorAvatar(t *testing.T) {
 	}
 }
 
+// Confirmed live against a real topic (see docs/loverslab.md): the author
+// panel's own group/post-count/custom-title, and this reply's own real
+// "Author"/"Popular Post" badges, reaction count, and "(edited)" note.
+func TestParseTopicPostsExtractsRealAuthorAndReplyMetadata(t *testing.T) {
+	doc := parseFixture(t, `<html><body>
+<article id="elComment_1" class="cPost ipsComment">
+  <aside class="ipsComment_author cAuthorPane">
+    <a href="/profile/1102521-lithia/">Lithia&lt;3</a>
+    <ul class="cAuthorPane_info">
+      <li data-role="group"><span>Members</span></li>
+      <li data-role="stats">
+        <a title="215 posts">215</a>
+      </li>
+      <li data-role="custom-field"><em class="ipsFieldRow_desc">Snuggle Butt Princess</em></li>
+    </ul>
+  </aside>
+  <div class="ipsComment_badges">
+    <strong class="ipsBadge ipsBadge_popular">Popular Post</strong>
+    <strong class="ipsBadge ipsComment_authorBadge">Author</strong>
+  </div>
+  <span class="ipsResponsive_hidePhone">(edited)</span>
+  <div class="ipsReact">
+    <span data-role="reactCountText">119</span>
+  </div>
+</article>
+</body></html>`)
+	posts, _ := parseTopicPosts(doc)
+	if len(posts) != 1 {
+		t.Fatalf("got %d posts, want 1", len(posts))
+	}
+	p := posts[0]
+	if p.AuthorGroup != "Members" {
+		t.Errorf("AuthorGroup = %q, want Members", p.AuthorGroup)
+	}
+	if p.AuthorPostCount != 215 {
+		t.Errorf("AuthorPostCount = %d, want 215", p.AuthorPostCount)
+	}
+	if p.AuthorTitle != "Snuggle Butt Princess" {
+		t.Errorf("AuthorTitle = %q, want the real custom tagline", p.AuthorTitle)
+	}
+	if !p.IsPopular {
+		t.Error("expected IsPopular true from the real Popular Post badge")
+	}
+	if !p.IsTopicAuthor {
+		t.Error("expected IsTopicAuthor true from the real Author badge")
+	}
+	if !p.Edited {
+		t.Error("expected Edited true from the real '(edited)' note")
+	}
+	if p.Reactions != 119 {
+		t.Errorf("Reactions = %d, want 119", p.Reactions)
+	}
+}
+
+func TestParseTopicPostsWithNoneOfTheOptionalMetadataStillParses(t *testing.T) {
+	doc := parseFixture(t, `<html><body>
+<article id="elComment_1" class="cPost ipsComment">
+  <aside class="ipsComment_author cAuthorPane"><a href="/profile/1-x/">X</a></aside>
+</article>
+</body></html>`)
+	posts, _ := parseTopicPosts(doc)
+	if len(posts) != 1 {
+		t.Fatalf("got %d posts, want 1", len(posts))
+	}
+	p := posts[0]
+	if p.AuthorGroup != "" || p.AuthorPostCount != 0 || p.AuthorTitle != "" || p.IsPopular || p.IsTopicAuthor || p.Edited || p.Reactions != 0 {
+		t.Errorf("expected every optional field at its zero value for a post with none of this markup, got %+v", p)
+	}
+	if p.ContentBlocks == nil {
+		t.Error("ContentBlocks must never be nil, even with no commentContent body at all")
+	}
+}
+
+// A reply that quotes an earlier one - the exact real markup confirmed live
+// (<blockquote class="ipsQuote">) - must land as its own attributed
+// ContentBlocks entry, not flattened into the reply's own plain Content.
+func TestParseTopicPostsExtractsAQuoteInsideAReply(t *testing.T) {
+	doc := parseFixture(t, `<html><body>
+<article id="elComment_1" class="cPost ipsComment">
+  <aside class="ipsComment_author cAuthorPane"><a href="/profile/1-x/">X</a></aside>
+  <div data-role='commentContent' class='ipsType_richText'>
+    <blockquote class="ipsQuote" data-ipsquote-username="darkspleen">
+      <div class="ipsQuote_citation">said:</div>
+      <div class="ipsQuote_contents"><p>We have arrived.</p></div>
+    </blockquote>
+    <p>Agreed!</p>
+  </div>
+</article>
+</body></html>`)
+	posts, _ := parseTopicPosts(doc)
+	if len(posts) != 1 {
+		t.Fatalf("got %d posts, want 1", len(posts))
+	}
+	blocks := posts[0].ContentBlocks
+	if len(blocks) != 2 {
+		t.Fatalf("got %d ContentBlocks, want 2: %+v", len(blocks), blocks)
+	}
+	if blocks[0].QuotedAuthor != "darkspleen" {
+		t.Errorf("blocks[0].QuotedAuthor = %q, want darkspleen", blocks[0].QuotedAuthor)
+	}
+	if runsText(blocks[1].Runs) != "Agreed!" {
+		t.Errorf("blocks[1] = %+v, want the reply's own new text", blocks[1])
+	}
+}
+
 func TestParseTopicPostsNoPaginationDefaultsToOnePage(t *testing.T) {
 	doc := parseFixture(t, `<html><body><article id="elComment_1" class="cPost ipsComment"></article></body></html>`)
 	_, totalPages := parseTopicPosts(doc)

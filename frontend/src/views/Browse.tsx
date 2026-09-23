@@ -27,7 +27,7 @@ import {Checkbox} from '../components/Checkbox';
 import {EmptyState} from '../components/EmptyState';
 import {GameLogo} from '../components/GameLogo';
 import {openContextMenu} from '../data/contextMenu';
-import {CARD_CATEGORIES, mockCommentExtrasFor, mockExtrasFor} from '../data/browseMockData';
+import {CARD_CATEGORIES, mockExtrasFor} from '../data/browseMockData';
 import {checkLoversLabNotifications, loversLabNotificationsURL, useLoversLabUnreadCount} from '../data/loversLabNotifications';
 import {colorFromName} from '../data/nameColor';
 import {checkLoversLabUpdates, useModUpdates} from '../data/modUpdates';
@@ -386,6 +386,54 @@ function DescriptionRunView({run}: {run: loverslab.DescriptionRun}) {
     if (run.Italic) node = <em>{node}</em>;
     if (run.Bold) node = <strong>{node}</strong>;
     return <>{node}</>;
+}
+
+// DescriptionBlocksView renders a loverslab.DescriptionBlock[] - shared by the
+// Overview tab's own description and the Changelog tab's per-version notes,
+// since both are the exact same real, parsed rich text (see
+// internal/loverslab/detail.go's parseDescriptionBlocks) and deserve the same
+// treatment: real headings/blockquotes/list items/dividers, not just flat
+// paragraphs, including literal Markdown syntax some authors paste directly
+// into the editor as plain text rather than using its own formatting toolbar
+// (confirmed live against a real file's whole description written that way).
+function DescriptionBlocksView({blocks}: {blocks: loverslab.DescriptionBlock[]}) {
+    return (
+        <>
+            {blocks.map((block, i) => {
+                if (block.ImageURL) {
+                    return <img key={i} className="browse-description-image" src={block.ImageURL} alt="" loading="lazy"/>;
+                }
+                if (block.Divider) {
+                    return <hr key={i} className="browse-description-divider"/>;
+                }
+                if (block.QuotedAuthor) {
+                    return (
+                        <blockquote key={i} className="browse-forum-quote">
+                            <div className="browse-forum-quote-author">{block.QuotedAuthor} said:</div>
+                            <DescriptionBlocksView blocks={block.QuotedBlocks ?? []}/>
+                        </blockquote>
+                    );
+                }
+                const content = block.Runs.map((run, j) => <DescriptionRunView key={j} run={run}/>);
+                if (block.Heading > 0) {
+                    const Tag = `h${Math.min(block.Heading, 6)}` as unknown as 'h1';
+                    return <Tag key={i} className="browse-description-heading">{content}</Tag>;
+                }
+                if (block.Quote) {
+                    return <blockquote key={i} className="browse-description-quote">{content}</blockquote>;
+                }
+                if (block.ListItem) {
+                    return (
+                        <div key={i} className="browse-description-listitem">
+                            <span className="browse-description-bullet">•</span>
+                            <span>{content}</span>
+                        </div>
+                    );
+                }
+                return <p key={i}>{content}</p>;
+            })}
+        </>
+    );
 }
 
 // StateBadge is the small circular install-state indicator overlaid on a card's
@@ -1372,13 +1420,7 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                                             {detailState?.kind === 'error' && <EmptyState icon="fa-triangle-exclamation" tone="error" title="Couldn't load this mod's page" subtitle={detailState.message}/>}
                                             {detailState?.kind === 'ready' && descriptionBlocks.length > 0 && (
                                                 <div className="browse-detail-description rich">
-                                                    {descriptionBlocks.map((block, i) => (
-                                                        block.ImageURL ? (
-                                                            <img key={i} className="browse-description-image" src={block.ImageURL} alt="" loading="lazy"/>
-                                                        ) : (
-                                                            <p key={i}>{block.Runs.map((run, j) => <DescriptionRunView key={j} run={run}/>)}</p>
-                                                        )
-                                                    ))}
+                                                    <DescriptionBlocksView blocks={descriptionBlocks}/>
                                                 </div>
                                             )}
                                             {detailState?.kind === 'ready' && descriptionBlocks.length === 0 && detailState.detail.Description && (
@@ -1403,12 +1445,18 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                                                 <EmptyState icon="fa-clock-rotate-left" title="No changelog" subtitle="The author hasn't written release notes for this file."/>
                                             )}
                                             {changelogState?.kind === 'ready' && changelogState.entries.map((entry, i) => (
-                                                <div key={i} className="browse-changelog-entry">
+                                                <div key={i} className="browse-changelog-entry" style={{borderLeftColor: colorFromName(entry.Version || String(i))}}>
                                                     <div className="browse-changelog-version">
                                                         <span className="mono">{entry.Version}</span>
                                                         {entry.Released && <span className="browse-changelog-released">{entry.Released}</span>}
                                                     </div>
-                                                    <div className="browse-changelog-description">{entry.Description}</div>
+                                                    {entry.DescriptionBlocks && entry.DescriptionBlocks.length > 0 ? (
+                                                        <div className="browse-changelog-description rich">
+                                                            <DescriptionBlocksView blocks={entry.DescriptionBlocks}/>
+                                                        </div>
+                                                    ) : entry.Description && (
+                                                        <div className="browse-changelog-description">{entry.Description}</div>
+                                                    )}
                                                 </div>
                                             ))}
                                         </>
@@ -1436,7 +1484,7 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                                                             </div>
                                                         </div>
                                                         {downloads.map((d, i) => (
-                                                            <label key={i} className="browse-file-row">
+                                                            <label key={i} className={`browse-file-row ${selectedFileIndexes.has(i) ? 'selected' : ''}`}>
                                                                 <Checkbox
                                                                     checked={selectedFileIndexes.has(i)}
                                                                     onChange={() => toggleFileSelected(i)}
@@ -1533,8 +1581,15 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                                                 <EmptyState icon="fa-comments" title="No comments yet" subtitle="The support topic exists. Write the first comment above."/>
                                             )}
                                             {commentsState?.kind === 'ready' && commentsState.posts.map((post) => {
-                                                const cx = mockCommentExtrasFor(post.ID);
-                                                const isTopicAuthor = topicAuthor !== '' && post.Author === topicAuthor;
+                                                // Two real signals for "this reply's author started the topic": the
+                                                // dropped-first-post name match (LoversLabCommentList.TopicAuthor,
+                                                // the only signal that covers the topic's own opening post, which
+                                                // never carries its own Author badge - confirmed live) and the
+                                                // real per-reply badge itself (Post.IsTopicAuthor, confirmed live to
+                                                // cover every later reply they post in the same topic too, not
+                                                // just their first).
+                                                const isTopicAuthor = post.IsTopicAuthor || (topicAuthor !== '' && post.Author === topicAuthor);
+                                                const contentBlocks = post.ContentBlocks ?? [];
                                                 return (
                                                     <div key={post.ID} className="browse-comment">
                                                         <div className="browse-comment-authorcol">
@@ -1545,15 +1600,15 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                                                             >
                                                                 {post.Author}
                                                             </span>
-                                                            {cx.authorTitle && <span className="browse-comment-authortitle">{cx.authorTitle}</span>}
-                                                            <span className="browse-comment-authorgroup">{cx.authorGroup}</span>
-                                                            <span className="browse-comment-authorposts mono">{cx.authorPostCount} posts</span>
+                                                            {post.AuthorTitle && <span className="browse-comment-authortitle">{post.AuthorTitle}</span>}
+                                                            {post.AuthorGroup && <span className="browse-comment-authorgroup">{post.AuthorGroup}</span>}
+                                                            {post.AuthorPostCount > 0 && <span className="browse-comment-authorposts mono">{post.AuthorPostCount} posts</span>}
                                                         </div>
                                                         <div className="browse-comment-body">
                                                             <div className="browse-comment-header">
                                                                 {isTopicAuthor && <span className="browse-comment-badge author">TOPIC AUTHOR</span>}
-                                                                {cx.isPopular && <span className="browse-comment-badge popular">POPULAR POST</span>}
-                                                                <span className="browse-comment-posted">{post.Posted}{cx.edited ? ' (edited)' : ''}</span>
+                                                                {post.IsPopular && <span className="browse-comment-badge popular">POPULAR POST</span>}
+                                                                <span className="browse-comment-posted">{post.Posted}{post.Edited ? ' (edited)' : ''}</span>
                                                                 <div className="spacer"/>
                                                                 {post.URL && (
                                                                     <i
@@ -1563,7 +1618,13 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                                                                     />
                                                                 )}
                                                             </div>
-                                                            {post.Content && <div className="browse-comment-content">{post.Content}</div>}
+                                                            {contentBlocks.length > 0 ? (
+                                                                <div className="browse-comment-content rich">
+                                                                    <DescriptionBlocksView blocks={contentBlocks}/>
+                                                                </div>
+                                                            ) : post.Content && (
+                                                                <div className="browse-comment-content">{post.Content}</div>
+                                                            )}
                                                             {post.Attachments.length > 0 && (
                                                                 <div className="browse-comment-attachments">
                                                                     {post.Attachments.map((a, i) => (
@@ -1574,7 +1635,7 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                                                                 </div>
                                                             )}
                                                             <div className="browse-comment-footer">
-                                                                <span className="browse-comment-likes"><i className="fa-solid fa-heart"/> {cx.reactions}</span>
+                                                                <span className="browse-comment-likes"><i className="fa-solid fa-heart"/> {post.Reactions}</span>
                                                             </div>
                                                         </div>
                                                     </div>

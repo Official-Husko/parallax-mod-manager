@@ -1,13 +1,15 @@
 // Fields the redesigned Browse detail view shows that internal/loverslab does not extract yet -
 // confirmed real and present on the live site (tags, a Followers count, a Likes/reaction count,
-// separate Submitted/Published dates, a Requirements list, and richer per-comment metadata), just
-// not parsed into loverslab.FileSummary/FileDetail/Post today. Everything else Browse shows (the
-// file grid, the description, screenshots, Views/Downloads, comment text) stays real - only these
-// specific extras are mocked for now, joined onto a real item by its own LoversLab ID so the same
-// file or comment always gets the same mock values across reloads and pagination, not a new
-// random pick every render. None of the pool entries below are copied from any real LoversLab
-// page - invented example text only. Delete this file once internal/loverslab extracts the real
-// fields and Browse.tsx reads them directly instead (see docs/loverslab.md).
+// and separate Submitted/Published dates and a Requirements list), just not parsed into
+// loverslab.FileSummary/FileDetail today. Everything else Browse shows (the file grid, the
+// description, screenshots, Views/Downloads, and every per-comment field - author group, post
+// count, custom title, Topic Author/Popular badges, reaction count, edited flag, quotes - all
+// real now, see loverslab.Post) stays real - only these specific file-level extras are mocked
+// for now, joined onto a real item by its own LoversLab ID so the same file always gets the same
+// mock values across reloads and pagination, not a new random pick every render. None of the
+// pool entries below are copied from any real LoversLab page - invented example text only.
+// Delete this file once internal/loverslab extracts the real fields and Browse.tsx reads them
+// directly instead (see docs/loverslab.md).
 
 export interface MockRequirement {
     name: string;
@@ -24,15 +26,6 @@ export interface MockFileExtras {
     published: string;
     requirements: MockRequirement[];
     features: string[];
-}
-
-export interface MockCommentExtras {
-    authorGroup: string;
-    authorPostCount: number;
-    authorTitle?: string;
-    isPopular: boolean;
-    reactions: number;
-    edited: boolean;
 }
 
 function hashIndex(seed: string, poolSize: number): number {
@@ -91,20 +84,3 @@ export function mockExtrasFor(fileID: number): MockFileExtras {
     };
 }
 
-const GROUP_POOL = ['Members', 'Advanced Member', 'Community Team'];
-const TITLE_POOL: (string | undefined)[] = [undefined, 'Snuggle Butt Princess', 'Perpetually Tired Modder', undefined, 'Definitely Not a Bot'];
-
-// mockCommentExtrasFor derives a stable set of per-comment fields for a real post, keyed by its
-// own comment ID. Whether a post is the topic author's own (for the "Topic Author" badge) is
-// real data now, not mock - LoversLabCommentList.TopicAuthor - so it isn't part of this.
-export function mockCommentExtrasFor(commentID: string): MockCommentExtras {
-    const seed = commentID || 'x';
-    return {
-        authorGroup: GROUP_POOL[hashIndex(seed + 'g', GROUP_POOL.length)],
-        authorPostCount: 40 + hashIndex(seed + 'pc', 900),
-        authorTitle: TITLE_POOL[hashIndex(seed + 't', TITLE_POOL.length)],
-        isPopular: hashIndex(seed + 'pop', 5) === 0,
-        reactions: hashIndex(seed + 'r', 180),
-        edited: hashIndex(seed + 'e', 6) === 0,
-    };
-}

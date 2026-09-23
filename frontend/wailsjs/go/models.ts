@@ -1598,22 +1598,6 @@ export namespace loverslab {
 	        this.Depth = source["Depth"];
 	    }
 	}
-	export class ChangelogEntry {
-	    Version: string;
-	    Released: string;
-	    Description: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new ChangelogEntry(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.Version = source["Version"];
-	        this.Released = source["Released"];
-	        this.Description = source["Description"];
-	    }
-	}
 	export class DescriptionRun {
 	    Text: string;
 	    Bold: boolean;
@@ -1637,6 +1621,12 @@ export namespace loverslab {
 	export class DescriptionBlock {
 	    ImageURL: string;
 	    Runs: DescriptionRun[];
+	    Heading: number;
+	    Divider: boolean;
+	    Quote: boolean;
+	    ListItem: boolean;
+	    QuotedAuthor: string;
+	    QuotedBlocks: DescriptionBlock[];
 	
 	    static createFrom(source: any = {}) {
 	        return new DescriptionBlock(source);
@@ -1646,6 +1636,12 @@ export namespace loverslab {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.ImageURL = source["ImageURL"];
 	        this.Runs = this.convertValues(source["Runs"], DescriptionRun);
+	        this.Heading = source["Heading"];
+	        this.Divider = source["Divider"];
+	        this.Quote = source["Quote"];
+	        this.ListItem = source["ListItem"];
+	        this.QuotedAuthor = source["QuotedAuthor"];
+	        this.QuotedBlocks = this.convertValues(source["QuotedBlocks"], DescriptionBlock);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -1666,6 +1662,43 @@ export namespace loverslab {
 		    return a;
 		}
 	}
+	export class ChangelogEntry {
+	    Version: string;
+	    Released: string;
+	    Description: string;
+	    DescriptionBlocks: DescriptionBlock[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ChangelogEntry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Version = source["Version"];
+	        this.Released = source["Released"];
+	        this.Description = source["Description"];
+	        this.DescriptionBlocks = this.convertValues(source["DescriptionBlocks"], DescriptionBlock);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	
 	export class FileAuthor {
 	    Name: string;
@@ -1810,9 +1843,17 @@ export namespace loverslab {
 	    Author: string;
 	    AuthorURL: string;
 	    AuthorAvatarURL: string;
+	    AuthorGroup: string;
+	    AuthorPostCount: number;
+	    AuthorTitle: string;
+	    IsTopicAuthor: boolean;
+	    IsPopular: boolean;
+	    Reactions: number;
+	    Edited: boolean;
 	    Posted: string;
 	    URL: string;
 	    Content: string;
+	    ContentBlocks: DescriptionBlock[];
 	    Attachments: PostAttachment[];
 	
 	    static createFrom(source: any = {}) {
@@ -1825,9 +1866,17 @@ export namespace loverslab {
 	        this.Author = source["Author"];
 	        this.AuthorURL = source["AuthorURL"];
 	        this.AuthorAvatarURL = source["AuthorAvatarURL"];
+	        this.AuthorGroup = source["AuthorGroup"];
+	        this.AuthorPostCount = source["AuthorPostCount"];
+	        this.AuthorTitle = source["AuthorTitle"];
+	        this.IsTopicAuthor = source["IsTopicAuthor"];
+	        this.IsPopular = source["IsPopular"];
+	        this.Reactions = source["Reactions"];
+	        this.Edited = source["Edited"];
 	        this.Posted = source["Posted"];
 	        this.URL = source["URL"];
 	        this.Content = source["Content"];
+	        this.ContentBlocks = this.convertValues(source["ContentBlocks"], DescriptionBlock);
 	        this.Attachments = this.convertValues(source["Attachments"], PostAttachment);
 	    }
 	

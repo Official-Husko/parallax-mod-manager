@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"golang.org/x/net/html"
@@ -68,6 +69,34 @@ type DescriptionBlock struct {
 	// bold/italic/underline/link state without resorting to raw HTML - safe to
 	// render directly, never dangerouslySetInnerHTML of a third party's markup.
 	Runs []DescriptionRun
+	// Heading is 1-6 for a Markdown ATX heading ("# Title" through "######
+	// Title"), 0 otherwise. Divider is true for a paragraph that's just "---"
+	// or "***" on its own. Quote is true for a line starting with "> ".
+	// ListItem is true for a real HTML <li>, or a plain-text line starting
+	// with "* "/"- " that was never wrapped in one.
+	//
+	// These all come from literally-typed Markdown syntax some authors paste
+	// straight into the rich-text editor as plain text rather than using its
+	// own formatting toolbar - confirmed live against a real Downloads file
+	// (https://www.loverslab.com/files/file/49547-the-knights-of-the-brothel-
+	// english-translation/) whose entire "About This File" is written this
+	// way ("# Mod Translation...", "## Mod Description", "> ⚠️ **Warning:**",
+	// "* **The Grand Master:** ...", "---"), all landing as inert plain text
+	// otherwise - real HTML tags (<strong>, <a>, ...) already have their own
+	// handling and are never double-processed here.
+	Heading  int
+	Divider  bool
+	Quote    bool
+	ListItem bool
+	// QuotedAuthor is set for a real forum "Quote" of another post
+	// (<blockquote class="ipsQuote">, confirmed live on a real topic reply) -
+	// who is being quoted (its own data-ipsquote-username), with QuotedBlocks
+	// holding the quoted excerpt's own content, parsed the same way as
+	// everything else (so a quote containing its own bold/links/images still
+	// renders correctly). Distinct from the plain Quote flag above, which is
+	// just literal "> " Markdown text with no real attribution behind it.
+	QuotedAuthor string
+	QuotedBlocks []DescriptionBlock
 }
 
 // DescriptionRun is one contiguous span of a text DescriptionBlock sharing the
@@ -191,20 +220,39 @@ func isDescriptionBody(n *html.Node) bool {
 type descriptionBuilder struct {
 	blocks []DescriptionBlock
 	runs   []DescriptionRun
+	// skipAttachLinks is true for a forum post's own body (see
+	// parsePostContentBlocks) - an attachment link is dropped entirely rather
+	// than rendered as a normal link, since the caller already surfaces every
+	// attachment separately as its own chip (ListTopicPosts' own
+	// Post.Attachments); showing it again here would just be noise. Never set
+	// for a Downloads file's description or changelog, neither of which has
+	// this concept at all.
+	skipAttachLinks bool
 }
 
-// parseDescriptionBlocks is GetFileDetail's own description parsing, pulled out
-// so it can be tested directly against a hand-built fragment instead of a real
-// request - see detail_test.go.
+// parseDescriptionBlocks is GetFileDetail's (and ChangelogEntry's) own rich-text
+// parsing, pulled out so it can be tested directly against a hand-built
+// fragment instead of a real request - see detail_test.go.
 func parseDescriptionBlocks(body *html.Node) []DescriptionBlock {
+	return parseRichBlocks(body, false)
+}
+
+// parsePostContentBlocks is a forum post's own rich-text parsing - the exact
+// same real Markdown/formatting/quote support as parseDescriptionBlocks,
+// minus attachment links (see skipAttachLinks above).
+func parsePostContentBlocks(body *html.Node) []DescriptionBlock {
+	return parseRichBlocks(body, true)
+}
+
+func parseRichBlocks(body *html.Node, skipAttachLinks bool) []DescriptionBlock {
 	// Never nil, even if the body turns out to hold nothing but spacer
 	// paragraphs - see parseFileDetail's own comment on why that distinction
 	// matters once this crosses the JSON wire.
-	b := &descriptionBuilder{blocks: []DescriptionBlock{}}
+	b := &descriptionBuilder{blocks: []DescriptionBlock{}, skipAttachLinks: skipAttachLinks}
 	for c := body.FirstChild; c != nil; c = c.NextSibling {
 		b.walk(c, DescriptionRun{})
 	}
-	b.flushText()
+	b.flushText(false)
 	return b.blocks
 }
 
@@ -219,7 +267,7 @@ func (b *descriptionBuilder) walk(n *html.Node, style DescriptionRun) {
 		b.runs = append(b.runs, style)
 		return
 	case isElement(n, "img"):
-		b.flushText()
+		b.flushText(false)
 		if src := attrOr(n, "src"); src != "" {
 			b.blocks = append(b.blocks, DescriptionBlock{ImageURL: src})
 		}
@@ -227,6 +275,19 @@ func (b *descriptionBuilder) walk(n *html.Node, style DescriptionRun) {
 	case isElement(n, "br"):
 		style.Text = "\n"
 		b.runs = append(b.runs, style)
+		return
+	case isElement(n, "a") && b.skipAttachLinks && hasClass(n, "ipsAttachLink"):
+		return
+	case isElement(n, "blockquote") && hasClass(n, "ipsQuote"):
+		b.flushText(false)
+		var quotedBlocks []DescriptionBlock
+		if contents := findOne(n, func(c *html.Node) bool { return isElement(c, "div") && hasClass(c, "ipsQuote_contents") }); contents != nil {
+			quotedBlocks = parseRichBlocks(contents, b.skipAttachLinks)
+		}
+		b.blocks = append(b.blocks, DescriptionBlock{
+			QuotedAuthor: attrOr(n, "data-ipsquote-username"),
+			QuotedBlocks: quotedBlocks,
+		})
 		return
 	}
 
@@ -245,22 +306,99 @@ func (b *descriptionBuilder) walk(n *html.Node, style DescriptionRun) {
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
 		b.walk(c, style)
 	}
-	if isElement(n, "p") || isElement(n, "div") || isElement(n, "li") {
-		b.flushText()
+	switch {
+	case isElement(n, "li"):
+		b.flushText(true)
+	case isElement(n, "p") || isElement(n, "div"):
+		b.flushText(false)
 	}
 }
+
+// markdownHeadingPattern, markdownQuotePattern, markdownListPattern and
+// markdownDividerPattern match literal Markdown syntax at the very start of a
+// block's own first run - see DescriptionBlock's own comment on why plain text
+// ever needs this at all.
+var (
+	markdownHeadingPattern = regexp.MustCompile(`^(#{1,6})\s+(.*)$`)
+	markdownQuotePattern   = regexp.MustCompile(`^>\s?(.*)$`)
+	markdownListPattern    = regexp.MustCompile(`^[*-]\s+(.*)$`)
+	markdownDividerPattern = regexp.MustCompile(`^(-{3,}|\*{3,})$`)
+	// markdownBoldPattern matches inline "**bold**" within a run's own text -
+	// non-greedy, so "**a** and **b**" splits into two separate bold spans
+	// rather than one run spanning "a** and **b".
+	markdownBoldPattern = regexp.MustCompile(`\*\*(.+?)\*\*`)
+)
 
 // flushText closes off the text block accumulated so far, dropping it entirely
 // if nothing but whitespace (including the source page's own literal " "
 // non-breaking spaces) ever made it in - this is what stops the source page's
 // habit of empty <p>&nbsp;</p> spacer paragraphs from becoming blank lines here;
-// this app lays the text out with its own spacing instead.
-func (b *descriptionBuilder) flushText() {
+// this app lays the text out with its own spacing instead. isListItem is true
+// when this block came from a real <li>, which already settles ListItem
+// without needing the plain-text "* "/"- " marker check below.
+func (b *descriptionBuilder) flushText(isListItem bool) {
 	runs := trimRuns(b.runs)
 	b.runs = nil
-	if len(runs) > 0 {
-		b.blocks = append(b.blocks, DescriptionBlock{Runs: runs})
+	if len(runs) == 0 {
+		return
 	}
+
+	if len(runs) == 1 && markdownDividerPattern.MatchString(strings.TrimSpace(runs[0].Text)) {
+		b.blocks = append(b.blocks, DescriptionBlock{Divider: true})
+		return
+	}
+
+	block := DescriptionBlock{ListItem: isListItem}
+	first := strings.TrimLeft(runs[0].Text, " ")
+	switch {
+	case markdownHeadingPattern.MatchString(first):
+		m := markdownHeadingPattern.FindStringSubmatch(first)
+		block.Heading = len(m[1])
+		runs[0].Text = m[2]
+	case markdownQuotePattern.MatchString(first):
+		m := markdownQuotePattern.FindStringSubmatch(first)
+		block.Quote = true
+		runs[0].Text = m[1]
+	case !isListItem && markdownListPattern.MatchString(first):
+		m := markdownListPattern.FindStringSubmatch(first)
+		block.ListItem = true
+		runs[0].Text = m[1]
+	}
+
+	block.Runs = expandMarkdownBold(runs)
+	b.blocks = append(b.blocks, block)
+}
+
+// expandMarkdownBold splits any "**bold**" markdown inside a run's own plain
+// text into its own separate, actually-bold run - a run that's already a link
+// is left alone (its label is never split mid-link).
+func expandMarkdownBold(runs []DescriptionRun) []DescriptionRun {
+	out := make([]DescriptionRun, 0, len(runs))
+	for _, r := range runs {
+		if r.LinkURL != "" || !strings.Contains(r.Text, "**") {
+			out = append(out, r)
+			continue
+		}
+		last := 0
+		for _, m := range markdownBoldPattern.FindAllStringSubmatchIndex(r.Text, -1) {
+			if m[0] > last {
+				plain := r
+				plain.Text = r.Text[last:m[0]]
+				out = append(out, plain)
+			}
+			bold := r
+			bold.Bold = true
+			bold.Text = r.Text[m[2]:m[3]]
+			out = append(out, bold)
+			last = m[1]
+		}
+		if last < len(r.Text) {
+			rest := r
+			rest.Text = r.Text[last:]
+			out = append(out, rest)
+		}
+	}
+	return out
 }
 
 // collapseWhitespace mirrors how a real browser renders ordinary flowed text: a

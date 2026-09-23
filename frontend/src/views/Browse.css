@@ -1069,6 +1069,48 @@
     text-decoration-color: var(--amber);
 }
 
+/* The rest of DescriptionBlocksView's own block types - real Markdown syntax
+   some authors paste directly into the rich-text editor as plain text (see
+   internal/loverslab/detail.go's own DescriptionBlock comment), given actual
+   heading/blockquote/list/divider styling instead of sitting there as inert
+   "#"/">"/"*" characters. */
+.browse-description-heading {
+    font: 700 15px Barlow, sans-serif;
+    color: var(--text-bright);
+    margin: 4px 0 6px;
+}
+
+.browse-description-heading:is(h1, h2) {
+    font-size: 16px;
+}
+
+.browse-description-quote {
+    margin: 4px 0 8px;
+    padding: 6px 12px;
+    border-left: 2px solid var(--amber);
+    background: var(--bg-inset);
+    font: 400 13px/1.5 Barlow, sans-serif;
+    color: var(--text-mid);
+}
+
+.browse-description-listitem {
+    display: flex;
+    gap: 8px;
+    margin: 0 0 6px;
+    padding-left: 4px;
+}
+
+.browse-description-bullet {
+    flex: none;
+    color: var(--rust);
+}
+
+.browse-description-divider {
+    border: none;
+    border-top: 1px solid var(--border-light);
+    margin: 10px 0;
+}
+
 .browse-detail-features {
     margin: 0;
     padding-left: 18px;
@@ -1137,6 +1179,13 @@
     cursor: pointer;
 }
 
+/* A checked row gets the same rust tint the rest of this app uses for "this is the
+   selected/active one" (matching the mockup's own per-row highlight once picked). */
+.browse-file-row.selected {
+    border-color: var(--rust);
+    background: rgba(196, 98, 58, .1);
+}
+
 .browse-file-name {
     flex: 1;
     min-width: 0;
@@ -1168,7 +1217,12 @@
 .browse-files-footer {
     position: sticky;
     bottom: -20px;
-    margin: 4px -20px -20px;
+    /* margin-top: auto pushes this to the bottom of .browse-detail-tab-body's own
+       available height even when the file list is short enough that nothing
+       actually overflows - without it, a short list left a block of dead space
+       between the buttons and the panel's own bottom edge instead of the footer
+       sitting flush against it. */
+    margin: auto -20px -20px;
     padding: 12px 20px 18px;
     display: flex;
     flex-direction: column;
@@ -1207,14 +1261,26 @@
     gap: 8px;
 }
 
+/* Cancel is a small, secondary escape hatch, not a peer-sized action next to
+   Download & install - it keeps its own natural width instead of growing to fill
+   half the row. */
 .browse-files-actions .btn-ghost {
-    flex: 1;
+    flex: none;
 }
 
 .browse-files-actions .btn-primary {
-    flex: 2;
+    flex: 1;
 }
 
+.browse-files-actions .btn-primary:disabled,
+.browse-files-actions .btn-ghost:disabled {
+    opacity: .5;
+    cursor: not-allowed;
+}
+
+/* border-left-color is set inline per entry (colorFromName(entry.Version)) -
+   matching the mockup's own per-entry colored edge - so this only sets the
+   width/style, never a color that'd just get overridden anyway. */
 .browse-changelog-entry {
     display: flex;
     flex-direction: column;
@@ -1227,12 +1293,12 @@
     display: flex;
     align-items: baseline;
     gap: 10px;
-    font-size: 12.5px;
+    font: 600 12.5px "Azeret Mono", monospace;
     color: var(--text-bright);
 }
 
 .browse-changelog-released {
-    font-size: 10.5px;
+    font: 400 11px Barlow, sans-serif;
     color: var(--text-dim);
 }
 
@@ -1240,6 +1306,20 @@
     font: 400 12px/1.6 Barlow, sans-serif;
     color: var(--text-mid);
     white-space: pre-wrap;
+}
+
+/* The real, parsed changelog body (loverslab.ChangelogEntry.DescriptionBlocks) -
+   same rich rendering as the Overview tab's own description (see
+   .browse-detail-description.rich), since it's the exact same kind of content. */
+.browse-changelog-description.rich {
+    white-space: normal;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.browse-changelog-description.rich p {
+    margin: 0 0 6px;
 }
 
 /* One reply - a fixed-width author column (avatar, name, mock group/post-count -
@@ -1345,6 +1425,43 @@
     font: 400 12.5px/1.55 Barlow, sans-serif;
     color: var(--text-mid);
     white-space: pre-wrap;
+}
+
+/* The real, parsed reply body (loverslab.Post.ContentBlocks) - same rich
+   rendering as the Overview tab's own description, plus real forum quotes
+   (see .browse-forum-quote below), instead of one flat plain-text blob. */
+.browse-comment-content.rich {
+    white-space: normal;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.browse-comment-content.rich p {
+    margin: 0 0 6px;
+}
+
+/* A real forum "Quote" of another reply (<blockquote class="ipsQuote">,
+   confirmed live) - the quoted member's own name plus their quoted text,
+   distinct from .browse-description-quote (which is just literal ">"
+   Markdown text with no real attribution behind it). */
+.browse-forum-quote {
+    margin: 2px 0 8px;
+    padding: 8px 12px;
+    border-left: 2px solid var(--border-light);
+    background: var(--bg-inset);
+    border-radius: 0 4px 4px 0;
+}
+
+.browse-forum-quote-author {
+    font: 600 10.5px "Azeret Mono", monospace;
+    color: var(--text-dim);
+    letter-spacing: .05em;
+    margin-bottom: 4px;
+}
+
+.browse-forum-quote .browse-forum-quote {
+    background: var(--bg-panel);
 }
 
 .browse-comment-attachments {
