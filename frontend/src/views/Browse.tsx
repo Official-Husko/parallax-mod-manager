@@ -1369,14 +1369,20 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                                                 <EmptyState icon="fa-file-circle-question" title="No downloadable files" subtitle="None were found for this mod."/>
                                             )}
                                             {filesTabState.kind === 'ready' && filesTabState.downloads.length > 0 && (
-                                                <div className="browse-files-count">
-                                                    This mod ships {filesTabState.downloads.length} download{filesTabState.downloads.length === 1 ? '' : 's'}.
+                                                <div className="browse-files-header">
+                                                    <div className="browse-files-title">Choose a file to install</div>
+                                                    <div className="browse-files-count">
+                                                        This mod ships {filesTabState.downloads.length} download{filesTabState.downloads.length === 1 ? '' : 's'}.
+                                                    </div>
                                                 </div>
                                             )}
                                             {filesTabState.kind === 'ready' && filesTabState.downloads.map((d, i) => (
                                                 <div key={i} className="browse-file-row">
-                                                    <i className="fa-solid fa-file-zipper"/>
+                                                    <span className="browse-file-icon"><i className="fa-solid fa-file-zipper"/></span>
                                                     <span className="browse-file-name" title={d.Name}>{d.Name}</span>
+                                                    {(d.Size || d.Posted) && (
+                                                        <span className="browse-file-meta">{[d.Size, d.Posted].filter(Boolean).join(' · ')}</span>
+                                                    )}
                                                     <button
                                                         type="button"
                                                         className="btn-primary"

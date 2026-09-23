@@ -101,7 +101,8 @@ for security, privacy, reliability or performance is called out (see the last tw
 - **Write a reply, not just read them** - post a real comment to a file's support topic straight
   from the Comments tab, with no need to open a browser.
 - **Pick which file to install from its own Files tab** - every downloadable file for a mod,
-  each with its own Install (or Update, once installed) button.
+  each with its own real size and posted date alongside an Install (or Update, once installed)
+  button.
 - **An Installed section, and uninstalling** - a new place in Browse, alongside its per-game
   sidebar, listing everything installed from LoversLab for the current game; uninstall from
   there (right-click) or from the mod's own detail view - either deletes its files for real,

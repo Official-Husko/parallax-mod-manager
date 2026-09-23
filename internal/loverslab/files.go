@@ -1,14 +1,16 @@
 package loverslab
 
 import (
+	"bytes"
 	"context"
 	"fmt"
-	"html"
 	"io"
 	"mime"
 	"net/http"
 	"net/url"
-	"regexp"
+	"strings"
+
+	"golang.org/x/net/html"
 )
 
 // FileDownload is one downloadable version/attachment of a Downloads file,
@@ -16,13 +18,15 @@ import (
 type FileDownload struct {
 	Name string
 	URL  string // one-time, csrfKey-guarded link good for a single download
-}
 
-// fileDownloadPattern matches each entry in the "Download your files"
-// dialog IPS renders at <file page>?do=download: a version's display name,
-// followed (non-greedily, so it pairs with the nearest one) by its
-// download button's href.
-var fileDownloadPattern = regexp.MustCompile(`(?s)<span class='ipsType_break ipsContained'>([^<]+)</span>.*?<a href='([^']+)' class='ipsButton ipsButton_primary ipsButton_small' data-action="download"`)
+	// Size and Posted are exactly as the download dialog itself displays
+	// them (e.g. "2.43 MB", "December 8, 2020") - display strings, not a
+	// parsed byte count or timestamp, the same as this package's other
+	// display-only date fields (FileSummary.Updated, ChangelogEntry.Released).
+	// Either can be empty if the dialog's markup didn't have it.
+	Size   string
+	Posted string
+}
 
 // ListDownloads fetches the download dialog for a Downloads file page
 // (e.g. https://www.loverslab.com/files/file/50753-tether-hand-holding-for-followers/)
@@ -55,17 +59,77 @@ func (c *Client) ListDownloads(ctx context.Context, filePageURL string) ([]FileD
 // parseDownloadDialog is ListDownloads' own parsing, pulled out so it can be
 // tested directly against a fixture instead of a real request - see
 // files_test.go.
+//
+// Each version in the dialog is one <li class='ipsDataItem'>, confirmed live
+// against the real, authenticated dialog:
+//
+//	<li class='ipsDataItem'>
+//	  <div class='ipsDataItem_main'>
+//	    <h4 class='ipsDataItem_title ...'><span class='ipsType_break ipsContained'>LV Lewd Rooms.zip</span></h4>
+//	    <p class='ipsType_reset ipsDataItem_meta'>
+//	      2.43 MB
+//	      <span class='ipsType_neutral'> / <time datetime='...' title='...'>December 8, 2020</time></span>
+//	    </p>
+//	  </div>
+//	  <div class='ipsDataItem_generic ...'>
+//	    <a href='...' class='ipsButton ipsButton_primary ipsButton_small' data-action="download">Download</a>
+//	  </div>
+//	</li>
+//
+// DOM-based (matching htmlutil.go's helpers) rather than regex, since a
+// version's own name/size/date can contain arbitrary text a regex would
+// mis-split on.
 func parseDownloadDialog(body []byte) []FileDownload {
-	matches := fileDownloadPattern.FindAllSubmatch(body, -1)
-	if matches == nil {
+	doc, err := html.Parse(bytes.NewReader(body))
+	if err != nil {
 		return nil
 	}
-	downloads := make([]FileDownload, 0, len(matches))
-	for _, m := range matches {
-		downloads = append(downloads, FileDownload{
-			Name: html.UnescapeString(string(m[1])),
-			URL:  html.UnescapeString(string(m[2])),
+
+	items := find(doc, func(n *html.Node) bool {
+		return isElement(n, "li") && hasClass(n, "ipsDataItem")
+	})
+
+	downloads := make([]FileDownload, 0, len(items))
+	for _, item := range items {
+		nameNode := findOne(item, func(n *html.Node) bool {
+			return isElement(n, "span") && hasClass(n, "ipsType_break") && hasClass(n, "ipsContained")
 		})
+		link := findOne(item, func(n *html.Node) bool {
+			return isElement(n, "a") && attrOr(n, "data-action") == "download"
+		})
+		if nameNode == nil || link == nil {
+			continue
+		}
+
+		d := FileDownload{
+			Name: strings.TrimSpace(text(nameNode)),
+			URL:  attrOr(link, "href"),
+		}
+
+		if meta := findOne(item, func(n *html.Node) bool {
+			return isElement(n, "p") && hasClass(n, "ipsDataItem_meta")
+		}); meta != nil {
+			// The size is the meta paragraph's own leading text, i.e.
+			// everything before its first child element (the " / <time>"
+			// suffix) - never that suffix's own text.
+			var size strings.Builder
+			for c := meta.FirstChild; c != nil; c = c.NextSibling {
+				if c.Type != html.TextNode {
+					break
+				}
+				size.WriteString(c.Data)
+			}
+			d.Size = collapseWhitespace(strings.TrimSpace(size.String()))
+
+			if t := findOne(meta, func(n *html.Node) bool { return isElement(n, "time") }); t != nil {
+				d.Posted = strings.TrimSpace(text(t))
+			}
+		}
+
+		downloads = append(downloads, d)
+	}
+	if len(downloads) == 0 {
+		return nil
 	}
 	return downloads
 }

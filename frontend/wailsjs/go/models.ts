@@ -1748,6 +1748,8 @@ export namespace loverslab {
 	export class FileDownload {
 	    Name: string;
 	    URL: string;
+	    Size: string;
+	    Posted: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new FileDownload(source);
@@ -1757,6 +1759,8 @@ export namespace loverslab {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.Name = source["Name"];
 	        this.URL = source["URL"];
+	        this.Size = source["Size"];
+	        this.Posted = source["Posted"];
 	    }
 	}
 	export class FileSummary {

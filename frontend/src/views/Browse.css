@@ -1105,13 +1105,25 @@
     cursor: not-allowed;
 }
 
+.browse-files-header {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.browse-files-title {
+    font: 700 13px Barlow, sans-serif;
+    color: var(--text-bright);
+}
+
 .browse-files-count {
     font: 400 11.5px Barlow, sans-serif;
     color: var(--text-dim);
 }
 
 /* The Files tab: every downloadable attachment for the open file, each with its own
-   Install/Update button. */
+   real Install/Update button - no batch-select checkbox, since there's no real
+   batch-install capability behind one. */
 .browse-file-row {
     display: flex;
     align-items: center;
@@ -1121,7 +1133,19 @@
     border-radius: 5px;
 }
 
-.browse-file-row i {
+.browse-file-icon {
+    width: 22px;
+    height: 22px;
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    background: var(--border-light);
+}
+
+.browse-file-icon i {
+    font-size: 11px;
     color: var(--text-dim);
 }
 
@@ -1131,8 +1155,19 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font: 500 12px Barlow, sans-serif;
+    font: 500 12px "Azeret Mono", monospace;
     color: var(--text-mid);
+}
+
+/* Size and posted date, exactly as LoversLab's own download dialog displays
+   them (e.g. "2.43 MB", "December 8, 2020") - not parsed into a byte count or
+   timestamp, just shown as-is. Either can be blank if that version's own
+   dialog entry didn't carry one. */
+.browse-file-meta {
+    flex: none;
+    font: 500 10.5px "Azeret Mono", monospace;
+    color: var(--text-dim);
+    white-space: nowrap;
 }
 
 .browse-changelog-entry {

@@ -1013,9 +1013,10 @@ This list grows as features land - see [Progress](#progress) below, which is kep
 - **Downloading and installing a mod from Browse** (`loverslabinstall.go`,
   `internal/loverslabinstall`, `internal/loverslabtracking`) - the detail view's own Files tab
   lists every downloadable file for a mod directly (rather than a picker that only appeared after
-  clicking a single Download button), each with its own Install (or Update, once installed)
-  button: downloads with real progress and a Cancel option, then extracts straight into the
-  game's own mod folder. A mod
+  clicking a single Download button), each with its own real file size and posted date (scraped
+  from the same "Download your files" dialog's own markup, not guessed or left out) alongside its
+  Install (or Update, once installed) button: downloads with real progress and a Cancel option,
+  then extracts straight into the game's own mod folder. A mod
   already installed from LoversLab (tracked by its LoversLab file id, not by name - a file can be
   retitled without this app losing track of it) is updated in place rather than left as a
   duplicate. `mod.Source` gained `SourceLoversLab` (a `loverslab_` descriptor filename prefix,

@@ -2,12 +2,18 @@ package loverslab
 
 import "testing"
 
+// downloadDialogFixture mirrors the real, authenticated "Download your
+// files" dialog markup, confirmed live against
+// https://www.loverslab.com/files/file/8719-stellaris-lustful-void/?do=download.
 const downloadDialogFixture = `<li class='ipsDataItem'>
   <div class='ipsDataItem_main'>
     <h4 class='ipsDataItem_title ipsContained_container'>
-      <span class='ipsType_break ipsContained'>TETHER - Hand-Holding for Followers.zip</span>
+      <span class='ipsType_break ipsContained'>LV Lewd Rooms.zip</span>
     </h4>
-    <p class='ipsType_reset ipsDataItem_meta'>317.22 kB / <time>August 13</time></p>
+    <p class='ipsType_reset ipsDataItem_meta'>
+      2.43 MB
+      <span class='ipsType_neutral'> / <time datetime='2020-12-08T22:20:39Z' title='12/08/20 11:20  PM' data-short='5 yr'>December 8, 2020</time></span>
+    </p>
   </div>
   <div class='ipsDataItem_generic ipsDataItem_size4 ipsType_right'>
     <span class="ipsHide" data-role="downloadCounterContainer">Download begins in <span data-role="downloadCounter"></span> seconds</span>
@@ -30,14 +36,23 @@ func TestParseDownloadDialogPairsEachVersionWithItsOwnLink(t *testing.T) {
 	if len(downloads) != 2 {
 		t.Fatalf("expected 2 downloads, got %d: %+v", len(downloads), downloads)
 	}
-	if downloads[0].Name != "TETHER - Hand-Holding for Followers.zip" {
+	if downloads[0].Name != "LV Lewd Rooms.zip" {
 		t.Errorf("first Name = %q", downloads[0].Name)
 	}
 	if downloads[0].URL != "https://www.loverslab.com/files/file/50753-tether/?do=download&r=2173155&confirm=1&t=1&csrfKey=8a3c356e2c467a183327ac0338c72895" {
 		t.Errorf("first URL = %q, want the &amp;-decoded r=2173155 link", downloads[0].URL)
 	}
+	if downloads[0].Size != "2.43 MB" {
+		t.Errorf("first Size = %q, want %q", downloads[0].Size, "2.43 MB")
+	}
+	if downloads[0].Posted != "December 8, 2020" {
+		t.Errorf("first Posted = %q, want %q", downloads[0].Posted, "December 8, 2020")
+	}
 	if downloads[1].Name != "TETHER - Update.zip" || downloads[1].URL == downloads[0].URL {
 		t.Errorf("second download not paired with its own distinct link: %+v", downloads[1])
+	}
+	if downloads[1].Size != "" || downloads[1].Posted != "" {
+		t.Errorf("second download has no meta paragraph at all, expected empty Size/Posted: %+v", downloads[1])
 	}
 }
 
