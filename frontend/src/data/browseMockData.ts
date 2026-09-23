@@ -49,6 +49,11 @@ const TAG_POOL: {tag: string; tagColor: string; tags: string[]}[] = [
     {tag: 'UI', tagColor: '#a98bdc', tags: ['interface', 'quality of life']},
 ];
 
+// CARD_CATEGORIES is every genre badge a card can get (see mockExtrasFor's own
+// TAG_POOL above) - the fixed list Browse's own sidebar "CATEGORIES" section
+// filters by, since every file deterministically gets one of exactly these.
+export const CARD_CATEGORIES: string[] = TAG_POOL.map((t) => t.tag);
+
 const FOLLOWER_POOL = ['312', '1.2k', '48', '2.4k', '89'];
 const LIKE_POOL = [72, 449, 15, 203, 31];
 const SUBMITTED_POOL = ['March 3, 2021', 'August 20, 2019', 'June 14, 2023', 'January 2, 2022', 'November 9, 2020'];

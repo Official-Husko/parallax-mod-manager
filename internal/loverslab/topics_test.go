@@ -55,6 +55,13 @@ func TestParseTopicPosts(t *testing.T) {
 	if first.Author != "SomeAuthor" || first.AuthorURL != "/profile/1-someauthor/" {
 		t.Errorf("first author = %q/%q, want SomeAuthor/profile URL", first.Author, first.AuthorURL)
 	}
+	// This fixture's own author panel has no photo at all (common - not every
+	// member sets one) - critically, this also confirms the first post's own
+	// attachment image (a real <img>, just elsewhere in the article, outside
+	// the author panel) is never mistaken for the author's avatar.
+	if first.AuthorAvatarURL != "" {
+		t.Errorf("first.AuthorAvatarURL = %q, want none (this fixture's author panel has no photo)", first.AuthorAvatarURL)
+	}
 	if first.Posted == "" {
 		t.Error("expected a non-empty Posted string")
 	}
@@ -91,6 +98,30 @@ func TestParseTopicPosts(t *testing.T) {
 	}
 	if zip.Extension != "zip" {
 		t.Errorf("zip Extension = %q, want zip", zip.Extension)
+	}
+}
+
+func TestParseTopicPostsExtractsTheAuthorAvatar(t *testing.T) {
+	doc := parseFixture(t, `<html><body>
+<article id="elComment_1" class="cPost ipsComment">
+  <aside class="ipsComment_author cAuthorPane">
+    <a href="/profile/1102521-lithia/">Lithia&lt;3</a>
+    <ul class="cAuthorPane_info">
+      <li data-role="photo" class="cAuthorPane_photo">
+        <a href="/profile/1102521-lithia/" class="ipsUserPhoto ipsUserPhoto_large">
+          <img src="https://static.loverslab.com/uploads/profiles/monthly_2023_06/pp7_2.thumb.jpg" alt="Lithia&lt;3">
+        </a>
+      </li>
+    </ul>
+  </aside>
+</article>
+</body></html>`)
+	posts, _ := parseTopicPosts(doc)
+	if len(posts) != 1 {
+		t.Fatalf("got %d posts, want 1", len(posts))
+	}
+	if posts[0].AuthorAvatarURL != "https://static.loverslab.com/uploads/profiles/monthly_2023_06/pp7_2.thumb.jpg" {
+		t.Errorf("AuthorAvatarURL = %q, want the real photo URL", posts[0].AuthorAvatarURL)
 	}
 }
 

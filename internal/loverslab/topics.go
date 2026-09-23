@@ -23,13 +23,18 @@ type PostAttachment struct {
 // Post is one reply in a forum topic (most usefully, a Downloads file's linked "Get
 // Support" topic).
 type Post struct {
-	ID          string
-	Author      string
-	AuthorURL   string
-	Posted      string // as displayed by the site
-	URL         string // deep link straight to this post
-	Content     string // the reply's own text, rendered plain (see commentText below) - attachment links are excluded, since Attachments already covers them
-	Attachments []PostAttachment
+	ID        string
+	Author    string
+	AuthorURL string
+	// AuthorAvatarURL is the author's own profile photo, from the same author-info
+	// panel as Author/AuthorURL - "" for a member with no avatar set, same as
+	// FileAuthor.ImageURL. Publicly hosted, same CDN as every other image this
+	// package reads (no auth needed to load it).
+	AuthorAvatarURL string
+	Posted          string // as displayed by the site
+	URL             string // deep link straight to this post
+	Content         string // the reply's own text, rendered plain (see commentText below) - attachment links are excluded, since Attachments already covers them
+	Attachments     []PostAttachment
 }
 
 // ListTopicPosts returns the posts on one (1-indexed) page of a forum topic, plus the
@@ -68,11 +73,18 @@ func parseTopicPosts(doc *html.Node) ([]Post, int) {
 	for _, article := range articles {
 		id := strings.TrimPrefix(attrOr(article, "id"), "elComment_")
 
-		var author, authorURL string
+		var author, authorURL, authorAvatarURL string
 		if aside := findOne(article, func(n *html.Node) bool { return isElement(n, "aside") && hasClass(n, "cAuthorPane") }); aside != nil {
 			if a := findOne(aside, func(n *html.Node) bool { return isElement(n, "a") && strings.Contains(attrOr(n, "href"), "/profile/") }); a != nil {
 				authorURL = attrOr(a, "href")
 				author = strings.TrimSpace(text(a))
+			}
+			// The desktop author panel's own photo - scoped to this aside
+			// specifically (not the article as a whole) so the separate,
+			// mobile-only author panel earlier in the same article never wins
+			// instead.
+			if img := findOne(aside, func(n *html.Node) bool { return isElement(n, "img") }); img != nil {
+				authorAvatarURL = attrOr(img, "src")
 			}
 		}
 
@@ -114,13 +126,14 @@ func parseTopicPosts(doc *html.Node) ([]Post, int) {
 		}
 
 		posts = append(posts, Post{
-			ID:          id,
-			Author:      author,
-			AuthorURL:   authorURL,
-			Posted:      posted,
-			URL:         postURL,
-			Content:     content,
-			Attachments: attachments,
+			ID:              id,
+			Author:          author,
+			AuthorURL:       authorURL,
+			AuthorAvatarURL: authorAvatarURL,
+			Posted:          posted,
+			URL:             postURL,
+			Content:         content,
+			Attachments:     attachments,
 		})
 	}
 	return posts, totalPages

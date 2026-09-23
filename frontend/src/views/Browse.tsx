@@ -22,11 +22,12 @@ import type {app, library, loverslab} from '../../wailsjs/go/models';
 import {BrowserOpenURL, EventsOn} from '../../wailsjs/runtime/runtime';
 import {Avatar} from '../components/Avatar';
 import {EmptyState} from '../components/EmptyState';
+import {GameLogo} from '../components/GameLogo';
 import {openContextMenu} from '../data/contextMenu';
-import {mockCommentExtrasFor, mockExtrasFor} from '../data/browseMockData';
+import {CARD_CATEGORIES, mockCommentExtrasFor, mockExtrasFor} from '../data/browseMockData';
 import {checkLoversLabNotifications, loversLabNotificationsURL, useLoversLabUnreadCount} from '../data/loversLabNotifications';
 import {colorFromName} from '../data/nameColor';
-import {checkLoversLabUpdates} from '../data/modUpdates';
+import {checkLoversLabUpdates, useModUpdates} from '../data/modUpdates';
 import {notify} from '../data/notifications';
 
 // A "loverslab-install-progress" event's shape - not a Wails-bound method's own
@@ -171,7 +172,7 @@ interface BrowseListItem {
     // Which small circular badge to overlay on the thumbnail's top-right corner, so
     // installed state reads at a glance while just browsing - real, from installedIds/
     // ContentMissing, never mock.
-    stateIcon?: 'installed' | 'missing' | null;
+    stateIcon?: 'installed' | 'update' | 'missing' | null;
     authorName?: string;
     authorAvatarURL?: string;
     // The line right under the title - an author for a browsing card, or a missing-
@@ -336,11 +337,18 @@ function DescriptionRunView({run}: {run: loverslab.DescriptionRun}) {
 // LoversLab install) or missing (installed but its files are gone from disk,
 // ContentMissing) - both real. null/undefined (not yet installed) renders nothing,
 // rather than a badge for an absence.
-function StateBadge({state, className}: {state?: 'installed' | 'missing' | null; className: string}) {
+const STATE_BADGE: Record<'installed' | 'update' | 'missing', {icon: string; title: string}> = {
+    installed: {icon: 'fa-check', title: 'Installed'},
+    update: {icon: 'fa-arrow-up', title: 'An update is available'},
+    missing: {icon: 'fa-triangle-exclamation', title: "Installed, but its files can't be found"},
+};
+
+function StateBadge({state, className}: {state?: 'installed' | 'update' | 'missing' | null; className: string}) {
     if (!state) return null;
+    const {icon, title} = STATE_BADGE[state];
     return (
-        <span className={`browse-state-badge ${className} ${state}`} title={state === 'installed' ? 'Installed' : 'Installed, but its files are missing'}>
-            <i className={`fa-solid ${state === 'installed' ? 'fa-check' : 'fa-triangle-exclamation'}`}/>
+        <span className={`browse-state-badge ${className} ${state}`} title={title}>
+            <i className={`fa-solid ${icon}`}/>
         </span>
     );
 }
@@ -375,10 +383,22 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
     // Installed section switch between - the same view either way, not a separate
     // toggle each remembers on its own.
     const [viewMode, setViewMode] = useState<ViewMode>('cards');
+    // The sidebar's own CATEGORIES filter (see browseMockData.ts's CARD_CATEGORIES) -
+    // mock for now, same as the tag itself, but the filtering is real: every file
+    // deterministically gets one of these, so picking one really does narrow
+    // whichever list (browsing or Installed) is showing. null = no filter, and
+    // clicking the same one again clears it.
+    const [selectedTagFilter, setSelectedTagFilter] = useState<string | null>(null);
 
     // The "Installed" section: a new place in the sidebar, alongside GAMES, to see and
     // uninstall everything installed from LoversLab for the selected game.
     const [viewingInstalled, setViewingInstalled] = useState(false);
+    const [installedSearch, setInstalledSearch] = useState('');
+    // Real, not decorative - toggles which end of InstalledAt the list starts
+    // from, the same "Installed date" sort the mockup shows as a dropdown, just
+    // exposed as a click-to-flip control since there is only ever the one axis
+    // to sort installed mods by right now.
+    const [installedNewestFirst, setInstalledNewestFirst] = useState(true);
     const [installedState, setInstalledState] = useState<InstalledModsState>({kind: 'idle'});
     const [confirmUninstallId, setConfirmUninstallId] = useState<number | null>(null);
     // Which open file ids are installed - kept up to date alongside installedState,
@@ -684,17 +704,48 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
     }
 
     const gameName = games.find((g) => g.ID === selectedGame)?.DisplayName ?? selectedGame;
+    // A LoversLab category's own name ("Crusader Kings 2", "Stellaris", ...)
+    // matched against this app's own registered games, so the sidebar can show
+    // each one's real logo (GameLogo) instead of a plain color swatch - "All"
+    // (every Paradox game's mods together) has no single match, and keeps the
+    // plain swatch on purpose, since it isn't really one specific game.
+    const gameIdByName = useMemo(() => {
+        const m = new Map<string, string>();
+        for (const g of games) m.set(g.DisplayName.toLowerCase(), g.ID);
+        return m;
+    }, [games]);
     const canSave = !busy && username.trim() !== '' && password !== '';
     const isInstalled = detailFor ? installedIds.has(detailFor.ID) : false;
     const missingFilesCount = installedState.kind === 'ready' ? installedState.mods.filter((m) => m.ContentMissing).length : 0;
+    // Which LoversLab file IDs have a real update waiting - the same report
+    // Settings' own Updates window reads (data/modUpdates.ts), narrowed to the
+    // LoversLab-sourced changes it already merges in (see checkLoversLabUpdates)
+    // and their own "loverslab_<fileID>" ModID convention (internal/mod's
+    // LoversLabFilePrefix) unwound back to a plain numeric ID.
+    const modUpdatesState = useModUpdates(selectedGame);
+    const updateAvailableIds = useMemo(() => {
+        const s = new Set<number>();
+        for (const c of modUpdatesState.report?.Changes ?? []) {
+            if (c.Source !== 'loverslab') continue;
+            const m = /^loverslab_(\d+)$/.exec(c.ModID);
+            if (m) s.add(Number(m[1]));
+        }
+        return s;
+    }, [modUpdatesState.report]);
+    const updatesAvailableCount = installedState.kind === 'ready'
+        ? installedState.mods.filter((m) => updateAvailableIds.has(m.FileID)).length
+        : 0;
     // The mock extras (see browseMockData.ts) for whichever mod's detail is open -
     // null while nothing is open, since every one of these fields is only ever
     // rendered inside the detail overlay.
     const extras = detailFor ? mockExtrasFor(detailFor.ID) : null;
     const screenshots = detailState?.kind === 'ready' ? detailState.detail.Screenshots : [];
     const heroShot = screenshots.length > 0 ? screenshots[Math.min(screenshotIndex, screenshots.length - 1)] : null;
-    const heroURL = heroShot ? (heroShot.ThumbnailURL || heroShot.URL) : (detailFor?.ThumbnailURL || '');
-    const heroFullURL = heroShot ? (heroShot.URL || heroShot.ThumbnailURL) : (detailFor?.ThumbnailURL || '');
+    // The hero display always prefers the real full-size image - Screenshots'
+    // own URL/ThumbnailURL are genuinely separate stored files (not one derived
+    // from the other), so showing ThumbnailURL here was rendering a real,
+    // deliberately smaller/blurrier image where the real one was already known.
+    const heroURL = heroShot ? (heroShot.URL || heroShot.ThumbnailURL) : (detailFor?.ThumbnailURL || '');
 
     const files = filesState.kind === 'ready' ? filesState.files : [];
     const visibleFiles = useMemo(() => {
@@ -714,24 +765,26 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
             thumbnailURL: f.ThumbnailURL,
             tag: extras.tag,
             tagColor: extras.tagColor,
-            stateIcon: installedIds.has(f.ID) ? 'installed' : null,
+            stateIcon: updateAvailableIds.has(f.ID) ? 'update' : installedIds.has(f.ID) ? 'installed' : null,
             authorName: f.Author,
             lineOne: f.Author,
             onLineOneClick: f.AuthorURL ? () => BrowserOpenURL(f.AuthorURL) : undefined,
             lineTwo: f.Updated,
             onClick: () => openDetail(f),
         };
-    }), [visibleFiles, installedIds]);
+    }), [visibleFiles, installedIds, updateAvailableIds]);
 
     const installedItems = useMemo<BrowseListItem[]>(() => {
         if (installedState.kind !== 'ready') return [];
-        return installedState.mods.map((m) => ({
+        const mods = [...installedState.mods].sort((a, b) =>
+            installedNewestFirst ? b.InstalledAt - a.InstalledAt : a.InstalledAt - b.InstalledAt);
+        return mods.map((m) => ({
             id: m.FileID,
             title: m.Title,
             thumbnailURL: '',
             tag: mockExtrasFor(m.FileID).tag,
             tagColor: mockExtrasFor(m.FileID).tagColor,
-            stateIcon: m.ContentMissing ? 'missing' : 'installed',
+            stateIcon: m.ContentMissing ? 'missing' : updateAvailableIds.has(m.FileID) ? 'update' : 'installed',
             lineOne: m.ContentMissing ? 'Files not found on disk' : '',
             lineOneWarn: m.ContentMissing,
             lineTwo: m.InstalledAt ? new Date(m.InstalledAt * 1000).toLocaleDateString() : undefined,
@@ -750,7 +803,27 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                 </div>
             ) : undefined,
         }));
-    }, [installedState, confirmUninstallId]);
+    }, [installedState, confirmUninstallId, updateAvailableIds, installedNewestFirst]);
+
+    const visibleBrowsingItems = useMemo(
+        () => selectedTagFilter ? browsingItems.filter((it) => it.tag === selectedTagFilter) : browsingItems,
+        [browsingItems, selectedTagFilter],
+    );
+    const visibleInstalledItems = useMemo(() => {
+        const q = installedSearch.trim().toLowerCase();
+        return installedItems.filter((it) =>
+            (!selectedTagFilter || it.tag === selectedTagFilter) &&
+            (!q || it.title.toLowerCase().includes(q)));
+    }, [installedItems, selectedTagFilter, installedSearch]);
+    // Categories' own counts reflect whichever list is actually on screen right
+    // now, not a fixed site-wide total this app has no way to know.
+    const categoryCounts = useMemo(() => {
+        const counts = new Map<string, number>();
+        for (const it of viewingInstalled ? installedItems : browsingItems) {
+            if (it.tag) counts.set(it.tag, (counts.get(it.tag) ?? 0) + 1);
+        }
+        return counts;
+    }, [viewingInstalled, installedItems, browsingItems]);
 
     return (
         <div className="browse">
@@ -761,12 +834,6 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                     <span className="browse-source-name">LoversLab</span>
                     <span className={`browse-source-dot ${status?.SignedIn ? 'good' : 'neutral'}`}/>
                 </div>
-                {/* Only one real source exists today - a plain, honestly-disabled row
-                    said so before; this is the same fact shown the way the mockup
-                    shows "add another one" everywhere else in the app (a dashed
-                    outline, not a second, differently-styled kind of row). */}
-                <div className="browse-source-add" title="No other sources yet">+ Add source</div>
-
                 {status?.SignedIn && (
                     <>
                         <div className="sidebar-label">INSTALLED</div>
@@ -775,6 +842,7 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                                 className={`browse-category-row depth-0 ${viewingInstalled ? 'active' : ''}`}
                                 onClick={selectInstalled}
                             >
+                                <i className="fa-solid fa-circle-check browse-installed-icon"/>
                                 <span className="cat-name">Installed mods</span>
                                 <span className="mono cat-count">{installedIds.size}</span>
                             </div>
@@ -784,20 +852,41 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                         <div className="browse-games">
                             {categoryState.kind === 'loading' && <EmptyState icon="fa-spinner fa-spin" title="Loading..."/>}
                             {categoryState.kind === 'error' && <EmptyState icon="fa-triangle-exclamation" tone="error" title="Couldn't load games" subtitle={categoryState.message}/>}
-                            {categoryState.kind === 'ready' && categoryState.categories.map((cat) => (
-                                <div
-                                    key={cat.URL}
-                                    className={`browse-category-row depth-${cat.Depth} ${selectedCategory?.URL === cat.URL ? 'active' : ''}`}
-                                    onClick={() => selectCategory(cat)}
-                                >
-                                    <span className="browse-category-swatch" style={{background: colorFromName(cat.Name)}}/>
-                                    <span className="cat-name" title={cat.Name}>{cat.Name}</span>
-                                    <span className="mono cat-count">{cat.Files}</span>
-                                </div>
-                            ))}
+                            {categoryState.kind === 'ready' && categoryState.categories.map((cat) => {
+                                const matchedGameId = gameIdByName.get(cat.Name.toLowerCase());
+                                return (
+                                    <div
+                                        key={cat.URL}
+                                        className={`browse-category-row depth-${cat.Depth} ${selectedCategory?.URL === cat.URL ? 'active' : ''}`}
+                                        onClick={() => selectCategory(cat)}
+                                    >
+                                        {matchedGameId ? (
+                                            <GameLogo gameId={matchedGameId} className="browse-category-icon"/>
+                                        ) : (
+                                            <span className="browse-category-swatch" style={{background: colorFromName(cat.Name)}}/>
+                                        )}
+                                        <span className="cat-name" title={cat.Name}>{cat.Name}</span>
+                                        <span className="mono cat-count">{cat.Files}</span>
+                                    </div>
+                                );
+                            })}
                             {categoryState.kind === 'ready' && categoryState.categories.length === 0 && (
                                 <EmptyState icon="fa-gamepad" title="No games found" subtitle="LoversLab's Paradox Games section could not be found."/>
                             )}
+                        </div>
+
+                        <div className="sidebar-label">CATEGORIES</div>
+                        <div className="browse-games">
+                            {CARD_CATEGORIES.map((tag) => (
+                                <div
+                                    key={tag}
+                                    className={`browse-tagfilter-row ${selectedTagFilter === tag ? 'active' : ''}`}
+                                    onClick={() => setSelectedTagFilter((t) => t === tag ? null : tag)}
+                                >
+                                    <span className="cat-name">{tag}</span>
+                                    <span className="mono cat-count">{categoryCounts.get(tag) ?? 0}</span>
+                                </div>
+                            ))}
                         </div>
                     </>
                 )}
@@ -812,19 +901,44 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
             <div className="browse-main">
                 {status?.SignedIn && viewingInstalled ? (
                     <>
-                        <div className="browse-toolbar">
-                            <div className="browse-installed-title">Installed from LoversLab</div>
-                            <div className="spacer"/>
-                            <ViewModeToggle mode={viewMode} onChange={setViewMode}/>
+                        <div className="browse-toolbar column">
+                            <div className="browse-toolbar-row">
+                                <div className="search-box">
+                                    <i className="fa-solid fa-magnifying-glass"/>
+                                    <input
+                                        placeholder="Search installed mods..."
+                                        value={installedSearch}
+                                        onInput={(e) => setInstalledSearch((e.target as HTMLInputElement).value)}
+                                    />
+                                </div>
+                                <span
+                                    className="browse-sort-control"
+                                    title="Click to flip the order"
+                                    onClick={() => setInstalledNewestFirst((v) => !v)}
+                                >
+                                    Installed date {installedNewestFirst ? '▾' : '▴'}
+                                </span>
+                            </div>
+                            <div className="browse-toolbar-row">
+                                <span className="mono browse-installed-stats">
+                                    {installedIds.size} installed &middot; {updatesAvailableCount} update{updatesAvailableCount === 1 ? '' : 's'} &middot; {missingFilesCount} missing file{missingFilesCount === 1 ? '' : 's'}
+                                </span>
+                                <div className="spacer"/>
+                                <ViewModeToggle mode={viewMode} onChange={setViewMode}/>
+                            </div>
                         </div>
                         {installedState.kind === 'loading' && <EmptyState icon="fa-spinner fa-spin" title="Loading..."/>}
                         {installedState.kind === 'error' && <EmptyState icon="fa-triangle-exclamation" tone="error" title="Couldn't load your installed mods" subtitle={installedState.message}/>}
                         {installedState.kind === 'ready' && (
                             <BrowseItemsView
-                                items={installedItems}
+                                items={visibleInstalledItems}
                                 viewMode={viewMode}
-                                emptyIcon="fa-box-open"
-                                emptyMessage="Nothing installed from LoversLab yet for this game."
+                                emptyIcon={installedSearch || selectedTagFilter ? 'fa-magnifying-glass' : 'fa-box-open'}
+                                emptyMessage={
+                                    installedSearch || selectedTagFilter
+                                        ? 'No installed mods match that.'
+                                        : 'Nothing installed from LoversLab yet for this game.'
+                                }
                             />
                         )}
                     </>
@@ -872,7 +986,7 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                         {filesState.kind === 'error' && <EmptyState icon="fa-triangle-exclamation" tone="error" title="Couldn't load this category" subtitle={filesState.message}/>}
                         {filesState.kind === 'ready' && (
                             <BrowseItemsView
-                                items={browsingItems}
+                                items={visibleBrowsingItems}
                                 viewMode={viewMode}
                                 emptyIcon={search ? 'fa-magnifying-glass' : 'fa-box-open'}
                                 emptyMessage={search ? 'No files match that search on this page.' : 'No files here.'}
@@ -902,7 +1016,6 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                                     <Avatar name={status.Username} size={34}/>
                                     <div className="browse-account-identity-text">
                                         <div className="browse-account-username">{status.Username}</div>
-                                        <div className="browse-account-protection mono">{status.Protection}</div>
                                     </div>
                                     <span
                                         className="browse-notifications-bell"
@@ -969,11 +1082,12 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                                 <button type="button" className="btn-primary browse-account-submit" disabled={!canSave} onClick={save}>
                                     {busy === 'save' ? 'Saving...' : status.SignedIn ? 'Update sign-in' : 'Log in'}
                                 </button>
-                                <div className="browse-account-note">
-                                    <i className="fa-solid fa-lock"/> {status.Protection}
-                                </div>
                             </>
                         )}
+
+                        <div className="browse-account-note">
+                            <i className="fa-solid fa-lock"/> {status.Protection}
+                        </div>
                     </div>
                 )}
 
@@ -1014,7 +1128,7 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                                             className="browse-detail-hero"
                                             style={{backgroundImage: `url(${heroURL})`}}
                                             title="Open full size"
-                                            onClick={() => BrowserOpenURL(heroFullURL)}
+                                            onClick={() => BrowserOpenURL(heroURL)}
                                         >
                                             {screenshots.length > 1 && (
                                                 <>
@@ -1177,6 +1291,11 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                                             {filesTabState.kind === 'ready' && filesTabState.downloads.length === 0 && (
                                                 <EmptyState icon="fa-file-circle-question" title="No downloadable files" subtitle="None were found for this mod."/>
                                             )}
+                                            {filesTabState.kind === 'ready' && filesTabState.downloads.length > 0 && (
+                                                <div className="browse-files-count">
+                                                    This mod ships {filesTabState.downloads.length} download{filesTabState.downloads.length === 1 ? '' : 's'}.
+                                                </div>
+                                            )}
                                             {filesTabState.kind === 'ready' && filesTabState.downloads.map((d, i) => (
                                                 <div key={i} className="browse-file-row">
                                                     <i className="fa-solid fa-file-zipper"/>
@@ -1245,7 +1364,7 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                                                 return (
                                                     <div key={post.ID} className="browse-comment">
                                                         <div className="browse-comment-authorcol">
-                                                            <Avatar name={post.Author} size={44}/>
+                                                            <Avatar name={post.Author} url={post.AuthorAvatarURL} size={44}/>
                                                             <span
                                                                 className={post.AuthorURL ? 'browse-comment-author clickable' : 'browse-comment-author'}
                                                                 onClick={() => post.AuthorURL && BrowserOpenURL(post.AuthorURL)}

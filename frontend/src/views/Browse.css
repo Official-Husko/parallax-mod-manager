@@ -70,20 +70,6 @@
     background: var(--green);
 }
 
-/* "There's only one source today" - shown as a dashed-outline affordance, the
-   same honest-not-yet-available style the mockup uses, rather than a plain
-   disabled row that looked like just another (broken) source. */
-.browse-source-add {
-    text-align: center;
-    font: 500 11px Barlow, sans-serif;
-    color: var(--text-muted);
-    border: 1px dashed var(--border-light);
-    border-radius: 4px;
-    padding: 5px 0;
-    margin: 6px 14px 0;
-    cursor: default;
-}
-
 .games-label {
     margin-top: 10px;
 }
@@ -121,14 +107,48 @@
     font-weight: 400;
 }
 
-/* Each game/franchise section gets its own distinct color (by name, see
-   colorFromName) - the same small square swatch the mockup gives every GAMES
-   row, so a long list of otherwise-identical rows isn't one flat wall of text. */
+/* A GAMES row's own real logo, matching the same size/shape convention
+   Library's own sidebar game list already uses (.sidebar-game .swatch) - "All"
+   (every Paradox game's mods together - not one specific game) and any name
+   that doesn't match a registered game keep the plain color swatch below. */
+.browse-category-icon {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    flex: none;
+    object-fit: cover;
+}
+
+.browse-category-icon.fallback {
+    background: var(--border-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.browse-category-icon.fallback i {
+    font-size: 8px;
+    color: var(--text-dim);
+}
+
 .browse-category-swatch {
     width: 9px;
     height: 9px;
     flex: none;
     border-radius: 2px;
+}
+
+/* The Installed row's own icon - distinct from a game's logo (this isn't one
+   specific game) and from the plain color swatch (this isn't a name-hashed
+   color either - "installed" is a real, fixed status, always the same icon
+   and color, the same way a green checkmark means the same thing everywhere
+   else in this app). */
+.browse-installed-icon {
+    width: 14px;
+    text-align: center;
+    flex: none;
+    font-size: 12px;
+    color: var(--green);
 }
 
 .browse-category-row .cat-name {
@@ -140,6 +160,38 @@
 }
 
 .browse-category-row .cat-count {
+    font-size: 10.5px;
+    color: var(--text-dim);
+}
+
+/* The CATEGORIES filter - text only, deliberately no icon or swatch (unlike
+   GAMES/INSTALLED above, these aren't a game or a real status, just a genre
+   label - see browseMockData.ts's CARD_CATEGORIES). */
+.browse-tagfilter-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    cursor: pointer;
+    font: 500 12px Barlow, sans-serif;
+    color: var(--text-mid);
+}
+
+.browse-tagfilter-row:hover {
+    color: var(--text-bright);
+}
+
+.browse-tagfilter-row.active {
+    color: var(--text-bright);
+    background: var(--bg-highlight);
+}
+
+.browse-tagfilter-row .cat-name {
+    flex: 1;
+    min-width: 0;
+}
+
+.browse-tagfilter-row .cat-count {
     font-size: 10.5px;
     color: var(--text-dim);
 }
@@ -177,6 +229,21 @@
     background: var(--bg-header-on-panel);
 }
 
+/* The Installed section's own toolbar has two stacked rows (search+sort, then
+   the stats line+view toggle) instead of the browsing grid's one - matches the
+   mockup's own two-row layout for its own "Installed" view. */
+.browse-toolbar.column {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 11px;
+}
+
+.browse-toolbar-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
 .browse-toolbar .search-box {
     flex: 1;
     max-width: 380px;
@@ -184,6 +251,26 @@
 
 .browse-toolbar .spacer {
     flex: 1;
+}
+
+.browse-sort-control {
+    font: 500 11.5px Barlow, sans-serif;
+    color: var(--text-mid);
+    background: var(--bg-highlight);
+    border: 1px solid var(--border-light);
+    border-radius: 5px;
+    padding: 8px 11px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.browse-sort-control:hover {
+    color: var(--text-bright);
+}
+
+.browse-installed-stats {
+    font-size: 11px;
+    color: var(--text-muted);
 }
 
 .browse-pager {
@@ -249,10 +336,6 @@
     color: var(--text-bright);
 }
 
-.browse-installed-title {
-    font: 600 12.5px Barlow, sans-serif;
-    color: var(--text-bright);
-}
 
 /* A short genre/category badge - mock for now (see browseMockData.ts) - shown over
    a card's thumbnail or, in list view, right before the title. Background color is
@@ -625,11 +708,6 @@
     white-space: nowrap;
 }
 
-.browse-account-protection {
-    font-size: 10.5px;
-    color: var(--text-dim);
-    margin-top: 1px;
-}
 
 .browse-account-alert {
     border: 1px solid #4a2f22;
@@ -970,6 +1048,11 @@
 .browse-comments-pager-row i.inert {
     color: var(--text-dim);
     cursor: not-allowed;
+}
+
+.browse-files-count {
+    font: 400 11.5px Barlow, sans-serif;
+    color: var(--text-dim);
 }
 
 /* The Files tab: every downloadable attachment for the open file, each with its own

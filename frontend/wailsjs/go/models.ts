@@ -1789,6 +1789,7 @@ export namespace loverslab {
 	    ID: string;
 	    Author: string;
 	    AuthorURL: string;
+	    AuthorAvatarURL: string;
 	    Posted: string;
 	    URL: string;
 	    Content: string;
@@ -1803,6 +1804,7 @@ export namespace loverslab {
 	        this.ID = source["ID"];
 	        this.Author = source["Author"];
 	        this.AuthorURL = source["AuthorURL"];
+	        this.AuthorAvatarURL = source["AuthorAvatarURL"];
 	        this.Posted = source["Posted"];
 	        this.URL = source["URL"];
 	        this.Content = source["Content"];
