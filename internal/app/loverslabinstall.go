@@ -54,6 +54,13 @@ type LoversLabInstallProgress struct {
 	// download response) - the frontend shows an indeterminate progress bar then,
 	// rather than a wrong or divide-by-zero one.
 	Total int64
+	// FileName, FileIndex and FileCount describe which of a possibly multi-file
+	// batch install (the person's own checked selection on the Files tab) this
+	// progress event belongs to - FileIndex is 1-based, and FileCount is always at
+	// least 1 (a single selected file is just a batch of one, never a special case).
+	FileName  string
+	FileIndex int
+	FileCount int
 }
 
 // locateLoversLabInstall finds fileID's own stub descriptor for gameID, if one
@@ -219,18 +226,27 @@ func (a *App) LoversLabInstalledMods(gameID string) ([]LoversLabInstalledMod, er
 	return out, nil
 }
 
-// LoversLabInstall downloads file from downloadURL (one of LoversLabDownloadDialog's
-// own results) and installs it for gameID: extracted content first, then the stub
-// that makes the game see it - see the package comment above for why, and
+// LoversLabInstall downloads every file in downloads (LoversLabDownloadDialog's own
+// results - the person's own checked selection on the Files tab, one or several) and
+// installs them together for gameID: extracted content first, then the stub that
+// makes the game see it - see the package comment above for why, and
 // resolveLoversLabInstallLocation for how an existing install of the same file is
-// updated in place rather than duplicated. dateModified is the file's own current
-// "dateModified" (loverslab.FileDetail, already fetched by the detail view this
-// Download button lives on - not re-fetched here, since the frontend already has it)
-// - recorded for the update check to later compare against; an empty string just
+// updated in place rather than duplicated. Every selected download is fetched and
+// extracted into that one shared content folder in order - never wiped between them,
+// only once up front when this replaces a previous install - so picking, say, a main
+// archive together with an addon zip lands both inside the one mod folder, exactly as
+// extracting them there by hand one after another would. dateModified is the file's
+// own current "dateModified" (loverslab.FileDetail, already fetched by the detail
+// view this button lives on - not re-fetched here, since the frontend already has
+// it) - recorded for the update check to later compare against; an empty string just
 // means this install won't be checked for updates until the next one, never a reason
 // to fail the install itself. requestID tags the progress events this emits while it
 // runs, and is what CancelLoversLabInstall stops.
-func (a *App) LoversLabInstall(gameID, requestID string, file loverslab.FileSummary, dateModified, downloadURL string) (SaveResult, error) {
+func (a *App) LoversLabInstall(gameID, requestID string, file loverslab.FileSummary, dateModified string, downloads []loverslab.FileDownload) (SaveResult, error) {
+	if len(downloads) == 0 {
+		return SaveResult{}, errors.New("no files were selected to install")
+	}
+
 	modEditMu.Lock()
 	defer modEditMu.Unlock()
 	log := applog.For("LoversLab")
@@ -262,52 +278,76 @@ func (a *App) LoversLabInstall(gameID, requestID string, file loverslab.FileSumm
 	endMute := a.watchMute.Begin(modWatchMuteGrace)
 	defer endMute()
 
-	tmp, err := os.CreateTemp("", "parallax-loverslab-*.download")
-	if err != nil {
-		return SaveResult{}, fmt.Errorf("could not create a temporary file to download into: %w", err)
-	}
-	tmpPath := tmp.Name()
-	defer os.Remove(tmpPath)
-
-	_, downloadErr := client.DownloadFile(ctx, downloadURL, tmp, func(done, total int64) {
-		a.emit("loverslab-install-progress", LoversLabInstallProgress{RequestID: requestID, Stage: "downloading", Done: done, Total: total})
-	})
-	closeErr := tmp.Close()
-	if downloadErr != nil {
-		if errors.Is(downloadErr, context.Canceled) {
-			log.Infof("downloading '%s' for '%s' was cancelled", file.Title, a.gameLabel(gameID))
-			return SaveResult{}, errors.New("The download was cancelled.")
-		}
-		log.Errorf("downloading '%s' for '%s' failed: %v", file.Title, a.gameLabel(gameID), downloadErr)
-		return SaveResult{}, downloadErr
-	}
-	if closeErr != nil {
-		return SaveResult{}, fmt.Errorf("could not finish writing the download: %w", closeErr)
-	}
-	if ctx.Err() != nil {
-		return SaveResult{}, errors.New("The download was cancelled.")
-	}
-
-	// isUpdate: wipe the previous install's content before re-extracting, so a file
-	// the new version no longer ships doesn't linger - only now, after the download
-	// is confirmed good, never before (a failed download must never touch what was
-	// already installed).
+	// isUpdate: wipe the previous install's content before extracting any of the
+	// newly selected files into it, so content the new selection no longer includes
+	// doesn't linger - only now, after resolving where to install, never before any
+	// of the selected downloads is even attempted.
 	if isUpdate {
 		if err := os.RemoveAll(contentDir); err != nil {
 			return SaveResult{}, fmt.Errorf("could not clear the previous install: %w", err)
 		}
 	}
 
-	a.emit("loverslab-install-progress", LoversLabInstallProgress{RequestID: requestID, Stage: "extracting", Done: 0, Total: -1})
-	extracted, extractErr := loverslabinstall.ExtractZip(tmpPath, contentDir)
-	if extractErr != nil {
-		_ = os.RemoveAll(contentDir)
-		log.Errorf("extracting '%s' for '%s' failed: %v", file.Title, a.gameLabel(gameID), extractErr)
-		return SaveResult{}, extractErr
-	}
-	fileCount := extracted.Files
+	var fileCount int
+	var stubDescriptor []byte
+	for i, dl := range downloads {
+		tmp, err := os.CreateTemp("", "parallax-loverslab-*.download")
+		if err != nil {
+			_ = os.RemoveAll(contentDir)
+			return SaveResult{}, fmt.Errorf("could not create a temporary file to download into: %w", err)
+		}
+		tmpPath := tmp.Name()
 
-	desc, hadOwnDescriptor, err := loverslabinstall.ResolveDescriptor(contentDir, extracted.StubDescriptor, file.Title, strconv.Itoa(file.ID))
+		_, downloadErr := client.DownloadFile(ctx, dl.URL, tmp, func(done, total int64) {
+			a.emit("loverslab-install-progress", LoversLabInstallProgress{
+				RequestID: requestID, Stage: "downloading", Done: done, Total: total,
+				FileName: dl.Name, FileIndex: i + 1, FileCount: len(downloads),
+			})
+		})
+		closeErr := tmp.Close()
+		if downloadErr != nil {
+			os.Remove(tmpPath)
+			_ = os.RemoveAll(contentDir)
+			if errors.Is(downloadErr, context.Canceled) {
+				log.Infof("downloading '%s' for '%s' was cancelled", file.Title, a.gameLabel(gameID))
+				return SaveResult{}, errors.New("The download was cancelled.")
+			}
+			log.Errorf("downloading '%s' for '%s' failed: %v", dl.Name, a.gameLabel(gameID), downloadErr)
+			return SaveResult{}, downloadErr
+		}
+		if closeErr != nil {
+			os.Remove(tmpPath)
+			_ = os.RemoveAll(contentDir)
+			return SaveResult{}, fmt.Errorf("could not finish writing the download: %w", closeErr)
+		}
+		if ctx.Err() != nil {
+			os.Remove(tmpPath)
+			_ = os.RemoveAll(contentDir)
+			return SaveResult{}, errors.New("The download was cancelled.")
+		}
+
+		a.emit("loverslab-install-progress", LoversLabInstallProgress{
+			RequestID: requestID, Stage: "extracting", Done: 0, Total: -1,
+			FileName: dl.Name, FileIndex: i + 1, FileCount: len(downloads),
+		})
+		extracted, extractErr := loverslabinstall.ExtractZip(tmpPath, contentDir)
+		os.Remove(tmpPath)
+		if extractErr != nil {
+			_ = os.RemoveAll(contentDir)
+			log.Errorf("extracting '%s' for '%s' failed: %v", dl.Name, a.gameLabel(gameID), extractErr)
+			return SaveResult{}, extractErr
+		}
+		fileCount += extracted.Files
+		// Only the first selected download's own sibling stub (see
+		// ExtractResult.StubDescriptor) is used - in practice that's always the
+		// main archive, listed first; addon zips picked alongside it don't
+		// normally carry their own descriptor at all.
+		if stubDescriptor == nil && len(extracted.StubDescriptor) > 0 {
+			stubDescriptor = extracted.StubDescriptor
+		}
+	}
+
+	desc, hadOwnDescriptor, err := loverslabinstall.ResolveDescriptor(contentDir, stubDescriptor, file.Title, strconv.Itoa(file.ID))
 	if err != nil {
 		_ = os.RemoveAll(contentDir)
 		return SaveResult{}, err
@@ -353,7 +393,7 @@ func (a *App) LoversLabInstall(gameID, requestID string, file loverslab.FileSumm
 	if isUpdate {
 		verb = "updated"
 	}
-	log.Infof("%s '%s' from LoversLab for '%s' (%d files)", verb, file.Title, a.gameLabel(gameID), fileCount)
+	log.Infof("%s '%s' from LoversLab for '%s' (%d files across %d download(s))", verb, file.Title, a.gameLabel(gameID), fileCount, len(downloads))
 	a.emit("mods-changed", gameID)
 	return SaveResult{Files: written, SavedAt: time.Now().Unix()}, nil
 }

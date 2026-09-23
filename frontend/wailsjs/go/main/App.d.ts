@@ -137,7 +137,7 @@ export function LoversLabFileDetail(arg1:string):Promise<loverslab.FileDetail>;
 
 export function LoversLabFiles(arg1:string,arg2:number):Promise<app.LoversLabFileList>;
 
-export function LoversLabInstall(arg1:string,arg2:string,arg3:loverslab.FileSummary,arg4:string,arg5:string):Promise<app.SaveResult>;
+export function LoversLabInstall(arg1:string,arg2:string,arg3:loverslab.FileSummary,arg4:string,arg5:Array<loverslab.FileDownload>):Promise<app.SaveResult>;
 
 export function LoversLabInstalledMods(arg1:string):Promise<Array<app.LoversLabInstalledMod>>;
 

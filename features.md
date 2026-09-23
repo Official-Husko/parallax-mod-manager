@@ -100,9 +100,11 @@ for security, privacy, reliability or performance is called out (see the last tw
   instead of having native comments), all in one place instead of leaving the app.
 - **Write a reply, not just read them** - post a real comment to a file's support topic straight
   from the Comments tab, with no need to open a browser.
-- **Pick which file to install from its own Files tab** - every downloadable file for a mod,
-  each with its own real size and posted date alongside an Install (or Update, once installed)
-  button.
+- **Pick any combination of files to install from its own Files tab** - every downloadable file
+  for a mod listed with its own real size and posted date and a checkbox, so a main archive and
+  a separate addon zip (or several old versions kept for rollback) can be selected together and
+  installed in one action, landing inside the same mod folder exactly as extracting them there by
+  hand one after another would.
 - **An Installed section, and uninstalling** - a new place in Browse, alongside its per-game
   sidebar, listing everything installed from LoversLab for the current game; uninstall from
   there (right-click) or from the mod's own detail view - either deletes its files for real,

@@ -1121,9 +1121,12 @@
     color: var(--text-dim);
 }
 
-/* The Files tab: every downloadable attachment for the open file, each with its own
-   real Install/Update button - no batch-select checkbox, since there's no real
-   batch-install capability behind one. */
+/* The Files tab: every downloadable version/attachment for the open file, each with
+   its own real checkbox - picking several at once (e.g. a main archive together with
+   a separate addon zip) and installing them together as one batch is real, wired
+   behavior (see internal/app/loverslabinstall.go's own LoversLabInstall), not just a
+   look. A real <label> wrapping the Checkbox, so clicking anywhere on the row toggles
+   it, not just the small box itself. */
 .browse-file-row {
     display: flex;
     align-items: center;
@@ -1131,22 +1134,7 @@
     padding: 10px 12px;
     border: 1px solid var(--border-light);
     border-radius: 5px;
-}
-
-.browse-file-icon {
-    width: 22px;
-    height: 22px;
-    flex: none;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 4px;
-    background: var(--border-light);
-}
-
-.browse-file-icon i {
-    font-size: 11px;
-    color: var(--text-dim);
+    cursor: pointer;
 }
 
 .browse-file-name {
@@ -1168,6 +1156,63 @@
     font: 500 10.5px "Azeret Mono", monospace;
     color: var(--text-dim);
     white-space: nowrap;
+}
+
+/* The bottom of the Files tab: which of the checked-above files are selected, their
+   combined real size (added up from each one's own Size string - see
+   parseSizeToBytes), and the actions that act on that selection. Sticky within
+   .browse-detail-tab-body's own scroll area, so it stays reachable at the bottom of
+   the visible area rather than scrolling away with a long file list - the negative
+   margin/inset bottom cancels that container's own padding so this reaches the true
+   edges instead of leaving a gap that shows whatever's behind it. */
+.browse-files-footer {
+    position: sticky;
+    bottom: -20px;
+    margin: 4px -20px -20px;
+    padding: 12px 20px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: var(--bg-panel-solid);
+    border-top: 1px solid var(--border);
+}
+
+.browse-files-selection-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font: 400 11px "Azeret Mono", monospace;
+    color: var(--text-dim);
+}
+
+.browse-files-select-all {
+    color: var(--amber);
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-color: rgba(224, 163, 64, .45);
+}
+
+.browse-files-select-all:hover {
+    text-decoration-color: var(--amber);
+}
+
+.browse-files-select-all.inert {
+    color: var(--text-dim);
+    text-decoration: none;
+    cursor: not-allowed;
+}
+
+.browse-files-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.browse-files-actions .btn-ghost {
+    flex: 1;
+}
+
+.browse-files-actions .btn-primary {
+    flex: 2;
 }
 
 .browse-changelog-entry {

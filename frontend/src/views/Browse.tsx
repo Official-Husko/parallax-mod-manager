@@ -23,6 +23,7 @@ import {
 import type {app, library, loverslab} from '../../wailsjs/go/models';
 import {BrowserOpenURL, EventsOn} from '../../wailsjs/runtime/runtime';
 import {Avatar} from '../components/Avatar';
+import {Checkbox} from '../components/Checkbox';
 import {EmptyState} from '../components/EmptyState';
 import {GameLogo} from '../components/GameLogo';
 import {openContextMenu} from '../data/contextMenu';
@@ -41,6 +42,12 @@ interface LoversLabInstallProgressEvent {
     Stage: string; // "downloading" | "extracting"
     Done: number;
     Total: number; // -1 when unknown
+    // Which of a possibly multi-file batch install (the Files tab's own checked
+    // selection) this event belongs to - FileIndex is 1-based, FileCount is always
+    // at least 1.
+    FileName: string;
+    FileIndex: number;
+    FileCount: number;
 }
 
 // Browse: additional, unofficial places to find mods beyond the Steam Workshop (already
@@ -113,14 +120,16 @@ type InstalledModsState =
     | { kind: 'error'; message: string }
     | { kind: 'ready'; mods: app.LoversLabInstalledMod[] };
 
-// Installing (from a Files-tab row's Install/Update button) and uninstalling (from
-// the header or the Files tab) share this one piece of state - both are shown the
-// same way, inline at the top of the tab body, never a second popup on top of the
-// detail modal itself.
+// Installing (from the Files tab's own checked selection and its "Download &
+// install" button) and uninstalling (from the header or the Files tab) share this
+// one piece of state - both are shown the same way, inline at the top of the tab
+// body, never a second popup on top of the detail modal itself. installing can
+// carry more than one download at once - every file the person had ticked when
+// they clicked the button, installed together as one batch (see
+// internal/app/loverslabinstall.go's own LoversLabInstall).
 type InstallState =
     | { kind: 'idle' }
-    | { kind: 'confirm'; download: loverslab.FileDownload }
-    | { kind: 'installing'; download: loverslab.FileDownload; progress: LoversLabInstallProgressEvent | null }
+    | { kind: 'installing'; downloads: loverslab.FileDownload[]; progress: LoversLabInstallProgressEvent | null }
     | { kind: 'uninstall-confirm' }
     | { kind: 'uninstalling' }
     | { kind: 'error'; message: string };
@@ -166,6 +175,33 @@ function formatUpdated(iso: string): string {
     const d = new Date(iso);
     if (isNaN(d.getTime())) return iso;
     return d.toLocaleDateString(undefined, {month: 'long', day: 'numeric', year: 'numeric'});
+}
+
+// parseSizeToBytes turns a FileDownload.Size display string (e.g. "2.43 MB", exactly
+// as LoversLab's own download dialog shows it) back into a real byte count, so the
+// Files tab can add several selected files' sizes together. Returns 0 for anything
+// that doesn't match - a size that can't be parsed just doesn't count toward the
+// total rather than throwing off the sum with a guess.
+function parseSizeToBytes(size: string): number {
+    const m = size.trim().match(/^([\d.]+)\s*(B|KB|MB|GB|TB)$/i);
+    if (!m) return 0;
+    const units: Record<string, number> = {b: 1, kb: 1024, mb: 1024 ** 2, gb: 1024 ** 3, tb: 1024 ** 4};
+    return parseFloat(m[1]) * (units[m[2].toLowerCase()] ?? 0);
+}
+
+// formatBytes is parseSizeToBytes' own inverse, for showing the selected files'
+// combined size back in the same style LoversLab's own dialog uses.
+function formatBytes(bytes: number): string {
+    if (bytes <= 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    let value = bytes;
+    let i = 0;
+    while (value >= 1024 && i < units.length - 1) {
+        value /= 1024;
+        i++;
+    }
+    const decimals = i === 0 ? 0 : value < 10 ? 2 : value < 100 ? 1 : 0;
+    return `${value.toFixed(decimals)} ${units[i]}`;
 }
 
 // Browsing (the card grid) and the Installed section (a plain row list) are two
@@ -448,6 +484,11 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
     const [commentDraft, setCommentDraft] = useState('');
     const [postingComment, setPostingComment] = useState(false);
     const [filesTabState, setFilesTabState] = useState<FilesTabState>({kind: 'idle'});
+    // Which of filesTabState.downloads are currently checked, by index - reset
+    // whenever a different mod's detail opens/closes, or once an install started
+    // from this selection finishes (success or failure), so a stale tick from a
+    // previous file never carries over.
+    const [selectedFileIndexes, setSelectedFileIndexes] = useState<Set<number>>(new Set());
 
     const [installState, setInstallState] = useState<InstallState>({kind: 'idle'});
     const installRequestRef = useRef<string | null>(null);
@@ -604,6 +645,7 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
         setScreenshotIndex(0);
         setCommentsPage(1);
         setInstallState({kind: 'idle'});
+        setSelectedFileIndexes(new Set());
 
         setDetailState({kind: 'loading'});
         LoversLabFileDetail(file.URL)
@@ -684,21 +726,27 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
         setCommentDraft('');
         setFilesTabState({kind: 'idle'});
         setInstallState({kind: 'idle'});
+        setSelectedFileIndexes(new Set());
     }
 
-    async function runInstall(download: loverslab.FileDownload) {
-        if (!detailFor) return;
+    // Installs every file in downloads together as one batch - the Files tab's own
+    // checked selection, whatever size (one file, or several picked together, e.g. a
+    // main archive plus an addon zip) - see internal/app/loverslabinstall.go's own
+    // LoversLabInstall for how they land in the same mod folder.
+    async function runInstall(downloads: loverslab.FileDownload[]) {
+        if (!detailFor || downloads.length === 0) return;
         const requestId = `ll-install-${Date.now()}-${Math.random().toString(36).slice(2)}`;
         installRequestRef.current = requestId;
-        setInstallState({kind: 'installing', download, progress: null});
+        setInstallState({kind: 'installing', downloads, progress: null});
         const off = EventsOn('loverslab-install-progress', (p: LoversLabInstallProgressEvent) => {
-            if (p.RequestID === requestId) setInstallState({kind: 'installing', download, progress: p});
+            if (p.RequestID === requestId) setInstallState({kind: 'installing', downloads, progress: p});
         });
         try {
             const dateModified = detailState?.kind === 'ready' ? detailState.detail.DateModified : '';
-            await LoversLabInstall(selectedGame, requestId, detailFor, dateModified, download.URL);
-            notify('success', `Installed '${detailFor.Title}'.`);
+            await LoversLabInstall(selectedGame, requestId, detailFor, dateModified, downloads);
+            notify('success', downloads.length === 1 ? `Installed '${detailFor.Title}'.` : `Installed '${detailFor.Title}' (${downloads.length} files).`);
             setInstallState({kind: 'idle'});
+            setSelectedFileIndexes(new Set());
             // This mod's own tracked install just changed - a fresh check confirms it no
             // longer shows as outdated right away, rather than until the next scheduled one.
             void checkLoversLabUpdates(selectedGame);
@@ -715,6 +763,19 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
 
     function cancelInstall() {
         if (installRequestRef.current) CancelLoversLabInstall(installRequestRef.current);
+    }
+
+    function toggleFileSelected(i: number) {
+        setSelectedFileIndexes((prev) => {
+            const next = new Set(prev);
+            if (next.has(i)) next.delete(i); else next.add(i);
+            return next;
+        });
+    }
+
+    function toggleSelectAllFiles(total: number) {
+        setSelectedFileIndexes((prev) =>
+            prev.size >= total ? new Set() : new Set(Array.from({length: total}, (_, i) => i)));
     }
 
     // Uninstalling the file currently open in the detail modal (header or Files tab) -
@@ -1264,22 +1325,14 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                                                     <span className="browse-install-dismiss" onClick={() => setInstallState({kind: 'idle'})}>Dismiss</span>
                                                 </div>
                                             )}
-                                            {installState.kind === 'confirm' && (
-                                                <>
-                                                    <div className="browse-install-label">
-                                                        Download and install <strong>{installState.download.Name}</strong>? If you already have
-                                                        this mod installed from LoversLab, this replaces it with this version.
-                                                    </div>
-                                                    <div className="browse-install-actions">
-                                                        <button type="button" className="btn-primary" onClick={() => runInstall(installState.download)}>Install</button>
-                                                        <button type="button" className="btn-ghost" onClick={() => setInstallState({kind: 'idle'})}>Cancel</button>
-                                                    </div>
-                                                </>
-                                            )}
                                             {installState.kind === 'installing' && (
                                                 <>
                                                     <div className="browse-install-label">
-                                                        {installState.progress?.Stage === 'extracting' ? 'Extracting...' : 'Downloading...'}
+                                                        {installState.progress?.Stage === 'extracting' ? 'Extracting' : 'Downloading'}
+                                                        {installState.progress?.FileName ? ` ${installState.progress.FileName}` : '...'}
+                                                        {installState.progress && installState.progress.FileCount > 1
+                                                            ? ` (${installState.progress.FileIndex} of ${installState.progress.FileCount})`
+                                                            : ''}
                                                     </div>
                                                     <div className="browse-install-bar">
                                                         <div
@@ -1368,31 +1421,69 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                                             {filesTabState.kind === 'ready' && filesTabState.downloads.length === 0 && (
                                                 <EmptyState icon="fa-file-circle-question" title="No downloadable files" subtitle="None were found for this mod."/>
                                             )}
-                                            {filesTabState.kind === 'ready' && filesTabState.downloads.length > 0 && (
-                                                <div className="browse-files-header">
-                                                    <div className="browse-files-title">Choose a file to install</div>
-                                                    <div className="browse-files-count">
-                                                        This mod ships {filesTabState.downloads.length} download{filesTabState.downloads.length === 1 ? '' : 's'}.
-                                                    </div>
-                                                </div>
-                                            )}
-                                            {filesTabState.kind === 'ready' && filesTabState.downloads.map((d, i) => (
-                                                <div key={i} className="browse-file-row">
-                                                    <span className="browse-file-icon"><i className="fa-solid fa-file-zipper"/></span>
-                                                    <span className="browse-file-name" title={d.Name}>{d.Name}</span>
-                                                    {(d.Size || d.Posted) && (
-                                                        <span className="browse-file-meta">{[d.Size, d.Posted].filter(Boolean).join(' · ')}</span>
-                                                    )}
-                                                    <button
-                                                        type="button"
-                                                        className="btn-primary"
-                                                        disabled={installState.kind !== 'idle'}
-                                                        onClick={() => setInstallState({kind: 'confirm', download: d})}
-                                                    >
-                                                        {isInstalled ? 'Update' : 'Install'}
-                                                    </button>
-                                                </div>
-                                            ))}
+                                            {filesTabState.kind === 'ready' && filesTabState.downloads.length > 0 && (() => {
+                                                const downloads = filesTabState.downloads;
+                                                const selectedCount = selectedFileIndexes.size;
+                                                const totalBytes = downloads.reduce(
+                                                    (sum, d, i) => selectedFileIndexes.has(i) ? sum + parseSizeToBytes(d.Size) : sum, 0);
+                                                const busy = installState.kind !== 'idle';
+                                                return (
+                                                    <>
+                                                        <div className="browse-files-header">
+                                                            <div className="browse-files-title">Choose files to install</div>
+                                                            <div className="browse-files-count">
+                                                                This mod ships {downloads.length} download{downloads.length === 1 ? '' : 's'}. Pick any combination.
+                                                            </div>
+                                                        </div>
+                                                        {downloads.map((d, i) => (
+                                                            <label key={i} className="browse-file-row">
+                                                                <Checkbox
+                                                                    checked={selectedFileIndexes.has(i)}
+                                                                    onChange={() => toggleFileSelected(i)}
+                                                                    disabled={busy}
+                                                                />
+                                                                <span className="browse-file-name" title={d.Name}>{d.Name}</span>
+                                                                {(d.Size || d.Posted) && (
+                                                                    <span className="browse-file-meta">{[d.Size, d.Posted].filter(Boolean).join(' · ')}</span>
+                                                                )}
+                                                            </label>
+                                                        ))}
+                                                        <div className="browse-files-footer">
+                                                            <div className="browse-files-selection-row">
+                                                                <span>
+                                                                    {selectedCount} of {downloads.length} selected
+                                                                    {' · '}
+                                                                    <span
+                                                                        className={`browse-files-select-all ${busy ? 'inert' : ''}`}
+                                                                        onClick={() => !busy && toggleSelectAllFiles(downloads.length)}
+                                                                    >
+                                                                        {selectedCount >= downloads.length ? 'Deselect all' : 'Select all'}
+                                                                    </span>
+                                                                </span>
+                                                                <span className="mono">{formatBytes(totalBytes)}</span>
+                                                            </div>
+                                                            <div className="browse-files-actions">
+                                                                <button
+                                                                    type="button"
+                                                                    className="btn-ghost"
+                                                                    disabled={busy || selectedCount === 0}
+                                                                    onClick={() => setSelectedFileIndexes(new Set())}
+                                                                >
+                                                                    Cancel
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    className="btn-primary"
+                                                                    disabled={busy || selectedCount === 0}
+                                                                    onClick={() => runInstall(downloads.filter((_, i) => selectedFileIndexes.has(i)))}
+                                                                >
+                                                                    {isInstalled ? 'Update' : 'Download & install'} {selectedCount} file{selectedCount === 1 ? '' : 's'}
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </>
+                                                );
+                                            })()}
                                         </>
                                     )}
 

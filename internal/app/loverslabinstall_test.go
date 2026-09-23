@@ -122,7 +122,7 @@ func TestLoversLabInstallFreshInstallWithTheArchivesOwnDescriptor(t *testing.T) 
 	}))
 
 	file := loverslab.FileSummary{ID: 31347, Title: "Stable Portraits", URL: "https://www.loverslab.com/files/file/31347-stable-portraits/", Updated: "2 days ago"}
-	res, err := env.a.LoversLabInstall(env.cfg.ID, "req-1", file, "2026-09-13T20:01:52+0200", srv.URL)
+	res, err := env.a.LoversLabInstall(env.cfg.ID, "req-1", file, "2026-09-13T20:01:52+0200", []loverslab.FileDownload{{URL: srv.URL}})
 	if err != nil {
 		t.Fatalf("LoversLabInstall: %v", err)
 	}
@@ -162,7 +162,7 @@ func TestLoversLabInstallSynthesizesADescriptorWhenTheArchiveHasNone(t *testing.
 	srv := zipServer(t, buildTestZip(t, map[string]string{"common/x.txt": "x = 1"}))
 
 	file := loverslab.FileSummary{ID: 999, Title: "No Descriptor Mod", URL: "https://www.loverslab.com/files/file/999-no-descriptor/", Updated: "today"}
-	res, err := env.a.LoversLabInstall(env.cfg.ID, "req-2", file, "2026-09-01T00:00:00+0000", srv.URL)
+	res, err := env.a.LoversLabInstall(env.cfg.ID, "req-2", file, "2026-09-01T00:00:00+0000", []loverslab.FileDownload{{URL: srv.URL}})
 	if err != nil {
 		t.Fatalf("LoversLabInstall: %v", err)
 	}
@@ -185,13 +185,13 @@ func TestLoversLabInstallUpdatesInPlaceRatherThanDuplicating(t *testing.T) {
 	file := loverslab.FileSummary{ID: 500, Title: "Evolving Mod", URL: "https://www.loverslab.com/files/file/500-evolving-mod/", Updated: "version 1"}
 
 	srv1 := zipServer(t, buildTestZip(t, map[string]string{"descriptor.mod": "name=\"Evolving Mod\"\nversion=\"1.0\"\n", "common/old.txt": "old"}))
-	if _, err := env.a.LoversLabInstall(env.cfg.ID, "req-3a", file, "2026-01-01T00:00:00+0000", srv1.URL); err != nil {
+	if _, err := env.a.LoversLabInstall(env.cfg.ID, "req-3a", file, "2026-01-01T00:00:00+0000", []loverslab.FileDownload{{URL: srv1.URL}}); err != nil {
 		t.Fatalf("first LoversLabInstall: %v", err)
 	}
 
 	file.Updated = "version 2"
 	srv2 := zipServer(t, buildTestZip(t, map[string]string{"descriptor.mod": "name=\"Evolving Mod\"\nversion=\"2.0\"\n", "common/new.txt": "new"}))
-	if _, err := env.a.LoversLabInstall(env.cfg.ID, "req-3b", file, "2026-02-01T00:00:00+0000", srv2.URL); err != nil {
+	if _, err := env.a.LoversLabInstall(env.cfg.ID, "req-3b", file, "2026-02-01T00:00:00+0000", []loverslab.FileDownload{{URL: srv2.URL}}); err != nil {
 		t.Fatalf("second LoversLabInstall: %v", err)
 	}
 
@@ -223,7 +223,7 @@ func TestLoversLabInstallTracksTheInstallForUpdateChecking(t *testing.T) {
 	srv := zipServer(t, buildTestZip(t, map[string]string{"descriptor.mod": "name=\"Tracked\"\n"}))
 	file := loverslab.FileSummary{ID: 42, Title: "Tracked Mod", URL: "https://www.loverslab.com/files/file/42-tracked-mod/", Updated: "yesterday"}
 
-	if _, err := env.a.LoversLabInstall(env.cfg.ID, "req-4", file, "2026-03-01T00:00:00+0000", srv.URL); err != nil {
+	if _, err := env.a.LoversLabInstall(env.cfg.ID, "req-4", file, "2026-03-01T00:00:00+0000", []loverslab.FileDownload{{URL: srv.URL}}); err != nil {
 		t.Fatalf("LoversLabInstall: %v", err)
 	}
 
@@ -243,6 +243,92 @@ func TestLoversLabInstallTracksTheInstallForUpdateChecking(t *testing.T) {
 	}
 }
 
+// TestLoversLabInstallCombinesMultipleSelectedFilesIntoOneModFolder is the real
+// batch-install case the Files tab's checkboxes drive: picking a main archive
+// together with a separate addon zip must land both inside the same content
+// folder, not overwrite one with the other.
+func TestLoversLabInstallCombinesMultipleSelectedFilesIntoOneModFolder(t *testing.T) {
+	env := newInstallEnv(t)
+	main := zipServer(t, buildTestZip(t, map[string]string{
+		"descriptor.mod":  "name=\"Lustful Void\"\nversion=\"0.8.0\"\n",
+		"common/main.txt": "main content",
+	}))
+	// Two top-level folders, like a real Paradox addon zip (common/, events/, gfx/,
+	// ...) - a single bare top-level folder would be treated as a wrapper to strip
+	// (see ExtractZip's own contentLayout), which a real addon archive practically
+	// never is.
+	addon := zipServer(t, buildTestZip(t, map[string]string{
+		"common/addon.txt":        "addon content",
+		"events/addon_events.txt": "addon events",
+	}))
+
+	file := loverslab.FileSummary{ID: 8719, Title: "Lustful Void", URL: "https://www.loverslab.com/files/file/8719-lustful-void/", Updated: "today"}
+	res, err := env.a.LoversLabInstall(env.cfg.ID, "req-batch", file, "2026-09-13T20:01:52+0200", []loverslab.FileDownload{
+		{Name: "Lustful Void 0.8.0.zip", URL: main.URL},
+		{Name: "LV Lewd Rooms.zip", URL: addon.URL},
+	})
+	if err != nil {
+		t.Fatalf("LoversLabInstall: %v", err)
+	}
+	if len(res.Files) != 1 {
+		t.Fatalf("wrote %v, want just the stub (the main archive shipped its own descriptor.mod)", res.Files)
+	}
+
+	contentDir := filepath.Join(env.modDir, "Lustful Void")
+	if _, err := os.Stat(filepath.Join(contentDir, "common/main.txt")); err != nil {
+		t.Errorf("the main archive's own content is missing: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(contentDir, "common/addon.txt")); err != nil {
+		t.Errorf("the addon zip's own content is missing - a batch install must not overwrite earlier selections: %v", err)
+	}
+	if data, err := os.ReadFile(filepath.Join(contentDir, "descriptor.mod")); err != nil || string(data) != "name=\"Lustful Void\"\nversion=\"0.8.0\"\n" {
+		t.Errorf("the main archive's own descriptor.mod was not kept: %q, %v", data, err)
+	}
+}
+
+// TestLoversLabInstallBatchUpdateReplacesEverythingFromTheOldSelection is the
+// update-in-place equivalent: a previously installed multi-file batch, updated with
+// a smaller new selection, must not leave anything from the old one behind (the
+// existing single-file update test already covers wiping content the new archive
+// no longer ships; this covers wiping content an earlier addon in the old batch
+// shipped that isn't part of the new one either).
+func TestLoversLabInstallBatchUpdateReplacesEverythingFromTheOldSelection(t *testing.T) {
+	env := newInstallEnv(t)
+	file := loverslab.FileSummary{ID: 501, Title: "Evolving Bundle", URL: "https://www.loverslab.com/files/file/501-evolving-bundle/", Updated: "v1"}
+
+	main1 := zipServer(t, buildTestZip(t, map[string]string{"descriptor.mod": "name=\"Evolving Bundle\"\n", "common/main.txt": "v1"}))
+	addon1 := zipServer(t, buildTestZip(t, map[string]string{"common/old-addon.txt": "old addon"}))
+	if _, err := env.a.LoversLabInstall(env.cfg.ID, "req-b1", file, "2026-01-01T00:00:00+0000", []loverslab.FileDownload{
+		{Name: "main.zip", URL: main1.URL},
+		{Name: "old-addon.zip", URL: addon1.URL},
+	}); err != nil {
+		t.Fatalf("first LoversLabInstall: %v", err)
+	}
+
+	main2 := zipServer(t, buildTestZip(t, map[string]string{"descriptor.mod": "name=\"Evolving Bundle\"\n", "common/main.txt": "v2"}))
+	if _, err := env.a.LoversLabInstall(env.cfg.ID, "req-b2", file, "2026-02-01T00:00:00+0000", []loverslab.FileDownload{
+		{Name: "main.zip", URL: main2.URL},
+	}); err != nil {
+		t.Fatalf("second LoversLabInstall: %v", err)
+	}
+
+	contentDir := filepath.Join(env.modDir, "Evolving Bundle")
+	if data, err := os.ReadFile(filepath.Join(contentDir, "common/main.txt")); err != nil || string(data) != "v2" {
+		t.Errorf("common/main.txt = %q, %v, want the new selection's content", data, err)
+	}
+	if _, err := os.Stat(filepath.Join(contentDir, "common/old-addon.txt")); !os.IsNotExist(err) {
+		t.Errorf("the old batch's addon content should have been wiped, not left behind: %v", err)
+	}
+}
+
+func TestLoversLabInstallWithNoFilesSelectedIsAClearError(t *testing.T) {
+	env := newInstallEnv(t)
+	file := loverslab.FileSummary{ID: 1, Title: "Nothing Selected", URL: "https://www.loverslab.com/files/file/1-nothing-selected/"}
+	if _, err := env.a.LoversLabInstall(env.cfg.ID, "req-empty", file, "", nil); err == nil {
+		t.Error("expected an error when no files are selected")
+	}
+}
+
 func TestLoversLabInstallRejectsANonZipDownloadAndWritesNothing(t *testing.T) {
 	env := newInstallEnv(t)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -251,7 +337,7 @@ func TestLoversLabInstallRejectsANonZipDownloadAndWritesNothing(t *testing.T) {
 	defer srv.Close()
 
 	file := loverslab.FileSummary{ID: 7, Title: "Bad Archive", URL: "https://www.loverslab.com/files/file/7-bad-archive/", Updated: "today"}
-	if _, err := env.a.LoversLabInstall(env.cfg.ID, "req-5", file, "2026-03-01T00:00:00+0000", srv.URL); err == nil {
+	if _, err := env.a.LoversLabInstall(env.cfg.ID, "req-5", file, "2026-03-01T00:00:00+0000", []loverslab.FileDownload{{URL: srv.URL}}); err == nil {
 		t.Error("expected an error for a non-zip download")
 	}
 	if _, err := os.Stat(filepath.Join(env.modDir, "Bad Archive")); !os.IsNotExist(err) {
@@ -285,7 +371,7 @@ func TestCancellingALoversLabInstallLeavesNoPartialFolderBehind(t *testing.T) {
 	}
 
 	file := loverslab.FileSummary{ID: 8, Title: "Cancel Me", URL: "https://www.loverslab.com/files/file/8-cancel-me/", Updated: "today"}
-	_, err := env.a.LoversLabInstall(env.cfg.ID, requestID, file, "2026-03-01T00:00:00+0000", srv.URL)
+	_, err := env.a.LoversLabInstall(env.cfg.ID, requestID, file, "2026-03-01T00:00:00+0000", []loverslab.FileDownload{{URL: srv.URL}})
 	if err == nil {
 		t.Fatal("LoversLabInstall: want an error after cancelling, got nil")
 	}
@@ -305,7 +391,7 @@ func TestUninstallLoversLabModRemovesContentStubAndTrackingEntry(t *testing.T) {
 		"descriptor.mod": "name=\"Removable\"\nversion=\"1.0\"\n",
 	}))
 	file := loverslab.FileSummary{ID: 900, Title: "Removable", URL: "https://www.loverslab.com/files/file/900-removable/", Updated: "today"}
-	if _, err := env.a.LoversLabInstall(env.cfg.ID, "req-u1", file, "2026-01-01T00:00:00+0000", srv.URL); err != nil {
+	if _, err := env.a.LoversLabInstall(env.cfg.ID, "req-u1", file, "2026-01-01T00:00:00+0000", []loverslab.FileDownload{{URL: srv.URL}}); err != nil {
 		t.Fatalf("LoversLabInstall: %v", err)
 	}
 	contentDir := filepath.Join(env.modDir, "Removable")
@@ -382,7 +468,7 @@ func TestLoversLabInstalledModsFlagsContentPresentAfterARealInstall(t *testing.T
 		"descriptor.mod": "name=\"Present\"\nversion=\"1.0\"\n",
 	}))
 	file := loverslab.FileSummary{ID: 901, Title: "Present", URL: "https://www.loverslab.com/files/file/901-present/", Updated: "today"}
-	if _, err := env.a.LoversLabInstall(env.cfg.ID, "req-u2", file, "2026-01-01T00:00:00+0000", srv.URL); err != nil {
+	if _, err := env.a.LoversLabInstall(env.cfg.ID, "req-u2", file, "2026-01-01T00:00:00+0000", []loverslab.FileDownload{{URL: srv.URL}}); err != nil {
 		t.Fatalf("LoversLabInstall: %v", err)
 	}
 
