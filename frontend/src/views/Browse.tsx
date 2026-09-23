@@ -18,7 +18,7 @@ import {
     SaveLoversLabCredentials,
     UninstallLoversLabMod,
 } from '../../wailsjs/go/main/App';
-import type {library, loverslab, main} from '../../wailsjs/go/models';
+import type {app, library, loverslab} from '../../wailsjs/go/models';
 import {BrowserOpenURL, EventsOn} from '../../wailsjs/runtime/runtime';
 import {openContextMenu} from '../data/contextMenu';
 import {checkLoversLabNotifications, loversLabNotificationsURL, useLoversLabUnreadCount} from '../data/loversLabNotifications';
@@ -94,7 +94,7 @@ type InstalledModsState =
     | { kind: 'idle' }
     | { kind: 'loading' }
     | { kind: 'error'; message: string }
-    | { kind: 'ready'; mods: main.LoversLabInstalledMod[] };
+    | { kind: 'ready'; mods: app.LoversLabInstalledMod[] };
 
 // Installing (from a Files-tab row's Install/Update button) and uninstalling (from
 // the header or the Files tab) share this one piece of state - both are shown the
@@ -113,7 +113,7 @@ function errorText(err: unknown): string {
 }
 
 // Browsing (the card grid) and the Installed section (a plain row list) are two
-// different kinds of data - loverslab.FileSummary and main.LoversLabInstalledMod -
+// different kinds of data - loverslab.FileSummary and app.LoversLabInstalledMod -
 // shown through the exact same switchable view, never two separate card-grid/
 // row-list implementations. BrowseListItem is what both get normalized into before
 // reaching BrowseItemsView below; ViewMode is the one shared choice ("cards" or
@@ -250,7 +250,7 @@ export function Browse({games, selectedGame}: {
     selectedGame: string;
 }) {
     const unreadNotifications = useLoversLabUnreadCount();
-    const [status, setStatus] = useState<main.LoversLabStatus | null>(null);
+    const [status, setStatus] = useState<app.LoversLabStatus | null>(null);
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [busy, setBusy] = useState<'save' | 'clear' | null>(null);
@@ -452,7 +452,7 @@ export function Browse({games, selectedGame}: {
     // Opening a mod straight from the Installed list: only FileID/Title/FileURL are
     // known there (see LoversLabInstalledMod) - the rest (author, screenshots,
     // description) loads the same way it does for a card from the browsing grid.
-    function openInstalledDetail(m: main.LoversLabInstalledMod) {
+    function openInstalledDetail(m: app.LoversLabInstalledMod) {
         openDetail({ID: m.FileID, Title: m.Title, URL: m.FileURL, Author: '', AuthorURL: '', Updated: '', ThumbnailURL: ''} as loverslab.FileSummary);
     }
 

@@ -2,7 +2,7 @@ import './Editor.css';
 import {h} from 'preact';
 import {useEffect, useMemo, useRef, useState} from 'preact/hooks';
 import {OpenModFolder, PinnedMods, ScanGame, SetModPinned} from '../../wailsjs/go/main/App';
-import type {library, main} from '../../wailsjs/go/models';
+import type {app, library} from '../../wailsjs/go/models';
 import {EventsOn} from '../../wailsjs/runtime/runtime';
 import {EmptyState} from '../components/EmptyState';
 import {SourceBadge} from '../components/SourceBadge';
@@ -46,7 +46,7 @@ export function Editor({games, selectedGame, gameVersion}: {
     // render below), so without this a result would otherwise vanish the moment you looked at
     // Edit and came back. Cleared on a "mods-changed" event (a save, or any other on-disk
     // change) since a cached result is a snapshot of files that may have just changed.
-    const [checkResults, setCheckResults] = useState<Map<string, main.CheckResult>>(new Map());
+    const [checkResults, setCheckResults] = useState<Map<string, app.CheckResult>>(new Map());
     const [pinned, setPinned] = useState<Set<string>>(new Set());
     const latestScan = useRef(0);
     // Set by EditorNew right before a create/duplicate finishes, so the next load() selects the
@@ -125,7 +125,7 @@ export function Editor({games, selectedGame, gameVersion}: {
         });
     }
 
-    function setCheckResultFor(id: string, result: main.CheckResult | null) {
+    function setCheckResultFor(id: string, result: app.CheckResult | null) {
         setCheckResults((prev) => {
             const next = new Map(prev);
             if (result) next.set(id, result); else next.delete(id);

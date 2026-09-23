@@ -15,7 +15,7 @@ import {
     SetBackupLimits,
     SetBackupMode,
 } from '../../wailsjs/go/main/App';
-import type {backup, main, preferences} from '../../wailsjs/go/models';
+import type {app, backup, preferences} from '../../wailsjs/go/models';
 import {EventsOn} from '../../wailsjs/runtime/runtime';
 import {backupReasonLabel} from '../data/backups';
 import {formatBytes, timeAgo} from '../data/format';
@@ -124,9 +124,9 @@ interface CleanupPlan {
 }
 
 export function BackupPanel() {
-    const [status, setStatus] = useState<main.BackupStatus | null>(null);
+    const [status, setStatus] = useState<app.BackupStatus | null>(null);
     const [prefs, setPrefs] = useState<preferences.Preferences | null>(null);
-    const [overview, setOverview] = useState<main.BackupOverview | null>(null);
+    const [overview, setOverview] = useState<app.BackupOverview | null>(null);
     const [entries, setEntries] = useState<backup.Entry[]>([]);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
@@ -176,7 +176,7 @@ export function BackupPanel() {
 
     if (!status) return <div className="settings-content single"/>;
 
-    async function run(work: () => Promise<main.BackupStatus>): Promise<boolean> {
+    async function run(work: () => Promise<app.BackupStatus>): Promise<boolean> {
         setBusy(true);
         setError('');
         let ok = true;

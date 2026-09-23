@@ -9,7 +9,7 @@ import {
     SaveModEdit,
     UndoModEdit,
 } from '../../wailsjs/go/main/App';
-import type {library, main} from '../../wailsjs/go/models';
+import type {app, library} from '../../wailsjs/go/models';
 import {ChipList} from '../components/ChipList';
 import {Checkbox} from '../components/Checkbox';
 import {diffText} from '../data/editorDiff';
@@ -34,12 +34,12 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
     // Called after a save or an undo, so the mod list can refresh.
     onSaved: () => void;
 }) {
-    const [info, setInfo] = useState<main.EditInfo | null>(null);
+    const [info, setInfo] = useState<app.EditInfo | null>(null);
     const [loadError, setLoadError] = useState('');
     const [draft, setDraftState] = useState<Draft | null>(initialDraft);
     const [thumb, setThumb] = useState<string | null>(null);
-    const [newThumb, setNewThumb] = useState<main.ThumbnailPreview | null>(null);
-    const [preview, setPreview] = useState<main.EditPreview | null>(null);
+    const [newThumb, setNewThumb] = useState<app.ThumbnailPreview | null>(null);
+    const [preview, setPreview] = useState<app.EditPreview | null>(null);
     const [busy, setBusy] = useState(false);
     // Bumped after a save or undo, so what is on disk is read again.
     const [reload, setReload] = useState(0);
@@ -98,9 +98,9 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
         }
         let cancelled = false;
         const timer = window.setTimeout(() => {
-            PreviewModEdit(gameId, mod.ID, {...toEdit(draft), Force: forced} as unknown as main.ModEdit)
+            PreviewModEdit(gameId, mod.ID, {...toEdit(draft), Force: forced} as unknown as app.ModEdit)
                 .then((p) => { if (!cancelled) setPreview(p); })
-                .catch((err) => { if (!cancelled) setPreview({Files: [], Problems: [String(err)], Warnings: [], Nothing: true} as unknown as main.EditPreview); });
+                .catch((err) => { if (!cancelled) setPreview({Files: [], Problems: [String(err)], Warnings: [], Nothing: true} as unknown as app.EditPreview); });
         }, 300);
         return () => { cancelled = true; window.clearTimeout(timer); };
     }, [info, draft, changed, effectivelyEditable, forced]);
@@ -146,7 +146,7 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
         if (!draft) return;
         setBusy(true);
         try {
-            const result = await SaveModEdit(gameId, mod.ID, {...toEdit(draft), Force: forced} as unknown as main.ModEdit);
+            const result = await SaveModEdit(gameId, mod.ID, {...toEdit(draft), Force: forced} as unknown as app.ModEdit);
             const names = (result.Files ?? []).map((p) => p.split(/[\\/]/).pop());
             notify('success', `Saved '${draft.name.trim() || mod.Name}': ${names.join(', ') || 'nothing needed changing'}.`);
             setDraftState(null);
@@ -367,7 +367,7 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
 // One file's part of the preview: which file it is and its changed lines. Exported for the New
 // tab (EditorNew.tsx), which shows the same shape of preview for a mod being created or
 // duplicated.
-export function FileChange({file}: {file: main.EditPreviewFile}) {
+export function FileChange({file}: {file: app.EditPreviewFile}) {
     const name = file.Path.split(/[\\/]/).pop() ?? file.Path;
     const diff = useMemo(() => (file.Changed ? diffText(file.Before, file.After) : null), [file.Before, file.After, file.Changed]);
     const what = file.Kind === 'stub' ? 'the file the game reads' : "in the mod's folder";

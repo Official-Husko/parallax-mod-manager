@@ -1,6 +1,6 @@
 import {useEffect, useRef, useState} from 'preact/hooks';
 import {PlaysetChecksum} from '../../wailsjs/go/main/App';
-import type {main} from '../../wailsjs/go/models';
+import type {app} from '../../wailsjs/go/models';
 
 // The multiplayer checksum: the four characters a Paradox game shows on its main menu, which
 // every player in a multiplayer game has to share. The backend (internal/checksum, checksum.go)
@@ -24,7 +24,7 @@ export interface ChecksumState {
 
 export const NO_CHECKSUM: ChecksumState = {kind: 'none', forName: '', value: '', files: 0, mods: 0, reason: '', warnings: []};
 
-function fromResult(name: string, r: main.PlaysetChecksumResult): ChecksumState {
+function fromResult(name: string, r: app.PlaysetChecksumResult): ChecksumState {
     if (r.Status === 'ready') {
         return {kind: 'ready', forName: name, value: r.Checksum, files: r.Files, mods: r.Mods, reason: '', warnings: r.Warnings ?? []};
     }

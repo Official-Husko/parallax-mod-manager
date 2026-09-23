@@ -1,4 +1,4 @@
-import type {main} from '../../wailsjs/go/models';
+import type {app} from '../../wailsjs/go/models';
 
 // The developer tools setting (Settings > Debug), the interface half - see devtools.go for what
 // the framework decides and what the setting controls.
@@ -40,4 +40,4 @@ export function inspectorShortcut(os: string): string {
     return 'Ctrl+Shift+F12';
 }
 
-export type DeveloperToolsStatus = main.DeveloperToolsStatus;
+export type DeveloperToolsStatus = app.DeveloperToolsStatus;

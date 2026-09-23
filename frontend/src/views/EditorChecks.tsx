@@ -1,7 +1,7 @@
 import {h} from 'preact';
 import {useState} from 'preact/hooks';
 import {CheckMod} from '../../wailsjs/go/main/App';
-import type {library, main, modcheck} from '../../wailsjs/go/models';
+import type {app, library, modcheck} from '../../wailsjs/go/models';
 
 // The Checks tab: problems worth knowing about before publishing or sharing a mod - files and
 // script keys it overwrites in the base game, syntax errors in its own script files, a
@@ -98,16 +98,16 @@ export function EditorChecks({gameId, mod, installedNames, initialResult, onResu
     // remounts it fresh rather than needing an effect here to reset stale local state; the
     // result itself survives that remount only because it is re-supplied right back through
     // this same prop.
-    initialResult: main.CheckResult | null;
+    initialResult: app.CheckResult | null;
     // Reports every new result (or its clearing) so Editor.tsx can cache it per mod - called
     // right alongside setResult below, never on its own.
-    onResult: (result: main.CheckResult | null) => void;
+    onResult: (result: app.CheckResult | null) => void;
 }) {
-    const [result, setResultState] = useState<main.CheckResult | null>(initialResult);
+    const [result, setResultState] = useState<app.CheckResult | null>(initialResult);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
 
-    function setResult(r: main.CheckResult | null) {
+    function setResult(r: app.CheckResult | null) {
         setResultState(r);
         onResult(r);
     }

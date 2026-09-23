@@ -1,44 +1,41 @@
 package main
 
 import (
+	"context"
 	"embed"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+
+	"github.com/Official-Husko/parallax-mod-manager/internal/app"
 )
 
 //go:embed all:frontend/dist
 var assets embed.FS
 
-// The window's size. The smallest it can be made is what the interface was checked at: below it
-// the Workspace's mod lists lose their names and the launch controls fall off the bottom. The
-// side panels shrink toward it (see Workspace.css), and the rail keeps Play in view when it is
-// short. 1200x640 still fits a 1080p screen at 150% display scaling. The starting size is a
-// little larger, and never below the minimum.
-const (
-	minWindowWidth      = 1200
-	minWindowHeight     = 640
-	defaultWindowWidth  = 1280
-	defaultWindowHeight = 700
-)
-
 func main() {
-	// Create an instance of the app structure
-	app := NewApp()
+	// Create an instance of the app structure. main.go is the only file left at
+	// the repo root with //go:embed directives reaching into data/ (Wails' rule:
+	// a directive can't reach outside its own file's directory tree) - gamedata.go
+	// stays here alongside it for the same reason, and this is the one place their
+	// embedded bytes get handed to internal/app, which holds everything else. See
+	// this package's own app.go for why the value itself is wrapped in a
+	// package-main App rather than being *app.App directly.
+	a := &App{App: app.New(embeddedGamesList, embeddedLicence, embeddedBackgroundSource, embeddedGameMedia, embeddedPatchThumbnail)}
 
 	// Create application with options
 	err := wails.Run(&options.App{
 		Title:     "Parallax Mod Manager",
-		Width:     defaultWindowWidth,
-		Height:    defaultWindowHeight,
-		MinWidth:  minWindowWidth,
-		MinHeight: minWindowHeight,
+		Width:     app.DefaultWindowWidth,
+		Height:    app.DefaultWindowHeight,
+		MinWidth:  app.MinWindowWidth,
+		MinHeight: app.MinWindowHeight,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 			// Answers /backgrounds/... itself (the offline background images, which
 			// live in the config folder, not in the build) before anything else.
-			Middleware: app.backgroundMiddleware,
+			Middleware: app.BackgroundMiddleware(a.App),
 		},
 		// Matches --bg-app in frontend/src/App.css, and must stay fully
 		// opaque (A: 255): this is the native window's own background,
@@ -48,10 +45,10 @@ func main() {
 		// behind the window (the desktop, another app) through the gap
 		// instead of this app's own dark background.
 		BackgroundColour: &options.RGBA{R: 10, G: 13, B: 18, A: 255},
-		OnStartup:        app.startup,
-		OnShutdown:       app.shutdown,
+		OnStartup:        func(ctx context.Context) { app.Startup(a.App, ctx) },
+		OnShutdown:       func(ctx context.Context) { app.Shutdown(a.App, ctx) },
 		Bind: []interface{}{
-			app,
+			a,
 		},
 	})
 

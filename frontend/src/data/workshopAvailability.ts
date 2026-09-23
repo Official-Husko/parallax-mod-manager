@@ -1,4 +1,4 @@
-import type {main} from '../../wailsjs/go/models';
+import type {app} from '../../wailsjs/go/models';
 import {timeAgo} from './format';
 import {FLAG} from './flags';
 
@@ -21,7 +21,7 @@ export interface WorkshopFlag {
 
 // workshopFlags indexes the backend's list by the Workshop item id a mod's
 // descriptor carries.
-export function workshopFlags(list: main.WorkshopAvailability[]): Map<string, WorkshopFlag> {
+export function workshopFlags(list: app.WorkshopAvailability[]): Map<string, WorkshopFlag> {
     const byId = new Map<string, WorkshopFlag>();
     for (const a of list) {
         if (a.State === 'unlisted' || a.State === 'private' || a.State === 'deleted') {

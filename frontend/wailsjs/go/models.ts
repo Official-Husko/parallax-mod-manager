@@ -79,6 +79,770 @@ export namespace about {
 
 }
 
+export namespace app {
+	
+	export class BackgroundPack {
+	    GameID: string;
+	    Files: number;
+	    Bytes: number;
+	    LocalFiles: number;
+	    LocalBytes: number;
+	    MissingFiles: number;
+	    MissingBytes: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new BackgroundPack(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.GameID = source["GameID"];
+	        this.Files = source["Files"];
+	        this.Bytes = source["Bytes"];
+	        this.LocalFiles = source["LocalFiles"];
+	        this.LocalBytes = source["LocalBytes"];
+	        this.MissingFiles = source["MissingFiles"];
+	        this.MissingBytes = source["MissingBytes"];
+	    }
+	}
+	export class BackgroundCatalog {
+	    Packs: BackgroundPack[];
+	    RemoteError: string;
+	    Folder: string;
+	    Source: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new BackgroundCatalog(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Packs = this.convertValues(source["Packs"], BackgroundPack);
+	        this.RemoteError = source["RemoteError"];
+	        this.Folder = source["Folder"];
+	        this.Source = source["Source"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class BackupCleanupPlan {
+	    Kind: string;
+	    Entries: backup.Entry[];
+	    Bytes: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new BackupCleanupPlan(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Kind = source["Kind"];
+	        this.Entries = this.convertValues(source["Entries"], backup.Entry);
+	        this.Bytes = source["Bytes"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class BackupDeleteResult {
+	    Deleted: number;
+	    Bytes: number;
+	    Skipped: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new BackupDeleteResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Deleted = source["Deleted"];
+	        this.Bytes = source["Bytes"];
+	        this.Skipped = source["Skipped"];
+	    }
+	}
+	export class BackupOverview {
+	    WorkshopMods: number;
+	    WorkshopBytes: number;
+	    AtRiskMods: number;
+	    BackedUpMods: number;
+	    BackedUpBytes: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new BackupOverview(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.WorkshopMods = source["WorkshopMods"];
+	        this.WorkshopBytes = source["WorkshopBytes"];
+	        this.AtRiskMods = source["AtRiskMods"];
+	        this.BackedUpMods = source["BackedUpMods"];
+	        this.BackedUpBytes = source["BackedUpBytes"];
+	    }
+	}
+	export class BackupStatus {
+	    Mode: string;
+	    CustomPath: string;
+	    Root: string;
+	    DefaultRoot: string;
+	    FreeBytes: number;
+	    Running: boolean;
+	    LimitEnabled: boolean;
+	    LimitBytes: number;
+	    KeepFreeEnabled: boolean;
+	    KeepFreeBytes: number;
+	    UsedBytes: number;
+	    LimitState: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new BackupStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Mode = source["Mode"];
+	        this.CustomPath = source["CustomPath"];
+	        this.Root = source["Root"];
+	        this.DefaultRoot = source["DefaultRoot"];
+	        this.FreeBytes = source["FreeBytes"];
+	        this.Running = source["Running"];
+	        this.LimitEnabled = source["LimitEnabled"];
+	        this.LimitBytes = source["LimitBytes"];
+	        this.KeepFreeEnabled = source["KeepFreeEnabled"];
+	        this.KeepFreeBytes = source["KeepFreeBytes"];
+	        this.UsedBytes = source["UsedBytes"];
+	        this.LimitState = source["LimitState"];
+	    }
+	}
+	export class CheckResult {
+	    Findings: modcheck.Finding[];
+	    BaseGameChecked: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new CheckResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Findings = this.convertValues(source["Findings"], modcheck.Finding);
+	        this.BaseGameChecked = source["BaseGameChecked"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class DeveloperToolsStatus {
+	    Available: boolean;
+	    Enabled: boolean;
+	    OS: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DeveloperToolsStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Available = source["Available"];
+	        this.Enabled = source["Enabled"];
+	        this.OS = source["OS"];
+	    }
+	}
+	export class ThumbnailPreview {
+	    DataURI: string;
+	    Width: number;
+	    Height: number;
+	    SourceWidth: number;
+	    SourceHeight: number;
+	    Bytes: number;
+	    SourceBytes: number;
+	    Resized: boolean;
+	    Warnings: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ThumbnailPreview(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.DataURI = source["DataURI"];
+	        this.Width = source["Width"];
+	        this.Height = source["Height"];
+	        this.SourceWidth = source["SourceWidth"];
+	        this.SourceHeight = source["SourceHeight"];
+	        this.Bytes = source["Bytes"];
+	        this.SourceBytes = source["SourceBytes"];
+	        this.Resized = source["Resized"];
+	        this.Warnings = source["Warnings"];
+	    }
+	}
+	export class EditPreviewFile {
+	    Path: string;
+	    Kind: string;
+	    Create: boolean;
+	    Changed: boolean;
+	    Before: string;
+	    After: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new EditPreviewFile(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Path = source["Path"];
+	        this.Kind = source["Kind"];
+	        this.Create = source["Create"];
+	        this.Changed = source["Changed"];
+	        this.Before = source["Before"];
+	        this.After = source["After"];
+	    }
+	}
+	export class DuplicatePreview {
+	    Files: EditPreviewFile[];
+	    Thumbnail?: ThumbnailPreview;
+	    Problems: string[];
+	    Warnings: string[];
+	    Nothing: boolean;
+	    SourceFiles: number;
+	    SourceBytes: number;
+	    Big: boolean;
+	    FreeAtTarget: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DuplicatePreview(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Files = this.convertValues(source["Files"], EditPreviewFile);
+	        this.Thumbnail = this.convertValues(source["Thumbnail"], ThumbnailPreview);
+	        this.Problems = source["Problems"];
+	        this.Warnings = source["Warnings"];
+	        this.Nothing = source["Nothing"];
+	        this.SourceFiles = source["SourceFiles"];
+	        this.SourceBytes = source["SourceBytes"];
+	        this.Big = source["Big"];
+	        this.FreeAtTarget = source["FreeAtTarget"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class DuplicateRequest {
+	    Name: string;
+	    Location: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DuplicateRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Name = source["Name"];
+	        this.Location = source["Location"];
+	    }
+	}
+	export class EditFile {
+	    Path: string;
+	    Kind: string;
+	    Exists: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new EditFile(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Path = source["Path"];
+	        this.Kind = source["Kind"];
+	        this.Exists = source["Exists"];
+	    }
+	}
+	export class EditHistory {
+	    Count: number;
+	    LastSavedAt: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new EditHistory(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Count = source["Count"];
+	        this.LastSavedAt = source["LastSavedAt"];
+	    }
+	}
+	export class EditInfo {
+	    ModID: string;
+	    Name: string;
+	    Editable: boolean;
+	    Reason: string;
+	    Overridable: boolean;
+	    ContentPath: string;
+	    Fields: modedit.Fields;
+	    Picture: string;
+	    Files: EditFile[];
+	    CanCreateDescriptor: boolean;
+	    HistoryCount: number;
+	    LastSavedAt: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new EditInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ModID = source["ModID"];
+	        this.Name = source["Name"];
+	        this.Editable = source["Editable"];
+	        this.Reason = source["Reason"];
+	        this.Overridable = source["Overridable"];
+	        this.ContentPath = source["ContentPath"];
+	        this.Fields = this.convertValues(source["Fields"], modedit.Fields);
+	        this.Picture = source["Picture"];
+	        this.Files = this.convertValues(source["Files"], EditFile);
+	        this.CanCreateDescriptor = source["CanCreateDescriptor"];
+	        this.HistoryCount = source["HistoryCount"];
+	        this.LastSavedAt = source["LastSavedAt"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class EditPreview {
+	    Files: EditPreviewFile[];
+	    Thumbnail?: ThumbnailPreview;
+	    Problems: string[];
+	    Warnings: string[];
+	    Nothing: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new EditPreview(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Files = this.convertValues(source["Files"], EditPreviewFile);
+	        this.Thumbnail = this.convertValues(source["Thumbnail"], ThumbnailPreview);
+	        this.Problems = source["Problems"];
+	        this.Warnings = source["Warnings"];
+	        this.Nothing = source["Nothing"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
+	export class LauncherShimStatus {
+	    Supported: boolean;
+	    State: string;
+	    Error: string;
+	    HasRun: boolean;
+	    LastRun: launchershim.Status;
+	
+	    static createFrom(source: any = {}) {
+	        return new LauncherShimStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Supported = source["Supported"];
+	        this.State = source["State"];
+	        this.Error = source["Error"];
+	        this.HasRun = source["HasRun"];
+	        this.LastRun = this.convertValues(source["LastRun"], launchershim.Status);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class LoversLabCommentList {
+	    Posts: loverslab.Post[];
+	    TotalPages: number;
+	    HasTopic: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new LoversLabCommentList(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Posts = this.convertValues(source["Posts"], loverslab.Post);
+	        this.TotalPages = source["TotalPages"];
+	        this.HasTopic = source["HasTopic"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class LoversLabFileList {
+	    Files: loverslab.FileSummary[];
+	    TotalPages: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new LoversLabFileList(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Files = this.convertValues(source["Files"], loverslab.FileSummary);
+	        this.TotalPages = source["TotalPages"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class LoversLabInstalledMod {
+	    FileID: number;
+	    Title: string;
+	    FileURL: string;
+	    InstalledAt: number;
+	    InstalledDateModified: string;
+	    ContentMissing: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new LoversLabInstalledMod(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.FileID = source["FileID"];
+	        this.Title = source["Title"];
+	        this.FileURL = source["FileURL"];
+	        this.InstalledAt = source["InstalledAt"];
+	        this.InstalledDateModified = source["InstalledDateModified"];
+	        this.ContentMissing = source["ContentMissing"];
+	    }
+	}
+	export class LoversLabStatus {
+	    SignedIn: boolean;
+	    Username: string;
+	    Unreadable: boolean;
+	    Protection: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new LoversLabStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.SignedIn = source["SignedIn"];
+	        this.Username = source["Username"];
+	        this.Unreadable = source["Unreadable"];
+	        this.Protection = source["Protection"];
+	    }
+	}
+	export class ModEdit {
+	    Fields: modedit.Fields;
+	    ThumbnailFrom: string;
+	    CreateDescriptor: boolean;
+	    Force: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new ModEdit(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Fields = this.convertValues(source["Fields"], modedit.Fields);
+	        this.ThumbnailFrom = source["ThumbnailFrom"];
+	        this.CreateDescriptor = source["CreateDescriptor"];
+	        this.Force = source["Force"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class NewModLocation {
+	    Path: string;
+	    Label: string;
+	    Default: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new NewModLocation(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Path = source["Path"];
+	        this.Label = source["Label"];
+	        this.Default = source["Default"];
+	    }
+	}
+	export class NewModRequest {
+	    Fields: modedit.Fields;
+	    Location: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new NewModRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Fields = this.convertValues(source["Fields"], modedit.Fields);
+	        this.Location = source["Location"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class PlaysetChecksumResult {
+	    Status: string;
+	    Checksum: string;
+	    Files: number;
+	    Mods: number;
+	    Reason: string;
+	    Warnings: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new PlaysetChecksumResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Status = source["Status"];
+	        this.Checksum = source["Checksum"];
+	        this.Files = source["Files"];
+	        this.Mods = source["Mods"];
+	        this.Reason = source["Reason"];
+	        this.Warnings = source["Warnings"];
+	    }
+	}
+	export class SaveResult {
+	    Files: string[];
+	    SavedAt: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SaveResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Files = source["Files"];
+	        this.SavedAt = source["SavedAt"];
+	    }
+	}
+	export class SteamAPIStatus {
+	    Mode: string;
+	    HasKey: boolean;
+	    Fingerprint: string;
+	    State: string;
+	    ExhaustedUntil: number;
+	    LastError: string;
+	    ItemsFromKey: number;
+	    ItemsFromFree: number;
+	    Rescued: number;
+	    Protection: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SteamAPIStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Mode = source["Mode"];
+	        this.HasKey = source["HasKey"];
+	        this.Fingerprint = source["Fingerprint"];
+	        this.State = source["State"];
+	        this.ExhaustedUntil = source["ExhaustedUntil"];
+	        this.LastError = source["LastError"];
+	        this.ItemsFromKey = source["ItemsFromKey"];
+	        this.ItemsFromFree = source["ItemsFromFree"];
+	        this.Rescued = source["Rescued"];
+	        this.Protection = source["Protection"];
+	    }
+	}
+	
+	export class WorkshopAvailability {
+	    RemoteFileID: string;
+	    State: string;
+	    Reason: string;
+	    BackedUpAt: number;
+	    BackupState: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new WorkshopAvailability(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.RemoteFileID = source["RemoteFileID"];
+	        this.State = source["State"];
+	        this.Reason = source["Reason"];
+	        this.BackedUpAt = source["BackedUpAt"];
+	        this.BackupState = source["BackupState"];
+	    }
+	}
+
+}
+
 export namespace applog {
 	
 	export class Entry {
@@ -1007,770 +1771,6 @@ export namespace loverslab {
 		}
 	}
 	
-
-}
-
-export namespace main {
-	
-	export class BackgroundPack {
-	    GameID: string;
-	    Files: number;
-	    Bytes: number;
-	    LocalFiles: number;
-	    LocalBytes: number;
-	    MissingFiles: number;
-	    MissingBytes: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new BackgroundPack(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.GameID = source["GameID"];
-	        this.Files = source["Files"];
-	        this.Bytes = source["Bytes"];
-	        this.LocalFiles = source["LocalFiles"];
-	        this.LocalBytes = source["LocalBytes"];
-	        this.MissingFiles = source["MissingFiles"];
-	        this.MissingBytes = source["MissingBytes"];
-	    }
-	}
-	export class BackgroundCatalog {
-	    Packs: BackgroundPack[];
-	    RemoteError: string;
-	    Folder: string;
-	    Source: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new BackgroundCatalog(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.Packs = this.convertValues(source["Packs"], BackgroundPack);
-	        this.RemoteError = source["RemoteError"];
-	        this.Folder = source["Folder"];
-	        this.Source = source["Source"];
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	
-	export class BackupCleanupPlan {
-	    Kind: string;
-	    Entries: backup.Entry[];
-	    Bytes: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new BackupCleanupPlan(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.Kind = source["Kind"];
-	        this.Entries = this.convertValues(source["Entries"], backup.Entry);
-	        this.Bytes = source["Bytes"];
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	export class BackupDeleteResult {
-	    Deleted: number;
-	    Bytes: number;
-	    Skipped: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new BackupDeleteResult(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.Deleted = source["Deleted"];
-	        this.Bytes = source["Bytes"];
-	        this.Skipped = source["Skipped"];
-	    }
-	}
-	export class BackupOverview {
-	    WorkshopMods: number;
-	    WorkshopBytes: number;
-	    AtRiskMods: number;
-	    BackedUpMods: number;
-	    BackedUpBytes: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new BackupOverview(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.WorkshopMods = source["WorkshopMods"];
-	        this.WorkshopBytes = source["WorkshopBytes"];
-	        this.AtRiskMods = source["AtRiskMods"];
-	        this.BackedUpMods = source["BackedUpMods"];
-	        this.BackedUpBytes = source["BackedUpBytes"];
-	    }
-	}
-	export class BackupStatus {
-	    Mode: string;
-	    CustomPath: string;
-	    Root: string;
-	    DefaultRoot: string;
-	    FreeBytes: number;
-	    Running: boolean;
-	    LimitEnabled: boolean;
-	    LimitBytes: number;
-	    KeepFreeEnabled: boolean;
-	    KeepFreeBytes: number;
-	    UsedBytes: number;
-	    LimitState: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new BackupStatus(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.Mode = source["Mode"];
-	        this.CustomPath = source["CustomPath"];
-	        this.Root = source["Root"];
-	        this.DefaultRoot = source["DefaultRoot"];
-	        this.FreeBytes = source["FreeBytes"];
-	        this.Running = source["Running"];
-	        this.LimitEnabled = source["LimitEnabled"];
-	        this.LimitBytes = source["LimitBytes"];
-	        this.KeepFreeEnabled = source["KeepFreeEnabled"];
-	        this.KeepFreeBytes = source["KeepFreeBytes"];
-	        this.UsedBytes = source["UsedBytes"];
-	        this.LimitState = source["LimitState"];
-	    }
-	}
-	export class CheckResult {
-	    Findings: modcheck.Finding[];
-	    BaseGameChecked: boolean;
-	
-	    static createFrom(source: any = {}) {
-	        return new CheckResult(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.Findings = this.convertValues(source["Findings"], modcheck.Finding);
-	        this.BaseGameChecked = source["BaseGameChecked"];
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	export class DeveloperToolsStatus {
-	    Available: boolean;
-	    Enabled: boolean;
-	    OS: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new DeveloperToolsStatus(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.Available = source["Available"];
-	        this.Enabled = source["Enabled"];
-	        this.OS = source["OS"];
-	    }
-	}
-	export class ThumbnailPreview {
-	    DataURI: string;
-	    Width: number;
-	    Height: number;
-	    SourceWidth: number;
-	    SourceHeight: number;
-	    Bytes: number;
-	    SourceBytes: number;
-	    Resized: boolean;
-	    Warnings: string[];
-	
-	    static createFrom(source: any = {}) {
-	        return new ThumbnailPreview(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.DataURI = source["DataURI"];
-	        this.Width = source["Width"];
-	        this.Height = source["Height"];
-	        this.SourceWidth = source["SourceWidth"];
-	        this.SourceHeight = source["SourceHeight"];
-	        this.Bytes = source["Bytes"];
-	        this.SourceBytes = source["SourceBytes"];
-	        this.Resized = source["Resized"];
-	        this.Warnings = source["Warnings"];
-	    }
-	}
-	export class EditPreviewFile {
-	    Path: string;
-	    Kind: string;
-	    Create: boolean;
-	    Changed: boolean;
-	    Before: string;
-	    After: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new EditPreviewFile(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.Path = source["Path"];
-	        this.Kind = source["Kind"];
-	        this.Create = source["Create"];
-	        this.Changed = source["Changed"];
-	        this.Before = source["Before"];
-	        this.After = source["After"];
-	    }
-	}
-	export class DuplicatePreview {
-	    Files: EditPreviewFile[];
-	    Thumbnail?: ThumbnailPreview;
-	    Problems: string[];
-	    Warnings: string[];
-	    Nothing: boolean;
-	    SourceFiles: number;
-	    SourceBytes: number;
-	    Big: boolean;
-	    FreeAtTarget: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new DuplicatePreview(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.Files = this.convertValues(source["Files"], EditPreviewFile);
-	        this.Thumbnail = this.convertValues(source["Thumbnail"], ThumbnailPreview);
-	        this.Problems = source["Problems"];
-	        this.Warnings = source["Warnings"];
-	        this.Nothing = source["Nothing"];
-	        this.SourceFiles = source["SourceFiles"];
-	        this.SourceBytes = source["SourceBytes"];
-	        this.Big = source["Big"];
-	        this.FreeAtTarget = source["FreeAtTarget"];
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	export class DuplicateRequest {
-	    Name: string;
-	    Location: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new DuplicateRequest(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.Name = source["Name"];
-	        this.Location = source["Location"];
-	    }
-	}
-	export class EditFile {
-	    Path: string;
-	    Kind: string;
-	    Exists: boolean;
-	
-	    static createFrom(source: any = {}) {
-	        return new EditFile(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.Path = source["Path"];
-	        this.Kind = source["Kind"];
-	        this.Exists = source["Exists"];
-	    }
-	}
-	export class EditHistory {
-	    Count: number;
-	    LastSavedAt: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new EditHistory(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.Count = source["Count"];
-	        this.LastSavedAt = source["LastSavedAt"];
-	    }
-	}
-	export class EditInfo {
-	    ModID: string;
-	    Name: string;
-	    Editable: boolean;
-	    Reason: string;
-	    Overridable: boolean;
-	    ContentPath: string;
-	    Fields: modedit.Fields;
-	    Picture: string;
-	    Files: EditFile[];
-	    CanCreateDescriptor: boolean;
-	    HistoryCount: number;
-	    LastSavedAt: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new EditInfo(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.ModID = source["ModID"];
-	        this.Name = source["Name"];
-	        this.Editable = source["Editable"];
-	        this.Reason = source["Reason"];
-	        this.Overridable = source["Overridable"];
-	        this.ContentPath = source["ContentPath"];
-	        this.Fields = this.convertValues(source["Fields"], modedit.Fields);
-	        this.Picture = source["Picture"];
-	        this.Files = this.convertValues(source["Files"], EditFile);
-	        this.CanCreateDescriptor = source["CanCreateDescriptor"];
-	        this.HistoryCount = source["HistoryCount"];
-	        this.LastSavedAt = source["LastSavedAt"];
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	export class EditPreview {
-	    Files: EditPreviewFile[];
-	    Thumbnail?: ThumbnailPreview;
-	    Problems: string[];
-	    Warnings: string[];
-	    Nothing: boolean;
-	
-	    static createFrom(source: any = {}) {
-	        return new EditPreview(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.Files = this.convertValues(source["Files"], EditPreviewFile);
-	        this.Thumbnail = this.convertValues(source["Thumbnail"], ThumbnailPreview);
-	        this.Problems = source["Problems"];
-	        this.Warnings = source["Warnings"];
-	        this.Nothing = source["Nothing"];
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	
-	export class LauncherShimStatus {
-	    Supported: boolean;
-	    State: string;
-	    Error: string;
-	    HasRun: boolean;
-	    LastRun: launchershim.Status;
-	
-	    static createFrom(source: any = {}) {
-	        return new LauncherShimStatus(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.Supported = source["Supported"];
-	        this.State = source["State"];
-	        this.Error = source["Error"];
-	        this.HasRun = source["HasRun"];
-	        this.LastRun = this.convertValues(source["LastRun"], launchershim.Status);
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	export class LoversLabCommentList {
-	    Posts: loverslab.Post[];
-	    TotalPages: number;
-	    HasTopic: boolean;
-	
-	    static createFrom(source: any = {}) {
-	        return new LoversLabCommentList(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.Posts = this.convertValues(source["Posts"], loverslab.Post);
-	        this.TotalPages = source["TotalPages"];
-	        this.HasTopic = source["HasTopic"];
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	export class LoversLabFileList {
-	    Files: loverslab.FileSummary[];
-	    TotalPages: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new LoversLabFileList(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.Files = this.convertValues(source["Files"], loverslab.FileSummary);
-	        this.TotalPages = source["TotalPages"];
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	export class LoversLabInstalledMod {
-	    FileID: number;
-	    Title: string;
-	    FileURL: string;
-	    InstalledAt: number;
-	    InstalledDateModified: string;
-	    ContentMissing: boolean;
-	
-	    static createFrom(source: any = {}) {
-	        return new LoversLabInstalledMod(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.FileID = source["FileID"];
-	        this.Title = source["Title"];
-	        this.FileURL = source["FileURL"];
-	        this.InstalledAt = source["InstalledAt"];
-	        this.InstalledDateModified = source["InstalledDateModified"];
-	        this.ContentMissing = source["ContentMissing"];
-	    }
-	}
-	export class LoversLabStatus {
-	    SignedIn: boolean;
-	    Username: string;
-	    Unreadable: boolean;
-	    Protection: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new LoversLabStatus(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.SignedIn = source["SignedIn"];
-	        this.Username = source["Username"];
-	        this.Unreadable = source["Unreadable"];
-	        this.Protection = source["Protection"];
-	    }
-	}
-	export class ModEdit {
-	    Fields: modedit.Fields;
-	    ThumbnailFrom: string;
-	    CreateDescriptor: boolean;
-	    Force: boolean;
-	
-	    static createFrom(source: any = {}) {
-	        return new ModEdit(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.Fields = this.convertValues(source["Fields"], modedit.Fields);
-	        this.ThumbnailFrom = source["ThumbnailFrom"];
-	        this.CreateDescriptor = source["CreateDescriptor"];
-	        this.Force = source["Force"];
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	export class NewModLocation {
-	    Path: string;
-	    Label: string;
-	    Default: boolean;
-	
-	    static createFrom(source: any = {}) {
-	        return new NewModLocation(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.Path = source["Path"];
-	        this.Label = source["Label"];
-	        this.Default = source["Default"];
-	    }
-	}
-	export class NewModRequest {
-	    Fields: modedit.Fields;
-	    Location: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new NewModRequest(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.Fields = this.convertValues(source["Fields"], modedit.Fields);
-	        this.Location = source["Location"];
-	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
-	}
-	export class PlaysetChecksumResult {
-	    Status: string;
-	    Checksum: string;
-	    Files: number;
-	    Mods: number;
-	    Reason: string;
-	    Warnings: string[];
-	
-	    static createFrom(source: any = {}) {
-	        return new PlaysetChecksumResult(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.Status = source["Status"];
-	        this.Checksum = source["Checksum"];
-	        this.Files = source["Files"];
-	        this.Mods = source["Mods"];
-	        this.Reason = source["Reason"];
-	        this.Warnings = source["Warnings"];
-	    }
-	}
-	export class SaveResult {
-	    Files: string[];
-	    SavedAt: number;
-	
-	    static createFrom(source: any = {}) {
-	        return new SaveResult(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.Files = source["Files"];
-	        this.SavedAt = source["SavedAt"];
-	    }
-	}
-	export class SteamAPIStatus {
-	    Mode: string;
-	    HasKey: boolean;
-	    Fingerprint: string;
-	    State: string;
-	    ExhaustedUntil: number;
-	    LastError: string;
-	    ItemsFromKey: number;
-	    ItemsFromFree: number;
-	    Rescued: number;
-	    Protection: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new SteamAPIStatus(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.Mode = source["Mode"];
-	        this.HasKey = source["HasKey"];
-	        this.Fingerprint = source["Fingerprint"];
-	        this.State = source["State"];
-	        this.ExhaustedUntil = source["ExhaustedUntil"];
-	        this.LastError = source["LastError"];
-	        this.ItemsFromKey = source["ItemsFromKey"];
-	        this.ItemsFromFree = source["ItemsFromFree"];
-	        this.Rescued = source["Rescued"];
-	        this.Protection = source["Protection"];
-	    }
-	}
-	
-	export class WorkshopAvailability {
-	    RemoteFileID: string;
-	    State: string;
-	    Reason: string;
-	    BackedUpAt: number;
-	    BackupState: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new WorkshopAvailability(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.RemoteFileID = source["RemoteFileID"];
-	        this.State = source["State"];
-	        this.Reason = source["Reason"];
-	        this.BackedUpAt = source["BackedUpAt"];
-	        this.BackupState = source["BackupState"];
-	    }
-	}
 
 }
 

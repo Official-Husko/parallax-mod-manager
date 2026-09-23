@@ -8,7 +8,7 @@ import {
     PreviewDuplicateMod,
     PreviewNewMod,
 } from '../../wailsjs/go/main/App';
-import type {library, main} from '../../wailsjs/go/models';
+import type {app, library} from '../../wailsjs/go/models';
 import {EventsOn} from '../../wailsjs/runtime/runtime';
 import {ChipList} from '../components/ChipList';
 import {Select} from '../components/Select';
@@ -39,7 +39,7 @@ export function EditorNew({gameId, selected, onCreated}: {
 }) {
     const canDuplicate = !!selected && !selected.GeneratedPatch;
     const [mode, setMode] = useState<Mode>('create');
-    const [locations, setLocations] = useState<main.NewModLocation[]>([]);
+    const [locations, setLocations] = useState<app.NewModLocation[]>([]);
     const [location, setLocation] = useState('');
 
     const [name, setName] = useState('');
@@ -49,8 +49,8 @@ export function EditorNew({gameId, selected, onCreated}: {
 
     const [dupName, setDupName] = useState('');
 
-    const [preview, setPreview] = useState<main.EditPreview | null>(null);
-    const [dupPreview, setDupPreview] = useState<main.DuplicatePreview | null>(null);
+    const [preview, setPreview] = useState<app.EditPreview | null>(null);
+    const [dupPreview, setDupPreview] = useState<app.DuplicatePreview | null>(null);
     const [busy, setBusy] = useState(false);
     const [confirmingBig, setConfirmingBig] = useState(false);
     const [progress, setProgress] = useState<DuplicateProgressEvent | null>(null);
@@ -88,9 +88,9 @@ export function EditorNew({gameId, selected, onCreated}: {
         }
         let cancelled = false;
         const timer = window.setTimeout(() => {
-            PreviewNewMod(gameId, {Fields: {Name: name, Version: version, SupportedVersion: supportedVersion, Tags: tags, Dependencies: [], ReplacePaths: []}, Location: location} as unknown as main.NewModRequest)
+            PreviewNewMod(gameId, {Fields: {Name: name, Version: version, SupportedVersion: supportedVersion, Tags: tags, Dependencies: [], ReplacePaths: []}, Location: location} as unknown as app.NewModRequest)
                 .then((p) => { if (!cancelled) setPreview(p); })
-                .catch((err) => { if (!cancelled) setPreview({Files: [], Problems: [String(err)], Warnings: [], Nothing: true} as unknown as main.EditPreview); });
+                .catch((err) => { if (!cancelled) setPreview({Files: [], Problems: [String(err)], Warnings: [], Nothing: true} as unknown as app.EditPreview); });
         }, 300);
         return () => { cancelled = true; window.clearTimeout(timer); };
     }, [mode, gameId, location, name, version, supportedVersion, tags]);
@@ -105,7 +105,7 @@ export function EditorNew({gameId, selected, onCreated}: {
         const timer = window.setTimeout(() => {
             PreviewDuplicateMod(gameId, selected.ID, {Name: dupName, Location: location})
                 .then((p) => { if (!cancelled) setDupPreview(p); })
-                .catch((err) => { if (!cancelled) setDupPreview({Files: [], Problems: [String(err)], Warnings: [], Nothing: true, SourceFiles: 0, SourceBytes: 0, Big: false, FreeAtTarget: -1} as unknown as main.DuplicatePreview); });
+                .catch((err) => { if (!cancelled) setDupPreview({Files: [], Problems: [String(err)], Warnings: [], Nothing: true, SourceFiles: 0, SourceBytes: 0, Big: false, FreeAtTarget: -1} as unknown as app.DuplicatePreview); });
         }, 300);
         return () => { cancelled = true; window.clearTimeout(timer); };
     }, [mode, gameId, selected, location, dupName]);
@@ -113,7 +113,7 @@ export function EditorNew({gameId, selected, onCreated}: {
     async function create() {
         setBusy(true);
         try {
-            const result = await CreateMod(gameId, {Fields: {Name: name, Version: version, SupportedVersion: supportedVersion, Tags: tags, Dependencies: [], ReplacePaths: []}, Location: location} as unknown as main.NewModRequest);
+            const result = await CreateMod(gameId, {Fields: {Name: name, Version: version, SupportedVersion: supportedVersion, Tags: tags, Dependencies: [], ReplacePaths: []}, Location: location} as unknown as app.NewModRequest);
             const names = (result.Files ?? []).map((p) => p.split(/[\\/]/).pop());
             notify('success', `Created '${name.trim()}': ${names.join(', ')}.`);
             onCreated(name.trim());

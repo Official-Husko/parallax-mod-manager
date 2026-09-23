@@ -10,7 +10,7 @@ export interface DraftFields {
     replacePaths: string[];
 }
 
-// What the backend reports for a mod (main.EditInfo's Fields), by name.
+// What the backend reports for a mod (app.EditInfo's Fields), by name.
 export interface SavedFields {
     Name: string;
     Version: string;

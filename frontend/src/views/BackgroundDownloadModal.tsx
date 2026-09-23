@@ -10,7 +10,7 @@ import {
     StartBackgroundDownload,
 } from '../../wailsjs/go/main/App';
 import {EventsOn} from '../../wailsjs/runtime/runtime';
-import type {main} from '../../wailsjs/go/models';
+import type {app} from '../../wailsjs/go/models';
 import {EmptyState} from '../components/EmptyState';
 import {formatBytes} from '../data/format';
 import {notify} from '../data/notifications';
@@ -52,7 +52,7 @@ export function BackgroundDownloadModal({mode, onClose}: {
     onClose: (result: { useOffline: boolean }) => void;
 }) {
     const [phase, setPhase] = useState<Phase>('loading');
-    const [catalog, setCatalog] = useState<main.BackgroundCatalog | null>(null);
+    const [catalog, setCatalog] = useState<app.BackgroundCatalog | null>(null);
     const [names, setNames] = useState<Record<string, string>>({});
     const [selected, setSelected] = useState<Set<string>>(new Set());
     const [progress, setProgress] = useState<DownloadProgress | null>(null);
@@ -65,7 +65,7 @@ export function BackgroundDownloadModal({mode, onClose}: {
         const cat = await BackgroundCatalog(refresh);
         setCatalog(cat);
         setSelected((prev) => {
-            const wanted = (p: main.BackgroundPack) => p.Files > 0 && p.MissingFiles > 0;
+            const wanted = (p: app.BackgroundPack) => p.Files > 0 && p.MissingFiles > 0;
             if (keepSelection) return new Set(cat.Packs.filter((p) => wanted(p) && prev.has(p.GameID)).map((p) => p.GameID));
             return new Set(cat.Packs.filter(wanted).map((p) => p.GameID));
         });

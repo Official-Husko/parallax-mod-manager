@@ -18,7 +18,7 @@ import {
     SetGameManaged,
     SetPreferences,
 } from '../../wailsjs/go/main/App';
-import type {library, main, preferences} from '../../wailsjs/go/models';
+import type {app, library, preferences} from '../../wailsjs/go/models';
 import {GameLogo} from '../components/GameLogo';
 import {Toggle} from '../components/Toggle';
 import {settingsNav} from '../data/mockData';
@@ -380,7 +380,7 @@ function LaunchOptionsPanel() {
     // needs repairing (Steam's own "Verify integrity of game files" can restore the
     // original), or something unrecognized. shimAction gates the confirm step
     // before InstallLauncherShim/RemoveLauncherShim ever touch a real file.
-    const [shimStatus, setShimStatus] = useState<main.LauncherShimStatus | null>(null);
+    const [shimStatus, setShimStatus] = useState<app.LauncherShimStatus | null>(null);
     const [shimAction, setShimAction] = useState<'install' | 'repair' | 'remove' | null>(null);
     const [shimBusy, setShimBusy] = useState(false);
 

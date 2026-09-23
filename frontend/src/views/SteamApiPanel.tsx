@@ -2,7 +2,7 @@ import './SteamApiPanel.css';
 import {Fragment, h} from 'preact';
 import {useEffect, useRef, useState} from 'preact/hooks';
 import {CheckSteamAPIKey, SaveSteamAPIKey, SetSteamAPIMode, SteamAPIStatus} from '../../wailsjs/go/main/App';
-import type {main} from '../../wailsjs/go/models';
+import type {app} from '../../wailsjs/go/models';
 import {BrowserOpenURL, EventsOn} from '../../wailsjs/runtime/runtime';
 import {notify} from '../data/notifications';
 
@@ -42,7 +42,7 @@ function timeOf(unixSeconds: number): string {
 
 // statusLine says what the app is doing right now, in one sentence, with the icon and
 // tone that go with it.
-function statusLine(s: main.SteamAPIStatus, draft: Mode | null): { icon: string; tone: string; text: string } {
+function statusLine(s: app.SteamAPIStatus, draft: Mode | null): { icon: string; tone: string; text: string } {
     switch (s.State) {
         case 'active':
             return {icon: 'fa-circle-check', tone: 'good', text: `Using your Steam API key (${s.Fingerprint}) - ${s.Mode === 'complete' ? 'for every request' : 'when the free API cannot answer'}.`};
@@ -61,7 +61,7 @@ function statusLine(s: main.SteamAPIStatus, draft: Mode | null): { icon: string;
 }
 
 export function SteamApiPanel() {
-    const [status, setStatus] = useState<main.SteamAPIStatus | null>(null);
+    const [status, setStatus] = useState<app.SteamAPIStatus | null>(null);
     // A mode chosen before there is a key to use it with. Nothing is saved until the key
     // is: the app keeps using the free API meanwhile.
     const [draft, setDraft] = useState<Mode | null>(null);
