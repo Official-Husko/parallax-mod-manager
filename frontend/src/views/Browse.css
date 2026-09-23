@@ -168,23 +168,20 @@
    (a filter on that game's own file list, not a site-wide one), text only,
    deliberately no icon or swatch (unlike GAMES/INSTALLED above, these aren't a
    game or a real status, just a genre label - see browseMockData.ts's
-   CARD_CATEGORIES). */
-.browse-tagfilter-list {
-    background: rgba(0, 0, 0, .12);
-}
-
+   CARD_CATEGORIES). Deliberately smaller/quieter than a GAMES row itself -
+   this is a secondary filter nested under one, not a peer of it. */
 .browse-tagfilter-row {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 5px 14px 5px 36px;
+    gap: 6px;
+    padding: 3px 14px 3px 34px;
     cursor: pointer;
-    font: 500 11.5px Barlow, sans-serif;
-    color: var(--text-mid);
+    font: 400 10.5px Barlow, sans-serif;
+    color: var(--text-dim);
 }
 
 .browse-tagfilter-row:hover {
-    color: var(--text-bright);
+    color: var(--text-mid);
 }
 
 .browse-tagfilter-row.active {
@@ -198,7 +195,7 @@
 }
 
 .browse-tagfilter-row .cat-count {
-    font-size: 10.5px;
+    font-size: 9.5px;
     color: var(--text-dim);
 }
 
@@ -252,7 +249,6 @@
 
 .browse-toolbar .search-box {
     flex: 1;
-    max-width: 380px;
 }
 
 .browse-toolbar .spacer {
@@ -426,14 +422,20 @@
     height: 34px;
     flex: none;
     border-radius: 4px;
-    background-size: cover;
-    background-position: center;
     background-color: #141c27;
+    position: relative;
+    overflow: hidden;
     display: flex;
     align-items: center;
     justify-content: center;
     color: var(--text-dim);
     font-size: 13px;
+}
+
+.browse-tree-thumb .browse-card-thumb-backdrop {
+    /* Less blur than the full-size card - a 56x34px box has no room for the
+       zoomed-in soft edge the larger blur radius needs. */
+    filter: blur(8px) brightness(0.55);
 }
 
 .browse-tree-main {
@@ -532,15 +534,38 @@
 
 .browse-card-thumb {
     height: 116px;
-    background-size: cover;
-    background-position: center;
     background-color: #141c27;
     position: relative;
+    overflow: hidden;
     display: flex;
     align-items: flex-start;
     justify-content: flex-end;
     padding: 8px;
     box-sizing: border-box;
+}
+
+/* The same image, blurred/darkened/zoomed, fills the box behind the real
+   thumbnail (see .thumbnail-backdrop/.thumbnail-fg, Workspace.css - the exact
+   same technique already used for a mod's own detail-panel thumbnail there),
+   instead of background-size: cover cropping whatever doesn't match the
+   card's own fixed aspect ratio. Both sit absolutely, out of this container's
+   own flex flow, so the tag/state badge overlays below keep positioning
+   exactly as they did before either of these existed. */
+.browse-card-thumb-backdrop {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    filter: blur(20px) brightness(0.55);
+    transform: scale(1.15);
+}
+
+.browse-card-thumb-fg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
 }
 
 /* A file with no screenshot on LoversLab - common, not an error - gets a plain,
@@ -892,11 +917,10 @@
 
 .browse-detail-hero {
     height: 258px;
-    background-size: cover;
-    background-position: center;
     background-color: #10151d;
     background-image: repeating-linear-gradient(115deg, #1b2330 0 10px, #19202c 10px 20px);
     position: relative;
+    overflow: hidden;
     cursor: pointer;
 }
 
@@ -955,11 +979,15 @@
     width: 74px;
     height: 42px;
     border-radius: 3px;
-    background-size: cover;
-    background-position: center;
     background-color: #141c27;
     border: 1px solid var(--border-light);
+    position: relative;
+    overflow: hidden;
     cursor: pointer;
+}
+
+.browse-detail-thumbstrip-item .browse-card-thumb-backdrop {
+    filter: blur(8px) brightness(0.55);
 }
 
 .browse-detail-thumbstrip-item.active {

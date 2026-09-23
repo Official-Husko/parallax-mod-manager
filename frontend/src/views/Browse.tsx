@@ -5,6 +5,7 @@ import {useEffect, useMemo, useRef, useState} from 'preact/hooks';
 import {
     CancelLoversLabInstall,
     ClearLoversLabCredentials,
+    ListGames,
     LoversLabCategories,
     LoversLabChangelog,
     LoversLabComments,
@@ -248,11 +249,15 @@ function BrowseItemsView({items, viewMode, emptyIcon, emptyMessage}: {
                     >
                         {it.overrideContent ?? (
                             <>
-                                <div
-                                    className="browse-tree-thumb"
-                                    style={it.thumbnailURL ? {backgroundImage: `url(${it.thumbnailURL})`} : undefined}
-                                >
-                                    {!it.thumbnailURL && <i className="fa-solid fa-image"/>}
+                                <div className="browse-tree-thumb">
+                                    {it.thumbnailURL ? (
+                                        <>
+                                            <div className="browse-card-thumb-backdrop" style={{backgroundImage: `url(${it.thumbnailURL})`}}/>
+                                            <img className="browse-card-thumb-fg" src={it.thumbnailURL} alt=""/>
+                                        </>
+                                    ) : (
+                                        <i className="fa-solid fa-image"/>
+                                    )}
                                 </div>
                                 <div className="browse-tree-main">
                                     <div className="browse-tree-titlerow">
@@ -291,11 +296,15 @@ function BrowseItemsView({items, viewMode, emptyIcon, emptyMessage}: {
                 >
                     {it.overrideContent ?? (
                         <>
-                            <div
-                                className={it.thumbnailURL ? 'browse-card-thumb' : 'browse-card-thumb placeholder'}
-                                style={it.thumbnailURL ? {backgroundImage: `url(${it.thumbnailURL})`} : undefined}
-                            >
-                                {!it.thumbnailURL && <i className="fa-solid fa-image"/>}
+                            <div className={it.thumbnailURL ? 'browse-card-thumb' : 'browse-card-thumb placeholder'}>
+                                {it.thumbnailURL ? (
+                                    <>
+                                        <div className="browse-card-thumb-backdrop" style={{backgroundImage: `url(${it.thumbnailURL})`}}/>
+                                        <img className="browse-card-thumb-fg" src={it.thumbnailURL} alt=""/>
+                                    </>
+                                ) : (
+                                    <i className="fa-solid fa-image"/>
+                                )}
                                 {it.tag && <span className="browse-tag browse-card-tag" style={{background: it.tagColor}}>{it.tag}</span>}
                                 <StateBadge state={it.stateIcon} className="browse-card-state"/>
                             </div>
@@ -739,11 +748,20 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
     // each one's real logo (GameLogo) instead of a plain color swatch - "All"
     // (every Paradox game's mods together) has no single match, and keeps the
     // plain swatch on purpose, since it isn't really one specific game.
+    // The GAMES sidebar's own logo matching needs every game this app knows
+    // about, not just the ones set up as "managed" in Settings (the games
+    // prop above) - LoversLab's own category list includes a game's section
+    // regardless of whether this app itself is managing it yet, and there's
+    // no reason its real logo shouldn't show just because of that.
+    const [allGames, setAllGames] = useState<library.GameInfo[]>([]);
+    useEffect(() => {
+        ListGames().then(setAllGames).catch(() => undefined);
+    }, []);
     const gameIdByName = useMemo(() => {
         const m = new Map<string, string>();
-        for (const g of games) m.set(normalizeGameName(g.DisplayName), g.ID);
+        for (const g of allGames) m.set(normalizeGameName(g.DisplayName), g.ID);
         return m;
-    }, [games]);
+    }, [allGames]);
     const canSave = !busy && username.trim() !== '' && password !== '';
     const isInstalled = detailFor ? installedIds.has(detailFor.ID) : false;
     const missingFilesCount = installedState.kind === 'ready' ? installedState.mods.filter((m) => m.ContentMissing).length : 0;
@@ -769,7 +787,8 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
     // null while nothing is open, since every one of these fields is only ever
     // rendered inside the detail overlay.
     const extras = detailFor ? mockExtrasFor(detailFor.ID) : null;
-    const screenshots = detailState?.kind === 'ready' ? detailState.detail.Screenshots : [];
+    const screenshots = (detailState?.kind === 'ready' ? detailState.detail.Screenshots : []) ?? [];
+    const descriptionBlocks = (detailState?.kind === 'ready' ? detailState.detail.DescriptionBlocks : []) ?? [];
     const heroShot = screenshots.length > 0 ? screenshots[Math.min(screenshotIndex, screenshots.length - 1)] : null;
     // The hero display always prefers the real full-size image - Screenshots'
     // own URL/ThumbnailURL are genuinely separate stored files (not one derived
@@ -1175,10 +1194,11 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                                     {heroURL ? (
                                         <div
                                             className="browse-detail-hero"
-                                            style={{backgroundImage: `url(${heroURL})`}}
                                             title="Open full size"
                                             onClick={() => BrowserOpenURL(heroURL)}
                                         >
+                                            <div className="browse-card-thumb-backdrop" style={{backgroundImage: `url(${heroURL})`}}/>
+                                            <img className="browse-card-thumb-fg" src={heroURL} alt=""/>
                                             {screenshots.length > 1 && (
                                                 <>
                                                     <span
@@ -1206,9 +1226,11 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                                                 <div
                                                     key={i}
                                                     className={`browse-detail-thumbstrip-item ${i === screenshotIndex ? 'active' : ''}`}
-                                                    style={{backgroundImage: `url(${s.ThumbnailURL || s.URL})`}}
                                                     onClick={() => setScreenshotIndex(i)}
-                                                />
+                                                >
+                                                    <div className="browse-card-thumb-backdrop" style={{backgroundImage: `url(${s.ThumbnailURL || s.URL})`}}/>
+                                                    <img className="browse-card-thumb-fg" src={s.ThumbnailURL || s.URL} alt=""/>
+                                                </div>
                                             ))}
                                         </div>
                                     )}
@@ -1289,9 +1311,9 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                                         <>
                                             {detailState?.kind === 'loading' && <EmptyState icon="fa-spinner fa-spin" title="Loading..."/>}
                                             {detailState?.kind === 'error' && <EmptyState icon="fa-triangle-exclamation" tone="error" title="Couldn't load this mod's page" subtitle={detailState.message}/>}
-                                            {detailState?.kind === 'ready' && detailState.detail.DescriptionBlocks.length > 0 && (
+                                            {detailState?.kind === 'ready' && descriptionBlocks.length > 0 && (
                                                 <div className="browse-detail-description rich">
-                                                    {detailState.detail.DescriptionBlocks.map((block, i) => (
+                                                    {descriptionBlocks.map((block, i) => (
                                                         block.ImageURL ? (
                                                             <img key={i} className="browse-description-image" src={block.ImageURL} alt="" loading="lazy"/>
                                                         ) : (
@@ -1300,7 +1322,7 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                                                     ))}
                                                 </div>
                                             )}
-                                            {detailState?.kind === 'ready' && detailState.detail.DescriptionBlocks.length === 0 && detailState.detail.Description && (
+                                            {detailState?.kind === 'ready' && descriptionBlocks.length === 0 && detailState.detail.Description && (
                                                 <div className="browse-detail-description">{detailState.detail.Description}</div>
                                             )}
                                             {extras && extras.features.length > 0 && (

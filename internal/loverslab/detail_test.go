@@ -96,6 +96,28 @@ func TestParseFileDetail(t *testing.T) {
 	}
 }
 
+// TestParseFileDetailNeverReturnsNilSlices is a real regression test: a Go nil
+// slice marshals to JSON null, not [] - the frontend crashed on exactly this
+// ("TypeError: null is not an object (evaluating 'screenshots.length')") for a
+// file with zero screenshots and no separate rich-text description body
+// found, since both fields were left at their own zero value (nil) rather
+// than a real empty slice.
+func TestParseFileDetailNeverReturnsNilSlices(t *testing.T) {
+	doc := parseFixture(t, `<html><head>
+<script type='application/ld+json'>{"@context":"http://schema.org","@type":"WebApplication","name":"No Screenshots Mod"}</script>
+</head><body></body></html>`)
+	detail, ok := parseFileDetail(doc)
+	if !ok {
+		t.Fatal("expected the WebApplication block to be found")
+	}
+	if detail.Screenshots == nil {
+		t.Error("Screenshots is nil, want a real empty slice (would marshal to JSON null, not [])")
+	}
+	if detail.DescriptionBlocks == nil {
+		t.Error("DescriptionBlocks is nil, want a real empty slice (would marshal to JSON null, not [])")
+	}
+}
+
 func TestParseFileDetailMissingReturnsFalse(t *testing.T) {
 	doc := parseFixture(t, `<html><body>no ld+json here at all</body></html>`)
 	if _, ok := parseFileDetail(doc); ok {

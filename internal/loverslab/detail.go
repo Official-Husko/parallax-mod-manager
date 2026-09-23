@@ -150,6 +150,13 @@ func parseFileDetail(doc *html.Node) (FileDetail, bool) {
 			FileSize:     ld.FileSize,
 			Author:       FileAuthor{Name: ld.Author.Name, URL: ld.Author.URL, ImageURL: ld.Author.Image},
 			DateModified: ld.DateModified,
+			// Both start as a real, non-nil empty slice rather than each field's
+			// own zero value (nil) - a nil Go slice marshals to JSON null, not
+			// [], and the frontend never expects to see null for either of
+			// these (a file with zero screenshots, or one whose description
+			// body simply wasn't found, is common, not an error).
+			Screenshots:       []Screenshot{},
+			DescriptionBlocks: []DescriptionBlock{},
 		}
 		for _, s := range ld.InteractionStatistic {
 			switch s.InteractionType {
@@ -190,7 +197,10 @@ type descriptionBuilder struct {
 // so it can be tested directly against a hand-built fragment instead of a real
 // request - see detail_test.go.
 func parseDescriptionBlocks(body *html.Node) []DescriptionBlock {
-	b := &descriptionBuilder{}
+	// Never nil, even if the body turns out to hold nothing but spacer
+	// paragraphs - see parseFileDetail's own comment on why that distinction
+	// matters once this crosses the JSON wire.
+	b := &descriptionBuilder{blocks: []DescriptionBlock{}}
 	for c := body.FirstChild; c != nil; c = c.NextSibling {
 		b.walk(c, DescriptionRun{})
 	}
