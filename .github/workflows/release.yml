@@ -1,0 +1,207 @@
+name: release
+
+# Cuts a full release: the main app for linux/amd64 and windows/amd64, plus a
+# best-effort macos/universal build (see the release-macos job below - never
+# verified against a real Mac). Every platform's archive ships both companion
+# binaries side by side with the main app
+# (companions/launcher-shim-{linux,windows}-amd64[.exe]) exactly as build.sh
+# already builds them regardless of which OS ran it - internal/launchershim needs
+# both no matter which OS Parallax itself runs on, since the game it is shimming
+# might be a Windows install (native or via Proton) or a native Linux one.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing version tag to build and release (e.g. v1.2.0)"
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+
+jobs:
+  # A tag can point at any commit, including one build.yml's own push/pull_request
+  # triggers never ran against - this is the safety net making sure a release is
+  # never cut from broken code.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install native build dependencies
+        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+
+      - name: Build frontend (for go:embed)
+        working-directory: frontend
+        run: npm ci && npm run build
+
+      - name: Vet and test the main module
+        run: |
+          go vet -tags webkit2_41 ./...
+          go test -tags webkit2_41 -race ./...
+
+      - name: Vet and test each companion module
+        run: |
+          for dir in companions/*/; do
+            (cd "$dir" && go vet ./... && go test -race ./...)
+          done
+
+  release-linux:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # Same webkit2gtk-4.1 headers build.yml's own backend job installs (see
+      # CLAUDE.md) - needed to link the real wails build here, not just go build.
+      - name: Install native build dependencies
+        run: sudo apt-get update && sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+
+      - name: Install the Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)
+
+      - name: Build
+        run: bash build.sh
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          tar -C build/bin -czf "dist/parallax-mod-manager-${RELEASE_TAG}-linux-amd64.tar.gz" parallax-mod-manager companions
+
+      - name: Upload to the release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: Parallax Mod Manager ${{ env.RELEASE_TAG }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: dist/*
+
+  release-windows:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # Windows uses WebView2 (a Windows Update component, already present on the
+      # runner image), not webkit2gtk - no native headers to install here, unlike
+      # the linux job above.
+      - name: Install the Wails CLI
+        shell: bash
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)
+
+      # build.sh is a bash script; windows-latest carries Git's own bash for
+      # exactly this. The webkit2_41 tag it always passes is a no-op here (it only
+      # ever guards linux-only files), so the script runs unmodified.
+      - name: Build
+        shell: bash
+        run: bash build.sh
+
+      - name: Package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Compress-Archive -Path build/bin/parallax-mod-manager.exe, build/bin/companions -DestinationPath "dist/parallax-mod-manager-$env:RELEASE_TAG-windows-amd64.zip"
+
+      - name: Upload to the release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: Parallax Mod Manager ${{ env.RELEASE_TAG }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: dist/*
+
+  # Untested against a real Mac - none available to verify on. Wails documents
+  # -platform darwin/universal as cross-linking both architecture slices through
+  # Xcode's own clang (no Rosetta needed), but this job has never actually been run
+  # for this project. continue-on-error so a macOS failure never blocks the
+  # linux/windows assets from shipping. The resulting .app is also unsigned and
+  # unnotarized (no Apple Developer account wired up here) - macOS Gatekeeper will
+  # quarantine it, and whoever downloads it needs to right-click and choose Open
+  # once, or clear the quarantine flag themselves, to get past that.
+  release-macos:
+    needs: test
+    runs-on: macos-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install the Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)
+
+      - name: Build
+        run: bash build.sh -platform darwin/universal
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          (cd build/bin && zip -ry "../../dist/parallax-mod-manager-${RELEASE_TAG}-macos-universal.zip" parallax-mod-manager.app companions)
+
+      - name: Upload to the release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: Parallax Mod Manager ${{ env.RELEASE_TAG }}
+          generate_release_notes: true
+          files: dist/*
