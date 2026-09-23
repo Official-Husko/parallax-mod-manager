@@ -246,6 +246,20 @@ export namespace app {
 	        this.LimitState = source["LimitState"];
 	    }
 	}
+	export class BuiltInPriorityRuleEntry {
+	    Type: string;
+	    Rule: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new BuiltInPriorityRuleEntry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Type = source["Type"];
+	        this.Rule = source["Rule"];
+	    }
+	}
 	export class CheckResult {
 	    Findings: modcheck.Finding[];
 	    BaseGameChecked: boolean;

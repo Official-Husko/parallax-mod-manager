@@ -684,6 +684,93 @@
     gap: 9px;
 }
 
+/* Settings > Conflict rules - the built-in FIOS defaults (read-only) and a
+   person's own per-game overrides (removable), both shown as the same kind
+   of row. */
+.conflict-rules-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 10px 0 14px;
+}
+
+.conflict-rule-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 9px 13px;
+}
+
+.conflict-rule-type {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font: 500 12px "Azeret Mono", monospace;
+    color: var(--text-mid);
+}
+
+.conflict-rule-badge {
+    flex: none;
+    font: 700 10px "Azeret Mono", monospace;
+    letter-spacing: .06em;
+    color: var(--text-bright);
+    background: var(--bg-highlight);
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    padding: 3px 8px;
+}
+
+/* A person's own override, distinct from a built-in default - the same
+   rust accent this app already uses everywhere else for "your own
+   deliberate choice, not the automatic one". */
+.conflict-rule-badge.override {
+    color: var(--rust-text);
+    background: var(--rust);
+    border-color: var(--rust);
+}
+
+.conflict-rule-remove {
+    flex: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.conflict-rule-remove:hover {
+    color: var(--red);
+}
+
+.conflict-rule-add-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.conflict-rule-add-input {
+    flex: 1;
+    min-width: 0;
+    font: 500 12px "Azeret Mono", monospace;
+    color: var(--text-bright);
+    background: var(--bg-inset);
+    border: 1px solid var(--border-light);
+    border-radius: 5px;
+    padding: 8px 11px;
+}
+
+.conflict-rule-add-input:focus {
+    outline: none;
+    border-color: var(--rust);
+}
+
+.conflict-rule-add-select {
+    flex: none;
+    width: 170px;
+}
+
 .overrides-block {
     margin-top: auto;
 }

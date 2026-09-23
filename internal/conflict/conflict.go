@@ -83,14 +83,26 @@ func (r PriorityRules) RuleFor(t definition.Type) PriorityRule {
 }
 
 // DefaultPriorityRules is this project's starting point for which object
-// Types use FIOS instead of the LIOS default. It's deliberately
-// near-empty: research so far has confirmed the *concept* (a minority of,
-// roughly, scripted-variable-like Types use FIOS) but not an authoritative
-// list of which Types for which specific games - see
-// docs/conflict-resolution.md. Treat this as an open, extensible point,
-// not settled data; don't add specific Type names without a confirmed
-// source.
-var DefaultPriorityRules = PriorityRules{}
+// Types use FIOS instead of the LIOS default. Deliberately near-empty:
+// treat this as an open, extensible point, not settled data - don't add a
+// specific Type name without a confirmed source. A game's Type strings are
+// literal mod folder paths (see internal/pipeline's own derivation), so one
+// game's entry here can never bleed into another's: Resolve is always
+// called for exactly one game's own mod set at a time.
+//
+// Confirmed so far:
+//   - Stellaris' "common/static_modifiers": Paradox's own wiki states a
+//     static modifier is overridden by placing the changed version in a
+//     new file that sorts *before* the original asciibetically - i.e. the
+//     earliest-loaded definition wins, not the latest (fetched live from
+//     https://stellaris.paradoxwikis.com/Modifier_modding, 2026-09-24;
+//     confirmed only for this one folder - a neighboring one like
+//     "common/notification_modifiers" is mentioned on the same page with no
+//     such statement, so it is deliberately not assumed to behave the same
+//     way).
+var DefaultPriorityRules = PriorityRules{
+	"common/static_modifiers": FIOS,
+}
 
 // Reason explains why a Resolution's Winner is what it is.
 type Reason int

@@ -75,6 +75,10 @@ for security, privacy, reliability or performance is called out (see the last tw
 - **Patch staleness detection** - tells you when a source mod changed and the patch is out of date,
   with the reasons and a one-click regenerate.
 - **Live conflict counts** - the sidebar counts only the mods in the load order you are editing.
+- **Conflict rules, in Settings** - which content types resolve first-in-wins instead of the usual
+  last-in-wins, confirmed against a real source (Stellaris' own `common/static_modifiers` today,
+  from Paradox's own wiki) rather than guessed - plus your own per-game override for a type you've
+  confirmed from your own modding experience, applied to both the resolver and the generated patch.
 
 ## DLC
 

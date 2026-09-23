@@ -39,6 +39,8 @@ export function BrowseForExtraModFolder(arg1:string):Promise<string>;
 
 export function BrowseForGameInstall(arg1:string):Promise<library.DetectedGame>;
 
+export function BuiltInPriorityRules():Promise<Array<app.BuiltInPriorityRuleEntry>>;
+
 export function CancelBackgroundDownload():Promise<void>;
 
 export function CancelDuplicate(arg1:string):Promise<void>;
@@ -187,6 +189,8 @@ export function PreviewNewMod(arg1:string,arg2:app.NewModRequest):Promise<app.Ed
 
 export function PreviewThumbnail(arg1:string):Promise<app.ThumbnailPreview>;
 
+export function PriorityRuleOverrides(arg1:string):Promise<Record<string, string>>;
+
 export function PurgeMods(arg1:string,arg2:Array<string>):Promise<library.PurgeResult>;
 
 export function ReadModFile(arg1:string,arg2:string,arg3:string):Promise<library.ModFileContent>;
@@ -232,6 +236,8 @@ export function SetModPinned(arg1:string,arg2:string,arg3:boolean):Promise<void>
 export function SetPatchOverride(arg1:string,arg2:string,arg3:string,arg4:string):Promise<void>;
 
 export function SetPreferences(arg1:preferences.Preferences):Promise<void>;
+
+export function SetPriorityRuleOverride(arg1:string,arg2:string,arg3:string):Promise<void>;
 
 export function SetStaticBackground(arg1:string,arg2:string):Promise<void>;
 

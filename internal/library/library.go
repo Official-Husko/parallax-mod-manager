@@ -252,6 +252,12 @@ type Options struct {
 	// its thumbnail (and names as the descriptor's picture). Empty means the
 	// patch is written without one.
 	PatchThumbnail []byte
+	// RuleOverrides is a user's own per-Type LIOS/FIOS choices (see
+	// internal/priorityrules), layered on top of conflict.DefaultPriorityRules
+	// before conflict.Resolve runs - a Type present in both uses the
+	// override, never the built-in default. nil means no overrides at all,
+	// which is exactly the built-in defaults alone.
+	RuleOverrides conflict.PriorityRules
 }
 
 // maxModWorkers caps how many mods are read at once. More than this stops
@@ -424,10 +430,27 @@ func resolveConflicts(ctx context.Context, cfg game.GameConfig, opts Options) (r
 	resolveTimer := applog.For("Conflicts").Begin()
 	// Only the conflicts are used from here on, so the per-key resolution of
 	// every uncontested definition is skipped - see conflict.Options.
-	result := conflict.Resolve(order, inputs, conflict.Options{ConflictsOnly: true})
+	result := conflict.Resolve(order, inputs, conflict.Options{ConflictsOnly: true, Rules: effectiveRules(opts.RuleOverrides)})
 	resolveTimer.Infof("%d contested keys among %d definitions from %d mods", len(result.Conflicts), totalDefs, len(inputs))
 
 	return resolvedGame{mods: mods, modSummaries: modSummaries, names: names, result: result, errs: errs, modsRead: len(inputs)}, nil
+}
+
+// effectiveRules layers a user's own per-Type overrides on top of
+// conflict.DefaultPriorityRules - a Type present in both uses the
+// override, never the built-in default. Always returns a real, non-nil
+// map (even with no overrides at all) so conflict.Resolve never falls
+// back to reading DefaultPriorityRules itself a second time; this is the
+// one place that combination happens; every caller sees it applied.
+func effectiveRules(overrides conflict.PriorityRules) conflict.PriorityRules {
+	rules := make(conflict.PriorityRules, len(conflict.DefaultPriorityRules)+len(overrides))
+	for t, r := range conflict.DefaultPriorityRules {
+		rules[t] = r
+	}
+	for t, r := range overrides {
+		rules[t] = r
+	}
+	return rules
 }
 
 // logParseProblems names the files stats found a problem with, so the one-line

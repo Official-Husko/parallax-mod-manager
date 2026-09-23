@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -23,6 +24,7 @@ import (
 	"github.com/Official-Husko/parallax-mod-manager/internal/checksum"
 	"github.com/Official-Husko/parallax-mod-manager/internal/collection"
 	"github.com/Official-Husko/parallax-mod-manager/internal/conflict"
+	"github.com/Official-Husko/parallax-mod-manager/internal/definition"
 	"github.com/Official-Husko/parallax-mod-manager/internal/dlc"
 	"github.com/Official-Husko/parallax-mod-manager/internal/dlcstore"
 	"github.com/Official-Husko/parallax-mod-manager/internal/game"
@@ -40,6 +42,7 @@ import (
 	"github.com/Official-Husko/parallax-mod-manager/internal/patchoverride"
 	"github.com/Official-Husko/parallax-mod-manager/internal/playset"
 	"github.com/Official-Husko/parallax-mod-manager/internal/preferences"
+	"github.com/Official-Husko/parallax-mod-manager/internal/priorityrules"
 	"github.com/Official-Husko/parallax-mod-manager/internal/resolvedconflicts"
 	"github.com/Official-Husko/parallax-mod-manager/internal/scan"
 	"github.com/Official-Husko/parallax-mod-manager/internal/steam"
@@ -86,6 +89,12 @@ type App struct {
 	// Dir is empty (methods degrade gracefully) when configDir couldn't
 	// be resolved.
 	patchOverrides patchoverride.Store
+	// priorityRules persists a user's own per-Type LIOS/FIOS overrides,
+	// layered on top of conflict.DefaultPriorityRules for both ScanGame and
+	// GeneratePatch - see internal/priorityrules and
+	// docs/conflict-resolution.md. Dir is empty (methods degrade
+	// gracefully) when configDir couldn't be resolved.
+	priorityRules priorityrules.Store
 	// versionIgnore persists which mods a user has chosen to suppress the
 	// version-incompatibility warning for - see internal/versionignore.
 	// Dir is empty (methods degrade gracefully) when configDir couldn't
@@ -122,8 +131,8 @@ type App struct {
 	// request for the same game can stop the older one (see checksum.go).
 	// modNotes keeps the person's own notes about individual mods, and modNotesMu
 	// serialises changing them (each change reads the file, edits it and writes it).
-	modNotes       modnotes.Store
-	modNotesMu     sync.Mutex
+	modNotes   modnotes.Store
+	modNotesMu sync.Mutex
 	// loverslabInstalls tracks which local mods came from LoversLab, for the update
 	// check - see internal/loverslabtracking and loverslabinstall.go.
 	loverslabInstalls loverslabtracking.Store
@@ -135,8 +144,8 @@ type App struct {
 	// installMu guards installCancel: the download running for each LoversLabInstall
 	// request, so a Cancel call can reach and stop it - the same reason duplicateMu
 	// guards duplicateCancel just below.
-	installMu     sync.Mutex
-	installCancel map[string]context.CancelFunc
+	installMu      sync.Mutex
+	installCancel  map[string]context.CancelFunc
 	checksumMu     sync.Mutex
 	checksumCancel map[string]context.CancelFunc
 	// duplicateMu guards duplicateCancel: the copy running for each Duplicate request, so an
@@ -214,11 +223,11 @@ type App struct {
 	// at the repo root with //go:embed directives reaching into data/ (Wails'
 	// directive-can't-reach-outside-its-own-directory-tree rule), so this package
 	// receives the bytes rather than declaring its own embed vars.
-	embeddedGamesList      []byte
-	embeddedLicence        string
+	embeddedGamesList        []byte
+	embeddedLicence          string
 	embeddedBackgroundSource []byte
-	embeddedGameMedia      embed.FS
-	embeddedPatchThumbnail []byte
+	embeddedGameMedia        embed.FS
+	embeddedPatchThumbnail   []byte
 }
 
 // New creates a new App application struct. gamesList, licence,
@@ -277,6 +286,7 @@ func (a *App) startup(ctx context.Context) {
 		a.playsets = playset.FileStore{Dir: filepath.Join(configDir, "parallax-mod-manager", "playsets")}
 		a.collections = collection.FileStore{Dir: filepath.Join(configDir, "parallax-mod-manager", "collections")}
 		a.patchOverrides = patchoverride.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "patch_overrides")}
+		a.priorityRules = priorityrules.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "priority_rules")}
 		a.modNotes = modnotes.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "mod_notes")}
 		a.loverslabInstalls = loverslabtracking.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "loverslab_installs")}
 		a.loverslabMeta = loverslabmeta.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "loverslab_meta")}
@@ -978,12 +988,13 @@ func (a *App) ScanGame(gameID, playsetName string) (library.Summary, error) {
 	}
 
 	opts := library.Options{
-		CacheDir:     a.cacheDir,
-		SteamRoots:   a.steamRoots,
-		ExtraFolders: a.extraModFolders(gameID),
-		Overrides:    a.patchOverrides.Load(gameID),
-		ContentPaths: &a.contentPaths,
-		GameVersion:  gameVersion,
+		CacheDir:      a.cacheDir,
+		SteamRoots:    a.steamRoots,
+		ExtraFolders:  a.extraModFolders(gameID),
+		Overrides:     a.patchOverrides.Load(gameID),
+		RuleOverrides: a.parsedPriorityRuleOverrides(gameID),
+		ContentPaths:  &a.contentPaths,
+		GameVersion:   gameVersion,
 		// The mod list itself (names/versions/sources) is known the moment
 		// scanning finishes, well before conflict detection's slower
 		// per-mod content parsing completes - emit it immediately so the
@@ -1180,6 +1191,7 @@ func (a *App) GeneratePatch(gameID string, order []string) (library.PatchResult,
 		ExtraFolders:   a.extraModFolders(gameID),
 		Order:          conflict.LoadOrder(order),
 		Overrides:      a.patchOverrides.Load(gameID),
+		RuleOverrides:  a.parsedPriorityRuleOverrides(gameID),
 		GameVersion:    gameVersion,
 		PatchThumbnail: a.patchThumbnail(),
 	})
@@ -1277,6 +1289,105 @@ func (a *App) ClearPatchOverrides(gameID string) error {
 	}
 	applog.For("Patch").Infof("cleared every manual pick for '%s'", a.gameLabel(gameID))
 	return nil
+}
+
+// parsedPriorityRuleOverrides reads gameID's saved per-Type LIOS/FIOS
+// overrides (internal/priorityrules) and converts them into
+// conflict.PriorityRules, for library.Options.RuleOverrides - both
+// ScanGame and GeneratePatch pass this, so they always agree on which
+// rule applies to which Type. An unreadable rule string (never possible
+// through SetPriorityRuleOverride itself, but the file is hand-editable)
+// is skipped with a warning rather than treated as an error, the same
+// silent-degradation the rest of this file already gets on a bad entry.
+func (a *App) parsedPriorityRuleOverrides(gameID string) conflict.PriorityRules {
+	raw := a.priorityRules.Load(gameID)
+	if len(raw) == 0 {
+		return nil
+	}
+	rules := make(conflict.PriorityRules, len(raw))
+	for typ, rule := range raw {
+		switch strings.ToUpper(strings.TrimSpace(rule)) {
+		case priorityrules.FIOS:
+			rules[definition.Type(typ)] = conflict.FIOS
+		case priorityrules.LIOS:
+			rules[definition.Type(typ)] = conflict.LIOS
+		default:
+			applog.For("Conflicts").Warnf("ignoring an unreadable priority rule for %q in '%s': %q", typ, a.gameLabel(gameID), rule)
+		}
+	}
+	return rules
+}
+
+// BuiltInPriorityRuleEntry is one Type this app itself has confirmed
+// needs FIOS instead of the default LIOS - see
+// conflict.DefaultPriorityRules.
+type BuiltInPriorityRuleEntry struct {
+	Type string
+	Rule string
+}
+
+// BuiltInPriorityRules returns every Type this app has confirmed needs
+// FIOS, sorted by Type - Settings' own Conflict rules panel's read-only
+// list. Deliberately small: see conflict.DefaultPriorityRules' own doc
+// comment for why a Type is only ever added there from a confirmed
+// source, never a guess.
+func (a *App) BuiltInPriorityRules() []BuiltInPriorityRuleEntry {
+	entries := make([]BuiltInPriorityRuleEntry, 0, len(conflict.DefaultPriorityRules))
+	for typ, rule := range conflict.DefaultPriorityRules {
+		entries = append(entries, BuiltInPriorityRuleEntry{Type: string(typ), Rule: priorityRuleString(rule)})
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].Type < entries[j].Type })
+	return entries
+}
+
+// PriorityRuleOverrides returns gameID's own saved per-Type overrides
+// (Type -> "FIOS"/"LIOS"), for Settings' Conflict rules panel to show and
+// let a person edit - see internal/priorityrules.
+func (a *App) PriorityRuleOverrides(gameID string) map[string]string {
+	return a.priorityRules.Load(gameID)
+}
+
+// SetPriorityRuleOverride saves a person's own choice that defType should
+// use rule ("FIOS" or "LIOS", case-insensitive) instead of whichever the
+// built-in default says for it - or, with an empty rule, removes a
+// previously saved override for that Type, reverting to the built-in
+// default. Takes effect on the very next scan or patch generation (see
+// parsedPriorityRuleOverrides); defType is free text, not validated
+// against any fixed list, since a Type is just a mod's own literal
+// content folder path and there is no closed set of them - copy one
+// straight from a real conflict's own Type in the Conflict Resolver.
+func (a *App) SetPriorityRuleOverride(gameID, defType, rule string) error {
+	defType = strings.TrimSpace(defType)
+	if defType == "" {
+		return errors.New("a priority rule needs a real Type - copy one from a real conflict in the Conflict Resolver")
+	}
+	rules := a.priorityRules.Load(gameID)
+	rule = strings.ToUpper(strings.TrimSpace(rule))
+	switch rule {
+	case "":
+		delete(rules, defType)
+	case priorityrules.FIOS, priorityrules.LIOS:
+		rules[defType] = rule
+	default:
+		return fmt.Errorf("%q isn't a real priority rule - it must be FIOS, LIOS, or empty to clear it", rule)
+	}
+	if err := a.priorityRules.Save(gameID, rules); err != nil {
+		applog.For("Conflicts").Errorf("couldn't save the priority rule for %q: %v", defType, err)
+		return err
+	}
+	if rule == "" {
+		applog.For("Conflicts").Infof("'%s' goes back to the built-in default for '%s'", defType, a.gameLabel(gameID))
+	} else {
+		applog.For("Conflicts").Infof("'%s' now uses %s for '%s'", defType, rule, a.gameLabel(gameID))
+	}
+	return nil
+}
+
+func priorityRuleString(r conflict.PriorityRule) string {
+	if r == conflict.FIOS {
+		return priorityrules.FIOS
+	}
+	return priorityrules.LIOS
 }
 
 // IgnoredIncompatibleMods returns gameID's set of mod IDs whose

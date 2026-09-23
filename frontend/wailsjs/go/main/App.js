@@ -46,6 +46,10 @@ export function BrowseForGameInstall(arg1) {
   return window['go']['main']['App']['BrowseForGameInstall'](arg1);
 }
 
+export function BuiltInPriorityRules() {
+  return window['go']['main']['App']['BuiltInPriorityRules']();
+}
+
 export function CancelBackgroundDownload() {
   return window['go']['main']['App']['CancelBackgroundDownload']();
 }
@@ -342,6 +346,10 @@ export function PreviewThumbnail(arg1) {
   return window['go']['main']['App']['PreviewThumbnail'](arg1);
 }
 
+export function PriorityRuleOverrides(arg1) {
+  return window['go']['main']['App']['PriorityRuleOverrides'](arg1);
+}
+
 export function PurgeMods(arg1, arg2) {
   return window['go']['main']['App']['PurgeMods'](arg1, arg2);
 }
@@ -432,6 +440,10 @@ export function SetPatchOverride(arg1, arg2, arg3, arg4) {
 
 export function SetPreferences(arg1) {
   return window['go']['main']['App']['SetPreferences'](arg1);
+}
+
+export function SetPriorityRuleOverride(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SetPriorityRuleOverride'](arg1, arg2, arg3);
 }
 
 export function SetStaticBackground(arg1, arg2) {

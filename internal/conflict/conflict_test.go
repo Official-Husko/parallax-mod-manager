@@ -59,9 +59,19 @@ func TestPriorityRulesRuleForNilMapDefaultsToLIOS(t *testing.T) {
 func TestDefaultPriorityRulesIsNearEmpty(t *testing.T) {
 	// Regression guard: don't let someone "helpfully" add unverified
 	// Paradox Type names without a confirmed source - see
-	// docs/conflict-resolution.md and this var's doc comment.
-	if len(DefaultPriorityRules) != 0 {
-		t.Errorf("DefaultPriorityRules has %d entries, want 0 (see its doc comment before adding any)", len(DefaultPriorityRules))
+	// docs/conflict-resolution.md and this var's doc comment. Exactly one
+	// entry is confirmed so far (Stellaris' own wiki, cited in the doc
+	// comment) - this pins the map to precisely that, so a new entry still
+	// has to be a deliberate, reviewed addition rather than something that
+	// crept in unnoticed.
+	want := PriorityRules{"common/static_modifiers": FIOS}
+	if len(DefaultPriorityRules) != len(want) {
+		t.Fatalf("DefaultPriorityRules has %d entries, want exactly %d (see its doc comment before adding any more)", len(DefaultPriorityRules), len(want))
+	}
+	for typ, rule := range want {
+		if got := DefaultPriorityRules[typ]; got != rule {
+			t.Errorf("DefaultPriorityRules[%q] = %v, want %v", typ, got, rule)
+		}
 	}
 }
 

@@ -172,6 +172,75 @@ func TestLoadGameDetectsGenuineConflict(t *testing.T) {
 	}
 }
 
+// A user's own RuleOverrides (internal/priorityrules, converted by the
+// caller) must actually flip the winner - proof the override reaches
+// conflict.Resolve, not just that it's accepted and ignored.
+func TestLoadGameRuleOverrideFlipsTheWinnerToFIOS(t *testing.T) {
+	modDir := t.TempDir()
+	writeMod(t, modDir, "mod_a", "Mod A", `shared_thing = { cost = 1 }`)
+	writeMod(t, modDir, "mod_b", "Mod B", `shared_thing = { cost = 2 }`)
+
+	summary, err := LoadGame(context.Background(), testGameConfig(), Options{
+		CacheDir:      t.TempDir(),
+		ModDir:        modDir,
+		Order:         conflict.LoadOrder{"mod_a", "mod_b"},
+		RuleOverrides: conflict.PriorityRules{"common": conflict.FIOS},
+	})
+	if err != nil {
+		t.Fatalf("LoadGame: %v", err)
+	}
+	if len(summary.Conflicts) != 1 {
+		t.Fatalf("expected 1 conflict, got %d: %+v", len(summary.Conflicts), summary.Conflicts)
+	}
+	if got := summary.Conflicts[0].Winner; got != "mod_a" {
+		t.Errorf("Winner = %q, want mod_a (RuleOverrides forced FIOS - first in load order wins)", got)
+	}
+}
+
+// A RuleOverride for a Type conflict.DefaultPriorityRules doesn't already
+// touch must never affect an unrelated Type's own conflict.
+func TestLoadGameRuleOverrideIsScopedToItsOwnType(t *testing.T) {
+	modDir := t.TempDir()
+	writeMod(t, modDir, "mod_a", "Mod A", `shared_thing = { cost = 1 }`)
+	writeMod(t, modDir, "mod_b", "Mod B", `shared_thing = { cost = 2 }`)
+
+	summary, err := LoadGame(context.Background(), testGameConfig(), Options{
+		CacheDir:      t.TempDir(),
+		ModDir:        modDir,
+		Order:         conflict.LoadOrder{"mod_a", "mod_b"},
+		RuleOverrides: conflict.PriorityRules{"some/unrelated/type": conflict.FIOS},
+	})
+	if err != nil {
+		t.Fatalf("LoadGame: %v", err)
+	}
+	if got := summary.Conflicts[0].Winner; got != "mod_b" {
+		t.Errorf("Winner = %q, want mod_b (default LIOS still applies to Type \"common\")", got)
+	}
+}
+
+func TestEffectiveRulesLayersOverridesOnTopOfTheBuiltInDefaults(t *testing.T) {
+	got := effectiveRules(conflict.PriorityRules{"common/buildings": conflict.FIOS})
+	if got["common/buildings"] != conflict.FIOS {
+		t.Errorf("the override itself is missing: %+v", got)
+	}
+	if got["common/static_modifiers"] != conflict.FIOS {
+		t.Errorf("the confirmed built-in default was dropped: %+v", got)
+	}
+	// An override for the same Type the built-in default already covers
+	// wins - the user's own explicit choice, not the built-in one.
+	got = effectiveRules(conflict.PriorityRules{"common/static_modifiers": conflict.LIOS})
+	if got["common/static_modifiers"] != conflict.LIOS {
+		t.Errorf("the override should win over the built-in default for the same Type: %+v", got)
+	}
+}
+
+func TestEffectiveRulesWithNoOverridesIsJustTheBuiltInDefaults(t *testing.T) {
+	got := effectiveRules(nil)
+	if len(got) != len(conflict.DefaultPriorityRules) {
+		t.Errorf("got %+v, want exactly the built-in defaults", got)
+	}
+}
+
 func TestLoadGameMalformedModRecordedAsErrorNotFatal(t *testing.T) {
 	modDir := t.TempDir()
 	writeMod(t, modDir, "good_mod", "Good Mod", `thing = { cost = 1 }`)

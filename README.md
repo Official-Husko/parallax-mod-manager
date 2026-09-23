@@ -240,6 +240,16 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   wins" doesn't care whether the two files belong to the same mod or different ones, so
   detection has to apply the same rule either way. Pure, no file I/O - see
   [docs/conflict-resolution.md](docs/conflict-resolution.md).
+- **Settings > Conflict rules** - which content types are FIOS instead of the LIOS default.
+  `conflict.DefaultPriorityRules` only ever grows from a confirmed source, never a guess (a
+  regression test pins it to exactly that); one is confirmed so far, Stellaris' own
+  `common/static_modifiers`, from Paradox's own wiki fetched live while researching this
+  ("place a changed static modifier... in a new file that comes before asciibetically" - the
+  earliest-loaded definition wins, not the latest). Rather than this project trying to divine the
+  rest centrally, a person's own per-Type override (`internal/priorityrules`, one JSONC file per
+  game) layers on top of the built-in defaults - `library.Options.RuleOverrides`, merged the same
+  way for both a scan and a generated patch (`internal/library`'s own `effectiveRules`, the one
+  place that combination happens) so they never disagree about which rule applies to which Type.
 - **Game launching, including real `mods_registry.json`/`game_data.json` UUID tracking**
   (`internal/launch`) - writes `dlc_load.json` (the ordered enabled-mods list + disabled-DLC
   list a classic-descriptor game reads on startup), confirmed byte-for-byte against a real

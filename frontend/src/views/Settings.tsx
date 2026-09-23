@@ -5,6 +5,7 @@ import {
     BackgroundCatalog,
     BrowseForExtraModFolder,
     BrowseForGameInstall,
+    BuiltInPriorityRules,
     ClearGamePath,
     DetectGames,
     DeveloperToolsStatus,
@@ -13,13 +14,16 @@ import {
     LauncherShimStatusFor,
     ListPlaysets,
     OpenPath,
+    PriorityRuleOverrides,
     RemoveExtraModFolder,
     RemoveLauncherShim,
     SetGameManaged,
     SetPreferences,
+    SetPriorityRuleOverride,
 } from '../../wailsjs/go/main/App';
 import type {app, library, preferences} from '../../wailsjs/go/models';
 import {GameLogo} from '../components/GameLogo';
+import {Select} from '../components/Select';
 import {Toggle} from '../components/Toggle';
 import {settingsNav} from '../data/mockData';
 import {notify} from '../data/notifications';
@@ -41,7 +45,7 @@ import {BackupPanel} from './BackupPanel';
 import {DebugPanel} from './DebugPanel';
 import {AccentSettings} from './AccentSettings';
 
-type Section = 'manage' | 'launch' | 'playsets' | 'sort' | 'steam' | 'browse' | 'backup' | 'appearance' | 'advanced' | 'debug' | 'about';
+type Section = 'manage' | 'launch' | 'playsets' | 'sort' | 'conflict' | 'steam' | 'browse' | 'backup' | 'appearance' | 'advanced' | 'debug' | 'about';
 
 export function Settings({jumpToManageGames, jumpToBackup, onGamesChanged, onPreferencesChanged}: {
     // Incremented by app.tsx (the TopBar's own "Manage games" entry) to
@@ -83,7 +87,7 @@ export function Settings({jumpToManageGames, jumpToBackup, onGamesChanged, onPre
             <div className="settings-nav">
                 <div className="sidebar-label">SETTINGS</div>
                 {settingsNav.filter((s) => s.key !== 'debug' || debugAvailable).map((s) => {
-                    const clickable = s.key === 'manage' || s.key === 'launch' || s.key === 'playsets' || s.key === 'sort' || s.key === 'steam' || s.key === 'browse' || s.key === 'backup' || s.key === 'appearance' || s.key === 'advanced' || s.key === 'debug' || s.key === 'about';
+                    const clickable = s.key === 'manage' || s.key === 'launch' || s.key === 'playsets' || s.key === 'sort' || s.key === 'conflict' || s.key === 'steam' || s.key === 'browse' || s.key === 'backup' || s.key === 'appearance' || s.key === 'advanced' || s.key === 'debug' || s.key === 'about';
                     const active = clickable && s.key === section;
                     return (
                         <div
@@ -102,6 +106,7 @@ export function Settings({jumpToManageGames, jumpToBackup, onGamesChanged, onPre
             {section === 'launch' && <LaunchOptionsPanel/>}
             {section === 'playsets' && <PlaysetsSettingsPanel/>}
             {section === 'sort' && <SortRulesPanel/>}
+            {section === 'conflict' && <ConflictRulesPanel/>}
             {section === 'steam' && <SteamApiPanel/>}
             {section === 'browse' && <BrowseSettingsPanel/>}
             {section === 'backup' && <BackupPanel/>}
@@ -821,6 +826,169 @@ function SortRulesPanel() {
                 <span className="btn-ghost inert">Import community ruleset</span>
                 <span className="btn-ghost inert" style={{border: 'none', background: 'none'}}>Reset to defaults</span>
             </div>
+        </div>
+    );
+}
+
+// When two mods define the same thing, the Conflict Resolver picks a winner
+// by load order - LIOS (latest wins) by default, FIOS (earliest wins) for a
+// small, confirmed set of object Types where the game itself behaves that
+// way regardless of mod load order. This panel shows that built-in list
+// (internal/conflict.DefaultPriorityRules - real, but deliberately small:
+// only ever grown from a confirmed source, never a guess) and lets a person
+// add their own per-game override for a Type they've confirmed from their
+// own experience, without this app centrally guessing on their behalf - see
+// docs/conflict-resolution.md.
+function ConflictRulesPanel() {
+    const [prefs, setPrefs] = useState<preferences.Preferences | null>(null);
+    useEffect(() => {
+        GetPreferences().then(setPrefs).catch(() => undefined);
+    }, []);
+    const {state, managedGames, selectedGame, selectedGameId, setSelectedGameId} = useManagedGamePicker(prefs);
+
+    const [builtIn, setBuiltIn] = useState<app.BuiltInPriorityRuleEntry[]>([]);
+    useEffect(() => {
+        BuiltInPriorityRules().then(setBuiltIn).catch(() => undefined);
+    }, []);
+
+    const [overrides, setOverrides] = useState<Record<string, string>>({});
+    const [overridesLoading, setOverridesLoading] = useState(false);
+    useEffect(() => {
+        if (!selectedGameId) {
+            setOverrides({});
+            return;
+        }
+        let cancelled = false;
+        setOverridesLoading(true);
+        PriorityRuleOverrides(selectedGameId)
+            .then((r) => { if (!cancelled) setOverrides(r ?? {}); })
+            .catch(() => { if (!cancelled) setOverrides({}); })
+            .finally(() => { if (!cancelled) setOverridesLoading(false); });
+        return () => { cancelled = true; };
+    }, [selectedGameId]);
+
+    const [newType, setNewType] = useState('');
+    const [newRule, setNewRule] = useState<'FIOS' | 'LIOS'>('FIOS');
+    const [saving, setSaving] = useState(false);
+
+    async function addOverride() {
+        const type = newType.trim();
+        if (!selectedGameId || !type) return;
+        setSaving(true);
+        try {
+            await SetPriorityRuleOverride(selectedGameId, type, newRule);
+            setOverrides((prev) => ({...prev, [type]: newRule}));
+            setNewType('');
+            notify('success', `'${type}' now uses ${newRule} for ${selectedGame?.DisplayName ?? 'this game'}.`);
+        } catch (err) {
+            notify('error', String(err).replace(/^Error:\s*/, ''));
+        } finally {
+            setSaving(false);
+        }
+    }
+
+    async function removeOverride(type: string) {
+        if (!selectedGameId) return;
+        try {
+            await SetPriorityRuleOverride(selectedGameId, type, '');
+            setOverrides((prev) => {
+                const next = {...prev};
+                delete next[type];
+                return next;
+            });
+        } catch (err) {
+            notify('error', String(err).replace(/^Error:\s*/, ''));
+        }
+    }
+
+    return (
+        <div className="settings-content single">
+            <div>
+                <div className="settings-title">Conflict rules</div>
+                <div className="settings-subtitle">
+                    When two mods define the same thing, the Conflict Resolver picks a winner by load
+                    order - normally whichever mod is latest ("LIOS"). A small number of object types
+                    actually work the other way in-game ("FIOS" - earliest wins, regardless of load
+                    order) - this is where those are set. Configured one game at a time, since what a
+                    Type even means is specific to that game's own content folders.
+                </div>
+            </div>
+
+            <div className="settings-title" style={{marginTop: '4px'}}>Built-in defaults</div>
+            <div className="settings-subtitle">
+                {builtIn.length === 0
+                    ? 'None yet - every object type falls back to load order (LIOS) until this app has confirmed one from a real source. This is deliberate: guessing here risks resolving a real conflict the wrong way.'
+                    : 'Confirmed from a real source before being added - applies to every game whose mods use these content folders.'}
+            </div>
+            {builtIn.length > 0 && (
+                <div className="conflict-rules-list">
+                    {builtIn.map((e) => (
+                        <div key={e.Type} className="conflict-rule-row">
+                            <span className="mono conflict-rule-type">{e.Type}</span>
+                            <span className="conflict-rule-badge">{e.Rule}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            <div className="settings-title" style={{marginTop: '20px'}}>Your own overrides</div>
+            <div className="settings-subtitle">
+                Know from your own modding experience that a specific content folder needs the other
+                rule for a game you play? Add it below - type its Type exactly as the Conflict Resolver
+                shows it for a real conflict (e.g. "common/buildings"), copied from there.
+            </div>
+
+            {state.kind === 'loading' && <p className="status-page">Checking installed games...</p>}
+            {state.kind === 'error' && <p className="status-page error">{state.message}</p>}
+            {state.kind === 'ready' && managedGames.length === 0 && (
+                <p className="status-page">No games are set up to manage yet - open Manage games to pick one.</p>
+            )}
+            {managedGames.length > 0 && (
+                <GamePickerChips games={managedGames} selectedGameId={selectedGameId} onSelect={setSelectedGameId}/>
+            )}
+
+            {selectedGame && (
+                <>
+                    {overridesLoading && <p className="status-page">Loading...</p>}
+                    {!overridesLoading && Object.keys(overrides).length === 0 && (
+                        <p className="status-page">No overrides set for {selectedGame.DisplayName} yet.</p>
+                    )}
+                    {Object.keys(overrides).length > 0 && (
+                        <div className="conflict-rules-list">
+                            {Object.entries(overrides).sort(([a], [b]) => a.localeCompare(b)).map(([type, rule]) => (
+                                <div key={type} className="conflict-rule-row">
+                                    <span className="mono conflict-rule-type">{type}</span>
+                                    <span className="conflict-rule-badge override">{rule}</span>
+                                    <i className="fa-solid fa-xmark conflict-rule-remove" title="Remove this override" onClick={() => removeOverride(type)}/>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                    <div className="conflict-rule-add-row">
+                        <input
+                            type="text"
+                            className="conflict-rule-add-input"
+                            placeholder="e.g. common/scripted_variables"
+                            value={newType}
+                            disabled={saving}
+                            onInput={(e) => setNewType((e.target as HTMLInputElement).value)}
+                        />
+                        <Select
+                            className="conflict-rule-add-select"
+                            value={newRule}
+                            disabled={saving}
+                            onChange={(v) => setNewRule(v as 'FIOS' | 'LIOS')}
+                            options={[
+                                {value: 'FIOS', label: 'FIOS (first wins)'},
+                                {value: 'LIOS', label: 'LIOS (last wins)'},
+                            ]}
+                        />
+                        <button type="button" className="btn-primary" disabled={saving || !newType.trim()} onClick={addOverride}>
+                            Add
+                        </button>
+                    </div>
+                </>
+            )}
         </div>
     );
 }

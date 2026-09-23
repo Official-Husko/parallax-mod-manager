@@ -16,7 +16,7 @@ export const settingsNav = [
     {label: 'Launch options', key: 'launch'},
     {label: 'Playsets', key: 'playsets'},
     {label: 'Sort rules', key: 'sort'},
-    {label: 'Conflict scanning', key: 'conflict'},
+    {label: 'Conflict rules', key: 'conflict'},
     {label: 'Updates', key: 'updates'},
     {label: 'Steam API', key: 'steam'},
     {label: 'Browse', key: 'browse'},
