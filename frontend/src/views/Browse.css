@@ -164,16 +164,22 @@
     color: var(--text-dim);
 }
 
-/* The CATEGORIES filter - text only, deliberately no icon or swatch (unlike
-   GAMES/INSTALLED above, these aren't a game or a real status, just a genre
-   label - see browseMockData.ts's CARD_CATEGORIES). */
+/* CATEGORIES - shown right under whichever GAMES row is actually selected
+   (a filter on that game's own file list, not a site-wide one), text only,
+   deliberately no icon or swatch (unlike GAMES/INSTALLED above, these aren't a
+   game or a real status, just a genre label - see browseMockData.ts's
+   CARD_CATEGORIES). */
+.browse-tagfilter-list {
+    background: rgba(0, 0, 0, .12);
+}
+
 .browse-tagfilter-row {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 6px 14px;
+    padding: 5px 14px 5px 36px;
     cursor: pointer;
-    font: 500 12px Barlow, sans-serif;
+    font: 500 11.5px Barlow, sans-serif;
     color: var(--text-mid);
 }
 
@@ -312,28 +318,40 @@
     border-color: var(--rust);
 }
 
-/* BrowseItemsView's own switch (see ViewModeToggle in Browse.tsx) - one small icon
-   pair, shown next to both the browsing grid's own toolbar and the Installed
-   section's, since both switch the exact same way. */
+/* BrowseItemsView's own switch (see ViewModeToggle in Browse.tsx) - a real
+   bordered segmented control, matching the mockup, shown next to both the
+   browsing grid's own toolbar and the Installed section's, since both switch
+   the exact same way. */
 .browse-view-toggle {
     display: flex;
+    border: 1px solid var(--border-light);
+    border-radius: 5px;
+    overflow: hidden;
+    flex: none;
+}
+
+.browse-view-toggle-btn {
+    display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 0 4px;
-}
-
-.browse-view-toggle i {
-    color: var(--text-dim);
-    cursor: pointer;
-    font-size: 13px;
-}
-
-.browse-view-toggle i:hover {
+    gap: 6px;
+    padding: 5px 11px;
+    font: 500 11px Barlow, sans-serif;
     color: var(--text-muted);
+    cursor: pointer;
 }
 
-.browse-view-toggle i.active {
+.browse-view-toggle-btn:not(:first-child) {
+    border-left: 1px solid var(--border-light);
+}
+
+.browse-view-toggle-btn:hover {
+    color: var(--text-mid);
+}
+
+.browse-view-toggle-btn.active {
     color: var(--text-bright);
+    background: var(--bg-highlight);
+    font-weight: 600;
 }
 
 
@@ -706,6 +724,15 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.browse-account-username.clickable {
+    cursor: pointer;
+}
+
+.browse-account-username.clickable:hover {
+    color: var(--amber);
+    text-decoration: underline;
 }
 
 

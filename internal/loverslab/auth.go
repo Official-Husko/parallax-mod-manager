@@ -9,6 +9,8 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+
+	"golang.org/x/net/html"
 )
 
 const loginPath = "/login/"
@@ -159,4 +161,56 @@ func (c *Client) cookie(name string) string {
 		}
 	}
 	return ""
+}
+
+// AccountProfile is the signed-in account's own real display name and profile
+// link, from the page header's own account menu - distinct from whatever was
+// typed to sign in (an email works just as well as a username for that, and is
+// never the same string as the site's own display name). Confirmed live against
+// a real account: the display name shown, the "Profile" menu item's own href,
+// and the small header avatar (a data: URI monogram for an account with no
+// uploaded photo, same as any other <img src> as far as rendering it goes).
+type AccountProfile struct {
+	Username   string
+	ProfileURL string
+	AvatarURL  string
+}
+
+// AccountProfile fetches the signed-in account's own display name, profile
+// link, and avatar - "", false if the session isn't actually signed in (the
+// header simply has no account menu to find, then).
+func (c *Client) AccountProfile(ctx context.Context) (AccountProfile, bool, error) {
+	doc, err := c.getDocument(ctx, BaseURL+"/")
+	if err != nil {
+		return AccountProfile{}, false, fmt.Errorf("finding the signed-in account's own profile: %w", err)
+	}
+	return parseAccountProfile(doc)
+}
+
+// parseAccountProfile is AccountProfile's own parsing, pulled out so it can be
+// tested directly against a hand-built fragment instead of a real request -
+// see auth_test.go.
+func parseAccountProfile(doc *html.Node) (AccountProfile, bool, error) {
+	userLi := findOne(doc, func(n *html.Node) bool { return isElement(n, "li") && attrOr(n, "id") == "cUserLink" })
+	if userLi == nil {
+		return AccountProfile{}, false, nil
+	}
+
+	nameLink := findOne(userLi, func(n *html.Node) bool { return isElement(n, "a") && attrOr(n, "id") == "elUserLink" })
+	if nameLink == nil {
+		return AccountProfile{}, false, nil
+	}
+	username := strings.TrimSpace(text(nameLink))
+
+	var profileURL, avatarURL string
+	if photoLink := findOne(userLi, func(n *html.Node) bool {
+		return isElement(n, "a") && strings.Contains(attrOr(n, "href"), "/profile/")
+	}); photoLink != nil {
+		profileURL = attrOr(photoLink, "href")
+		if img := findOne(photoLink, func(n *html.Node) bool { return isElement(n, "img") }); img != nil {
+			avatarURL = attrOr(img, "src")
+		}
+	}
+
+	return AccountProfile{Username: username, ProfileURL: profileURL, AvatarURL: avatarURL}, true, nil
 }

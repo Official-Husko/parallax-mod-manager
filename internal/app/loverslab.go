@@ -30,6 +30,18 @@ type LoversLabFileList struct {
 	TotalPages int
 }
 
+// LoversLabAccountProfile is the signed-in account's own real display name,
+// profile link and avatar (see loverslab.AccountProfile) - distinct from
+// LoversLabStatus.Username, which is only ever whatever was actually typed to
+// sign in (an email works just as well as a username there, and is never the
+// site's own display name). Fetched separately, lazily, since it needs a real
+// request and LoversLabStatus itself stays local/no-network by design.
+type LoversLabAccountProfile struct {
+	Username   string
+	ProfileURL string
+	AvatarURL  string
+}
+
 // ensureLoversLabSession returns a signed-in client, reusing this run's existing one
 // if it is still good, otherwise trying (in order) a saved session and a fresh login
 // with the saved username/password - the same fallback chain SteamAPIStatus's own key
@@ -301,6 +313,26 @@ func (a *App) LoversLabUnreadNotifications() (int, error) {
 		applog.For("LoversLab").Warnf("checking notifications failed: %v", err)
 	}
 	return count, err
+}
+
+// LoversLabProfile fetches the signed-in account's own real display name,
+// profile link, and avatar - see LoversLabAccountProfile. A zero value, no
+// error, when the account menu wasn't found (not actually signed in server-
+// side, even though a saved sign-in exists locally).
+func (a *App) LoversLabProfile() (LoversLabAccountProfile, error) {
+	client, err := a.ensureLoversLabSession(a.baseContext())
+	if err != nil {
+		return LoversLabAccountProfile{}, err
+	}
+	profile, found, err := client.AccountProfile(a.baseContext())
+	if err != nil {
+		applog.For("LoversLab").Warnf("fetching the account's own profile failed: %v", err)
+		return LoversLabAccountProfile{}, err
+	}
+	if !found {
+		return LoversLabAccountProfile{}, nil
+	}
+	return LoversLabAccountProfile{Username: profile.Username, ProfileURL: profile.ProfileURL, AvatarURL: profile.AvatarURL}, nil
 }
 
 // paragraphsToHTML turns plain text typed into this app's own comment box into the

@@ -18,6 +18,55 @@ func TestExtractCSRFKey(t *testing.T) {
 	}
 }
 
+// Shape confirmed live against a real signed-in account's own homepage (the
+// header's account menu) - names/IDs here are invented, not the real account's.
+const accountMenuFixture = `<html><body>
+<ul id='elUserNav' class='ipsList_inline cSignedIn'>
+	<li id='cUserLink'>
+		<a href="https://www.loverslab.com/profile/9001-somemember/" rel="nofollow" class="ipsUserPhoto ipsUserPhoto_tiny" title="Go to SomeMember's profile">
+			<img src='data:image/svg+xml,examplemonogram' alt='SomeMember' loading="lazy">
+		</a>
+		<a href='#elUserLink_menu' id='elUserLink' data-ipsMenu>
+			SomeMember <i class='fa fa-caret-down'></i>
+		</a>
+		<ul id='elUserLink_menu' class='ipsMenu ipsMenu_normal ipsHide'>
+			<li class='ipsMenu_item' data-menuItem='profile'><a href='https://www.loverslab.com/profile/9001-somemember/' title='Go to your profile'>Profile</a></li>
+		</ul>
+	</li>
+</ul>
+</body></html>`
+
+func TestParseAccountProfile(t *testing.T) {
+	doc := parseFixture(t, accountMenuFixture)
+	profile, ok, err := parseAccountProfile(doc)
+	if err != nil {
+		t.Fatalf("parseAccountProfile: %v", err)
+	}
+	if !ok {
+		t.Fatal("expected an account menu to be found")
+	}
+	if profile.Username != "SomeMember" {
+		t.Errorf("Username = %q, want SomeMember (the caret icon's own empty tag must not leak in)", profile.Username)
+	}
+	if profile.ProfileURL != "https://www.loverslab.com/profile/9001-somemember/" {
+		t.Errorf("ProfileURL = %q, want the real profile URL", profile.ProfileURL)
+	}
+	if profile.AvatarURL != "data:image/svg+xml,examplemonogram" {
+		t.Errorf("AvatarURL = %q, want the avatar img's own src", profile.AvatarURL)
+	}
+}
+
+func TestParseAccountProfileNotSignedInFindsNothing(t *testing.T) {
+	doc := parseFixture(t, `<html><body><p>Signed out - no account menu here at all.</p></body></html>`)
+	_, ok, err := parseAccountProfile(doc)
+	if err != nil {
+		t.Fatalf("parseAccountProfile: %v", err)
+	}
+	if ok {
+		t.Error("expected no account menu to be found when signed out")
+	}
+}
+
 func TestExtractCSRFKeyMissing(t *testing.T) {
 	if _, ok := extractCSRFKey([]byte("<html><body>no csrfKey field on this page</body></html>")); ok {
 		t.Error("expected extractCSRFKey to fail when there is no csrfKey field")

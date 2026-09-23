@@ -143,6 +143,8 @@ export function LoversLabInstalledMods(arg1:string):Promise<Array<app.LoversLabI
 
 export function LoversLabPostComment(arg1:string,arg2:string):Promise<void>;
 
+export function LoversLabProfile():Promise<app.LoversLabAccountProfile>;
+
 export function LoversLabStatus():Promise<app.LoversLabStatus>;
 
 export function LoversLabUnreadNotifications():Promise<number>;

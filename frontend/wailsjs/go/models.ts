@@ -563,6 +563,22 @@ export namespace app {
 		    return a;
 		}
 	}
+	export class LoversLabAccountProfile {
+	    Username: string;
+	    ProfileURL: string;
+	    AvatarURL: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new LoversLabAccountProfile(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Username = source["Username"];
+	        this.ProfileURL = source["ProfileURL"];
+	        this.AvatarURL = source["AvatarURL"];
+	    }
+	}
 	export class LoversLabCommentList {
 	    Posts: loverslab.Post[];
 	    TotalPages: number;

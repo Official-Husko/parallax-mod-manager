@@ -254,6 +254,10 @@ export function LoversLabPostComment(arg1, arg2) {
   return window['go']['main']['App']['LoversLabPostComment'](arg1, arg2);
 }
 
+export function LoversLabProfile() {
+  return window['go']['main']['App']['LoversLabProfile']();
+}
+
 export function LoversLabStatus() {
   return window['go']['main']['App']['LoversLabStatus']();
 }

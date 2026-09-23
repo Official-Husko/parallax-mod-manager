@@ -14,6 +14,7 @@ import {
     LoversLabInstall,
     LoversLabInstalledMods,
     LoversLabPostComment,
+    LoversLabProfile,
     LoversLabStatus,
     SaveLoversLabCredentials,
     UninstallLoversLabMod,
@@ -127,6 +128,20 @@ function errorText(err: unknown): string {
     return String(err).replace(/^Error:\s*/, '');
 }
 
+// normalizeGameName lets a LoversLab category name match this app's own
+// registered game name despite either one's numeral style - confirmed live:
+// this app calls it "Crusader Kings III", LoversLab's own category is named
+// "Crusader Kings 3", and a plain case-insensitive comparison alone missed
+// that entirely (Stellaris/Victoria 3 have no such mismatch, since neither
+// numbers nor romanizes in its own name either way).
+function normalizeGameName(name: string): string {
+    return name.trim()
+        .replace(/\bIV\b/gi, '4')
+        .replace(/\bIII\b/gi, '3')
+        .replace(/\bII\b/gi, '2')
+        .toLowerCase();
+}
+
 // pageButtons is up to max consecutive page numbers centered on current,
 // clamped to [1, total] - LoversLabFiles already takes any page directly, this
 // just exposes jumping straight to one instead of only stepping one at a time.
@@ -196,16 +211,12 @@ interface BrowseListItem {
 function ViewModeToggle({mode, onChange}: {mode: ViewMode; onChange: (m: ViewMode) => void}) {
     return (
         <div className="browse-view-toggle">
-            <i
-                className={`fa-solid fa-grip ${mode === 'cards' ? 'active' : ''}`}
-                title="Card view"
-                onClick={() => onChange('cards')}
-            />
-            <i
-                className={`fa-solid fa-list ${mode === 'tree' ? 'active' : ''}`}
-                title="List view"
-                onClick={() => onChange('tree')}
-            />
+            <span className={`browse-view-toggle-btn ${mode === 'cards' ? 'active' : ''}`} onClick={() => onChange('cards')}>
+                <i className="fa-solid fa-grip"/> Cards
+            </span>
+            <span className={`browse-view-toggle-btn ${mode === 'tree' ? 'active' : ''}`} onClick={() => onChange('tree')}>
+                <i className="fa-solid fa-list"/> List
+            </span>
         </div>
     );
 }
@@ -364,6 +375,12 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
 }) {
     const unreadNotifications = useLoversLabUnreadCount();
     const [status, setStatus] = useState<app.LoversLabStatus | null>(null);
+    // The account's own real display name/profile link/avatar (see
+    // LoversLabProfile) - distinct from status.Username, which is only ever
+    // whatever was actually typed to sign in (an email works just as well as a
+    // username there). null while not yet fetched or not signed in; the
+    // identity row falls back to status.Username until this resolves.
+    const [profile, setProfile] = useState<app.LoversLabAccountProfile | null>(null);
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [busy, setBusy] = useState<'save' | 'clear' | null>(null);
@@ -429,6 +446,19 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
     useEffect(() => {
         LoversLabStatus().then(setStatus).catch(() => undefined);
     }, []);
+
+    // The account's own real display name/profile/avatar - fetched once per
+    // sign-in (a real request, unlike LoversLabStatus itself), cleared again on
+    // sign-out so a stale name never lingers into a different account's sign-in.
+    useEffect(() => {
+        if (!status?.SignedIn) {
+            setProfile(null);
+            return;
+        }
+        let cancelled = false;
+        LoversLabProfile().then((p) => { if (!cancelled) setProfile(p); }).catch(() => undefined);
+        return () => { cancelled = true; };
+    }, [status?.SignedIn]);
 
     // The real sidebar, loaded once signed in - whether that sign-in just happened below
     // or was already saved from a previous run, status.SignedIn ends up true either way.
@@ -711,7 +741,7 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
     // plain swatch on purpose, since it isn't really one specific game.
     const gameIdByName = useMemo(() => {
         const m = new Map<string, string>();
-        for (const g of games) m.set(g.DisplayName.toLowerCase(), g.ID);
+        for (const g of games) m.set(normalizeGameName(g.DisplayName), g.ID);
         return m;
     }, [games]);
     const canSave = !busy && username.trim() !== '' && password !== '';
@@ -853,40 +883,47 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                             {categoryState.kind === 'loading' && <EmptyState icon="fa-spinner fa-spin" title="Loading..."/>}
                             {categoryState.kind === 'error' && <EmptyState icon="fa-triangle-exclamation" tone="error" title="Couldn't load games" subtitle={categoryState.message}/>}
                             {categoryState.kind === 'ready' && categoryState.categories.map((cat) => {
-                                const matchedGameId = gameIdByName.get(cat.Name.toLowerCase());
+                                const matchedGameId = gameIdByName.get(normalizeGameName(cat.Name));
+                                const isSelected = selectedCategory?.URL === cat.URL;
                                 return (
-                                    <div
-                                        key={cat.URL}
-                                        className={`browse-category-row depth-${cat.Depth} ${selectedCategory?.URL === cat.URL ? 'active' : ''}`}
-                                        onClick={() => selectCategory(cat)}
-                                    >
-                                        {matchedGameId ? (
-                                            <GameLogo gameId={matchedGameId} className="browse-category-icon"/>
-                                        ) : (
-                                            <span className="browse-category-swatch" style={{background: colorFromName(cat.Name)}}/>
+                                    <Fragment key={cat.URL}>
+                                        <div
+                                            className={`browse-category-row depth-${cat.Depth} ${isSelected ? 'active' : ''}`}
+                                            onClick={() => selectCategory(cat)}
+                                        >
+                                            {matchedGameId ? (
+                                                <GameLogo gameId={matchedGameId} className="browse-category-icon"/>
+                                            ) : cat.Name.toLowerCase() === 'all' ? (
+                                                <span className="browse-category-icon fallback"><i className="fa-solid fa-layer-group"/></span>
+                                            ) : (
+                                                <span className="browse-category-swatch" style={{background: colorFromName(cat.Name)}}/>
+                                            )}
+                                            <span className="cat-name" title={cat.Name}>{cat.Name}</span>
+                                            <span className="mono cat-count">{cat.Files}</span>
+                                        </div>
+                                        {/* CATEGORIES lives right under whichever game is actually
+                                            selected, not as its own always-shown section - it's a
+                                            filter on that game's own file list, not a site-wide one. */}
+                                        {isSelected && (
+                                            <div className="browse-tagfilter-list">
+                                                {CARD_CATEGORIES.map((tag) => (
+                                                    <div
+                                                        key={tag}
+                                                        className={`browse-tagfilter-row ${selectedTagFilter === tag ? 'active' : ''}`}
+                                                        onClick={() => setSelectedTagFilter((t) => t === tag ? null : tag)}
+                                                    >
+                                                        <span className="cat-name">{tag}</span>
+                                                        <span className="mono cat-count">{categoryCounts.get(tag) ?? 0}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         )}
-                                        <span className="cat-name" title={cat.Name}>{cat.Name}</span>
-                                        <span className="mono cat-count">{cat.Files}</span>
-                                    </div>
+                                    </Fragment>
                                 );
                             })}
                             {categoryState.kind === 'ready' && categoryState.categories.length === 0 && (
                                 <EmptyState icon="fa-gamepad" title="No games found" subtitle="LoversLab's Paradox Games section could not be found."/>
                             )}
-                        </div>
-
-                        <div className="sidebar-label">CATEGORIES</div>
-                        <div className="browse-games">
-                            {CARD_CATEGORIES.map((tag) => (
-                                <div
-                                    key={tag}
-                                    className={`browse-tagfilter-row ${selectedTagFilter === tag ? 'active' : ''}`}
-                                    onClick={() => setSelectedTagFilter((t) => t === tag ? null : tag)}
-                                >
-                                    <span className="cat-name">{tag}</span>
-                                    <span className="mono cat-count">{categoryCounts.get(tag) ?? 0}</span>
-                                </div>
-                            ))}
                         </div>
                     </>
                 )}
@@ -948,38 +985,45 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                     <EmptyState icon="fa-gamepad" title="Pick a game" subtitle="Choose a game from the sidebar to see what's in it."/>
                 ) : (
                     <>
-                        <div className="browse-toolbar">
-                            <div className="search-box">
-                                <i className="fa-solid fa-magnifying-glass"/>
-                                <input
-                                    placeholder={`Search ${selectedCategory.Name}...`}
-                                    value={search}
-                                    onInput={(e) => setSearch((e.target as HTMLInputElement).value)}
-                                />
-                            </div>
-                            <div className="spacer"/>
-                            {filesState.kind === 'ready' && filesState.totalPages > 1 && (
-                                <div className="browse-pager">
-                                    <i
-                                        className={`fa-solid fa-chevron-left ${page <= 1 ? 'inert' : ''}`}
-                                        onClick={() => page > 1 && setPage(page - 1)}
-                                    />
-                                    {pageButtons(page, filesState.totalPages).map((n) => (
-                                        <span
-                                            key={n}
-                                            className={`browse-pager-page mono ${n === page ? 'active' : ''}`}
-                                            onClick={() => setPage(n)}
-                                        >
-                                            {n}
-                                        </span>
-                                    ))}
-                                    <i
-                                        className={`fa-solid fa-chevron-right ${page >= filesState.totalPages ? 'inert' : ''}`}
-                                        onClick={() => page < filesState.totalPages && setPage(page + 1)}
+                        <div className="browse-toolbar column">
+                            <div className="browse-toolbar-row">
+                                <div className="search-box">
+                                    <i className="fa-solid fa-magnifying-glass"/>
+                                    <input
+                                        placeholder={`Search ${selectedCategory.Name}...`}
+                                        value={search}
+                                        onInput={(e) => setSearch((e.target as HTMLInputElement).value)}
                                     />
                                 </div>
-                            )}
-                            <ViewModeToggle mode={viewMode} onChange={setViewMode}/>
+                            </div>
+                            <div className="browse-toolbar-row">
+                                {filesState.kind === 'ready' && (
+                                    <span className="mono browse-installed-stats">Page {page} of {filesState.totalPages}</span>
+                                )}
+                                <div className="spacer"/>
+                                {filesState.kind === 'ready' && filesState.totalPages > 1 && (
+                                    <div className="browse-pager">
+                                        <i
+                                            className={`fa-solid fa-chevron-left ${page <= 1 ? 'inert' : ''}`}
+                                            onClick={() => page > 1 && setPage(page - 1)}
+                                        />
+                                        {pageButtons(page, filesState.totalPages).map((n) => (
+                                            <span
+                                                key={n}
+                                                className={`browse-pager-page mono ${n === page ? 'active' : ''}`}
+                                                onClick={() => setPage(n)}
+                                            >
+                                                {n}
+                                            </span>
+                                        ))}
+                                        <i
+                                            className={`fa-solid fa-chevron-right ${page >= filesState.totalPages ? 'inert' : ''}`}
+                                            onClick={() => page < filesState.totalPages && setPage(page + 1)}
+                                        />
+                                    </div>
+                                )}
+                                <ViewModeToggle mode={viewMode} onChange={setViewMode}/>
+                            </div>
                         </div>
 
                         {filesState.kind === 'loading' && <EmptyState icon="fa-spinner fa-spin" title="Loading..."/>}
@@ -1013,9 +1057,15 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                         {status.SignedIn ? (
                             <>
                                 <div className="browse-account-identity">
-                                    <Avatar name={status.Username} size={34}/>
+                                    <Avatar name={profile?.Username || status.Username} url={profile?.AvatarURL} size={34}/>
                                     <div className="browse-account-identity-text">
-                                        <div className="browse-account-username">{status.Username}</div>
+                                        <div
+                                            className={profile?.ProfileURL ? 'browse-account-username clickable' : 'browse-account-username'}
+                                            title={profile?.ProfileURL ? 'Open your profile' : undefined}
+                                            onClick={() => profile?.ProfileURL && BrowserOpenURL(profile.ProfileURL)}
+                                        >
+                                            {profile?.Username || status.Username}
+                                        </div>
                                     </div>
                                     <span
                                         className="browse-notifications-bell"
@@ -1027,11 +1077,6 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                                         <i className="fa-solid fa-bell"/>
                                         {unreadNotifications > 0 && <span className="browse-notifications-badge">{unreadNotifications}</span>}
                                     </span>
-                                </div>
-                                <div className="browse-account-hint">
-                                    {unreadNotifications > 0
-                                        ? `${unreadNotifications} unread notification${unreadNotifications === 1 ? '' : 's'}. Opens in your browser.`
-                                        : 'No unread notifications. Opens in your browser.'}
                                 </div>
                                 <div className="browse-account-actions">
                                     <button type="button" className="btn-ghost" onClick={() => setShowSignInFields((v) => !v)}>
@@ -1085,8 +1130,12 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                             </>
                         )}
 
+                        {/* The real Protection sentence (status.Protection) is accurate but long -
+                            this card is compact, so a short, fixed label stands in for it here;
+                            the full explanation still shows in Settings' own Steam API panel,
+                            which has the room for it. */}
                         <div className="browse-account-note">
-                            <i className="fa-solid fa-lock"/> {status.Protection}
+                            <i className="fa-solid fa-lock"/> Securely Encrypted
                         </div>
                     </div>
                 )}
