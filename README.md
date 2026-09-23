@@ -325,10 +325,11 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   (a real backup sitting next to something that is not the shim anymore); removing restores that
   same backup and deletes the runtime notice file. Confirmed live, byte-for-byte, against a
   scratch copy of this machine's real Stellaris install - installed, detected healthy, removed,
-  restored file checksum-identical to the original. The pre-built shim binaries are placed next
-  to the main app's own build output by `build.sh` (`build/bin/companions/`), not `go:embed`-ed
-  (impossible across the module boundary anyway) - `internal/launchershim` finds them there at
-  runtime, relative to this app's own executable. A fixed local port carries the shim's live
+  restored file checksum-identical to the original. Installing or repairing always fetches the
+  newest published build of the shim from this project's own GitHub releases first, falling back
+  to the copy `build.sh` places next to the main app's own build output (`build/bin/companions/`,
+  not `go:embed`-ed - impossible across the module boundary anyway) only if that fetch fails for
+  any reason, and telling you plainly if both fail. A fixed local port carries the shim's live
   ping to a running app, shown as a toast ahead of `internal/gameproc`'s own polling. See
   [docs/game-launching.md](docs/game-launching.md).
 - **Play never depends on a playset being loaded** (`app.go`'s `LaunchGame`) - launching with no
@@ -1399,7 +1400,8 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   `data/backgrounds.jsonc` (default: the repository's `frontend/src/assets/game_media/background/<game id>/`,
   which nothing imports, so it is not bundled), replaceable by a `backgrounds.jsonc` in the settings folder; see
   [docs/backgrounds.md](docs/backgrounds.md) for how to publish. The About page and this README now name
-  GitHub as a second outside service (online mode only) alongside Steam. The image layers are drawn 3 px
+  GitHub as a second outside service alongside Steam (background images in online mode, and fetching the
+  newest Steam Direct shim build on install or repair). The image layers are drawn 3 px
   larger than the window on every side, so an image's outermost pixel rows are always cropped off-screen:
   with `cover`, art that matches the window's proportions puts its very last row on the window's bottom
   edge, and six of the published images (artwork-stellaris_17, 39, 58, 69, 71, 175) have a stray pale

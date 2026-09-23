@@ -2,6 +2,8 @@ package launchershim
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -74,7 +76,14 @@ func looksLikeOurShim(path string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return bytes.Contains(data, []byte(shimMarker)), nil
+	return looksLikeOurShimBytes(data), nil
+}
+
+// looksLikeOurShimBytes is looksLikeOurShim's own check, given bytes already in
+// memory rather than a path to read - used to sanity-check a fresh download
+// before ever touching a real file on disk.
+func looksLikeOurShimBytes(data []byte) bool {
+	return bytes.Contains(data, []byte(shimMarker))
 }
 
 // looksLikeARealBackup reports whether path is plausibly a real backed-up
@@ -145,8 +154,9 @@ func shimBinaryName(entryPointName string) string {
 	return "launcher-shim-linux-amd64"
 }
 
-// shimSourcePath resolves where the pre-built shim binary for entryPointName lives,
-// relative to this app's own executable.
+// shimSourcePath resolves where the pre-built shim binary for entryPointName lives
+// locally, relative to this app's own executable - the fallback acquireShimBytes
+// falls back to when fetching the latest release fails.
 func shimSourcePath(entryPointName string) (string, error) {
 	selfPath, err := os.Executable()
 	if err != nil {
@@ -155,26 +165,52 @@ func shimSourcePath(entryPointName string) (string, error) {
 	return filepath.Join(filepath.Dir(selfPath), "companions", shimBinaryName(entryPointName)), nil
 }
 
+// acquireShimBytes returns entryPointName's shim binary, preferring a fresh
+// download of this project's latest published GitHub release (see Fetcher) so an
+// install always starts on the newest build, and falling back to reading
+// localPath (see shimSourcePath) if that fails for any reason - offline, GitHub
+// rate-limited, or the release asset renamed. Only when both fail does the caller
+// ever hear about it.
+func acquireShimBytes(ctx context.Context, entryPointName, localPath string) ([]byte, error) {
+	data, fetchErr := DefaultFetcher.FetchLatest(ctx, entryPointName)
+	if fetchErr == nil && !looksLikeOurShimBytes(data) {
+		fetchErr = errors.New("the downloaded file does not look like a real shim build")
+	}
+	if fetchErr == nil {
+		return data, nil
+	}
+
+	local, localErr := os.ReadFile(localPath)
+	if localErr != nil {
+		return nil, fmt.Errorf("launchershim: fetching the latest shim online failed (%v), and no local copy was found at %s either: %w", fetchErr, localPath, localErr)
+	}
+	return local, nil
+}
+
 // Install installs the shim in place of installDir's own dowser/dowser.exe -
 // backing up the real one first if this is a fresh install, or repairing an
 // install Detect found in StateNeedsRepair. A no-op returning nil if it's already
 // StateInstalled. Refuses StateUnknown outright, rather than guessing.
-func Install(installDir string) error {
+func Install(ctx context.Context, installDir string) error {
 	name, _, _, found := entryPoint(installDir)
 	if !found {
 		return fmt.Errorf("launchershim: no dowser/dowser.exe found in %s", installDir)
 	}
-	src, err := shimSourcePath(name)
+	localPath, err := shimSourcePath(name)
 	if err != nil {
 		return err
 	}
-	return installFrom(installDir, src)
+	shimData, err := acquireShimBytes(ctx, name, localPath)
+	if err != nil {
+		return err
+	}
+	return installFrom(installDir, shimData)
 }
 
-// installFrom is Install's own real work, given an explicit shim source path -
-// pulled out so tests never depend on this app's own real installed location
-// (which shimSourcePath resolves via os.Executable, not present in a test binary).
-func installFrom(installDir, shimSourcePath string) error {
+// installFrom is Install's own real work, given the shim's bytes already
+// resolved - pulled out so tests never depend on this app's own real installed
+// location or the network (acquireShimBytes handles both, above).
+func installFrom(installDir string, shimData []byte) error {
 	name, path, backupPath, found := entryPoint(installDir)
 	if !found {
 		return fmt.Errorf("launchershim: no dowser/dowser.exe found in %s", installDir)
@@ -190,16 +226,11 @@ func installFrom(installDir, shimSourcePath string) error {
 	case StateUnknown:
 		return fmt.Errorf("launchershim: %s doesn't look safe to touch automatically - if you're sure, remove any %s file by hand first", path, filepath.Base(backupPath))
 	case StateNeedsRepair:
-		return repairInPlace(name, path, shimSourcePath)
-	}
-
-	shimData, err := os.ReadFile(shimSourcePath)
-	if err != nil {
-		return fmt.Errorf("launchershim: reading the shim binary to install: %w", err)
+		return repairInPlace(name, path, shimData)
 	}
 
 	// Back up the real file first (atomic rename, same filesystem) - only once we
-	// know the shim binary itself is actually readable.
+	// know installDir actually has something to back up.
 	if err := os.Rename(path, backupPath); err != nil {
 		return fmt.Errorf("launchershim: backing up %s: %w", path, err)
 	}
@@ -226,12 +257,7 @@ func installFrom(installDir, shimSourcePath string) error {
 // repairInPlace re-installs the shim over a StateNeedsRepair install (something
 // that isn't our shim sitting where our shim should be, with a real backup already
 // safely beside it) - the backup itself is never touched.
-func repairInPlace(name, path, shimSourcePath string) error {
-	shimData, err := os.ReadFile(shimSourcePath)
-	if err != nil {
-		return fmt.Errorf("launchershim: reading the shim binary to repair with: %w", err)
-	}
-
+func repairInPlace(name, path string, shimData []byte) error {
 	// Keep a copy of whatever is currently there in memory (not on disk - the
 	// backup file already covers "restore the real thing") only long enough to
 	// put it back if writing the shim fails partway through.

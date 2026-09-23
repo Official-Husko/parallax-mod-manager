@@ -147,7 +147,10 @@ for security, privacy, reliability or performance is called out (see the last tw
   launch the game directly without ever opening the Paradox Launcher. Install, repair (if
   Steam's own "Verify integrity of game files" resets it), and remove it from Settings > Launch
   options, per game - starting with Stellaris and Hearts of Iron IV, the two confirmed against a
-  real install. A live toast shows the moment Steam actually starts it.
+  real install. A live toast shows the moment Steam actually starts it. Installing or repairing
+  always fetches the newest published build of the shim from GitHub first, falling back to the
+  copy already bundled with the app if that fails for any reason, and telling you plainly if
+  both fail rather than silently doing nothing.
 - **Play without a playset** - launching with nothing loaded touches no state and just starts the game.
 - **Stop playing** - a two-step stop button that works however the game was started.
 - **Live game log** - a filterable, colored window on the game's own `error.log` and other logs while
@@ -286,8 +289,10 @@ for security, privacy, reliability or performance is called out (see the last tw
 
 ## Security and privacy
 
-- **No account, no telemetry** - the only outside services are Steam (Workshop and Store data) and, for
-  online backgrounds only, GitHub. The About page itself makes no network requests.
+- **No account, no telemetry** - the only outside services are Steam (Workshop and Store data) and
+  GitHub, for online backgrounds and for fetching the latest Steam Direct shim build before an
+  install or repair (falling back to the copy already bundled with the app if that fails). The
+  About page itself makes no network requests.
 - **Mod edits stay inside the mod's own folders** - the Editor only ever writes inside a mod's own folder and
   the game's mod folder; earlier versions it keeps for Undo live in the settings folder, and what you typed
   into a field is never written to the activity log. Duplicating a mod (including a Steam Workshop one) only

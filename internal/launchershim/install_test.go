@@ -43,10 +43,7 @@ func TestInstallFromFreshInstall(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "dowser"), fakeDowserContent)
 
-	shimSrc := filepath.Join(t.TempDir(), "shim-source")
-	writeFile(t, shimSrc, fakeShimContent)
-
-	if err := installFrom(dir, shimSrc); err != nil {
+	if err := installFrom(dir, []byte(fakeShimContent)); err != nil {
 		t.Fatalf("installFrom: %v", err)
 	}
 
@@ -84,10 +81,7 @@ func TestInstallFromIsANoOpWhenAlreadyInstalled(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "dowser"), fakeShimContent)
 	writeFile(t, filepath.Join(dir, "dowser.original"), fakeDowserContent)
 
-	shimSrc := filepath.Join(t.TempDir(), "shim-source")
-	writeFile(t, shimSrc, fakeShimContent)
-
-	if err := installFrom(dir, shimSrc); err != nil {
+	if err := installFrom(dir, []byte(fakeShimContent)); err != nil {
 		t.Fatalf("installFrom: %v", err)
 	}
 	// Nothing should have changed - still the same backup, still the same shim.
@@ -112,9 +106,7 @@ func TestInstallFromRepairsAStaleInstall(t *testing.T) {
 		t.Fatalf("state = %q, want %q", state, StateNeedsRepair)
 	}
 
-	shimSrc := filepath.Join(t.TempDir(), "shim-source")
-	writeFile(t, shimSrc, fakeShimContent)
-	if err := installFrom(dir, shimSrc); err != nil {
+	if err := installFrom(dir, []byte(fakeShimContent)); err != nil {
 		t.Fatalf("installFrom (repair): %v", err)
 	}
 
@@ -139,9 +131,6 @@ func TestInstallFromRefusesAnUnrecognizedExistingBackup(t *testing.T) {
 	// wrong here that installFrom must never paper over automatically.
 	writeFile(t, filepath.Join(dir, "dowser.original"), fakeShimContent)
 
-	shimSrc := filepath.Join(t.TempDir(), "shim-source")
-	writeFile(t, shimSrc, fakeShimContent)
-
 	state, err := Detect(dir)
 	if err != nil {
 		t.Fatalf("Detect: %v", err)
@@ -149,7 +138,7 @@ func TestInstallFromRefusesAnUnrecognizedExistingBackup(t *testing.T) {
 	if state != StateUnknown {
 		t.Fatalf("state = %q, want %q", state, StateUnknown)
 	}
-	if err := installFrom(dir, shimSrc); err == nil {
+	if err := installFrom(dir, []byte(fakeShimContent)); err == nil {
 		t.Fatal("expected installFrom to refuse an unrecognized existing backup")
 	}
 	// Nothing should have been touched.

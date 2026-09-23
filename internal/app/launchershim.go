@@ -74,7 +74,7 @@ func (a *App) InstallLauncherShim(gameID string) error {
 	if !ok {
 		return fmt.Errorf("%s's install directory couldn't be found - set its path under Paths & folders", cfg.DisplayName)
 	}
-	if err := launchershim.Install(installDir); err != nil {
+	if err := launchershim.Install(a.ctx, installDir); err != nil {
 		applog.For("LauncherShim").Warnf("installing the shim for '%s' failed: %v", cfg.DisplayName, err)
 		return err
 	}

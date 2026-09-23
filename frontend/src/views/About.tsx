@@ -125,10 +125,11 @@ export function AboutPanel() {
                         </div>
                         <p className="about-note">
                             Icons by Font Awesome Pro. Workshop details come from Steam's web API (the free one, or
-                            with your own key if you add one under Settings &gt; Steam API) and, in online mode,
-                            background images from this project's GitHub repository - the only outside services the
-                            app talks to. Set backgrounds to Offline and only Steam is used. A saved key is encrypted
-                            on this computer and only ever sent to Steam.
+                            with your own key if you add one under Settings &gt; Steam API). GitHub is the only other
+                            outside service the app talks to: for background images in online mode (set it to
+                            Offline to stop that), and for fetching the newest Steam Direct shim build when you
+                            install or repair it, before falling back to the copy already bundled with the app. A
+                            saved key is encrypted on this computer and only ever sent to Steam.
                         </p>
                     </div>
                 </section>

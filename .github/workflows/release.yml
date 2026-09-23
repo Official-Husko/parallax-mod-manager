@@ -8,6 +8,12 @@ name: release
 # already builds them regardless of which OS ran it - internal/launchershim needs
 # both no matter which OS Parallax itself runs on, since the game it is shimming
 # might be a Windows install (native or via Proton) or a native Linux one.
+#
+# release-linux also uploads those same two companion binaries again, on their
+# own, unarchived - internal/launchershim.Fetcher reads them straight off the
+# latest release's own asset list at install time (falling back to the copy
+# shipped inside its own platform's archive only if that fetch fails), so their
+# names here must keep matching shimBinaryName's own output exactly.
 
 on:
   push:
@@ -98,6 +104,9 @@ jobs:
           mkdir -p dist
           tar -C build/bin -czf "dist/parallax-mod-manager-${RELEASE_TAG}-linux-amd64.tar.gz" parallax-mod-manager companions
 
+      # The two raw binaries, unarchived - see this workflow's own top-of-file
+      # comment for why: internal/launchershim.Fetcher downloads exactly these,
+      # by these exact names, off the latest release at install time.
       - name: Upload to the release
         uses: softprops/action-gh-release@v2
         env:
@@ -107,7 +116,9 @@ jobs:
           name: Parallax Mod Manager ${{ env.RELEASE_TAG }}
           generate_release_notes: true
           fail_on_unmatched_files: true
-          files: dist/*
+          files: |
+            dist/*
+            build/bin/companions/*
 
   release-windows:
     needs: test
