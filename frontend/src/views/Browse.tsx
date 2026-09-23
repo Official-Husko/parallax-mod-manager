@@ -25,6 +25,7 @@ import {EmptyState} from '../components/EmptyState';
 import {openContextMenu} from '../data/contextMenu';
 import {mockCommentExtrasFor, mockExtrasFor} from '../data/browseMockData';
 import {checkLoversLabNotifications, loversLabNotificationsURL, useLoversLabUnreadCount} from '../data/loversLabNotifications';
+import {colorFromName} from '../data/nameColor';
 import {checkLoversLabUpdates} from '../data/modUpdates';
 import {notify} from '../data/notifications';
 
@@ -123,6 +124,20 @@ type InstallState =
 
 function errorText(err: unknown): string {
     return String(err).replace(/^Error:\s*/, '');
+}
+
+// pageButtons is up to max consecutive page numbers centered on current,
+// clamped to [1, total] - LoversLabFiles already takes any page directly, this
+// just exposes jumping straight to one instead of only stepping one at a time.
+function pageButtons(current: number, total: number, max = 7): number[] {
+    if (total <= max) return Array.from({length: total}, (_, i) => i + 1);
+    let start = Math.max(1, current - Math.floor(max / 2));
+    let end = start + max - 1;
+    if (end > total) {
+        end = total;
+        start = end - max + 1;
+    }
+    return Array.from({length: end - start + 1}, (_, i) => start + i);
 }
 
 // formatUpdated turns FileDetail.DateModified's real ISO 8601 timestamp into the
@@ -345,6 +360,11 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
     const [password, setPassword] = useState('');
     const [busy, setBusy] = useState<'save' | 'clear' | null>(null);
     const [error, setError] = useState('');
+    // The sign-in fields are always shown while signed out (there's nothing else
+    // to show instead), but hidden by default once signed in - matching the
+    // mockup's own cleaner signed-in card - revealed on demand by "Change
+    // sign-in" for the real, existing "replace the saved credentials" flow.
+    const [showSignInFields, setShowSignInFields] = useState(false);
 
     const [categoryState, setCategoryState] = useState<CategoryState>({kind: 'idle'});
     const [selectedCategory, setSelectedCategory] = useState<loverslab.Category | null>(null);
@@ -473,6 +493,7 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
             setStatus(s);
             setUsername('');
             setPassword('');
+            setShowSignInFields(false);
             notify('success', 'LoversLab sign-in saved (encrypted on this computer).');
             // A fresh sign-in is exactly when a LoversLab update check first becomes
             // possible - don't make signing in and then waiting up to
@@ -740,34 +761,14 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                     <span className="browse-source-name">LoversLab</span>
                     <span className={`browse-source-dot ${status?.SignedIn ? 'good' : 'neutral'}`}/>
                 </div>
-                <div className="browse-source-row disabled">
-                    <i className="fa-solid fa-plus browse-source-icon"/>
-                    <span>More later</span>
-                </div>
+                {/* Only one real source exists today - a plain, honestly-disabled row
+                    said so before; this is the same fact shown the way the mockup
+                    shows "add another one" everywhere else in the app (a dashed
+                    outline, not a second, differently-styled kind of row). */}
+                <div className="browse-source-add" title="No other sources yet">+ Add source</div>
 
                 {status?.SignedIn && (
                     <>
-                        <div className="sidebar-label games-label">GAMES</div>
-                        <div className="browse-games">
-                            {categoryState.kind === 'loading' && <div className="browse-games-note">Loading...</div>}
-                            {categoryState.kind === 'error' && <div className="browse-games-note error">{categoryState.message}</div>}
-                            {categoryState.kind === 'ready' && categoryState.categories.map((cat) => (
-                                <div
-                                    key={cat.URL}
-                                    className={`browse-category-row depth-${cat.Depth} ${selectedCategory?.URL === cat.URL ? 'active' : ''}`}
-                                    onClick={() => selectCategory(cat)}
-                                >
-                                    <span className="cat-name" title={cat.Name}>{cat.Name}</span>
-                                    <span className="mono cat-count">{cat.Files}</span>
-                                </div>
-                            ))}
-                            {categoryState.kind === 'ready' && categoryState.categories.length === 0 && (
-                                <div className="browse-games-note">
-                                    LoversLab's Paradox Games section could not be found.
-                                </div>
-                            )}
-                        </div>
-
                         <div className="sidebar-label">INSTALLED</div>
                         <div className="browse-games">
                             <div
@@ -777,6 +778,26 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                                 <span className="cat-name">Installed mods</span>
                                 <span className="mono cat-count">{installedIds.size}</span>
                             </div>
+                        </div>
+
+                        <div className="sidebar-label games-label">GAMES</div>
+                        <div className="browse-games">
+                            {categoryState.kind === 'loading' && <EmptyState icon="fa-spinner fa-spin" title="Loading..."/>}
+                            {categoryState.kind === 'error' && <EmptyState icon="fa-triangle-exclamation" tone="error" title="Couldn't load games" subtitle={categoryState.message}/>}
+                            {categoryState.kind === 'ready' && categoryState.categories.map((cat) => (
+                                <div
+                                    key={cat.URL}
+                                    className={`browse-category-row depth-${cat.Depth} ${selectedCategory?.URL === cat.URL ? 'active' : ''}`}
+                                    onClick={() => selectCategory(cat)}
+                                >
+                                    <span className="browse-category-swatch" style={{background: colorFromName(cat.Name)}}/>
+                                    <span className="cat-name" title={cat.Name}>{cat.Name}</span>
+                                    <span className="mono cat-count">{cat.Files}</span>
+                                </div>
+                            ))}
+                            {categoryState.kind === 'ready' && categoryState.categories.length === 0 && (
+                                <EmptyState icon="fa-gamepad" title="No games found" subtitle="LoversLab's Paradox Games section could not be found."/>
+                            )}
                         </div>
                     </>
                 )}
@@ -829,7 +850,15 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                                         className={`fa-solid fa-chevron-left ${page <= 1 ? 'inert' : ''}`}
                                         onClick={() => page > 1 && setPage(page - 1)}
                                     />
-                                    <span className="mono">Page {page} of {filesState.totalPages}</span>
+                                    {pageButtons(page, filesState.totalPages).map((n) => (
+                                        <span
+                                            key={n}
+                                            className={`browse-pager-page mono ${n === page ? 'active' : ''}`}
+                                            onClick={() => setPage(n)}
+                                        >
+                                            {n}
+                                        </span>
+                                    ))}
                                     <i
                                         className={`fa-solid fa-chevron-right ${page >= filesState.totalPages ? 'inert' : ''}`}
                                         onClick={() => page < filesState.totalPages && setPage(page + 1)}
@@ -854,96 +883,108 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
             </div>
 
             <div className="browse-account">
-                <div className="browse-account-head">
-                    <div className="sidebar-label">LOVERSLAB SIGN-IN</div>
-                    {status?.SignedIn && (
-                        <span
-                            className="browse-notifications-bell"
-                            title={unreadNotifications > 0
-                                ? `${unreadNotifications} unread on LoversLab - open notifications`
-                                : 'No unread LoversLab notifications - open notifications'}
-                            onClick={() => BrowserOpenURL(loversLabNotificationsURL())}
-                        >
-                            <i className="fa-solid fa-bell"/>
-                            {unreadNotifications > 0 && <span className="browse-notifications-badge">{unreadNotifications}</span>}
-                        </span>
-                    )}
-                </div>
+                <div className="sidebar-label">SITE LOGINS</div>
                 {!status ? (
-                    <p className="status-page">Loading...</p>
+                    <EmptyState icon="fa-spinner fa-spin" title="Loading..."/>
                 ) : (
-                    <>
+                    <div className="browse-account-card">
+                        <div className="browse-account-brand">
+                            <span className="browse-source-swatch loverslab">LL</span>
+                            <span className="browse-account-brand-name">LoversLab</span>
+                            <span className={`browse-account-state ${status.SignedIn ? 'good' : 'neutral'} mono`}>
+                                {status.SignedIn ? 'SIGNED IN' : 'SIGNED OUT'}
+                            </span>
+                        </div>
+
                         {status.SignedIn ? (
-                            <div className="browse-account-identity">
-                                <Avatar name={status.Username} size={34}/>
-                                <div className="browse-account-identity-text">
-                                    <div className="browse-account-username">{status.Username}</div>
-                                    <div className="browse-account-protection mono">{status.Protection}</div>
+                            <>
+                                <div className="browse-account-identity">
+                                    <Avatar name={status.Username} size={34}/>
+                                    <div className="browse-account-identity-text">
+                                        <div className="browse-account-username">{status.Username}</div>
+                                        <div className="browse-account-protection mono">{status.Protection}</div>
+                                    </div>
+                                    <span
+                                        className="browse-notifications-bell"
+                                        title={unreadNotifications > 0
+                                            ? `${unreadNotifications} unread on LoversLab - open notifications`
+                                            : 'No unread LoversLab notifications - open notifications'}
+                                        onClick={() => BrowserOpenURL(loversLabNotificationsURL())}
+                                    >
+                                        <i className="fa-solid fa-bell"/>
+                                        {unreadNotifications > 0 && <span className="browse-notifications-badge">{unreadNotifications}</span>}
+                                    </span>
                                 </div>
-                            </div>
+                                <div className="browse-account-hint">
+                                    {unreadNotifications > 0
+                                        ? `${unreadNotifications} unread notification${unreadNotifications === 1 ? '' : 's'}. Opens in your browser.`
+                                        : 'No unread notifications. Opens in your browser.'}
+                                </div>
+                                <div className="browse-account-actions">
+                                    <button type="button" className="btn-ghost" onClick={() => setShowSignInFields((v) => !v)}>
+                                        {showSignInFields ? 'Cancel' : 'Change sign-in'}
+                                    </button>
+                                    <button type="button" className="btn-ghost" disabled={busy !== null} onClick={clearSignIn}>
+                                        {busy === 'clear' ? 'Signing out...' : 'Sign out'}
+                                    </button>
+                                </div>
+                            </>
                         ) : (
-                            <div className={`browse-account-status ${status.Unreadable ? 'warn' : 'neutral'}`}>
-                                <i className={`fa-solid ${status.Unreadable ? 'fa-triangle-exclamation' : 'fa-user'}`}/>
-                                <span>
-                                    {status.Unreadable
-                                        ? 'A sign-in is saved but cannot be read on this computer - sign in again.'
-                                        : 'Browsing works signed out. Downloads and comments need an account.'}
-                                </span>
+                            <div className={`browse-account-hint ${status.Unreadable ? 'warn' : ''}`}>
+                                {status.Unreadable
+                                    ? 'A sign-in is saved but cannot be read on this computer - sign in again.'
+                                    : 'Browsing works signed out. Downloads and comments need an account.'}
                             </div>
                         )}
 
-                        {status.SignedIn && missingFilesCount > 0 && (
-                            <div className="browse-account-alert">
-                                <div className="browse-account-alert-title mono">FILES MISSING &middot; {missingFilesCount}</div>
-                                <div className="browse-account-alert-body">
-                                    {missingFilesCount === 1 ? 'One installed mod' : `${missingFilesCount} installed mods`} can't be found on
-                                    disk any more. Open Installed in the sidebar to reinstall or forget {missingFilesCount === 1 ? 'it' : 'them'}.
-                                </div>
-                            </div>
-                        )}
+                        {(!status.SignedIn || showSignInFields) && (
+                            <>
+                                <label className="browse-account-field">
+                                    <span className="browse-account-label">Email or username</span>
+                                    <input
+                                        className="browse-account-input"
+                                        value={username}
+                                        disabled={busy !== null}
+                                        placeholder={status.SignedIn ? status.Username : 'you@example.com'}
+                                        onInput={(e) => setUsername((e.target as HTMLInputElement).value)}
+                                    />
+                                </label>
+                                <label className="browse-account-field">
+                                    <span className="browse-account-label">Password</span>
+                                    <input
+                                        type="password"
+                                        autocomplete="off"
+                                        spellcheck={false}
+                                        className="browse-account-input"
+                                        value={password}
+                                        disabled={busy !== null}
+                                        placeholder={status.SignedIn ? 'Enter a new password to replace it' : '••••••••••'}
+                                        onInput={(e) => setPassword((e.target as HTMLInputElement).value)}
+                                        onKeyDown={(e) => e.key === 'Enter' && canSave && save()}
+                                    />
+                                </label>
 
-                        <label className="browse-account-field">
-                            <span className="browse-account-label">Username or email</span>
-                            <input
-                                className="browse-account-input"
-                                value={username}
-                                disabled={busy !== null}
-                                placeholder={status.SignedIn ? status.Username : 'Your LoversLab username or email'}
-                                onInput={(e) => setUsername((e.target as HTMLInputElement).value)}
-                            />
-                        </label>
-                        <label className="browse-account-field">
-                            <span className="browse-account-label">Password</span>
-                            <input
-                                type="password"
-                                autocomplete="off"
-                                spellcheck={false}
-                                className="browse-account-input"
-                                value={password}
-                                disabled={busy !== null}
-                                placeholder={status.SignedIn ? 'Enter a new password to replace it' : 'Your LoversLab password'}
-                                onInput={(e) => setPassword((e.target as HTMLInputElement).value)}
-                                onKeyDown={(e) => e.key === 'Enter' && canSave && save()}
-                            />
-                        </label>
+                                {error && <div className="browse-account-error"><i className="fa-solid fa-circle-exclamation"/> {error}</div>}
 
-                        {error && <div className="browse-account-error"><i className="fa-solid fa-circle-exclamation"/> {error}</div>}
-
-                        <div className="browse-account-actions">
-                            <button type="button" className="btn-primary" disabled={!canSave} onClick={save}>
-                                {busy === 'save' ? 'Saving...' : status.SignedIn ? 'Update sign-in' : 'Sign in'}
-                            </button>
-                            {status.SignedIn && (
-                                <button type="button" className="btn-ghost" disabled={busy !== null} onClick={clearSignIn}>
-                                    {busy === 'clear' ? 'Removing...' : 'Sign out'}
+                                <button type="button" className="btn-primary browse-account-submit" disabled={!canSave} onClick={save}>
+                                    {busy === 'save' ? 'Saving...' : status.SignedIn ? 'Update sign-in' : 'Log in'}
                                 </button>
-                            )}
-                        </div>
+                                <div className="browse-account-note">
+                                    <i className="fa-solid fa-lock"/> {status.Protection}
+                                </div>
+                            </>
+                        )}
+                    </div>
+                )}
 
-                        <div className="browse-account-note">
-                            <i className="fa-solid fa-lock"/> {status.Protection}
+                {status?.SignedIn && missingFilesCount > 0 && (
+                    <div className="browse-account-alert">
+                        <div className="browse-account-alert-title mono">FILES MISSING &middot; {missingFilesCount}</div>
+                        <div className="browse-account-alert-body">
+                            {missingFilesCount === 1 ? 'One installed mod' : `${missingFilesCount} installed mods`} can't be found on
+                            disk any more. Open Installed in the sidebar to reinstall or forget {missingFilesCount === 1 ? 'it' : 'them'}.
                         </div>
-                    </>
+                    </div>
                 )}
             </div>
 

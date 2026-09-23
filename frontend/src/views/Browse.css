@@ -33,17 +33,6 @@
     background: var(--bg-highlight);
 }
 
-.browse-source-row.disabled {
-    color: var(--text-dim);
-    cursor: default;
-}
-
-.browse-source-icon {
-    width: 16px;
-    text-align: center;
-    flex: none;
-}
-
 /* A small letter-code swatch, matching how the mockup this follows badges each
    source - a plain "LL" square rather than the site's real logo (this app names no
    other mod site outside README.md's competitor table, and doesn't reproduce
@@ -81,6 +70,20 @@
     background: var(--green);
 }
 
+/* "There's only one source today" - shown as a dashed-outline affordance, the
+   same honest-not-yet-available style the mockup uses, rather than a plain
+   disabled row that looked like just another (broken) source. */
+.browse-source-add {
+    text-align: center;
+    font: 500 11px Barlow, sans-serif;
+    color: var(--text-muted);
+    border: 1px dashed var(--border-light);
+    border-radius: 4px;
+    padding: 5px 0;
+    margin: 6px 14px 0;
+    cursor: default;
+}
+
 .games-label {
     margin-top: 10px;
 }
@@ -89,16 +92,6 @@
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-}
-
-.browse-games-note {
-    padding: 6px 14px;
-    font: 400 11.5px/1.5 Barlow, sans-serif;
-    color: var(--text-dim);
-}
-
-.browse-games-note.error {
-    color: var(--red);
 }
 
 .browse-category-row {
@@ -126,6 +119,16 @@
 .browse-category-row.depth-1 {
     padding-left: 26px;
     font-weight: 400;
+}
+
+/* Each game/franchise section gets its own distinct color (by name, see
+   colorFromName) - the same small square swatch the mockup gives every GAMES
+   row, so a long list of otherwise-identical rows isn't one flat wall of text. */
+.browse-category-swatch {
+    width: 9px;
+    height: 9px;
+    flex: none;
+    border-radius: 2px;
 }
 
 .browse-category-row .cat-name {
@@ -186,7 +189,7 @@
 .browse-pager {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 3px;
     font-size: 11.5px;
     color: var(--text-muted);
 }
@@ -194,11 +197,32 @@
 .browse-pager i {
     cursor: pointer;
     color: var(--text-mid);
+    padding: 4px 6px;
 }
 
 .browse-pager i.inert {
     color: var(--text-dim);
     cursor: not-allowed;
+}
+
+.browse-pager-page {
+    min-width: 24px;
+    text-align: center;
+    padding: 4px 0;
+    border-radius: 4px;
+    border: 1px solid transparent;
+    color: var(--text-mid);
+    cursor: pointer;
+}
+
+.browse-pager-page:hover {
+    border-color: var(--border-light);
+}
+
+.browse-pager-page.active {
+    color: var(--rust-text);
+    background: var(--rust);
+    border-color: var(--rust);
 }
 
 /* BrowseItemsView's own switch (see ViewModeToggle in Browse.tsx) - one small icon
@@ -504,10 +528,47 @@
     overflow-y: auto;
 }
 
-.browse-account-head {
+/* The single bordered card everything below lives in - matches the mockup's own
+   "SITE LOGINS" card instead of the same fields sitting loose in the sidebar. */
+.browse-account-card {
+    border: 1px solid var(--border-light);
+    border-radius: 6px;
+    background: var(--bg-inset);
+    padding: 13px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.browse-account-brand {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: 9px;
+}
+
+.browse-account-brand-name {
+    flex: 1;
+    font: 600 13px Barlow, sans-serif;
+    color: var(--text-bright);
+}
+
+.browse-account-state {
+    font-size: 9.5px;
+    letter-spacing: .05em;
+    color: var(--text-dim);
+}
+
+.browse-account-state.good {
+    color: var(--green);
+}
+
+.browse-account-hint {
+    font: 400 11.5px/1.45 Barlow, sans-serif;
+    color: var(--text-dim);
+}
+
+.browse-account-hint.warn {
+    color: var(--amber);
 }
 
 /* The real LoversLab notifications bell - clicking it opens the real page in the
@@ -589,31 +650,6 @@
     color: #e8c7b2;
 }
 
-.browse-account-status {
-    display: flex;
-    align-items: flex-start;
-    gap: 9px;
-    border: 1px solid var(--border);
-    border-radius: 5px;
-    padding: 9px 11px;
-    font: 500 11.5px/1.5 Barlow, sans-serif;
-    color: var(--text-mid);
-    background: rgba(255, 255, 255, .02);
-}
-
-.browse-account-status i {
-    margin-top: 2px;
-    flex: none;
-}
-
-.browse-account-status.warn i {
-    color: var(--amber);
-}
-
-.browse-account-status.neutral i {
-    color: var(--text-dim);
-}
-
 .browse-account-field {
     display: flex;
     flex-direction: column;
@@ -653,6 +689,14 @@
 .browse-account-actions .btn-ghost:disabled {
     opacity: .5;
     cursor: not-allowed;
+}
+
+.browse-account-actions button {
+    flex: 1;
+}
+
+.browse-account-submit {
+    width: 100%;
 }
 
 .browse-account-note {
