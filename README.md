@@ -1000,9 +1000,12 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   topic instead, so `internal/loverslab` reads that topic's replies (author, when, a deep link to
   the specific reply, its own text with any attachment links excluded - see below - and any files
   a member attached directly to their reply, shown as their own chip). A reply's rich-text body is
-  rendered the same way a changelog entry's is, except an attachment's own link is dropped from the
-  rendered text entirely rather than trailing the sentence as a raw upload URL, since the attachment
-  already gets its own chip right below - showing the same URL twice would just be noise.
+  rendered the same way a changelog entry's is, except a *non-image* attachment's own link is
+  dropped from the rendered text entirely rather than trailing the sentence as a raw upload URL,
+  since that attachment already gets its own chip right below - showing the same URL twice would
+  just be noise. A real attached *image* renders inline instead (see below) - there's no sensible
+  way to inline a zip file, but a picture is exactly what belongs in the flow of the text around
+  it, not just named in a chip.
 - **Real formatting for a description, changelog entry, or comment - not a flat text blob**
   (`internal/loverslab/detail.go`'s `DescriptionBlock`/`DescriptionRun`, shared by `FileDetail`,
   `ChangelogEntry`, and `Post`): real paragraphs, bold/italic/underline, links, embedded images,
@@ -1020,6 +1023,33 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   "(edited)" note when the site shows one, and a real "Author" badge confirmed to appear on every
   later reply the topic's own starter posts in it (not just their opening one, which never
   carries the badge itself - already covered separately by `LoversLabCommentList.TopicAuthor`).
+- **Inline media that's actually sized like media, not a description-image block** - a real
+  inline emoticon (`<img data-emoticon>`, confirmed live) used to render at full embedded-image
+  width, the same treatment as an actual screenshot; `DescriptionRun` gained its own `EmoteURL`
+  so it stays a small, inline icon next to the words around it instead. A link to another
+  LoversLab topic or comment (the site's own rich embed, an `<iframe data-controller=
+  "core.front.core.autosizeiframe">` that needs the site's own session/JS to render anything at
+  all) becomes a real `DescriptionBlock.EmbedURL` - a plain, honest, clickable reference opened
+  in the system browser, rather than a dead iframe this app's webview has no reason to load or a
+  silently dropped one. Every embedded/attached image is also capped to a sane on-screen size
+  (`max-height`, `object-fit: contain`) rather than shown at whatever resolution it happened to
+  be uploaded at.
+- **Comments load as an infinite scroll**, not page-number pagination (`Browse.tsx`'s
+  `loadMoreComments`) - scrolling near the end of the loaded replies fetches and appends the next
+  page automatically, with a "Load more comments" fallback link for anyone who'd rather click.
+  Posting a reply always resets back to a fresh page 1 afterward, regardless of how many pages
+  had already been scrolled through.
+- **LoversLab's own pages are cached for a few minutes** (`internal/loverslab/client.go`'s
+  `getDocument`) - the category tree, a listing page, a file's own detail page, its changelog,
+  and a topic's comments all reuse a recent enough fetch of the exact same URL instead of making
+  a fresh request every single time, which was a real, confirmed source of Browse feeling
+  sluggish (every one of those was an uncached network round-trip before this existed). Posting a
+  comment invalidates that topic's own cached pages first (`invalidateCachePrefix`), so reading
+  it back immediately afterward reliably shows the new reply rather than a stale, pre-post copy;
+  a different session (signing in again, or as a different account) clears the cache entirely,
+  since it can see genuinely different, account-specific content. Deliberately does not cover
+  `ListDownloads` - its own per-click download links are single-use/session-bound, so caching
+  that page would risk handing back an already-spent or expired one.
 - **Posting a reply from Browse's detail view** (`internal/loverslab/comments.go`,
   `LoversLabPostComment`) - the write side of the comments above: a plain-text box that gets
   escaped and wrapped into the simple `<p>`/`<br>` HTML the site's own rich text editor actually

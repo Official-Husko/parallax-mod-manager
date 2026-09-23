@@ -373,6 +373,104 @@ func TestParseDescriptionBlocksExtractsARealForumQuote(t *testing.T) {
 	}
 }
 
+// A real inline emoticon (confirmed live: a real reply's own
+// "<img data-emoticon="" src=".../smiley.png" alt=":D" title=":D"/>") must
+// stay inline with the sentence around it, at icon size - not become its own
+// full description-image block, which is what made an emoji render
+// "massive" (full description-image width) before this.
+func TestParseDescriptionBlocksKeepsARealEmoticonInline(t *testing.T) {
+	doc := parseFixture(t, `<div><p>It is here! I can finally enjoy Stellaris again <img alt=":D" data-emoticon="" src="https://www.loverslab.com/resources/emoticons/smiley.png" title=":D"/></p></div>`)
+	body := findOne(doc, func(n *html.Node) bool { return isElement(n, "div") })
+	blocks := parseDescriptionBlocks(body)
+	if len(blocks) != 1 {
+		t.Fatalf("got %d blocks, want 1 (the emoticon stays inline, not its own block): %+v", len(blocks), blocks)
+	}
+	runs := blocks[0].Runs
+	var found bool
+	for _, r := range runs {
+		if r.EmoteURL == "https://www.loverslab.com/resources/emoticons/smiley.png" {
+			found = true
+			if r.EmoteAlt != ":D" {
+				t.Errorf("EmoteAlt = %q, want :D", r.EmoteAlt)
+			}
+		}
+	}
+	if !found {
+		t.Errorf("no run carried the real emoticon URL: %+v", runs)
+	}
+	if runsText(runs) != "It is here! I can finally enjoy Stellaris again " {
+		t.Errorf("surrounding text = %q, want the sentence kept intact around the emoticon", runsText(runs))
+	}
+}
+
+// A message that is *only* an emoticon (no other text at all) must survive
+// trimRuns - an empty-Text run is otherwise indistinguishable from a
+// whitespace-only spacer run, which trimRuns exists specifically to drop.
+func TestParseDescriptionBlocksKeepsAMessageThatIsOnlyAnEmoticon(t *testing.T) {
+	doc := parseFixture(t, `<div><p><img data-emoticon="" src="https://www.loverslab.com/resources/emoticons/smiley.png" alt=":D"/></p></div>`)
+	body := findOne(doc, func(n *html.Node) bool { return isElement(n, "div") })
+	blocks := parseDescriptionBlocks(body)
+	if len(blocks) != 1 || len(blocks[0].Runs) != 1 || blocks[0].Runs[0].EmoteURL == "" {
+		t.Fatalf("got %+v, want exactly one block with the emoticon run kept", blocks)
+	}
+}
+
+// A real attached image (confirmed live:
+// <a class="ipsAttachLink ipsAttachLink_image"><img ...></a>, inside a forum
+// post) must render inline like any other embedded image - it was
+// previously dropped entirely (the whole ipsAttachLink subtree skipped, on
+// the assumption the separate attachment chip already covered it, which
+// only ever showed the filename, never the actual picture).
+func TestParsePostContentBlocksShowsARealAttachedImageInline(t *testing.T) {
+	doc := parseFixture(t, `<div>
+<p>So about that first release...</p>
+<p><a class="ipsAttachLink ipsAttachLink_image" href="https://www.loverslab.com/uploads/monthly_2019_04/done.png"><img data-fileid="668532" src="https://www.loverslab.com/uploads/monthly_2019_04/done.png" width="490" class="ipsImage ipsImage_thumbnailed" alt="done.png"/></a></p>
+</div>`)
+	body := findOne(doc, func(n *html.Node) bool { return isElement(n, "div") })
+	blocks := parsePostContentBlocks(body)
+	if len(blocks) != 2 {
+		t.Fatalf("got %d blocks, want 2 (the text, then the real image): %+v", len(blocks), blocks)
+	}
+	if blocks[1].ImageURL != "https://www.loverslab.com/uploads/monthly_2019_04/done.png" {
+		t.Errorf("blocks[1] = %+v, want the attached image's own real URL", blocks[1])
+	}
+}
+
+// A non-image attachment (a .zip, a log file) still has no sensible inline
+// rendering - only its own separate attachment chip covers it, same as
+// before.
+func TestParsePostContentBlocksStillDropsANonImageAttachmentLink(t *testing.T) {
+	doc := parseFixture(t, `<div><p>Here's the beta build. <a class="ipsAttachLink" href="https://www.loverslab.com/uploads/x.zip">build.zip</a></p></div>`)
+	body := findOne(doc, func(n *html.Node) bool { return isElement(n, "div") })
+	blocks := parsePostContentBlocks(body)
+	if len(blocks) != 1 {
+		t.Fatalf("got %d blocks, want 1: %+v", len(blocks), blocks)
+	}
+	if runsText(blocks[0].Runs) != "Here's the beta build." {
+		t.Errorf("text = %q, want the attachment link's own label excluded", runsText(blocks[0].Runs))
+	}
+}
+
+// A real embedded reference to another LoversLab topic/comment (confirmed
+// live: <iframe data-controller="core.front.core.autosizeiframe"
+// data-embedid="...">, IPS's own rich preview when a member pastes a link to
+// another post) becomes a real, clickable EmbedURL block rather than being
+// silently dropped or rendered as a dead iframe this app's webview can't
+// usefully load.
+func TestParseDescriptionBlocksExtractsARealEmbeddedTopicReference(t *testing.T) {
+	doc := parseFixture(t, `<div><p>Is this compatible?</p>
+<iframe allowfullscreen="" data-controller="core.front.core.autosizeiframe" data-embedid="embed2280254930" src="https://www.loverslab.com/topic/91443-example/?do=embed&amp;comment=2558391"></iframe>
+</div>`)
+	body := findOne(doc, func(n *html.Node) bool { return isElement(n, "div") })
+	blocks := parseDescriptionBlocks(body)
+	if len(blocks) != 2 {
+		t.Fatalf("got %d blocks, want 2 (the text, then the embed): %+v", len(blocks), blocks)
+	}
+	if blocks[1].EmbedURL != "https://www.loverslab.com/topic/91443-example/?do=embed&comment=2558391" {
+		t.Errorf("blocks[1].EmbedURL = %q, want the real embedded iframe's own src", blocks[1].EmbedURL)
+	}
+}
+
 func TestParseDescriptionBlocksNeverTreatsARealLinksLabelAsMarkdownBold(t *testing.T) {
 	doc := parseFixture(t, `<div><p><a href="https://example.com/**weird**">a link</a></p></div>`)
 	body := findOne(doc, func(n *html.Node) bool { return isElement(n, "div") })

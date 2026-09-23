@@ -66,5 +66,10 @@ func (c *Client) PostComment(ctx context.Context, topicURL, content string) erro
 	if resp.StatusCode >= 400 {
 		return fmt.Errorf("posting comment: unexpected status %s", resp.Status)
 	}
+
+	// The topic's own pages (getDocument's cache is keyed by exact URL, and a
+	// reply can land on any of them) must not still serve a stale, pre-reply
+	// copy to the very next read - see invalidateCachePrefix.
+	c.invalidateCachePrefix(topicURL)
 	return nil
 }

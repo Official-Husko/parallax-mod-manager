@@ -19,6 +19,19 @@ func attrOr(n *html.Node, key string) string {
 	return ""
 }
 
+// hasAttr reports whether n carries key at all, regardless of its value -
+// attrOr alone can't distinguish a present-but-empty attribute (e.g. a real
+// emoticon's own boolean-style `data-emoticon=""`) from an absent one, since
+// both read back as "".
+func hasAttr(n *html.Node, key string) bool {
+	for _, a := range n.Attr {
+		if a.Key == key {
+			return true
+		}
+	}
+	return false
+}
+
 func hasClass(n *html.Node, class string) bool {
 	for _, c := range strings.Fields(attrOr(n, "class")) {
 		if c == class {

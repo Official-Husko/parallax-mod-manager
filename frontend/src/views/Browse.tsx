@@ -86,10 +86,14 @@ type DetailState =
     | { kind: 'error'; message: string }
     | { kind: 'ready'; detail: loverslab.FileDetail };
 
+// Comments load as an infinite scroll, not page-number pagination: 'ready'
+// always holds every post fetched so far (page 1 through page, appended in
+// order), and loadingMore is true while a further page is being fetched to
+// append - see loadMoreComments.
 type CommentsState =
     | { kind: 'loading' }
     | { kind: 'error'; message: string }
-    | { kind: 'ready'; posts: loverslab.Post[]; totalPages: number; hasTopic: boolean };
+    | { kind: 'ready'; posts: loverslab.Post[]; page: number; totalPages: number; hasTopic: boolean; loadingMore: boolean };
 
 // mergeTopicAuthor keeps whatever topic-author name is already known once a later
 // page's own fetch returns none of its own - LoversLabCommentList.TopicAuthor is
@@ -377,6 +381,14 @@ function DescriptionRunView({run}: {run: loverslab.DescriptionRun}) {
     if (run.Text === '\n') {
         return <br/>;
     }
+    // A real inline emoticon (see loverslab.DescriptionRun.EmoteURL) - kept at
+    // icon size and inline with the surrounding text, unlike a real embedded
+    // image (DescriptionBlock.ImageURL), which is photo-sized and its own
+    // block. Conflating the two used to render every emoji at full
+    // description-image size.
+    if (run.EmoteURL) {
+        return <img className="browse-emote" src={run.EmoteURL} alt={run.EmoteAlt} title={run.EmoteAlt} loading="lazy"/>;
+    }
     let node: JSX.Element | string = run.Text;
     if (run.LinkURL) {
         const url = run.LinkURL;
@@ -412,6 +424,14 @@ function DescriptionBlocksView({blocks}: {blocks: loverslab.DescriptionBlock[]})
                             <div className="browse-forum-quote-author">{block.QuotedAuthor} said:</div>
                             <DescriptionBlocksView blocks={block.QuotedBlocks ?? []}/>
                         </blockquote>
+                    );
+                }
+                if (block.EmbedURL) {
+                    const url = block.EmbedURL;
+                    return (
+                        <div key={i} className="browse-embed-reference" onClick={() => BrowserOpenURL(url)}>
+                            <i className="fa-solid fa-arrow-up-right-from-square"/> View embedded LoversLab post
+                        </div>
                     );
                 }
                 const content = block.Runs.map((run, j) => <DescriptionRunView key={j} run={run}/>);
@@ -528,7 +548,6 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
     // TopicAuthor), only ever refreshed by a page 1 fetch, kept across later pages of
     // the same topic rather than lost once the page moves on.
     const [topicAuthor, setTopicAuthor] = useState('');
-    const [commentsPage, setCommentsPage] = useState(1);
     const [commentDraft, setCommentDraft] = useState('');
     const [postingComment, setPostingComment] = useState(false);
     const [filesTabState, setFilesTabState] = useState<FilesTabState>({kind: 'idle'});
@@ -691,7 +710,6 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
         setDetailFor(file);
         setDetailTab('overview');
         setScreenshotIndex(0);
-        setCommentsPage(1);
         setInstallState({kind: 'idle'});
         setSelectedFileIndexes(new Set());
 
@@ -719,15 +737,53 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
         }
         let cancelled = false;
         setCommentsState({kind: 'loading'});
-        LoversLabComments(detailFor.URL, commentsPage)
+        LoversLabComments(detailFor.URL, 1)
             .then((result) => {
                 if (cancelled) return;
-                setCommentsState({kind: 'ready', posts: result.Posts ?? [], totalPages: result.TotalPages || 1, hasTopic: result.HasTopic});
+                setCommentsState({kind: 'ready', posts: result.Posts ?? [], page: 1, totalPages: result.TotalPages || 1, hasTopic: result.HasTopic, loadingMore: false});
                 setTopicAuthor((prev) => mergeTopicAuthor(prev, result.TopicAuthor));
             })
             .catch((err) => { if (!cancelled) setCommentsState({kind: 'error', message: errorText(err)}); });
         return () => { cancelled = true; };
-    }, [detailFor, commentsPage]);
+    }, [detailFor]);
+
+    // Infinite scroll's own "fetch the next page and append it" - triggered by
+    // scrolling near the bottom of the Comments tab (see the tab body's own
+    // onScroll below) or by the fallback "Load more" button, whichever the
+    // person actually uses. A no-op while already loading or once every page
+    // is already in hand, so a fast scroll can't fire this twice for the same
+    // next page.
+    async function loadMoreComments() {
+        if (!detailFor || commentsState?.kind !== 'ready') return;
+        if (commentsState.loadingMore || commentsState.page >= commentsState.totalPages) return;
+        const nextPage = commentsState.page + 1;
+        setCommentsState((prev) => prev?.kind === 'ready' ? {...prev, loadingMore: true} : prev);
+        try {
+            const result = await LoversLabComments(detailFor.URL, nextPage);
+            setCommentsState((prev) => prev?.kind === 'ready' ? {
+                ...prev,
+                posts: [...prev.posts, ...(result.Posts ?? [])],
+                page: nextPage,
+                totalPages: result.TotalPages || prev.totalPages,
+                loadingMore: false,
+            } : prev);
+            setTopicAuthor((prev) => mergeTopicAuthor(prev, result.TopicAuthor));
+        } catch (err) {
+            notify('error', errorText(err));
+            setCommentsState((prev) => prev?.kind === 'ready' ? {...prev, loadingMore: false} : prev);
+        }
+    }
+
+    // Only relevant while the Comments tab is the one actually showing -
+    // .browse-detail-tab-body is shared by all 4 tabs, so scrolling near the
+    // bottom of, say, a long Overview description must never trigger this.
+    function onDetailTabBodyScroll(e: Event) {
+        if (detailTab !== 'comments') return;
+        const el = e.currentTarget as HTMLDivElement;
+        if (el.scrollTop + el.clientHeight >= el.scrollHeight - 300) {
+            void loadMoreComments();
+        }
+    }
 
     // Opening a mod straight from the Installed list: only FileID/Title/FileURL are
     // known there (see LoversLabInstalledMod) - the rest (author, screenshots,
@@ -736,9 +792,10 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
         openDetail({ID: m.FileID, Title: m.Title, URL: m.FileURL, Author: '', AuthorURL: '', Updated: '', ThumbnailURL: ''} as loverslab.FileSummary);
     }
 
-    // Posting a reply: always reloads page 1 afterward rather than trying to splice the
-    // new reply into whatever page is currently shown - simpler, and correct regardless
-    // of which page the person was looking at when they posted.
+    // Posting a reply: always reloads back to just page 1 afterward rather than
+    // trying to splice the new reply into whatever's already been scrolled into
+    // view - simpler, and correct regardless of how many pages had already
+    // been loaded when the person posted.
     async function postComment() {
         if (!detailFor) return;
         const content = commentDraft.trim();
@@ -748,13 +805,9 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
             await LoversLabPostComment(detailFor.URL, content);
             setCommentDraft('');
             notify('success', 'Comment posted.');
-            if (commentsPage === 1) {
-                const result = await LoversLabComments(detailFor.URL, 1);
-                setCommentsState({kind: 'ready', posts: result.Posts ?? [], totalPages: result.TotalPages || 1, hasTopic: result.HasTopic});
-                setTopicAuthor((prev) => mergeTopicAuthor(prev, result.TopicAuthor));
-            } else {
-                setCommentsPage(1);
-            }
+            const result = await LoversLabComments(detailFor.URL, 1);
+            setCommentsState({kind: 'ready', posts: result.Posts ?? [], page: 1, totalPages: result.TotalPages || 1, hasTopic: result.HasTopic, loadingMore: false});
+            setTopicAuthor((prev) => mergeTopicAuthor(prev, result.TopicAuthor));
         } catch (err) {
             notify('error', errorText(err));
         } finally {
@@ -1364,7 +1417,7 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                                         Comments{commentsState?.kind === 'ready' && commentsState.hasTopic ? ` (${commentsState.posts.length})` : ''}
                                     </span>
                                 </div>
-                                <div className="browse-detail-tab-body">
+                                <div className="browse-detail-tab-body" onScroll={onDetailTabBodyScroll}>
                                     {installState.kind !== 'idle' && (
                                         <div className="browse-install-panel">
                                             {installState.kind === 'error' && (
@@ -1537,19 +1590,6 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
 
                                     {detailTab === 'comments' && (
                                         <>
-                                            {commentsState?.kind === 'ready' && commentsState.totalPages > 1 && (
-                                                <div className="browse-comments-pager-row">
-                                                    <i
-                                                        className={`fa-solid fa-chevron-left ${commentsPage <= 1 ? 'inert' : ''}`}
-                                                        onClick={() => commentsPage > 1 && setCommentsPage(commentsPage - 1)}
-                                                    />
-                                                    <span className="mono">{commentsPage} / {commentsState.totalPages}</span>
-                                                    <i
-                                                        className={`fa-solid fa-chevron-right ${commentsPage >= commentsState.totalPages ? 'inert' : ''}`}
-                                                        onClick={() => commentsPage < commentsState.totalPages && setCommentsPage(commentsPage + 1)}
-                                                    />
-                                                </div>
-                                            )}
                                             {commentsState?.kind === 'loading' && <EmptyState icon="fa-spinner fa-spin" title="Loading..."/>}
                                             {commentsState?.kind === 'error' && <EmptyState icon="fa-triangle-exclamation" tone="error" title="Couldn't load comments" subtitle={commentsState.message}/>}
                                             {commentsState?.kind === 'ready' && commentsState.hasTopic && (
@@ -1641,6 +1681,15 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                                                     </div>
                                                 );
                                             })}
+                                            {commentsState?.kind === 'ready' && commentsState.hasTopic && commentsState.page < commentsState.totalPages && (
+                                                <div className="browse-comments-load-more">
+                                                    {commentsState.loadingMore ? (
+                                                        <span><i className="fa-solid fa-spinner fa-spin"/> Loading more...</span>
+                                                    ) : (
+                                                        <span className="link-btn" onClick={loadMoreComments}>Load more comments</span>
+                                                    )}
+                                                </div>
+                                            )}
                                         </>
                                     )}
                                 </div>

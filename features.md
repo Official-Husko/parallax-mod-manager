@@ -132,6 +132,19 @@ for security, privacy, reliability or performance is called out (see the last tw
   badges, reaction count, and an "(edited)" note are all read from the real page, the same as the
   reply's own text - not invented. Quoting an earlier reply (LoversLab's own "Quote" feature)
   shows the quoted excerpt with who said it, exactly as it appears on the site.
+- **A reply's own inline media, sized sensibly** - an attached image shows inline where it was
+  posted (not just named in its own attachment chip below), a real inline emoticon stays
+  icon-sized instead of rendering at full embedded-image size, and a link to another LoversLab
+  post or topic (the site's own rich embed) becomes a real, clickable reference instead of a dead
+  iframe or being silently dropped. Every image is capped to a sane display size either way.
+- **Comments load as you scroll**, not page-number pagination - further replies fetch and append
+  automatically as the list nears its end, with a "Load more" fallback for anyone who'd rather
+  click.
+- **Repeat visits to the same page load instantly** - LoversLab's own pages (categories, a file's
+  listing, its detail, a topic's comments) are cached for a few minutes after the first real
+  fetch, so paging back and forth or re-opening a mod already looked at doesn't visibly re-fetch
+  every time; posting a comment always invalidates that topic's own cache first, so it never
+  shows a stale, pre-reply copy back to you.
 - **Opening a file's own page, an author, or a comment still links out** - this app never mirrors a
   foreign site's content beyond what the detail view shows; thumbnails and screenshots load straight
   off LoversLab's own public image CDN.

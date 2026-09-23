@@ -55,5 +55,13 @@ func (c *Client) ImportSession(data string) error {
 		cookies = append(cookies, &http.Cookie{Name: sc.Name, Value: sc.Value})
 	}
 	c.jar.SetCookies(u, cookies)
+
+	// A different session (a different account, or the same one signing back
+	// in) can see genuinely different content (private-to-account state,
+	// follow/reaction status) - never let a page cached under a previous
+	// session outlive it.
+	c.cacheMu.Lock()
+	c.cache = nil
+	c.cacheMu.Unlock()
 	return nil
 }

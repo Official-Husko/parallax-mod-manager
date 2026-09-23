@@ -97,6 +97,16 @@ type DescriptionBlock struct {
 	// just literal "> " Markdown text with no real attribution behind it.
 	QuotedAuthor string
 	QuotedBlocks []DescriptionBlock
+	// EmbedURL is set for a real embedded reference to another LoversLab
+	// post/topic (<iframe data-controller="core.front.core.autosizeiframe">,
+	// confirmed live - IPS's own rich preview when a member pastes a link to
+	// another topic or comment). Rendering the iframe itself isn't practical
+	// here (it needs the site's own session/JS to render anything at all, and
+	// this app's webview has no reason to load third-party pages inside
+	// itself), so this is surfaced as a real, clickable reference to open in
+	// the system browser instead of silently dropped or shown as a dead gray
+	// box.
+	EmbedURL string
 }
 
 // DescriptionRun is one contiguous span of a text DescriptionBlock sharing the
@@ -109,6 +119,17 @@ type DescriptionRun struct {
 	// LinkURL is set when this run is a hyperlink - opened in the system browser,
 	// the same way every other external link in this app is.
 	LinkURL string
+	// EmoteURL is set when this run is a real inline emoticon (a plain <img
+	// data-emoticon> the site's own editor inserts for e.g. ":D" - confirmed
+	// live) rather than text - Text is empty and EmoteAlt carries its own real
+	// alt text (the typed shortcode, e.g. ":D") for a moment, never both.
+	// Kept as its own small inline run rather than a block-level
+	// DescriptionBlock.ImageURL: a real embedded screenshot is a photo-sized
+	// block of its own, an emoticon is a tiny icon that belongs inline with
+	// the sentence around it - conflating the two is exactly why an emoticon
+	// used to render "massive," at full description-image size.
+	EmoteURL string
+	EmoteAlt string
 }
 
 // webApplicationLD mirrors the schema.org WebApplication JSON-LD block every
@@ -266,6 +287,16 @@ func (b *descriptionBuilder) walk(n *html.Node, style DescriptionRun) {
 		style.Text = collapseWhitespace(n.Data)
 		b.runs = append(b.runs, style)
 		return
+	case isElement(n, "img") && hasAttr(n, "data-emoticon"):
+		// A real inline emoticon (see DescriptionRun.EmoteURL) - stays part of
+		// the current text block's own runs, never its own block, so it flows
+		// with the sentence around it at icon size instead of at full
+		// description-image size.
+		style.Text = ""
+		style.EmoteURL = attrOr(n, "src")
+		style.EmoteAlt = attrOr(n, "alt")
+		b.runs = append(b.runs, style)
+		return
 	case isElement(n, "img"):
 		b.flushText(false)
 		if src := attrOr(n, "src"); src != "" {
@@ -277,6 +308,25 @@ func (b *descriptionBuilder) walk(n *html.Node, style DescriptionRun) {
 		b.runs = append(b.runs, style)
 		return
 	case isElement(n, "a") && b.skipAttachLinks && hasClass(n, "ipsAttachLink"):
+		// A real attached image still shows inline, the same as any other
+		// embedded image (confirmed live: a post's own attached screenshot
+		// was never rendered anywhere, just named in its separate attachment
+		// chip) - only a non-image attachment (a zip, a log file) is skipped
+		// here, since that chip is the only sensible way to show it at all.
+		if hasClass(n, "ipsAttachLink_image") {
+			if img := findOne(n, func(c *html.Node) bool { return isElement(c, "img") }); img != nil {
+				if src := attrOr(img, "src"); src != "" {
+					b.flushText(false)
+					b.blocks = append(b.blocks, DescriptionBlock{ImageURL: src})
+				}
+			}
+		}
+		return
+	case isElement(n, "iframe") && hasAttr(n, "data-embedid"):
+		b.flushText(false)
+		if src := attrOr(n, "src"); src != "" {
+			b.blocks = append(b.blocks, DescriptionBlock{EmbedURL: src})
+		}
 		return
 	case isElement(n, "blockquote") && hasClass(n, "ipsQuote"):
 		b.flushText(false)
@@ -429,15 +479,18 @@ func collapseWhitespace(s string) string {
 // with a blank text node that's just the HTML's own indentation, never
 // deliberate spacing. Returns nil if nothing but whitespace survives at all.
 func trimRuns(runs []DescriptionRun) []DescriptionRun {
-	isBlank := func(s string) bool {
-		return strings.TrimSpace(strings.ReplaceAll(s, " ", " ")) == ""
+	// A real inline emoticon run (see DescriptionRun.EmoteURL) has no text of
+	// its own at all - never mistake that for whitespace-only blankness, or a
+	// message that's just a leading/trailing emoji loses it entirely.
+	isBlank := func(r DescriptionRun) bool {
+		return r.EmoteURL == "" && strings.TrimSpace(strings.ReplaceAll(r.Text, " ", " ")) == ""
 	}
 	start := 0
-	for start < len(runs) && isBlank(runs[start].Text) {
+	for start < len(runs) && isBlank(runs[start]) {
 		start++
 	}
 	end := len(runs)
-	for end > start && isBlank(runs[end-1].Text) {
+	for end > start && isBlank(runs[end-1]) {
 		end--
 	}
 	if start >= end {

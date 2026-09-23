@@ -1051,11 +1051,56 @@
     margin: 0 0 8px;
 }
 
+/* Capped rather than shown at whatever native resolution the source
+   actually uploaded (a real screenshot can be several thousand pixels tall)
+   - object-fit: contain keeps it fully visible, uncropped, inside that cap
+   instead of stretching or overflowing the panel. */
 .browse-description-image {
     max-width: 100%;
+    max-height: 420px;
+    width: auto;
     height: auto;
+    object-fit: contain;
     border-radius: 5px;
     margin: 2px 0 10px;
+}
+
+/* A real inline emoticon (loverslab.DescriptionRun.EmoteURL) - icon-sized and
+   inline with its own sentence, never full description-image size (that
+   distinction is exactly what made an emoji render "massive" before this
+   existed - see DescriptionRunView). */
+.browse-emote {
+    height: 20px;
+    width: auto;
+    vertical-align: text-bottom;
+    margin: 0 1px;
+}
+
+/* A real embedded reference to another LoversLab topic/comment
+   (loverslab.DescriptionBlock.EmbedURL) - this app's webview has no reason
+   to load the site's own iframe-embedded preview inside itself, so this is
+   a plain, honest, clickable link out to it instead. */
+.browse-embed-reference {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 4px 0 8px;
+    padding: 10px 12px;
+    border: 1px solid var(--border-light);
+    border-radius: 5px;
+    background: var(--bg-inset);
+    font: 500 12px Barlow, sans-serif;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+.browse-embed-reference:hover {
+    color: var(--text-bright);
+    border-color: var(--border);
+}
+
+.browse-embed-reference i {
+    color: var(--amber);
 }
 
 .browse-description-link {
@@ -1129,22 +1174,17 @@
     letter-spacing: .1em;
 }
 
-.browse-comments-pager-row {
+/* Comments load as an infinite scroll (see Browse.tsx's own
+   loadMoreComments/onDetailTabBodyScroll) rather than page-number
+   pagination - this is the fallback affordance for anyone who'd rather
+   click than scroll, or whose scroll happened to land short of the
+   trigger zone. */
+.browse-comments-load-more {
     display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    gap: 10px;
-    font-size: 11px;
+    justify-content: center;
+    padding: 10px 0 4px;
+    font: 500 11.5px Barlow, sans-serif;
     color: var(--text-muted);
-}
-
-.browse-comments-pager-row i {
-    cursor: pointer;
-}
-
-.browse-comments-pager-row i.inert {
-    color: var(--text-dim);
-    cursor: not-allowed;
 }
 
 .browse-files-header {

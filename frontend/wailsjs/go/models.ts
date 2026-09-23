@@ -1604,6 +1604,8 @@ export namespace loverslab {
 	    Italic: boolean;
 	    Underline: boolean;
 	    LinkURL: string;
+	    EmoteURL: string;
+	    EmoteAlt: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new DescriptionRun(source);
@@ -1616,6 +1618,8 @@ export namespace loverslab {
 	        this.Italic = source["Italic"];
 	        this.Underline = source["Underline"];
 	        this.LinkURL = source["LinkURL"];
+	        this.EmoteURL = source["EmoteURL"];
+	        this.EmoteAlt = source["EmoteAlt"];
 	    }
 	}
 	export class DescriptionBlock {
@@ -1627,6 +1631,7 @@ export namespace loverslab {
 	    ListItem: boolean;
 	    QuotedAuthor: string;
 	    QuotedBlocks: DescriptionBlock[];
+	    EmbedURL: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new DescriptionBlock(source);
@@ -1642,6 +1647,7 @@ export namespace loverslab {
 	        this.ListItem = source["ListItem"];
 	        this.QuotedAuthor = source["QuotedAuthor"];
 	        this.QuotedBlocks = this.convertValues(source["QuotedBlocks"], DescriptionBlock);
+	        this.EmbedURL = source["EmbedURL"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
