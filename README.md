@@ -1039,6 +1039,11 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   conventions exactly (the shared lock, muting the folder watcher while writing). The lookup for
   "is this file installed, and where" is shared between installing and uninstalling, rather than
   two separate ways of finding the same thing.
+- **Card or list view, one toggle shared by the browsing grid and the Installed section**
+  (`BrowseItemsView`, `ViewModeToggle` in `Browse.tsx`) - both show through the exact same
+  component (a normalized `BrowseListItem`, not either backend type directly), so switching
+  between a card grid and a compact row list is never a choice duplicated for each of them, and
+  switching it in one carries over to the other.
 - **Every top-bar tab now has its own icon**, not just Browse - a small, purely visual change that
   came along with adding Browse's own.
 - **Unlisted, private and deleted Workshop mods get their own flags** (`internal/steamapi/availability.go`,

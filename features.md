@@ -106,6 +106,8 @@ for security, privacy, reliability or performance is called out (see the last tw
   sidebar, listing everything installed from LoversLab for the current game; uninstall from
   there (right-click) or from the mod's own detail view - either deletes its files for real,
   after confirming.
+- **Card or list view, your choice, shared everywhere in Browse** - the browsing grid and the
+  Installed section switch between the exact same card and list views, one toggle for both.
 - **Download and install a LoversLab mod in one click** - extracts the real archive straight into
   the game's own mod folder, recognizes a mod already installed from LoversLab and updates it in
   place instead of leaving a duplicate, and shows real progress with a Cancel option throughout.

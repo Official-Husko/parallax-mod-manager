@@ -1,5 +1,6 @@
 import './Browse.css';
 import {Fragment, h} from 'preact';
+import type {JSX} from 'preact';
 import {useEffect, useMemo, useRef, useState} from 'preact/hooks';
 import {
     CancelLoversLabInstall,
@@ -111,6 +112,139 @@ function errorText(err: unknown): string {
     return String(err).replace(/^Error:\s*/, '');
 }
 
+// Browsing (the card grid) and the Installed section (a plain row list) are two
+// different kinds of data - loverslab.FileSummary and main.LoversLabInstalledMod -
+// shown through the exact same switchable view, never two separate card-grid/
+// row-list implementations. BrowseListItem is what both get normalized into before
+// reaching BrowseItemsView below; ViewMode is the one shared choice ("cards" or
+// "tree") both sections' own toggle sets.
+type ViewMode = 'cards' | 'tree';
+
+interface BrowseListItem {
+    id: number;
+    title: string;
+    thumbnailURL: string;
+    // The line right under the title - an author for a browsing card, or a missing-
+    // content warning for an installed mod - shown the same way in either view.
+    lineOne: string;
+    lineOneWarn?: boolean;
+    onLineOneClick?: () => void;
+    // A small trailing stat - "Updated ..." for browsing, an install date for
+    // installed.
+    lineTwo?: string;
+    onClick?: () => void;
+    onContextMenu?: (e: MouseEvent) => void;
+    // Replaces this item's whole content (e.g. the Installed list's inline
+    // "Uninstall this mod?" confirm) - shown the same way in either view.
+    overrideContent?: JSX.Element;
+}
+
+// ViewModeToggle is the two-icon switch ("cards"/"tree") both the browsing grid and
+// the Installed section show in their own toolbar - one small shared control, not a
+// pair of near-identical ones.
+function ViewModeToggle({mode, onChange}: {mode: ViewMode; onChange: (m: ViewMode) => void}) {
+    return (
+        <div className="browse-view-toggle">
+            <i
+                className={`fa-solid fa-grip ${mode === 'cards' ? 'active' : ''}`}
+                title="Card view"
+                onClick={() => onChange('cards')}
+            />
+            <i
+                className={`fa-solid fa-list ${mode === 'tree' ? 'active' : ''}`}
+                title="List view"
+                onClick={() => onChange('tree')}
+            />
+        </div>
+    );
+}
+
+// BrowseItemsView is the one shared system for showing a list of mods, as either a
+// card grid (Steam Workshop/Nexus-style) or a compact row list - reused as-is by
+// both the browsing grid and the Installed section, switched by ViewModeToggle
+// above. Kept generic (BrowseListItem, not either backend type directly) so this
+// rendering is never duplicated for the two different kinds of data it shows.
+function BrowseItemsView({items, viewMode, emptyMessage}: {
+    items: BrowseListItem[];
+    viewMode: ViewMode;
+    emptyMessage: string;
+}) {
+    if (items.length === 0) {
+        return <div className="browse-status-note">{emptyMessage}</div>;
+    }
+
+    if (viewMode === 'tree') {
+        return (
+            <div className="browse-tree-list">
+                {items.map((it) => (
+                    <div
+                        key={it.id}
+                        className="browse-tree-row"
+                        onClick={it.overrideContent ? undefined : it.onClick}
+                        onContextMenu={it.onContextMenu}
+                    >
+                        {it.overrideContent ?? (
+                            <>
+                                <div className="browse-tree-main">
+                                    <div className="browse-tree-name" title={it.title}>{it.title}</div>
+                                    {it.lineOne && (
+                                        <div
+                                            className={`browse-tree-sub ${it.lineOneWarn ? 'warn' : ''} ${it.onLineOneClick ? 'clickable' : ''}`}
+                                            onClick={it.onLineOneClick ? (e) => { e.stopPropagation(); it.onLineOneClick!(); } : undefined}
+                                        >
+                                            {it.lineOneWarn && <i className="fa-solid fa-triangle-exclamation"/>} {it.lineOne}
+                                        </div>
+                                    )}
+                                </div>
+                                {it.lineTwo && <div className="browse-tree-meta mono">{it.lineTwo}</div>}
+                            </>
+                        )}
+                    </div>
+                ))}
+            </div>
+        );
+    }
+
+    return (
+        <div className="browse-grid">
+            {items.map((it) => (
+                <div
+                    key={it.id}
+                    className="browse-card"
+                    onClick={it.overrideContent ? undefined : it.onClick}
+                    onContextMenu={it.onContextMenu}
+                >
+                    {it.overrideContent ?? (
+                        <>
+                            {it.thumbnailURL ? (
+                                <div className="browse-card-thumb" style={{backgroundImage: `url(${it.thumbnailURL})`}}/>
+                            ) : (
+                                <div className="browse-card-thumb placeholder"><i className="fa-solid fa-image"/></div>
+                            )}
+                            <div className="browse-card-body">
+                                <div className="browse-card-title" title={it.title}>{it.title}</div>
+                                {it.lineOne && (
+                                    <div
+                                        className={`browse-card-meta ${it.lineOneWarn ? 'warn' : ''} ${it.onLineOneClick ? 'clickable' : ''}`}
+                                        onClick={it.onLineOneClick ? (e) => { e.stopPropagation(); it.onLineOneClick!(); } : undefined}
+                                    >
+                                        {it.lineOneWarn && <i className="fa-solid fa-triangle-exclamation"/>} {it.lineOne}
+                                    </div>
+                                )}
+                                {it.lineTwo && (
+                                    <div className="browse-card-stats">
+                                        <span><i className="fa-solid fa-clock"/>{it.lineTwo}</span>
+                                    </div>
+                                )}
+                            </div>
+                        </>
+                    )}
+                </div>
+            ))}
+        </div>
+    );
+}
+
 export function Browse({games, selectedGame}: {
     games: library.GameInfo[];
     selectedGame: string;
@@ -127,6 +261,10 @@ export function Browse({games, selectedGame}: {
     const [page, setPage] = useState(1);
     const [filesState, setFilesState] = useState<FilesState>({kind: 'idle'});
     const [search, setSearch] = useState('');
+    // The one shared choice (see BrowseItemsView) both the browsing grid and the
+    // Installed section switch between - the same view either way, not a separate
+    // toggle each remembers on its own.
+    const [viewMode, setViewMode] = useState<ViewMode>('cards');
 
     // The "Installed" section: a new place in the sidebar, alongside GAMES, to see and
     // uninstall everything installed from LoversLab for the selected game.
@@ -430,6 +568,45 @@ export function Browse({games, selectedGame}: {
         return files.filter((f) => f.Title.toLowerCase().includes(q) || f.Author.toLowerCase().includes(q));
     }, [files, search]);
 
+    // Normalizing into BrowseListItem is what lets the browsing grid and the
+    // Installed section below share one rendering (BrowseItemsView) instead of
+    // each having its own card-grid and row-list markup.
+    const browsingItems = useMemo<BrowseListItem[]>(() => visibleFiles.map((f) => ({
+        id: f.ID,
+        title: f.Title,
+        thumbnailURL: f.ThumbnailURL,
+        lineOne: `by ${f.Author}`,
+        onLineOneClick: f.AuthorURL ? () => BrowserOpenURL(f.AuthorURL) : undefined,
+        lineTwo: f.Updated,
+        onClick: () => openDetail(f),
+    })), [visibleFiles]);
+
+    const installedItems = useMemo<BrowseListItem[]>(() => {
+        if (installedState.kind !== 'ready') return [];
+        return installedState.mods.map((m) => ({
+            id: m.FileID,
+            title: m.Title,
+            thumbnailURL: '',
+            lineOne: m.ContentMissing ? 'Files not found on disk' : '',
+            lineOneWarn: m.ContentMissing,
+            lineTwo: m.InstalledAt ? new Date(m.InstalledAt * 1000).toLocaleDateString() : undefined,
+            onClick: confirmUninstallId === m.FileID ? undefined : () => openInstalledDetail(m),
+            onContextMenu: (e: MouseEvent) => openContextMenu(e, [
+                {label: 'Open on LoversLab', onClick: () => BrowserOpenURL(m.FileURL)},
+                {label: 'Uninstall', danger: true, separatorBefore: true, onClick: () => setConfirmUninstallId(m.FileID)},
+            ]),
+            overrideContent: confirmUninstallId === m.FileID ? (
+                <div className="browse-item-confirm">
+                    <span>Uninstall this mod? This deletes its files from your mod folder.</span>
+                    <div className="browse-item-confirm-actions">
+                        <span className="btn-ghost danger" onClick={(e: MouseEvent) => { e.stopPropagation(); void uninstallFromList(m.FileID, m.Title); }}>Uninstall</span>
+                        <span className="btn-ghost" onClick={(e: MouseEvent) => { e.stopPropagation(); setConfirmUninstallId(null); }}>Keep</span>
+                    </div>
+                </div>
+            ) : undefined,
+        }));
+    }, [installedState, confirmUninstallId]);
+
     return (
         <div className="browse">
             <div className="browse-sources">
@@ -491,49 +668,17 @@ export function Browse({games, selectedGame}: {
                     <>
                         <div className="browse-toolbar">
                             <div className="browse-installed-title">Installed from LoversLab</div>
+                            <div className="spacer"/>
+                            <ViewModeToggle mode={viewMode} onChange={setViewMode}/>
                         </div>
                         {installedState.kind === 'loading' && <div className="browse-status-note">Loading...</div>}
                         {installedState.kind === 'error' && <div className="browse-status-note error">{installedState.message}</div>}
-                        {installedState.kind === 'ready' && installedState.mods.length === 0 && (
-                            <div className="browse-status-note">Nothing installed from LoversLab yet for this game.</div>
-                        )}
-                        {installedState.kind === 'ready' && installedState.mods.length > 0 && (
-                            <div className="browse-installed-list">
-                                {installedState.mods.map((m) => (
-                                    <div
-                                        key={m.FileID}
-                                        className="browse-installed-row"
-                                        onClick={() => confirmUninstallId !== m.FileID && openInstalledDetail(m)}
-                                        onContextMenu={(e) => openContextMenu(e, [
-                                            {label: 'Open on LoversLab', onClick: () => BrowserOpenURL(m.FileURL)},
-                                            {label: 'Uninstall', danger: true, separatorBefore: true, onClick: () => setConfirmUninstallId(m.FileID)},
-                                        ])}
-                                    >
-                                        {confirmUninstallId === m.FileID ? (
-                                            <div className="browse-installed-confirm">
-                                                <span>Uninstall this mod? This deletes its files from your mod folder.</span>
-                                                <span className="spacer"/>
-                                                <span className="btn-ghost danger" onClick={(e) => { e.stopPropagation(); void uninstallFromList(m.FileID, m.Title); }}>Uninstall</span>
-                                                <span className="btn-ghost" onClick={(e) => { e.stopPropagation(); setConfirmUninstallId(null); }}>Keep</span>
-                                            </div>
-                                        ) : (
-                                            <>
-                                                <div className="browse-installed-main">
-                                                    <div className="browse-installed-name">{m.Title}</div>
-                                                    {m.ContentMissing && (
-                                                        <div className="browse-installed-missing">
-                                                            <i className="fa-solid fa-triangle-exclamation"/> Files not found on disk
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <div className="browse-installed-date mono">
-                                                    {m.InstalledAt ? new Date(m.InstalledAt * 1000).toLocaleDateString() : ''}
-                                                </div>
-                                            </>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
+                        {installedState.kind === 'ready' && (
+                            <BrowseItemsView
+                                items={installedItems}
+                                viewMode={viewMode}
+                                emptyMessage="Nothing installed from LoversLab yet for this game."
+                            />
                         )}
                     </>
                 ) : !status?.SignedIn ? (
@@ -573,40 +718,17 @@ export function Browse({games, selectedGame}: {
                                     />
                                 </div>
                             )}
+                            <ViewModeToggle mode={viewMode} onChange={setViewMode}/>
                         </div>
 
                         {filesState.kind === 'loading' && <div className="browse-status-note">Loading...</div>}
                         {filesState.kind === 'error' && <div className="browse-status-note error">{filesState.message}</div>}
                         {filesState.kind === 'ready' && (
-                            <div className="browse-grid">
-                                {visibleFiles.map((f) => (
-                                    <div key={f.ID} className="browse-card" onClick={() => openDetail(f)}>
-                                        {f.ThumbnailURL ? (
-                                            <div className="browse-card-thumb" style={{backgroundImage: `url(${f.ThumbnailURL})`}}/>
-                                        ) : (
-                                            <div className="browse-card-thumb placeholder"><i className="fa-solid fa-image"/></div>
-                                        )}
-                                        <div className="browse-card-body">
-                                            <div className="browse-card-title" title={f.Title}>{f.Title}</div>
-                                            <div
-                                                className="browse-card-meta"
-                                                title={f.Author}
-                                                onClick={(e) => { e.stopPropagation(); if (f.AuthorURL) BrowserOpenURL(f.AuthorURL); }}
-                                            >
-                                                by {f.Author}
-                                            </div>
-                                            <div className="browse-card-stats">
-                                                <span><i className="fa-solid fa-clock"/>{f.Updated}</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                                {visibleFiles.length === 0 && (
-                                    <div className="browse-status-note">
-                                        {search ? 'No files match that search on this page.' : 'No files here.'}
-                                    </div>
-                                )}
-                            </div>
+                            <BrowseItemsView
+                                items={browsingItems}
+                                viewMode={viewMode}
+                                emptyMessage={search ? 'No files match that search on this page.' : 'No files here.'}
+                            />
                         )}
                     </>
                 )}

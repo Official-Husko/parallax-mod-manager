@@ -193,22 +193,48 @@
     color: var(--red);
 }
 
-/* The Installed section - a plain row list rather than a card grid, since it's a
-   review-and-manage view, not a browsing one; right-click a row (or its own two-step
-   inline confirm, opened from there) to uninstall. */
+/* BrowseItemsView's own switch (see ViewModeToggle in Browse.tsx) - one small icon
+   pair, shown next to both the browsing grid's own toolbar and the Installed
+   section's, since both switch the exact same way. */
+.browse-view-toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 4px;
+}
+
+.browse-view-toggle i {
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.browse-view-toggle i:hover {
+    color: var(--text-muted);
+}
+
+.browse-view-toggle i.active {
+    color: var(--text-bright);
+}
+
 .browse-installed-title {
     font: 600 12.5px Barlow, sans-serif;
     color: var(--text-bright);
 }
 
-.browse-installed-list {
+/* BrowseItemsView's "tree" (row list) rendering - the same rows for the browsing
+   grid's own list view and the Installed section, since both show through this one
+   shared component. Right-click a row (or its own two-step inline confirm, opened
+   from there) to uninstall, on the Installed section's own rows. */
+.browse-tree-list {
     display: flex;
     flex-direction: column;
     gap: 6px;
     overflow-y: auto;
+    padding: 0 14px 14px;
 }
 
-.browse-installed-row {
+.browse-tree-row {
     display: flex;
     align-items: center;
     gap: 12px;
@@ -218,17 +244,17 @@
     cursor: pointer;
 }
 
-.browse-installed-row:hover {
+.browse-tree-row:hover {
     border-color: var(--border);
     background: var(--bg-highlight);
 }
 
-.browse-installed-main {
+.browse-tree-main {
     flex: 1;
     min-width: 0;
 }
 
-.browse-installed-name {
+.browse-tree-name {
     font: 600 12px Barlow, sans-serif;
     color: var(--text-bright);
     overflow: hidden;
@@ -236,28 +262,49 @@
     white-space: nowrap;
 }
 
-.browse-installed-missing {
+.browse-tree-sub {
     font: 500 10.5px Barlow, sans-serif;
-    color: var(--amber);
+    color: var(--text-muted);
     margin-top: 2px;
 }
 
-.browse-installed-date {
+.browse-tree-sub.warn {
+    color: var(--amber);
+}
+
+.browse-tree-sub.clickable {
+    cursor: pointer;
+}
+
+.browse-tree-sub.clickable:hover {
+    color: var(--text-mid);
+    text-decoration: underline;
+}
+
+.browse-tree-meta {
     font-size: 11px;
     color: var(--text-dim);
     flex: none;
 }
 
-.browse-installed-confirm {
+/* BrowseItemsView's own inline confirm (an item's overrideContent) - shared between
+   card and tree rendering, so it stacks the text above its two actions rather than
+   assuming a wide row's worth of horizontal space either way. */
+.browse-item-confirm {
     display: flex;
-    align-items: center;
-    gap: 10px;
+    flex-direction: column;
+    gap: 8px;
     width: 100%;
     font: 500 11.5px Barlow, sans-serif;
     color: var(--text-mid);
 }
 
-.browse-installed-confirm .btn-ghost.danger {
+.browse-item-confirm-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.browse-item-confirm .btn-ghost.danger {
     color: var(--red);
     border-color: var(--red);
 }
@@ -330,7 +377,15 @@
     white-space: nowrap;
 }
 
-.browse-card-meta:hover {
+.browse-card-meta.warn {
+    color: var(--amber);
+}
+
+.browse-card-meta.clickable {
+    cursor: pointer;
+}
+
+.browse-card-meta.clickable:hover {
     color: var(--text-mid);
     text-decoration: underline;
 }
