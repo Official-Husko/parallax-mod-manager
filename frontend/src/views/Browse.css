@@ -9,7 +9,7 @@
    rest of the layout already reads as a list so a second source is just another row,
    not a redesign. */
 .browse-sources {
-    width: 210px;
+    width: 220px;
     flex: none;
     border-right: 1px solid var(--border);
     background: var(--bg-rail);
@@ -44,12 +44,41 @@
     flex: none;
 }
 
-/* LoversLab's own placeholder icon - a plain heart rather than the site's real logo (this
-   app names no other mod site outside README.md's competitor table, and doesn't reproduce
-   anyone else's branding either), colored distinctly from every severity/status color
-   elsewhere so a source's own identity never reads as a status. */
-.browse-source-icon.loverslab {
-    color: var(--flag-private);
+/* A small letter-code swatch, matching how the mockup this follows badges each
+   source - a plain "LL" square rather than the site's real logo (this app names no
+   other mod site outside README.md's competitor table, and doesn't reproduce
+   anyone else's branding either). */
+.browse-source-swatch {
+    width: 18px;
+    height: 18px;
+    flex: none;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font: 700 8.5px 'Azeret Mono', monospace;
+    color: var(--rust-text);
+}
+
+.browse-source-swatch.loverslab {
+    background: var(--flag-private);
+}
+
+.browse-source-name {
+    flex: 1;
+    min-width: 0;
+}
+
+.browse-source-dot {
+    width: 6px;
+    height: 6px;
+    flex: none;
+    border-radius: 50%;
+    background: var(--text-dim);
+}
+
+.browse-source-dot.good {
+    background: var(--green);
 }
 
 .games-label {
@@ -112,6 +141,21 @@
     color: var(--text-dim);
 }
 
+/* Matches Library.css's/Dlc.css's own .sidebar-footer pattern - never actually
+   defined here before this pass, so it rendered unstyled at the bottom of the
+   sidebar (no separator, no muted color) rather than looking broken on purpose. */
+.sidebar-footer {
+    margin-top: auto;
+    padding: 12px 14px 0;
+    border-top: 1px solid var(--border);
+}
+
+.sidebar-footer .line {
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--text-muted);
+}
+
 .browse-main {
     flex: 1;
     min-width: 0;
@@ -153,6 +197,8 @@
     display: flex;
     align-items: center;
     gap: 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-header-on-panel);
 }
 
 .browse-toolbar .search-box {
@@ -193,6 +239,27 @@
     color: var(--red);
 }
 
+/* A small bordered card for "nothing here" states that deserve more than a plain
+   line of muted text - no comments yet, no support topic linked. */
+.browse-empty-card {
+    border: 1px solid var(--border-light);
+    border-radius: 6px;
+    padding: 18px 14px;
+    text-align: center;
+    background: var(--bg-inset);
+}
+
+.browse-empty-title {
+    font: 600 12.5px Barlow, sans-serif;
+    color: var(--text);
+    margin-bottom: 4px;
+}
+
+.browse-empty-body {
+    font: 400 11.5px/1.45 Barlow, sans-serif;
+    color: var(--text-dim);
+}
+
 /* BrowseItemsView's own switch (see ViewModeToggle in Browse.tsx) - one small icon
    pair, shown next to both the browsing grid's own toolbar and the Installed
    section's, since both switch the exact same way. */
@@ -222,6 +289,45 @@
     color: var(--text-bright);
 }
 
+/* A short genre/category badge - mock for now (see browseMockData.ts) - shown over
+   a card's thumbnail or, in list view, right before the title. Background color is
+   set inline per-tag; text always stays the same dark shade so it reads on every
+   one of the mock palette's colors. */
+.browse-tag {
+    font: 600 9px 'Azeret Mono', monospace;
+    color: var(--rust-text);
+    border-radius: 3px;
+    padding: 2px 6px;
+    letter-spacing: .02em;
+    flex: none;
+}
+
+/* The real install-state badge (installed / installed-but-missing) - a small
+   circle overlaid on a card's thumbnail, or shown plainly in list view. Never
+   shown for "not installed" - an absent badge already says that. */
+.browse-state-badge {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    flex: none;
+}
+
+.browse-state-badge.installed {
+    background: #1c3a2a;
+    border: 1px solid var(--green);
+    color: var(--green);
+}
+
+.browse-state-badge.missing {
+    background: #3a2a1c;
+    border: 1px solid var(--amber);
+    color: var(--amber);
+}
+
 /* BrowseItemsView's "tree" (row list) rendering - the same rows for the browsing
    grid's own list view and the Installed section, since both show through this one
    shared component. Right-click a row (or its own two-step inline confirm, opened
@@ -238,7 +344,7 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 10px 14px;
+    padding: 8px 14px;
     border: 1px solid var(--border-light);
     border-radius: 5px;
     cursor: pointer;
@@ -249,9 +355,30 @@
     background: var(--bg-highlight);
 }
 
+.browse-tree-thumb {
+    width: 56px;
+    height: 34px;
+    flex: none;
+    border-radius: 4px;
+    background-size: cover;
+    background-position: center;
+    background-color: #141c27;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-dim);
+    font-size: 13px;
+}
+
 .browse-tree-main {
     flex: 1;
     min-width: 0;
+}
+
+.browse-tree-titlerow {
+    display: flex;
+    align-items: center;
+    gap: 7px;
 }
 
 .browse-tree-name {
@@ -263,6 +390,9 @@
 }
 
 .browse-tree-sub {
+    display: flex;
+    align-items: center;
+    gap: 6px;
     font: 500 10.5px Barlow, sans-serif;
     color: var(--text-muted);
     margin-top: 2px;
@@ -315,16 +445,16 @@
    two or three cards to fill whatever space is left. */
 .browse-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(198px, 1fr));
     gap: 14px;
-    padding: 0 14px 14px;
+    padding: 14px;
 }
 
 .browse-card {
     display: flex;
     flex-direction: column;
     border: 1px solid var(--border);
-    border-radius: 6px;
+    border-radius: 7px;
     overflow: hidden;
     background: var(--bg-inset);
     cursor: pointer;
@@ -335,17 +465,21 @@
 }
 
 .browse-card-thumb {
-    height: 100px;
+    height: 116px;
     background-size: cover;
     background-position: center;
     background-color: #141c27;
     position: relative;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-end;
+    padding: 8px;
+    box-sizing: border-box;
 }
 
 /* A file with no screenshot on LoversLab - common, not an error - gets a plain,
    centered placeholder instead of an empty rectangle. */
 .browse-card-thumb.placeholder {
-    display: flex;
     align-items: center;
     justify-content: center;
     color: var(--text-dim);
@@ -353,25 +487,43 @@
     background: linear-gradient(135deg, #1b2532, #10161f);
 }
 
+.browse-card-tag {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+}
+
+.browse-card-state {
+    position: relative;
+}
+
 .browse-card-body {
-    padding: 9px 11px 11px;
+    padding: 10px 11px 11px;
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 7px;
     min-width: 0;
 }
 
 .browse-card-title {
-    font: 600 12.5px Barlow, sans-serif;
+    font: 600 12.5px/1.3 Barlow, sans-serif;
     color: var(--text-bright);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
+.browse-card-footer {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
 .browse-card-meta {
-    font-size: 10.5px;
-    color: var(--text-muted);
+    flex: 1;
+    min-width: 0;
+    font-size: 11px;
+    color: #c9a27f;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -386,31 +538,13 @@
 }
 
 .browse-card-meta.clickable:hover {
-    color: var(--text-mid);
     text-decoration: underline;
 }
 
-.browse-card-stats {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-top: 3px;
-    font-size: 10.5px;
+.browse-card-updated {
+    flex: none;
+    font-size: 10px;
     color: var(--text-dim);
-}
-
-.browse-card-stats i {
-    width: auto;
-    margin-right: 3px;
-}
-
-.browse-card-changelog {
-    margin-left: auto;
-    cursor: pointer;
-}
-
-.browse-card-changelog:hover {
-    color: var(--text-mid);
 }
 
 /* The saved LoversLab sign-in - real, on the right, the same rhythm as DLC's own right-side
@@ -418,7 +552,7 @@
    concept (a secret, saved encrypted, never shown again once it is a password), so it should
    feel like the same feature used a second time, not a different one. */
 .browse-account {
-    width: 260px;
+    width: 270px;
     flex: none;
     border-left: 1px solid var(--border);
     background: var(--bg-rail);
@@ -466,6 +600,54 @@
     text-align: center;
 }
 
+.browse-account-identity {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 1px solid var(--border-light);
+    border-radius: 6px;
+    padding: 10px;
+    background: rgba(255, 255, 255, .02);
+}
+
+.browse-account-identity-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.browse-account-username {
+    font: 600 13px Barlow, sans-serif;
+    color: var(--text-bright);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.browse-account-protection {
+    font-size: 10.5px;
+    color: var(--text-dim);
+    margin-top: 1px;
+}
+
+.browse-account-alert {
+    border: 1px solid #4a2f22;
+    border-radius: 6px;
+    background: #1e1714;
+    padding: 11px 12px;
+}
+
+.browse-account-alert-title {
+    font-size: 10px;
+    color: var(--amber);
+    letter-spacing: .06em;
+    margin-bottom: 5px;
+}
+
+.browse-account-alert-body {
+    font: 400 11.5px/1.5 Barlow, sans-serif;
+    color: #e8c7b2;
+}
+
 .browse-account-status {
     display: flex;
     align-items: flex-start;
@@ -481,10 +663,6 @@
 .browse-account-status i {
     margin-top: 2px;
     flex: none;
-}
-
-.browse-account-status.good i {
-    color: var(--green);
 }
 
 .browse-account-status.warn i {
@@ -541,15 +719,14 @@
     color: var(--text-muted);
 }
 
-/* A file's full detail - description, screenshots, changelog, files and comments -
+/* A file's full detail - screenshots, description, files, changelog and comments -
    opened on top of everything else - see .overlay in App.css for the dimmed backdrop
-   this sits on. Much bigger than the changelog-only popup this replaced, laid out
-   Nexus-Mods-style: a stats rail on the left (always visible, whichever tab is open)
-   plus a tabbed main area on the right (Description / Files / Comments). */
+   this sits on. Laid out Nexus-Mods/Steam-Workshop-style: a persistent media pane and
+   tabbed body on the left (flex), a fixed-width stats/actions panel on the right. */
 .browse-detail-modal {
-    width: min(1080px, 92vw);
-    height: 85vh;
-    background: var(--bg-panel);
+    width: min(1180px, 94vw);
+    height: 88vh;
+    background: var(--bg-panel-solid);
     border: 1px solid var(--border);
     border-radius: 8px;
     overflow: hidden;
@@ -601,8 +778,6 @@
     border-color: var(--red);
 }
 
-/* The two-column body: a fixed-width stats rail, then the tabbed main area filling
-   whatever space is left. */
 .browse-detail-content {
     flex: 1;
     min-height: 0;
@@ -610,77 +785,95 @@
     overflow: hidden;
 }
 
-.browse-detail-sidebar {
-    width: 230px;
-    flex: none;
-    padding: 16px 14px;
-    border-right: 1px solid var(--border);
-    background: var(--bg-rail);
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.browse-detail-sidebar-thumb {
-    width: 100%;
-    height: 120px;
-    border-radius: 5px;
-    border: 1px solid var(--border);
-    background-size: cover;
-    background-position: center;
-    background-color: #141c27;
-}
-
-.browse-detail-installed-flag {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font: 600 11px Barlow, sans-serif;
-    padding: 5px 8px;
-    border-radius: 4px;
-    border: 1px solid var(--border-light);
-}
-
-.browse-detail-installed-flag.yes {
-    color: var(--green);
-    border-color: var(--green);
-}
-
-.browse-detail-installed-flag.no {
-    color: var(--text-dim);
-}
-
-.browse-detail-stats {
-    display: flex;
-    flex-direction: column;
-    gap: 9px;
-    font: 500 11.5px Barlow, sans-serif;
-    color: var(--text-muted);
-    border-top: 1px solid var(--border-light);
-    padding-top: 12px;
-}
-
-.browse-detail-stat i {
-    width: 14px;
-    margin-right: 5px;
-    color: var(--text-dim);
-}
-
-.browse-detail-stat.clickable {
-    cursor: pointer;
-}
-
-.browse-detail-stat.clickable:hover {
-    color: var(--text-mid);
-    text-decoration: underline;
-}
-
-.browse-detail-main {
+.browse-detail-left {
     flex: 1;
     min-width: 0;
     display: flex;
     flex-direction: column;
+    border-right: 1px solid var(--border);
+}
+
+/* The screenshot carousel - persistent across every tab (unlike the old design,
+   where screenshots lived inside the Description tab body only). */
+.browse-detail-media {
+    flex: none;
+    border-bottom: 1px solid var(--border);
+}
+
+.browse-detail-hero {
+    height: 258px;
+    background-size: cover;
+    background-position: center;
+    background-color: #10151d;
+    background-image: repeating-linear-gradient(115deg, #1b2330 0 10px, #19202c 10px 20px);
+    position: relative;
+    cursor: pointer;
+}
+
+.browse-detail-hero.placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-dim);
+    font-size: 26px;
+    cursor: default;
+}
+
+.browse-detail-hero-nav {
+    position: absolute;
+    top: 50%;
+    width: 30px;
+    height: 30px;
+    margin-top: -15px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, .5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-bright);
+    cursor: pointer;
+}
+
+.browse-detail-hero-nav.prev {
+    left: 12px;
+}
+
+.browse-detail-hero-nav.next {
+    right: 12px;
+}
+
+.browse-detail-hero-count {
+    position: absolute;
+    right: 10px;
+    bottom: 8px;
+    font-size: 10px;
+    color: var(--text-muted);
+    background: rgba(0, 0, 0, .5);
+    border-radius: 3px;
+    padding: 2px 6px;
+}
+
+.browse-detail-thumbstrip {
+    display: flex;
+    gap: 7px;
+    padding: 9px 14px;
+    overflow-x: auto;
+}
+
+.browse-detail-thumbstrip-item {
+    flex: none;
+    width: 74px;
+    height: 42px;
+    border-radius: 3px;
+    background-size: cover;
+    background-position: center;
+    background-color: #141c27;
+    border: 1px solid var(--border-light);
+    cursor: pointer;
+}
+
+.browse-detail-thumbstrip-item.active {
+    border-color: var(--rust);
 }
 
 .browse-detail-tabs {
@@ -711,46 +904,35 @@
 .browse-detail-tab-body {
     flex: 1;
     min-height: 0;
-    padding: 14px 16px 16px;
+    padding: 16px 20px 20px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
     gap: 14px;
 }
 
-.browse-detail-screenshots {
-    display: flex;
-    gap: 8px;
-    overflow-x: auto;
-    padding-bottom: 2px;
-}
-
-.browse-detail-screenshot {
-    flex: none;
-    width: 260px;
-    height: 146px;
-    border-radius: 5px;
-    border: 1px solid var(--border);
-    background-size: cover;
-    background-position: center;
-    background-color: #141c27;
-    cursor: pointer;
-}
-
 .browse-detail-description {
-    font: 400 12.5px/1.6 Barlow, sans-serif;
+    font: 400 13px/1.6 Barlow, sans-serif;
     color: var(--text-mid);
     white-space: pre-wrap;
+}
+
+.browse-detail-features {
+    margin: 0;
+    padding-left: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font: 400 13px/1.5 Barlow, sans-serif;
+    color: var(--text-mid);
 }
 
 .browse-detail-section-label {
     display: flex;
     align-items: center;
-    font: 700 10.5px Barlow, sans-serif;
+    font: 700 10.5px 'Azeret Mono', monospace;
     color: var(--text-dim);
-    letter-spacing: .04em;
-    border-top: 1px solid var(--border);
-    padding-top: 12px;
+    letter-spacing: .1em;
 }
 
 .browse-comments-pager-row {
@@ -772,7 +954,7 @@
 }
 
 /* The Files tab: every downloadable attachment for the open file, each with its own
-   Install/Update button - replaces the old header Download button's picker flow. */
+   Install/Update button. */
 .browse-file-row {
     display: flex;
     align-items: center;
@@ -800,6 +982,8 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
+    border-left: 2px solid var(--border-light);
+    padding-left: 12px;
 }
 
 .browse-changelog-version {
@@ -821,11 +1005,12 @@
     white-space: pre-wrap;
 }
 
+/* One reply - a fixed-width author column (avatar, name, mock group/post-count -
+   see browseMockData.ts) beside the real content. */
 .browse-comment {
     display: flex;
-    flex-direction: column;
-    gap: 5px;
-    padding: 10px 0;
+    gap: 14px;
+    padding: 14px 0;
     border-bottom: 1px solid var(--border-light);
 }
 
@@ -834,16 +1019,23 @@
     padding-bottom: 0;
 }
 
-.browse-comment-header {
+.browse-comment-authorcol {
+    width: 92px;
+    flex: none;
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 10px;
-    font-size: 11.5px;
+    gap: 4px;
+    text-align: center;
 }
 
 .browse-comment-author {
     font: 600 12px Barlow, sans-serif;
-    color: var(--text-bright);
+    color: var(--amber);
+    max-width: 92px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .browse-comment-author.clickable {
@@ -852,6 +1044,55 @@
 
 .browse-comment-author.clickable:hover {
     text-decoration: underline;
+}
+
+.browse-comment-authortitle {
+    font: 400 10px/1.3 Barlow, sans-serif;
+    color: var(--text-dim);
+    font-style: italic;
+}
+
+.browse-comment-authorgroup {
+    font: 500 10.5px Barlow, sans-serif;
+    color: var(--text-muted);
+}
+
+.browse-comment-authorposts {
+    font-size: 10px;
+    color: var(--text-dim);
+}
+
+.browse-comment-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.browse-comment-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11.5px;
+}
+
+.browse-comment-badge {
+    font: 600 9px 'Azeret Mono', monospace;
+    border-radius: 3px;
+    padding: 2px 6px;
+    letter-spacing: .05em;
+    flex: none;
+}
+
+.browse-comment-badge.author {
+    color: var(--rust-text);
+    background: var(--amber);
+}
+
+.browse-comment-badge.popular {
+    color: var(--text-bright);
+    background: #3a4655;
 }
 
 .browse-comment-posted {
@@ -864,7 +1105,7 @@
 }
 
 .browse-comment-content {
-    font: 400 12px/1.6 Barlow, sans-serif;
+    font: 400 12.5px/1.55 Barlow, sans-serif;
     color: var(--text-mid);
     white-space: pre-wrap;
 }
@@ -892,9 +1133,33 @@
     border-color: var(--border);
 }
 
+.browse-comment-footer {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: 11px;
+}
+
+.browse-comment-likes {
+    color: var(--text-muted);
+}
+
+.browse-comment-likes i {
+    color: var(--red);
+    margin-right: 4px;
+}
+
 /* Writing a reply - a compact box above the comment list itself, only shown when
    the file actually has a support topic to write to (LoversLabCommentList.HasTopic). */
 .browse-comment-write {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.browse-comment-write-box {
+    flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -961,23 +1226,6 @@
     text-decoration: underline;
 }
 
-.browse-install-option {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font: 500 12px Barlow, sans-serif;
-    color: var(--text-mid);
-    padding: 7px 10px;
-    border: 1px solid var(--border-light);
-    border-radius: 4px;
-    cursor: pointer;
-}
-
-.browse-install-option:hover {
-    color: var(--text-bright);
-    border-color: var(--border);
-}
-
 .browse-install-actions {
     display: flex;
     gap: 8px;
@@ -993,7 +1241,7 @@
 .browse-install-bar-fill {
     height: 100%;
     border-radius: 3px;
-    background: var(--rust, var(--blue));
+    background: var(--rust);
     transition: width .2s ease;
 }
 
@@ -1008,4 +1256,188 @@
 @keyframes browse-install-indeterminate {
     0% { margin-left: -40%; }
     100% { margin-left: 100%; }
+}
+
+/* The right-hand panel - title, author, tags, actions and every stat/date/
+   requirement, fixed-width and always visible regardless of which tab is open on
+   the left (see the mockup this follows). */
+.browse-detail-right {
+    width: 340px;
+    flex: none;
+    overflow-y: auto;
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.browse-detail-tag {
+    align-self: flex-start;
+}
+
+.browse-detail-title {
+    font: 700 19px/1.25 Barlow, sans-serif;
+    color: var(--text-bright);
+}
+
+.browse-detail-authorrow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.browse-detail-authorrow.clickable {
+    cursor: pointer;
+}
+
+.browse-detail-authorrow-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.browse-detail-authorname {
+    font: 600 12.5px Barlow, sans-serif;
+    color: var(--amber);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.browse-detail-authorrow.clickable:hover .browse-detail-authorname {
+    text-decoration: underline;
+}
+
+.browse-detail-authorlabel {
+    font-size: 10px;
+    color: var(--text-dim);
+}
+
+.browse-detail-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.browse-detail-tagpill {
+    font: 500 10.5px Barlow, sans-serif;
+    color: var(--text-mid);
+    background: var(--bg-highlight);
+    border: 1px solid var(--border-light);
+    border-radius: 11px;
+    padding: 3px 9px;
+}
+
+.browse-detail-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.browse-detail-install-btn {
+    flex: 1;
+}
+
+.browse-detail-installed-pill {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font: 600 12px Barlow, sans-serif;
+    color: var(--green);
+    border: 1px solid var(--green);
+    border-radius: 5px;
+    padding: 8px 0;
+}
+
+.browse-detail-like-btn,
+.browse-detail-follow-btn {
+    font: 500 11.5px Barlow, sans-serif;
+    color: var(--text-mid);
+    border: 1px solid var(--border-light);
+    border-radius: 5px;
+    padding: 8px 11px;
+    white-space: nowrap;
+}
+
+.browse-detail-like-btn i {
+    color: var(--red);
+    margin-right: 5px;
+}
+
+.browse-detail-statgrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 14px;
+    padding: 12px 0;
+    border-top: 1px solid var(--border-light);
+    border-bottom: 1px solid var(--border-light);
+}
+
+.browse-detail-statitem .value {
+    font: 700 16px 'Azeret Mono', monospace;
+    color: var(--text-bright);
+}
+
+.browse-detail-statitem .label {
+    font: 400 11px Barlow, sans-serif;
+    color: var(--text-dim);
+    margin-top: 1px;
+}
+
+.browse-detail-datesgrid {
+    display: grid;
+    grid-template-columns: 86px 1fr;
+    gap: 6px 10px;
+    font: 400 12px Barlow, sans-serif;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.browse-detail-datesgrid .label {
+    color: var(--text-dim);
+}
+
+.browse-detail-datesgrid .value {
+    color: var(--text);
+}
+
+.browse-detail-requirements {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.browse-requirement-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--border-light);
+    border-radius: 5px;
+    padding: 8px 10px;
+    background: var(--bg-inset);
+    font: 500 12px Barlow, sans-serif;
+    color: var(--text);
+}
+
+.browse-requirement-row i {
+    font-size: 11px;
+    color: var(--text-dim);
+}
+
+.browse-requirement-row.installed i {
+    color: var(--green);
+}
+
+.browse-requirement-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.browse-requirement-status {
+    font-size: 10px;
+    color: var(--green);
 }

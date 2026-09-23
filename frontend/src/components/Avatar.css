@@ -1,0 +1,21 @@
+.avatar {
+    flex: none;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: Barlow, sans-serif;
+    font-weight: 600;
+    color: var(--text-bright);
+    user-select: none;
+    overflow: hidden;
+}
+
+.avatar-img {
+    object-fit: cover;
+    background: var(--bg-inset);
+}
+
+.avatar-fallback {
+    line-height: 1;
+}

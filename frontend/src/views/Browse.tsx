@@ -20,7 +20,9 @@ import {
 } from '../../wailsjs/go/main/App';
 import type {app, library, loverslab} from '../../wailsjs/go/models';
 import {BrowserOpenURL, EventsOn} from '../../wailsjs/runtime/runtime';
+import {Avatar} from '../components/Avatar';
 import {openContextMenu} from '../data/contextMenu';
+import {mockCommentExtrasFor, mockExtrasFor} from '../data/browseMockData';
 import {checkLoversLabNotifications, loversLabNotificationsURL, useLoversLabUnreadCount} from '../data/loversLabNotifications';
 import {checkLoversLabUpdates} from '../data/modUpdates';
 import {notify} from '../data/notifications';
@@ -77,10 +79,12 @@ type CommentsState =
     | { kind: 'error'; message: string }
     | { kind: 'ready'; posts: loverslab.Post[]; totalPages: number; hasTopic: boolean };
 
-// The detail modal's three tabs, Nexus/Steam Workshop/Thunderstore-style: a
-// description with screenshots and the changelog, the file's own downloadable
-// files (pick one to install), and comments (read and, per Phase 1, write).
-type DetailTab = 'description' | 'files' | 'comments';
+// The detail overlay's four tabs, Nexus/Steam Workshop/Thunderstore-style: an
+// overview (description, screenshots stay outside the tabs - see the mockup this
+// redesign follows), the file's own downloadable files (pick one to install), a
+// changelog (split out on its own rather than folded into the overview), and
+// comments (read and, per Phase 1, write).
+type DetailTab = 'overview' | 'files' | 'changelog' | 'comments';
 
 // The Files tab's own list of what's downloadable for the open file - loaded once,
 // lazily, the first time that tab is opened.
@@ -112,6 +116,17 @@ function errorText(err: unknown): string {
     return String(err).replace(/^Error:\s*/, '');
 }
 
+// formatUpdated turns FileDetail.DateModified's real ISO 8601 timestamp into the
+// same "Month Day, Year" style the mock Submitted/Published dates already use, so
+// all three read consistently in the detail overlay's dates grid. Falls back to
+// the raw string if it somehow doesn't parse, rather than showing nothing.
+function formatUpdated(iso: string): string {
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return d.toLocaleDateString(undefined, {month: 'long', day: 'numeric', year: 'numeric'});
+}
+
 // Browsing (the card grid) and the Installed section (a plain row list) are two
 // different kinds of data - loverslab.FileSummary and app.LoversLabInstalledMod -
 // shown through the exact same switchable view, never two separate card-grid/
@@ -124,6 +139,17 @@ interface BrowseListItem {
     id: number;
     title: string;
     thumbnailURL: string;
+    // A short genre/category badge shown over the thumbnail's top-left corner and,
+    // in list view, right before the title - mock for now (see browseMockData.ts;
+    // real cards have no such field yet).
+    tag?: string;
+    tagColor?: string;
+    // Which small circular badge to overlay on the thumbnail's top-right corner, so
+    // installed state reads at a glance while just browsing - real, from installedIds/
+    // ContentMissing, never mock.
+    stateIcon?: 'installed' | 'missing' | null;
+    authorName?: string;
+    authorAvatarURL?: string;
     // The line right under the title - an author for a browsing card, or a missing-
     // content warning for an installed mod - shown the same way in either view.
     lineOne: string;
@@ -185,18 +211,30 @@ function BrowseItemsView({items, viewMode, emptyMessage}: {
                     >
                         {it.overrideContent ?? (
                             <>
+                                <div
+                                    className="browse-tree-thumb"
+                                    style={it.thumbnailURL ? {backgroundImage: `url(${it.thumbnailURL})`} : undefined}
+                                >
+                                    {!it.thumbnailURL && <i className="fa-solid fa-image"/>}
+                                </div>
                                 <div className="browse-tree-main">
-                                    <div className="browse-tree-name" title={it.title}>{it.title}</div>
+                                    <div className="browse-tree-titlerow">
+                                        {it.tag && <span className="browse-tag" style={{background: it.tagColor}}>{it.tag}</span>}
+                                        <span className="browse-tree-name" title={it.title}>{it.title}</span>
+                                    </div>
                                     {it.lineOne && (
                                         <div
                                             className={`browse-tree-sub ${it.lineOneWarn ? 'warn' : ''} ${it.onLineOneClick ? 'clickable' : ''}`}
                                             onClick={it.onLineOneClick ? (e) => { e.stopPropagation(); it.onLineOneClick!(); } : undefined}
                                         >
-                                            {it.lineOneWarn && <i className="fa-solid fa-triangle-exclamation"/>} {it.lineOne}
+                                            {it.lineOneWarn && <i className="fa-solid fa-triangle-exclamation"/>}
+                                            {it.authorName && <Avatar name={it.authorName} url={it.authorAvatarURL} size={16}/>}
+                                            {it.lineOne}
                                         </div>
                                     )}
                                 </div>
                                 {it.lineTwo && <div className="browse-tree-meta mono">{it.lineTwo}</div>}
+                                <StateBadge state={it.stateIcon} className="browse-tree-state"/>
                             </>
                         )}
                     </div>
@@ -216,32 +254,48 @@ function BrowseItemsView({items, viewMode, emptyMessage}: {
                 >
                     {it.overrideContent ?? (
                         <>
-                            {it.thumbnailURL ? (
-                                <div className="browse-card-thumb" style={{backgroundImage: `url(${it.thumbnailURL})`}}/>
-                            ) : (
-                                <div className="browse-card-thumb placeholder"><i className="fa-solid fa-image"/></div>
-                            )}
+                            <div
+                                className={it.thumbnailURL ? 'browse-card-thumb' : 'browse-card-thumb placeholder'}
+                                style={it.thumbnailURL ? {backgroundImage: `url(${it.thumbnailURL})`} : undefined}
+                            >
+                                {!it.thumbnailURL && <i className="fa-solid fa-image"/>}
+                                {it.tag && <span className="browse-tag browse-card-tag" style={{background: it.tagColor}}>{it.tag}</span>}
+                                <StateBadge state={it.stateIcon} className="browse-card-state"/>
+                            </div>
                             <div className="browse-card-body">
                                 <div className="browse-card-title" title={it.title}>{it.title}</div>
-                                {it.lineOne && (
-                                    <div
-                                        className={`browse-card-meta ${it.lineOneWarn ? 'warn' : ''} ${it.onLineOneClick ? 'clickable' : ''}`}
-                                        onClick={it.onLineOneClick ? (e) => { e.stopPropagation(); it.onLineOneClick!(); } : undefined}
-                                    >
-                                        {it.lineOneWarn && <i className="fa-solid fa-triangle-exclamation"/>} {it.lineOne}
-                                    </div>
-                                )}
-                                {it.lineTwo && (
-                                    <div className="browse-card-stats">
-                                        <span><i className="fa-solid fa-clock"/>{it.lineTwo}</span>
-                                    </div>
-                                )}
+                                <div className="browse-card-footer">
+                                    {it.authorName && <Avatar name={it.authorName} url={it.authorAvatarURL} size={18}/>}
+                                    {it.lineOne && (
+                                        <span
+                                            className={`browse-card-meta ${it.lineOneWarn ? 'warn' : ''} ${it.onLineOneClick ? 'clickable' : ''}`}
+                                            onClick={it.onLineOneClick ? (e) => { e.stopPropagation(); it.onLineOneClick!(); } : undefined}
+                                        >
+                                            {it.lineOneWarn && <i className="fa-solid fa-triangle-exclamation"/>} {it.lineOne}
+                                        </span>
+                                    )}
+                                    {it.lineTwo && <span className="browse-card-updated">{it.lineTwo}</span>}
+                                </div>
                             </div>
                         </>
                     )}
                 </div>
             ))}
         </div>
+    );
+}
+
+// StateBadge is the small circular install-state indicator overlaid on a card's
+// thumbnail (and shown plainly in list view) - installed (a real, tracked
+// LoversLab install) or missing (installed but its files are gone from disk,
+// ContentMissing) - both real. null/undefined (not yet installed) renders nothing,
+// rather than a badge for an absence.
+function StateBadge({state, className}: {state?: 'installed' | 'missing' | null; className: string}) {
+    if (!state) return null;
+    return (
+        <span className={`browse-state-badge ${className} ${state}`} title={state === 'installed' ? 'Installed' : 'Installed, but its files are missing'}>
+            <i className={`fa-solid ${state === 'installed' ? 'fa-check' : 'fa-triangle-exclamation'}`}/>
+        </span>
     );
 }
 
@@ -276,7 +330,11 @@ export function Browse({games, selectedGame}: {
     const [installedIds, setInstalledIds] = useState<Set<number>>(new Set());
 
     const [detailFor, setDetailFor] = useState<loverslab.FileSummary | null>(null);
-    const [detailTab, setDetailTab] = useState<DetailTab>('description');
+    const [detailTab, setDetailTab] = useState<DetailTab>('overview');
+    // Which screenshot the persistent left-hand media pane currently shows full-size -
+    // independent of detailTab, since the mockup this follows keeps the media pane
+    // visible across every tab rather than scoping it to just one.
+    const [screenshotIndex, setScreenshotIndex] = useState(0);
     const [detailState, setDetailState] = useState<DetailState | null>(null);
     const [changelogState, setChangelogState] = useState<ChangelogState | null>(null);
     const [commentsState, setCommentsState] = useState<CommentsState | null>(null);
@@ -409,7 +467,8 @@ export function Browse({games, selectedGame}: {
     // others from showing up.
     function openDetail(file: loverslab.FileSummary) {
         setDetailFor(file);
-        setDetailTab('description');
+        setDetailTab('overview');
+        setScreenshotIndex(0);
         setCommentsPage(1);
         setInstallState({kind: 'idle'});
         setFilesTabState({kind: 'idle'});
@@ -560,6 +619,15 @@ export function Browse({games, selectedGame}: {
     const gameName = games.find((g) => g.ID === selectedGame)?.DisplayName ?? selectedGame;
     const canSave = !busy && username.trim() !== '' && password !== '';
     const isInstalled = detailFor ? installedIds.has(detailFor.ID) : false;
+    const missingFilesCount = installedState.kind === 'ready' ? installedState.mods.filter((m) => m.ContentMissing).length : 0;
+    // The mock extras (see browseMockData.ts) for whichever mod's detail is open -
+    // null while nothing is open, since every one of these fields is only ever
+    // rendered inside the detail overlay.
+    const extras = detailFor ? mockExtrasFor(detailFor.ID) : null;
+    const screenshots = detailState?.kind === 'ready' ? detailState.detail.Screenshots : [];
+    const heroShot = screenshots.length > 0 ? screenshots[Math.min(screenshotIndex, screenshots.length - 1)] : null;
+    const heroURL = heroShot ? (heroShot.ThumbnailURL || heroShot.URL) : (detailFor?.ThumbnailURL || '');
+    const heroFullURL = heroShot ? (heroShot.URL || heroShot.ThumbnailURL) : (detailFor?.ThumbnailURL || '');
 
     const files = filesState.kind === 'ready' ? filesState.files : [];
     const visibleFiles = useMemo(() => {
@@ -571,15 +639,22 @@ export function Browse({games, selectedGame}: {
     // Normalizing into BrowseListItem is what lets the browsing grid and the
     // Installed section below share one rendering (BrowseItemsView) instead of
     // each having its own card-grid and row-list markup.
-    const browsingItems = useMemo<BrowseListItem[]>(() => visibleFiles.map((f) => ({
-        id: f.ID,
-        title: f.Title,
-        thumbnailURL: f.ThumbnailURL,
-        lineOne: `by ${f.Author}`,
-        onLineOneClick: f.AuthorURL ? () => BrowserOpenURL(f.AuthorURL) : undefined,
-        lineTwo: f.Updated,
-        onClick: () => openDetail(f),
-    })), [visibleFiles]);
+    const browsingItems = useMemo<BrowseListItem[]>(() => visibleFiles.map((f) => {
+        const extras = mockExtrasFor(f.ID);
+        return {
+            id: f.ID,
+            title: f.Title,
+            thumbnailURL: f.ThumbnailURL,
+            tag: extras.tag,
+            tagColor: extras.tagColor,
+            stateIcon: installedIds.has(f.ID) ? 'installed' : null,
+            authorName: f.Author,
+            lineOne: f.Author,
+            onLineOneClick: f.AuthorURL ? () => BrowserOpenURL(f.AuthorURL) : undefined,
+            lineTwo: f.Updated,
+            onClick: () => openDetail(f),
+        };
+    }), [visibleFiles, installedIds]);
 
     const installedItems = useMemo<BrowseListItem[]>(() => {
         if (installedState.kind !== 'ready') return [];
@@ -587,6 +662,9 @@ export function Browse({games, selectedGame}: {
             id: m.FileID,
             title: m.Title,
             thumbnailURL: '',
+            tag: mockExtrasFor(m.FileID).tag,
+            tagColor: mockExtrasFor(m.FileID).tagColor,
+            stateIcon: m.ContentMissing ? 'missing' : 'installed',
             lineOne: m.ContentMissing ? 'Files not found on disk' : '',
             lineOneWarn: m.ContentMissing,
             lineTwo: m.InstalledAt ? new Date(m.InstalledAt * 1000).toLocaleDateString() : undefined,
@@ -612,8 +690,9 @@ export function Browse({games, selectedGame}: {
             <div className="browse-sources">
                 <div className="sidebar-label">SOURCES</div>
                 <div className="browse-source-row active">
-                    <i className="fa-solid fa-heart browse-source-icon loverslab"/>
-                    <span>LoversLab</span>
+                    <span className="browse-source-swatch loverslab">LL</span>
+                    <span className="browse-source-name">LoversLab</span>
+                    <span className={`browse-source-dot ${status?.SignedIn ? 'good' : 'neutral'}`}/>
                 </div>
                 <div className="browse-source-row disabled">
                     <i className="fa-solid fa-plus browse-source-icon"/>
@@ -754,16 +833,34 @@ export function Browse({games, selectedGame}: {
                     <p className="status-page">Loading...</p>
                 ) : (
                     <>
-                        <div className={`browse-account-status ${status.SignedIn ? 'good' : status.Unreadable ? 'warn' : 'neutral'}`}>
-                            <i className={`fa-solid ${status.SignedIn ? 'fa-circle-check' : status.Unreadable ? 'fa-triangle-exclamation' : 'fa-user'}`}/>
-                            <span>
-                                {status.SignedIn
-                                    ? `Signed in as ${status.Username}.`
-                                    : status.Unreadable
+                        {status.SignedIn ? (
+                            <div className="browse-account-identity">
+                                <Avatar name={status.Username} size={34}/>
+                                <div className="browse-account-identity-text">
+                                    <div className="browse-account-username">{status.Username}</div>
+                                    <div className="browse-account-protection mono">{status.Protection}</div>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className={`browse-account-status ${status.Unreadable ? 'warn' : 'neutral'}`}>
+                                <i className={`fa-solid ${status.Unreadable ? 'fa-triangle-exclamation' : 'fa-user'}`}/>
+                                <span>
+                                    {status.Unreadable
                                         ? 'A sign-in is saved but cannot be read on this computer - sign in again.'
-                                        : 'Not signed in yet.'}
-                            </span>
-                        </div>
+                                        : 'Browsing works signed out. Downloads and comments need an account.'}
+                                </span>
+                            </div>
+                        )}
+
+                        {status.SignedIn && missingFilesCount > 0 && (
+                            <div className="browse-account-alert">
+                                <div className="browse-account-alert-title mono">FILES MISSING &middot; {missingFilesCount}</div>
+                                <div className="browse-account-alert-body">
+                                    {missingFilesCount === 1 ? 'One installed mod' : `${missingFilesCount} installed mods`} can't be found on
+                                    disk any more. Open Installed in the sidebar to reinstall or forget {missingFilesCount === 1 ? 'it' : 'them'}.
+                                </div>
+                            </div>
+                        )}
 
                         <label className="browse-account-field">
                             <span className="browse-account-label">Username or email</span>
@@ -829,45 +926,58 @@ export function Browse({games, selectedGame}: {
                             />
                         </div>
                         <div className="browse-detail-content">
-                            <div className="browse-detail-sidebar">
-                                {(detailFor.ThumbnailURL || (detailState?.kind === 'ready' && detailState.detail.Screenshots.length > 0)) && (
-                                    <div
-                                        className="browse-detail-sidebar-thumb"
-                                        style={{backgroundImage: `url(${
-                                            detailFor.ThumbnailURL ||
-                                            (detailState?.kind === 'ready' ? (detailState.detail.Screenshots[0].ThumbnailURL || detailState.detail.Screenshots[0].URL) : '')
-                                        })`}}
-                                    />
-                                )}
-                                <div className={`browse-detail-installed-flag ${isInstalled ? 'yes' : 'no'}`}>
-                                    <i className={`fa-solid ${isInstalled ? 'fa-circle-check' : 'fa-circle'}`}/> {isInstalled ? 'Installed' : 'Not installed'}
-                                </div>
-                                {detailState?.kind === 'ready' && (
-                                    <div className="browse-detail-stats">
+                            <div className="browse-detail-left">
+                                <div className="browse-detail-media">
+                                    {heroURL ? (
                                         <div
-                                            className={detailState.detail.Author.URL ? 'browse-detail-stat clickable' : 'browse-detail-stat'}
-                                            onClick={() => detailState.detail.Author.URL && BrowserOpenURL(detailState.detail.Author.URL)}
+                                            className="browse-detail-hero"
+                                            style={{backgroundImage: `url(${heroURL})`}}
+                                            title="Open full size"
+                                            onClick={() => BrowserOpenURL(heroFullURL)}
                                         >
-                                            <i className="fa-solid fa-user"/> {detailState.detail.Author.Name}
+                                            {screenshots.length > 1 && (
+                                                <>
+                                                    <span
+                                                        className="browse-detail-hero-nav prev"
+                                                        onClick={(e) => { e.stopPropagation(); setScreenshotIndex((i) => (i - 1 + screenshots.length) % screenshots.length); }}
+                                                    >
+                                                        <i className="fa-solid fa-chevron-left"/>
+                                                    </span>
+                                                    <span
+                                                        className="browse-detail-hero-nav next"
+                                                        onClick={(e) => { e.stopPropagation(); setScreenshotIndex((i) => (i + 1) % screenshots.length); }}
+                                                    >
+                                                        <i className="fa-solid fa-chevron-right"/>
+                                                    </span>
+                                                    <span className="browse-detail-hero-count mono">{screenshotIndex + 1} / {screenshots.length}</span>
+                                                </>
+                                            )}
                                         </div>
-                                        {detailState.detail.Version && (
-                                            <div className="browse-detail-stat"><i className="fa-solid fa-code-branch"/> {detailState.detail.Version}</div>
-                                        )}
-                                        {detailState.detail.FileSize && (
-                                            <div className="browse-detail-stat"><i className="fa-solid fa-weight-hanging"/> {detailState.detail.FileSize}</div>
-                                        )}
-                                        <div className="browse-detail-stat"><i className="fa-solid fa-eye"/> {detailState.detail.Views.toLocaleString()} views</div>
-                                        <div className="browse-detail-stat"><i className="fa-solid fa-download"/> {detailState.detail.Downloads.toLocaleString()} downloads</div>
-                                    </div>
-                                )}
-                            </div>
-                            <div className="browse-detail-main">
+                                    ) : (
+                                        <div className="browse-detail-hero placeholder"><i className="fa-solid fa-image"/></div>
+                                    )}
+                                    {screenshots.length > 1 && (
+                                        <div className="browse-detail-thumbstrip">
+                                            {screenshots.map((s, i) => (
+                                                <div
+                                                    key={i}
+                                                    className={`browse-detail-thumbstrip-item ${i === screenshotIndex ? 'active' : ''}`}
+                                                    style={{backgroundImage: `url(${s.ThumbnailURL || s.URL})`}}
+                                                    onClick={() => setScreenshotIndex(i)}
+                                                />
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
                                 <div className="browse-detail-tabs">
-                                    <span className={`browse-detail-tab ${detailTab === 'description' ? 'active' : ''}`} onClick={() => setDetailTab('description')}>
-                                        Description
+                                    <span className={`browse-detail-tab ${detailTab === 'overview' ? 'active' : ''}`} onClick={() => setDetailTab('overview')}>
+                                        Overview
                                     </span>
                                     <span className={`browse-detail-tab ${detailTab === 'files' ? 'active' : ''}`} onClick={() => setDetailTab('files')}>
                                         Files
+                                    </span>
+                                    <span className={`browse-detail-tab ${detailTab === 'changelog' ? 'active' : ''}`} onClick={() => setDetailTab('changelog')}>
+                                        Changelog
                                     </span>
                                     <span className={`browse-detail-tab ${detailTab === 'comments' ? 'active' : ''}`} onClick={() => setDetailTab('comments')}>
                                         Comments{commentsState?.kind === 'ready' && commentsState.hasTopic ? ` (${commentsState.posts.length})` : ''}
@@ -931,28 +1041,26 @@ export function Browse({games, selectedGame}: {
                                         </div>
                                     )}
 
-                                    {detailTab === 'description' && (
+                                    {detailTab === 'overview' && (
                                         <>
                                             {detailState?.kind === 'loading' && <div className="browse-status-note">Loading...</div>}
                                             {detailState?.kind === 'error' && <div className="browse-status-note error">{detailState.message}</div>}
-                                            {detailState?.kind === 'ready' && detailState.detail.Screenshots.length > 0 && (
-                                                <div className="browse-detail-screenshots">
-                                                    {detailState.detail.Screenshots.map((s, i) => (
-                                                        <div
-                                                            key={i}
-                                                            className="browse-detail-screenshot"
-                                                            style={{backgroundImage: `url(${s.ThumbnailURL || s.URL})`}}
-                                                            title="Open full size"
-                                                            onClick={() => BrowserOpenURL(s.URL || s.ThumbnailURL)}
-                                                        />
-                                                    ))}
-                                                </div>
-                                            )}
                                             {detailState?.kind === 'ready' && detailState.detail.Description && (
                                                 <div className="browse-detail-description">{detailState.detail.Description}</div>
                                             )}
+                                            {extras && extras.features.length > 0 && (
+                                                <>
+                                                    <div className="browse-detail-section-label">FEATURES</div>
+                                                    <ul className="browse-detail-features">
+                                                        {extras.features.map((f, i) => <li key={i}>{f}</li>)}
+                                                    </ul>
+                                                </>
+                                            )}
+                                        </>
+                                    )}
 
-                                            <div className="browse-detail-section-label">CHANGELOG</div>
+                                    {detailTab === 'changelog' && (
+                                        <>
                                             {changelogState?.kind === 'loading' && <div className="browse-status-note">Loading...</div>}
                                             {changelogState?.kind === 'error' && <div className="browse-status-note error">{changelogState.message}</div>}
                                             {changelogState?.kind === 'ready' && changelogState.entries.length === 0 && (
@@ -1013,63 +1121,177 @@ export function Browse({games, selectedGame}: {
                                             {commentsState?.kind === 'error' && <div className="browse-status-note error">{commentsState.message}</div>}
                                             {commentsState?.kind === 'ready' && commentsState.hasTopic && (
                                                 <div className="browse-comment-write">
-                                                    <textarea
-                                                        className="browse-comment-input"
-                                                        placeholder="Write a reply..."
-                                                        value={commentDraft}
-                                                        disabled={postingComment}
-                                                        onInput={(e) => setCommentDraft((e.target as HTMLTextAreaElement).value)}
-                                                    />
-                                                    <button
-                                                        type="button"
-                                                        className="btn-primary browse-comment-post-btn"
-                                                        disabled={postingComment || commentDraft.trim() === ''}
-                                                        onClick={postComment}
-                                                    >
-                                                        {postingComment ? 'Posting...' : 'Post'}
-                                                    </button>
+                                                    <Avatar name={status?.Username || '?'} size={28}/>
+                                                    <div className="browse-comment-write-box">
+                                                        <textarea
+                                                            className="browse-comment-input"
+                                                            placeholder="Write a reply..."
+                                                            value={commentDraft}
+                                                            disabled={postingComment}
+                                                            onInput={(e) => setCommentDraft((e.target as HTMLTextAreaElement).value)}
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            className="btn-primary browse-comment-post-btn"
+                                                            disabled={postingComment || commentDraft.trim() === ''}
+                                                            onClick={postComment}
+                                                        >
+                                                            {postingComment ? 'Posting...' : 'Post'}
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             )}
                                             {commentsState?.kind === 'ready' && !commentsState.hasTopic && (
-                                                <div className="browse-status-note">This file has no support topic to comment on.</div>
+                                                <div className="browse-empty-card">
+                                                    <div className="browse-empty-title">No support topic</div>
+                                                    <div className="browse-empty-body">The author hasn't linked a discussion thread.</div>
+                                                </div>
                                             )}
                                             {commentsState?.kind === 'ready' && commentsState.hasTopic && commentsState.posts.length === 0 && (
-                                                <div className="browse-status-note">No one has replied yet - be the first.</div>
-                                            )}
-                                            {commentsState?.kind === 'ready' && commentsState.posts.map((post) => (
-                                                <div key={post.ID} className="browse-comment">
-                                                    <div className="browse-comment-header">
-                                                        <span
-                                                            className={post.AuthorURL ? 'browse-comment-author clickable' : 'browse-comment-author'}
-                                                            onClick={() => post.AuthorURL && BrowserOpenURL(post.AuthorURL)}
-                                                        >
-                                                            {post.Author}
-                                                        </span>
-                                                        <span className="browse-comment-posted">{post.Posted}</span>
-                                                        <div className="spacer"/>
-                                                        {post.URL && (
-                                                            <i
-                                                                className="fa-solid fa-up-right-from-square"
-                                                                title="Open this reply on LoversLab"
-                                                                onClick={() => BrowserOpenURL(post.URL)}
-                                                            />
-                                                        )}
-                                                    </div>
-                                                    {post.Content && <div className="browse-comment-content">{post.Content}</div>}
-                                                    {post.Attachments.length > 0 && (
-                                                        <div className="browse-comment-attachments">
-                                                            {post.Attachments.map((a, i) => (
-                                                                <span key={i} className="browse-comment-attachment" onClick={() => BrowserOpenURL(a.URL)}>
-                                                                    <i className={`fa-solid ${a.IsImage ? 'fa-image' : 'fa-paperclip'}`}/> {a.Filename || 'attachment'}
-                                                                </span>
-                                                            ))}
-                                                        </div>
-                                                    )}
+                                                <div className="browse-empty-card">
+                                                    <div className="browse-empty-title">No comments yet</div>
+                                                    <div className="browse-empty-body">The support topic exists. Write the first comment above.</div>
                                                 </div>
-                                            ))}
+                                            )}
+                                            {commentsState?.kind === 'ready' && commentsState.posts.map((post, idx) => {
+                                                const cx = mockCommentExtrasFor(post.ID, commentsPage === 1 && idx === 0);
+                                                return (
+                                                    <div key={post.ID} className="browse-comment">
+                                                        <div className="browse-comment-authorcol">
+                                                            <Avatar name={post.Author} size={44}/>
+                                                            <span
+                                                                className={post.AuthorURL ? 'browse-comment-author clickable' : 'browse-comment-author'}
+                                                                onClick={() => post.AuthorURL && BrowserOpenURL(post.AuthorURL)}
+                                                            >
+                                                                {post.Author}
+                                                            </span>
+                                                            {cx.authorTitle && <span className="browse-comment-authortitle">{cx.authorTitle}</span>}
+                                                            <span className="browse-comment-authorgroup">{cx.authorGroup}</span>
+                                                            <span className="browse-comment-authorposts mono">{cx.authorPostCount} posts</span>
+                                                        </div>
+                                                        <div className="browse-comment-body">
+                                                            <div className="browse-comment-header">
+                                                                {cx.isTopicAuthor && <span className="browse-comment-badge author">TOPIC AUTHOR</span>}
+                                                                {cx.isPopular && <span className="browse-comment-badge popular">POPULAR POST</span>}
+                                                                <span className="browse-comment-posted">{post.Posted}{cx.edited ? ' (edited)' : ''}</span>
+                                                                <div className="spacer"/>
+                                                                {post.URL && (
+                                                                    <i
+                                                                        className="fa-solid fa-up-right-from-square"
+                                                                        title="Open this reply on LoversLab"
+                                                                        onClick={() => BrowserOpenURL(post.URL)}
+                                                                    />
+                                                                )}
+                                                            </div>
+                                                            {post.Content && <div className="browse-comment-content">{post.Content}</div>}
+                                                            {post.Attachments.length > 0 && (
+                                                                <div className="browse-comment-attachments">
+                                                                    {post.Attachments.map((a, i) => (
+                                                                        <span key={i} className="browse-comment-attachment" onClick={() => BrowserOpenURL(a.URL)}>
+                                                                            <i className={`fa-solid ${a.IsImage ? 'fa-image' : 'fa-paperclip'}`}/> {a.Filename || 'attachment'}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                            <div className="browse-comment-footer">
+                                                                <span className="browse-comment-likes"><i className="fa-solid fa-heart"/> {cx.reactions}</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
                                         </>
                                     )}
                                 </div>
+                            </div>
+
+                            <div className="browse-detail-right">
+                                {extras && <span className="browse-tag browse-detail-tag" style={{background: extras.tagColor}}>{extras.tag}</span>}
+                                <div className="browse-detail-title" title={detailFor.Title}>{detailFor.Title}</div>
+                                {detailState?.kind === 'ready' && (
+                                    <div
+                                        className={detailState.detail.Author.URL ? 'browse-detail-authorrow clickable' : 'browse-detail-authorrow'}
+                                        onClick={() => detailState.detail.Author.URL && BrowserOpenURL(detailState.detail.Author.URL)}
+                                    >
+                                        <Avatar name={detailState.detail.Author.Name} url={detailState.detail.Author.ImageURL} size={32}/>
+                                        <div className="browse-detail-authorrow-text">
+                                            <div className="browse-detail-authorname">{detailState.detail.Author.Name}</div>
+                                            <div className="browse-detail-authorlabel">Author{detailState.detail.Author.URL ? ' · opens profile' : ''}</div>
+                                        </div>
+                                    </div>
+                                )}
+                                {extras && extras.tags.length > 0 && (
+                                    <div className="browse-detail-tags">
+                                        {extras.tags.map((t) => <span key={t} className="browse-detail-tagpill">{t}</span>)}
+                                    </div>
+                                )}
+                                <div className="browse-detail-actions">
+                                    {isInstalled ? (
+                                        <span className="browse-detail-installed-pill"><i className="fa-solid fa-circle-check"/> Installed</span>
+                                    ) : (
+                                        <button type="button" className="btn-primary browse-detail-install-btn" onClick={() => setDetailTab('files')}>
+                                            <i className="fa-solid fa-download"/> Install
+                                        </button>
+                                    )}
+                                    {extras && (
+                                        <>
+                                            <span className="browse-detail-like-btn"><i className="fa-solid fa-heart"/> {extras.likes}</span>
+                                            <span className="browse-detail-follow-btn">Follow &middot; {extras.followers}</span>
+                                        </>
+                                    )}
+                                </div>
+                                {detailState?.kind === 'ready' && (
+                                    <div className="browse-detail-statgrid">
+                                        <div className="browse-detail-statitem">
+                                            <div className="mono value">{detailState.detail.Views.toLocaleString()}</div>
+                                            <div className="label">Views</div>
+                                        </div>
+                                        <div className="browse-detail-statitem">
+                                            <div className="mono value">{detailState.detail.Downloads.toLocaleString()}</div>
+                                            <div className="label">Downloads</div>
+                                        </div>
+                                        {extras && (
+                                            <>
+                                                <div className="browse-detail-statitem">
+                                                    <div className="mono value">{extras.followers}</div>
+                                                    <div className="label">Followers</div>
+                                                </div>
+                                                <div className="browse-detail-statitem">
+                                                    <div className="mono value">{extras.likes}</div>
+                                                    <div className="label">Likes</div>
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                )}
+                                {extras && (
+                                    <div className="browse-detail-datesgrid">
+                                        <span className="label">Submitted</span><span className="value">{extras.submitted}</span>
+                                        <span className="label">Published</span><span className="value">{extras.published}</span>
+                                        {detailState?.kind === 'ready' && detailState.detail.DateModified && (
+                                            <>
+                                                <span className="label">Updated</span><span className="value">{formatUpdated(detailState.detail.DateModified)}</span>
+                                            </>
+                                        )}
+                                        {detailState?.kind === 'ready' && detailState.detail.FileSize && (
+                                            <>
+                                                <span className="label">File size</span><span className="value mono">{detailState.detail.FileSize}</span>
+                                            </>
+                                        )}
+                                    </div>
+                                )}
+                                {extras && extras.requirements.length > 0 && (
+                                    <div className="browse-detail-requirements">
+                                        <div className="browse-detail-section-label">REQUIREMENTS</div>
+                                        {extras.requirements.map((r, i) => (
+                                            <div key={i} className={`browse-requirement-row ${r.installed ? 'installed' : ''}`}>
+                                                <i className={`fa-solid ${r.installed ? 'fa-check' : 'fa-circle'}`}/>
+                                                <span className="browse-requirement-name">{r.name}</span>
+                                                {r.installed && <span className="browse-requirement-status mono">INSTALLED</span>}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>

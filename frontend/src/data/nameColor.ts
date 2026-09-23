@@ -22,12 +22,27 @@ function fnv1a(s: string): number {
     return h >>> 0;
 }
 
+// hueFromName is colorFromName's and avatarColorFromName's own shared step -
+// the same bucketed hash, so every color derived from a given name across the
+// app always lands on the same point of the color wheel, just rendered at
+// whatever saturation/lightness suits that particular use.
+function hueFromName(name: string): number {
+    return (fnv1a(name) % HUE_BUCKETS) * (360 / HUE_BUCKETS);
+}
+
 // colorFromName derives a stable, deterministic color from a string - used
 // to give each local mod's folder badge its own distinct color (by name),
 // so a long list of otherwise-identical folder icons isn't one flat wall of
 // the same gray. Same name always yields the same color, with no lookup
 // table or state to keep in sync.
 export function colorFromName(name: string): string {
-    const hue = (fnv1a(name) % HUE_BUCKETS) * (360 / HUE_BUCKETS);
-    return `hsl(${hue}, 60%, 62%)`;
+    return `hsl(${hueFromName(name)}, 60%, 62%)`;
+}
+
+// avatarColorFromName is the same idea, tuned for a filled avatar circle
+// rather than an icon's own foreground color - darker/less saturated, so the
+// light initial letter drawn on top of it (see Avatar.tsx) stays readable at
+// every hue.
+export function avatarColorFromName(name: string): string {
+    return `hsl(${hueFromName(name)}, 42%, 38%)`;
 }
