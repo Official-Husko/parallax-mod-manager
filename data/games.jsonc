@@ -44,7 +44,11 @@
             // known: it simply gets no checksum.
             "checksum": "stellaris",
             // Official DLC, so it can be listed/toggled like a mod - not built yet.
-            "dlc": []
+            "dlc": [],
+            // Steam Direct (see internal/launchershim, companions/launcher-shim) is only
+            // offered for a game once its real install has actually been checked: confirmed
+            // here that dowser sits in the same folder as launcher-settings.json.
+            "launcher_shim_supported": true
         },
         {
             "id": "01a0968a-14d2-7866-9203-a510f0bbef38",
@@ -80,7 +84,9 @@
             "signature_files": ["launcher-settings.json"],
             "scan_folders": ["common", "events", "history", "map"],
             "checksum": "hoi4",
-            "dlc": []
+            "dlc": [],
+            // Confirmed on a real install, same as Stellaris above - see that entry's comment.
+            "launcher_shim_supported": true
         },
         {
             "id": "01a0968a-14d2-78c1-adaa-19f9a1f2aa0d",

@@ -23,17 +23,18 @@ type gameListFile struct {
 }
 
 type gameListEntry struct {
-	ID                   string                  `json:"id"`
-	Name                 string                  `json:"name"`
-	AppID                string                  `json:"app_id"`
-	FolderName           string                  `json:"folder_name"`
-	DescriptorType       string                  `json:"descriptor_type"`
-	LauncherSettingsPath string                  `json:"launcher_settings_path"`
-	SignatureFiles       []string                `json:"signature_files"`
-	ScanFolders          []string                `json:"scan_folders"`
-	Checksum             string                  `json:"checksum,omitempty"`
-	DLC                  []dlcEntryJSON          `json:"dlc,omitempty"`
-	ExecutableFallback   *executableFallbackJSON `json:"executable_fallback,omitempty"`
+	ID                    string                  `json:"id"`
+	Name                  string                  `json:"name"`
+	AppID                 string                  `json:"app_id"`
+	FolderName            string                  `json:"folder_name"`
+	DescriptorType        string                  `json:"descriptor_type"`
+	LauncherSettingsPath  string                  `json:"launcher_settings_path"`
+	SignatureFiles        []string                `json:"signature_files"`
+	ScanFolders           []string                `json:"scan_folders"`
+	Checksum              string                  `json:"checksum,omitempty"`
+	DLC                   []dlcEntryJSON          `json:"dlc,omitempty"`
+	ExecutableFallback    *executableFallbackJSON `json:"executable_fallback,omitempty"`
+	LauncherShimSupported bool                    `json:"launcher_shim_supported,omitempty"`
 }
 
 type dlcEntryJSON struct {
@@ -133,17 +134,18 @@ func (f gameListFile) toRegistry() (*Registry, error) {
 		}
 
 		games = append(games, GameConfig{
-			ID:                   e.ID,
-			DisplayName:          e.Name,
-			SteamAppID:           e.AppID,
-			FolderName:           e.FolderName,
-			DescriptorType:       descriptorType,
-			LauncherSettingsPath: e.LauncherSettingsPath,
-			SignatureFiles:       e.SignatureFiles,
-			ScanFolders:          e.ScanFolders,
-			ChecksumAlgorithm:    e.Checksum,
-			DLC:                  dlc,
-			ExecutableFallback:   fallback,
+			ID:                    e.ID,
+			DisplayName:           e.Name,
+			SteamAppID:            e.AppID,
+			FolderName:            e.FolderName,
+			DescriptorType:        descriptorType,
+			LauncherSettingsPath:  e.LauncherSettingsPath,
+			SignatureFiles:        e.SignatureFiles,
+			ScanFolders:           e.ScanFolders,
+			ChecksumAlgorithm:     e.Checksum,
+			DLC:                   dlc,
+			ExecutableFallback:    fallback,
+			LauncherShimSupported: e.LauncherShimSupported,
 		})
 	}
 	return NewRegistry(games), nil

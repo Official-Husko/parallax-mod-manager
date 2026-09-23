@@ -64,6 +64,16 @@ type GameConfig struct {
 	// assumed, since ResolveExecutable reads from exactly this path.
 	LauncherSettingsPath string
 
+	// LauncherShimSupported gates the "Steam Direct" launch mode (see
+	// internal/launchershim and companions/launcher-shim) - installing a shim in
+	// place of this game's own dowser/dowser.exe. False (never touch this game's
+	// launcher entry point) until actually verified against a real install: dowser
+	// and launcher-settings.json are confirmed colocated for Stellaris and Hearts
+	// of Iron IV, but not yet checked for CK3/Imperator: Rome/Victoria 3, which nest
+	// launcher-settings.json under a "launcher" subfolder - it isn't yet confirmed
+	// whether dowser sits there too, or at the install root instead.
+	LauncherShimSupported bool
+
 	ExecutableFallback ExecutableInfo
 }
 

@@ -28,6 +28,7 @@ import (
 	"github.com/Official-Husko/parallax-mod-manager/internal/gamemedia"
 	"github.com/Official-Husko/parallax-mod-manager/internal/launch"
 	"github.com/Official-Husko/parallax-mod-manager/internal/launcherdb"
+	"github.com/Official-Husko/parallax-mod-manager/internal/launchershim"
 	"github.com/Official-Husko/parallax-mod-manager/internal/library"
 	"github.com/Official-Husko/parallax-mod-manager/internal/loverslabtracking"
 	"github.com/Official-Husko/parallax-mod-manager/internal/mod"
@@ -260,6 +261,17 @@ func (a *App) startup(ctx context.Context) {
 	a.initSteamAPI(a.configAppDir)
 	a.initLoversLab(a.configAppDir)
 	a.initBackups(a.configAppDir)
+
+	// The Steam Direct shim's own live, best-effort ping (see internal/launchershim
+	// and companions/launcher-shim) - never something startup depends on: a failure
+	// to bind just means the live ping feature is unavailable this run, logged once,
+	// with the shim's own status file (read on demand by LauncherShimStatusFor)
+	// remaining the authoritative record regardless.
+	launchershim.StartPingListener(ctx, func(p launchershim.Ping) {
+		a.emit("launcher-shim-ping", p)
+	}, func(err error) {
+		applog.For("LauncherShim").Warnf("could not listen for the shim's live ping (the status file still works): %v", err)
+	})
 
 	mediaFS, err := fs.Sub(embeddedGameMedia, "data/game_media")
 	if err == nil {

@@ -166,8 +166,16 @@ export function ImportLauncherPlaysets(arg1) {
   return window['go']['main']['App']['ImportLauncherPlaysets'](arg1);
 }
 
+export function InstallLauncherShim(arg1) {
+  return window['go']['main']['App']['InstallLauncherShim'](arg1);
+}
+
 export function LaunchGame(arg1, arg2) {
   return window['go']['main']['App']['LaunchGame'](arg1, arg2);
+}
+
+export function LauncherShimStatusFor(arg1) {
+  return window['go']['main']['App']['LauncherShimStatusFor'](arg1);
 }
 
 export function LicenceText() {
@@ -344,6 +352,10 @@ export function RemoveBackgroundPack(arg1) {
 
 export function RemoveExtraModFolder(arg1, arg2) {
   return window['go']['main']['App']['RemoveExtraModFolder'](arg1, arg2);
+}
+
+export function RemoveLauncherShim(arg1) {
+  return window['go']['main']['App']['RemoveLauncherShim'](arg1);
 }
 
 export function RenamePlayset(arg1, arg2, arg3) {

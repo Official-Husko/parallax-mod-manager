@@ -573,6 +573,30 @@
     color: var(--text-dim);
 }
 
+/* Steam Direct's own real, on-disk state (see internal/launchershim) - shown right
+   under its description, distinct from the "Recommended"/"Not recommended" hints
+   above, which are fixed per mode rather than a live status. */
+.mode-option-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font: 500 11px Barlow, sans-serif;
+    color: var(--text-dim);
+    margin-top: 6px;
+}
+
+.mode-option-status.good {
+    color: var(--green);
+}
+
+.mode-option-status.warn {
+    color: var(--amber);
+}
+
+.mode-option-status .link-btn {
+    margin-left: 6px;
+}
+
 .playset-autoload-targets {
     display: flex;
     flex-wrap: wrap;

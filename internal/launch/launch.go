@@ -19,13 +19,20 @@ const (
 	// LaunchModeDirect skips the Paradox Launcher (and Steam) entirely,
 	// resolving and starting the game's own executable directly via
 	// game.GameConfig.ResolveExecutable - the first of the two bypass
-	// strategies this project intends to offer. The second - replacing a
-	// game's own launcher entry point with a small shim so Steam still
-	// launches the game itself while never invoking the Paradox Launcher -
-	// is a planned addition, not implemented yet; LaunchMode exists as a
-	// string enum rather than LaunchOptions.Direct's plain bool specifically
-	// so that mode can be added later without another breaking change here.
+	// strategies this project offers.
 	LaunchModeDirect LaunchMode = "direct"
+	// LaunchModeShim ("Steam Direct" in the UI) is the second bypass strategy:
+	// a game's own launcher entry point (dowser/dowser.exe) has been replaced
+	// with companions/launcher-shim (see internal/launchershim), so Steam still
+	// launches the game itself - never the Paradox Launcher - while keeping
+	// every bit of Steam's own process context a plain Steam launch would.
+	// Deliberately behaves exactly like LaunchModeSteam at Launch time (plain
+	// steam://run/<appid> - see Launch below): once the shim is installed,
+	// that already is what launches the game without the Paradox Launcher; the
+	// install/repair/remove steps themselves are a separate, explicit choice in
+	// Settings (internal/launchershim.Install/Remove), not something Launch
+	// triggers on its own.
+	LaunchModeShim LaunchMode = "shim"
 )
 
 // LaunchOptions configures a Launch call.

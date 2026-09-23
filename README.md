@@ -304,21 +304,32 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   today as "Steam Direct (Recommended)" - is designed for (`LaunchMode` is a named string, not a
   bool, specifically so it can be added later); once fully wired up, it's intended to become the
   default, since it keeps Steam integration Parallax Direct can't promise on every game.
-- **The Steam Direct shim itself is now real** (`companions/launcher-shim/`) - its own, separate
-  Go module (own `go.mod`, standard library only) rather than part of this app's own build,
-  since it has to stay small and easy to audit on its own merits: it replaces a game's own
-  `dowser`/`dowser.exe` (confirmed, by disassembling a real, unstripped copy of it from this
-  machine's own Stellaris and Hearts of Iron IV installs, to be nothing more than a bootstrapper
-  for the Paradox Launcher itself, with no "skip the launcher" mode of its own - a replacement
-  really is the only way), reads that game's `launcher-settings.json`, and execs the real
-  executable in its place (`syscall.Exec` on Linux - true process-image replacement, so Steam's
-  own environment and process context carry through exactly as it set them up; confirmed live
-  against a scratch fixture standing in for a real install). Reports its own outcome to a small
-  status file Parallax can read later, and makes one best-effort, bounded live ping to Parallax
-  if it happens to already be running. Never carries a copy of its own source - `--source`
-  prints a link to this repository instead. **Not yet built**: Parallax's own side (installing
-  it in place of a real game's `dowser`, detecting and repairing a stale install, removing it on
-  request, and the Settings UI for all of that) - see
+- **Steam Direct is real now, end to end** - the standalone shim (`companions/launcher-shim/`,
+  its own separate Go module - own `go.mod`, standard library only, so it stays small and easy
+  to audit on its own merits) replaces a game's own `dowser`/`dowser.exe` (confirmed, by
+  disassembling a real, unstripped copy of it from this machine's own Stellaris and Hearts of
+  Iron IV installs, to be nothing more than a bootstrapper for the Paradox Launcher itself, with
+  no "skip the launcher" mode of its own - a replacement really is the only way), reads that
+  game's `launcher-settings.json`, and execs the real executable in its place (`syscall.Exec` on
+  Linux - true process-image replacement, so Steam's own environment and process context carry
+  through exactly as it set them up). It reports its own outcome to a small status file, and
+  makes one best-effort, bounded live ping if Parallax happens to already be running. Never
+  carries a copy of its own source anywhere - `--source` prints a link to this repository
+  instead, same as the runtime notice file it leaves behind.
+  Parallax's own side, `internal/launchershim`: Settings > Launch options offers "Steam Direct"
+  as a real, selectable mode once a game is confirmed to support it (`GameConfig.LauncherShimSupported`
+  - Stellaris and Hearts of Iron IV so far). Installing backs up the real launcher file first
+  (atomic rename) and verifies the shim actually landed before calling it done, restoring the
+  original automatically if anything fails along the way; it also detects and one-click repairs
+  the case where Steam's own "Verify integrity of game files" quietly restores the original
+  (a real backup sitting next to something that is not the shim anymore); removing restores that
+  same backup and deletes the runtime notice file. Confirmed live, byte-for-byte, against a
+  scratch copy of this machine's real Stellaris install - installed, detected healthy, removed,
+  restored file checksum-identical to the original. The pre-built shim binaries are placed next
+  to the main app's own build output by `build.sh` (`build/bin/companions/`), not `go:embed`-ed
+  (impossible across the module boundary anyway) - `internal/launchershim` finds them there at
+  runtime, relative to this app's own executable. A fixed local port carries the shim's live
+  ping to a running app, shown as a toast ahead of `internal/gameproc`'s own polling. See
   [docs/game-launching.md](docs/game-launching.md).
 - **Play never depends on a playset being loaded** (`app.go`'s `LaunchGame`) - launching with no
   playset name selected skips every one of this project's own state writes (`dlc_load.json`,

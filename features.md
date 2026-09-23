@@ -142,10 +142,12 @@ for security, privacy, reliability or performance is called out (see the last tw
   launcher. Settings > Launch options lists it and the planned Steam Direct ahead of the classic
   Steam / Paradox Launcher path, and asks for a confirmation before switching back to it (an
   extra launcher window every time, on top of Steam itself).
-- **A standalone launcher shim for Steam Direct** (`companions/launcher-shim/`) - a small,
-  separate companion executable (not installed into a game yet - that's still planned) that
-  replaces a game's own `dowser`/`dowser.exe`, letting Steam launch the game directly without
-  ever opening the Paradox Launcher.
+- **Steam Direct, for real** (`companions/launcher-shim/`, `internal/launchershim`) - a small,
+  separate companion executable replaces a game's own `dowser`/`dowser.exe`, letting Steam
+  launch the game directly without ever opening the Paradox Launcher. Install, repair (if
+  Steam's own "Verify integrity of game files" resets it), and remove it from Settings > Launch
+  options, per game - starting with Stellaris and Hearts of Iron IV, the two confirmed against a
+  real install. A live toast shows the moment Steam actually starts it.
 - **Play without a playset** - launching with nothing loaded touches no state and just starts the game.
 - **Stop playing** - a two-step stop button that works however the game was started.
 - **Live game log** - a filterable, colored window on the game's own `error.log` and other logs while
@@ -316,3 +318,8 @@ for security, privacy, reliability or performance is called out (see the last tw
   fragment of a command line, so stopping it can never end an unrelated program.
 - **Downloads are verified** - background images are written to a temporary file and only kept when the
   size matches, and the app serves offline images only from its own image folders.
+- **Steam Direct never carries a copy of its own source code** - only a link to this repository,
+  in both the shim itself (a `--source` flag) and the note it leaves next to the file it replaces.
+  Installing it backs up the real file first and verifies the swap actually landed before calling
+  it done, restoring the original automatically if anything goes wrong; removing it restores that
+  same backup.

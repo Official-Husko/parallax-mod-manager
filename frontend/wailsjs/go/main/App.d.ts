@@ -99,7 +99,11 @@ export function IgnoredIncompatibleMods(arg1:string):Promise<Array<string>>;
 
 export function ImportLauncherPlaysets(arg1:string):Promise<Array<launcherdb.Playset>>;
 
+export function InstallLauncherShim(arg1:string):Promise<void>;
+
 export function LaunchGame(arg1:string,arg2:string):Promise<void>;
+
+export function LauncherShimStatusFor(arg1:string):Promise<main.LauncherShimStatus>;
 
 export function LicenceText():Promise<string>;
 
@@ -188,6 +192,8 @@ export function ReadModFile(arg1:string,arg2:string,arg3:string):Promise<library
 export function RemoveBackgroundPack(arg1:string):Promise<void>;
 
 export function RemoveExtraModFolder(arg1:string,arg2:string):Promise<void>;
+
+export function RemoveLauncherShim(arg1:string):Promise<void>;
 
 export function RenamePlayset(arg1:string,arg2:string,arg3:string):Promise<void>;
 

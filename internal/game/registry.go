@@ -26,8 +26,9 @@ var Stellaris = GameConfig{
 		"common", "events", "map", "localisation", "gfx", "gui",
 		"prescripted_countries", "solar_system_initializers",
 	},
-	ChecksumAlgorithm: "stellaris",
-	DLC:               []DLCEntry{}, // matches data/games.jsonc's "dlc": [] - see TestRealGamesListFileIsValidAndMatchesTheFixture
+	ChecksumAlgorithm:     "stellaris",
+	DLC:                   []DLCEntry{}, // matches data/games.jsonc's "dlc": [] - see TestRealGamesListFileIsValidAndMatchesTheFixture
+	LauncherShimSupported: true,
 }
 
 // Registry looks up GameConfig by ID. The games it holds come from

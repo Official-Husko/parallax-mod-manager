@@ -9,16 +9,20 @@ import {
     DetectGames,
     DeveloperToolsStatus,
     GetPreferences,
+    InstallLauncherShim,
+    LauncherShimStatusFor,
     ListPlaysets,
     OpenPath,
     RemoveExtraModFolder,
+    RemoveLauncherShim,
     SetGameManaged,
     SetPreferences,
 } from '../../wailsjs/go/main/App';
-import type {library, preferences} from '../../wailsjs/go/models';
+import type {library, main, preferences} from '../../wailsjs/go/models';
 import {GameLogo} from '../components/GameLogo';
 import {Toggle} from '../components/Toggle';
 import {settingsNav} from '../data/mockData';
+import {notify} from '../data/notifications';
 import {formatBytes} from '../data/format';
 import {DEFAULT_BACKGROUND_INTERVAL_SECONDS} from '../components/AppBackground';
 import {
@@ -355,13 +359,14 @@ function ManageGamesPanel({onGamesChanged}: { onGamesChanged?: () => void }) {
     );
 }
 
-// Mirrors internal/launch.LaunchMode's two values - preferences.launchModes
+// Mirrors internal/launch.LaunchMode's three values - preferences.launchModes
 // is stored as a plain map[string]string on the Go side (see that type's
 // own comment for why), so there's no generated binding to import here.
-type LaunchMode = 'steam' | 'direct';
+type LaunchMode = 'steam' | 'direct' | 'shim';
 
 function launchModeFor(prefs: preferences.Preferences | null, gameId: string): LaunchMode {
-    return prefs?.launchModes?.[gameId] === 'direct' ? 'direct' : 'steam';
+    const m = prefs?.launchModes?.[gameId];
+    return m === 'direct' || m === 'shim' ? m : 'steam';
 }
 
 function LaunchOptionsPanel() {
@@ -370,13 +375,30 @@ function LaunchOptionsPanel() {
     // away from it, or if it's already chosen) - see pickSteam below.
     const [confirmSteam, setConfirmSteam] = useState(false);
 
+    // Steam Direct's own real, on-disk state (see internal/launchershim) - whether
+    // it's even offered for this game, and whether the shim is actually installed,
+    // needs repairing (Steam's own "Verify integrity of game files" can restore the
+    // original), or something unrecognized. shimAction gates the confirm step
+    // before InstallLauncherShim/RemoveLauncherShim ever touch a real file.
+    const [shimStatus, setShimStatus] = useState<main.LauncherShimStatus | null>(null);
+    const [shimAction, setShimAction] = useState<'install' | 'repair' | 'remove' | null>(null);
+    const [shimBusy, setShimBusy] = useState(false);
+
     useEffect(() => {
         GetPreferences().then(setPrefs).catch(() => undefined);
     }, []);
 
     const {state, managedGames, selectedGame, selectedGameId, setSelectedGameId} = useManagedGamePicker(prefs);
 
-    useEffect(() => { setConfirmSteam(false); }, [selectedGameId]);
+    useEffect(() => {
+        setConfirmSteam(false);
+        setShimAction(null);
+        setShimStatus(null);
+        if (!selectedGameId) return;
+        let cancelled = false;
+        LauncherShimStatusFor(selectedGameId).then((s) => { if (!cancelled) setShimStatus(s); }).catch(() => undefined);
+        return () => { cancelled = true; };
+    }, [selectedGameId]);
 
     function setMode(mode: LaunchMode) {
         if (!prefs || !selectedGame) return;
@@ -397,6 +419,60 @@ function LaunchOptionsPanel() {
     function confirmPickSteam() {
         setConfirmSteam(false);
         setMode('steam');
+    }
+
+    // Picking Steam Direct: already installed and healthy just switches the
+    // preference (no file to touch); anything else - a fresh install, or a repair
+    // after Steam reset the real launcher - goes through the confirm step below
+    // first, since either one touches a real file in the user's Steam library.
+    function pickShim() {
+        if (!shimStatus?.Supported) return;
+        if (shimStatus.State === 'installed') {
+            setMode('shim');
+            return;
+        }
+        setShimAction(shimStatus.State === 'needs-repair' ? 'repair' : 'install');
+    }
+
+    async function refreshShimStatus() {
+        if (!selectedGame) return;
+        try {
+            setShimStatus(await LauncherShimStatusFor(selectedGame.ID));
+        } catch {
+            // leave whatever was already shown - a failed refresh is not itself news
+        }
+    }
+
+    async function confirmInstallOrRepairShim() {
+        if (!selectedGame) return;
+        setShimBusy(true);
+        try {
+            await InstallLauncherShim(selectedGame.ID);
+            setMode('shim');
+            notify('success', `Steam Direct is set up for ${selectedGame.DisplayName}.`);
+        } catch (err) {
+            notify('error', String(err).replace(/^Error:\s*/, ''));
+        } finally {
+            setShimBusy(false);
+            setShimAction(null);
+            void refreshShimStatus();
+        }
+    }
+
+    async function confirmRemoveShim() {
+        if (!selectedGame) return;
+        setShimBusy(true);
+        try {
+            await RemoveLauncherShim(selectedGame.ID);
+            setMode('steam');
+            notify('info', `Steam Direct removed for ${selectedGame.DisplayName} - the original launcher is restored.`);
+        } catch (err) {
+            notify('error', String(err).replace(/^Error:\s*/, ''));
+        } finally {
+            setShimBusy(false);
+            setShimAction(null);
+            void refreshShimStatus();
+        }
     }
 
     return (
@@ -429,23 +505,70 @@ function LaunchOptionsPanel() {
                                 Paths & folders before switching it to Parallax Direct.
                             </p>
                         )}
-                        <div className="mode-option disabled">
-                            <i className="fa-solid fa-circle mode-option-radio off"/>
-                            <div className="mode-option-main">
-                                <div className="mode-option-name">
-                                    Steam Direct
-                                    <span className="mode-option-recommended">(Recommended)</span>
-                                    <span className="chip">Planned</span>
-                                </div>
-                                <div className="mode-option-desc">
-                                    Replaces the launcher's own entry point so Steam launches the game
-                                    directly while keeping Steam's full process context - overlay,
-                                    achievements, and DLC checks all intact, unlike Parallax Direct
-                                    below. Will become the default launch mode once it's built, since
-                                    it keeps the most Steam integration of any bypass here.
+                        {shimStatus?.Supported ? (
+                            <div
+                                className={`mode-option ${mode === 'shim' ? 'active' : ''} ${!selectedGame.Installed ? 'disabled' : ''}`}
+                                onClick={() => selectedGame.Installed && pickShim()}
+                            >
+                                <i className={`fa-solid ${mode === 'shim' ? 'fa-circle-dot' : 'fa-circle'} mode-option-radio ${mode === 'shim' ? 'on' : 'off'}`}/>
+                                <div className="mode-option-main">
+                                    <div className="mode-option-name">
+                                        Steam Direct
+                                        <span className="mode-option-recommended">(Recommended)</span>
+                                    </div>
+                                    <div className="mode-option-desc">
+                                        Replaces the launcher's own entry point so Steam launches the game
+                                        directly while keeping Steam's full process context - overlay,
+                                        achievements, and DLC checks all intact, unlike Parallax Direct below.
+                                    </div>
+                                    {shimStatus.State === 'installed' && (
+                                        <div className="mode-option-status good">
+                                            <i className="fa-solid fa-circle-check"/> Installed
+                                            {mode === 'shim' && (
+                                                <span
+                                                    className="link-btn"
+                                                    onClick={(e) => { e.stopPropagation(); setShimAction('remove'); }}
+                                                >
+                                                    Remove
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
+                                    {shimStatus.State === 'not-installed' && (
+                                        <div className="mode-option-status">Not installed yet - selecting this installs it.</div>
+                                    )}
+                                    {shimStatus.State === 'needs-repair' && (
+                                        <div className="mode-option-status warn">
+                                            <i className="fa-solid fa-triangle-exclamation"/> Steam's own "Verify integrity of
+                                            game files" reset this game's launcher - needs repairing.
+                                        </div>
+                                    )}
+                                    {shimStatus.State === 'unknown' && shimStatus.Error && (
+                                        <div className="mode-option-status warn">
+                                            <i className="fa-solid fa-triangle-exclamation"/> {shimStatus.Error}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
-                        </div>
+                        ) : (
+                            <div className="mode-option disabled">
+                                <i className="fa-solid fa-circle mode-option-radio off"/>
+                                <div className="mode-option-main">
+                                    <div className="mode-option-name">
+                                        Steam Direct
+                                        <span className="mode-option-recommended">(Recommended)</span>
+                                        <span className="chip">Not available for this game yet</span>
+                                    </div>
+                                    <div className="mode-option-desc">
+                                        Replaces the launcher's own entry point so Steam launches the game
+                                        directly while keeping Steam's full process context - overlay,
+                                        achievements, and DLC checks all intact, unlike Parallax Direct below.
+                                        Only offered for a game once this has actually been checked against a
+                                        real install of it.
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                         <div
                             className={`mode-option ${mode === 'direct' ? 'active' : ''} ${!selectedGame.Installed ? 'disabled' : ''}`}
                             onClick={() => selectedGame.Installed && setMode('direct')}
@@ -472,7 +595,7 @@ function LaunchOptionsPanel() {
                                     The normal path - Steam opens the Paradox Launcher, which starts
                                     the game. Keeps full Steam integration: overlay, achievements, DLC
                                     ownership checks - but an extra step and window Steam Direct (above)
-                                    will skip once it's built.
+                                    can skip, once set up for this game.
                                 </div>
                             </div>
                         </div>
@@ -480,12 +603,31 @@ function LaunchOptionsPanel() {
                             <div className="steam-confirm">
                                 <span>
                                     Steam / Paradox Launcher opens an extra window on top of Steam itself
-                                    every time - Parallax Direct above skips it, and Steam Direct will too
-                                    once it's built. Switch anyway?
+                                    every time - Parallax Direct above skips it, and so can Steam Direct,
+                                    once set up. Switch anyway?
                                 </span>
                                 <span className="steam-confirm-actions">
                                     <button className="btn-primary" onClick={confirmPickSteam}>Switch anyway</button>
                                     <button className="btn-ghost" onClick={() => setConfirmSteam(false)}>Cancel</button>
+                                </span>
+                            </div>
+                        )}
+                        {shimAction && (
+                            <div className="steam-confirm">
+                                <span>
+                                    {shimAction === 'install' && `Install Steam Direct for ${selectedGame.DisplayName}? This replaces its own launcher file - the original is kept as a backup and restored any time you remove it.`}
+                                    {shimAction === 'repair' && `Steam's own "Verify integrity of game files" restored the original launcher. Reinstall the Steam Direct shim for ${selectedGame.DisplayName}?`}
+                                    {shimAction === 'remove' && `Remove Steam Direct for ${selectedGame.DisplayName}? This restores the original launcher and switches back to Steam / Paradox Launcher.`}
+                                </span>
+                                <span className="steam-confirm-actions">
+                                    <button
+                                        className="btn-primary"
+                                        disabled={shimBusy}
+                                        onClick={shimAction === 'remove' ? confirmRemoveShim : confirmInstallOrRepairShim}
+                                    >
+                                        {shimBusy ? 'Working...' : shimAction === 'remove' ? 'Remove' : shimAction === 'repair' ? 'Repair' : 'Install'}
+                                    </button>
+                                    <button className="btn-ghost" disabled={shimBusy} onClick={() => setShimAction(null)}>Cancel</button>
                                 </span>
                             </div>
                         )}

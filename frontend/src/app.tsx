@@ -8,6 +8,7 @@ import type {ViewKey} from './components/TopBar';
 import {NotificationStack} from './components/NotificationStack';
 import {ContextMenu} from './components/ContextMenu';
 import {installBackupNotifications} from './data/backups';
+import {installLauncherShimNotifications} from './data/launcherShim';
 import {installModStubNotifications} from './data/modStubs';
 import {setShiftRightClickNative, wantsNativeContextMenu} from './data/developerTools';
 import {ensureLoversLabNotifications} from './data/loversLabNotifications';
@@ -120,6 +121,10 @@ export function App() {
     // Before a launch the backend repairs the links the game uses to find mods; this is how the
     // person hears that a mod was not loading, or still cannot.
     useEffect(() => installModStubNotifications(), []);
+
+    // The Steam Direct shim's own live, best-effort ping - the moment Steam actually
+    // starts it in place of a game's own dowser/dowser.exe.
+    useEffect(() => installLauncherShimNotifications(), []);
 
     useEffect(() => {
         setVisitedViews((prev) => (prev.has(view) ? prev : new Set(prev).add(view)));
