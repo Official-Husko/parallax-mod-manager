@@ -135,6 +135,8 @@ export function LoversLabFiles(arg1:string,arg2:number):Promise<main.LoversLabFi
 
 export function LoversLabInstall(arg1:string,arg2:string,arg3:loverslab.FileSummary,arg4:string,arg5:string):Promise<main.SaveResult>;
 
+export function LoversLabInstalledMods(arg1:string):Promise<Array<main.LoversLabInstalledMod>>;
+
 export function LoversLabPostComment(arg1:string,arg2:string):Promise<void>;
 
 export function LoversLabStatus():Promise<main.LoversLabStatus>;
@@ -238,6 +240,8 @@ export function StopGame(arg1:string):Promise<number>;
 export function StopWatchingGameLog():Promise<void>;
 
 export function UndoModEdit(arg1:string,arg2:string):Promise<main.SaveResult>;
+
+export function UninstallLoversLabMod(arg1:string,arg2:number):Promise<void>;
 
 export function WatchGameLog(arg1:string,arg2:string):Promise<number>;
 

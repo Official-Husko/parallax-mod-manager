@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -55,6 +56,30 @@ type LoversLabInstallProgress struct {
 	Total int64
 }
 
+// locateLoversLabInstall finds fileID's own stub descriptor for gameID, if one
+// exists, and returns where its content actually lives on disk - the shared lookup
+// resolveLoversLabInstallLocation (installing) and UninstallLoversLabMod (removing)
+// both need: "is this file already installed, and if so, where." found is false
+// when there's no stub, or the stub exists but can't be read/parsed (never a reason
+// to fail the caller outright - LoversLabInstall treats that as a fresh install,
+// UninstallLoversLabMod treats it as "nothing to remove").
+func locateLoversLabInstall(modDir string, fileID int) (contentDir, stubPath string, found bool) {
+	stubPath = filepath.Join(modDir, mod.LoversLabFilePrefix+strconv.Itoa(fileID)+".mod")
+	data, err := os.ReadFile(stubPath)
+	if err != nil {
+		return "", stubPath, false
+	}
+	desc, err := mod.ParseDescriptor(data, mod.DescriptorClassic)
+	if err != nil || desc.Path == "" {
+		return "", stubPath, false
+	}
+	dir := desc.Path
+	if !filepath.IsAbs(dir) {
+		dir = filepath.Join(modDir, dir)
+	}
+	return dir, stubPath, true
+}
+
 // resolveLoversLabInstallLocation works out where a LoversLab file should be
 // installed for gameID: if it (identified by fileID, not by name - a file can be
 // retitled on LoversLab without this app losing track of it) is already installed,
@@ -72,16 +97,8 @@ func (a *App) resolveLoversLabInstallLocation(gameID string, fileID int, title s
 	}
 	modDir := locations[0].Path // NewModLocations always lists the game's own mod folder first, Default true
 
-	stubPath = filepath.Join(modDir, mod.LoversLabFilePrefix+strconv.Itoa(fileID)+".mod")
-	if data, readErr := os.ReadFile(stubPath); readErr == nil {
-		desc, parseErr := mod.ParseDescriptor(data, mod.DescriptorClassic)
-		if parseErr == nil && desc.Path != "" {
-			dir := desc.Path
-			if !filepath.IsAbs(dir) {
-				dir = filepath.Join(modDir, dir)
-			}
-			return dir, stubPath, true, nil
-		}
+	if dir, stub, found := locateLoversLabInstall(modDir, fileID); found {
+		return dir, stub, true, nil
 	}
 
 	folderName, err := modedit.FolderName(strings.TrimSpace(title))
@@ -89,6 +106,7 @@ func (a *App) resolveLoversLabInstallLocation(gameID string, fileID int, title s
 		return "", "", false, err
 	}
 	contentDir = filepath.Join(modDir, folderName)
+	stubPath = filepath.Join(modDir, mod.LoversLabFilePrefix+strconv.Itoa(fileID)+".mod")
 	if _, statErr := os.Stat(contentDir); statErr == nil {
 		// An unrelated mod already has this exact folder name - not this file's own
 		// previous install (that was already handled above), just a naming
@@ -96,6 +114,109 @@ func (a *App) resolveLoversLabInstallLocation(gameID string, fileID int, title s
 		contentDir = filepath.Join(modDir, folderName+"-"+strconv.Itoa(fileID))
 	}
 	return contentDir, stubPath, false, nil
+}
+
+// UninstallLoversLabMod removes a mod this app previously installed from LoversLab
+// for gameID (identified by fileID, the same identity LoversLabInstall itself uses):
+// its content folder, its stub descriptor, and its entry in
+// internal/loverslabtracking (so the update check stops looking for it) - mirrors
+// LoversLabInstall's own conventions exactly (the shared modEditMu lock, muting the
+// folder watcher while writing, emitting "mods-changed" once done). A file that
+// isn't actually installed returns a clear error rather than silently doing nothing.
+func (a *App) UninstallLoversLabMod(gameID string, fileID int) error {
+	modEditMu.Lock()
+	defer modEditMu.Unlock()
+	log := applog.For("LoversLab")
+
+	locations, err := a.NewModLocations(gameID)
+	if err != nil {
+		return err
+	}
+	if len(locations) == 0 {
+		return errors.New("no install location was found for this game")
+	}
+	modDir := locations[0].Path
+
+	contentDir, stubPath, found := locateLoversLabInstall(modDir, fileID)
+	if !found {
+		return errors.New("this mod isn't currently installed from LoversLab")
+	}
+
+	endMute := a.watchMute.Begin(modWatchMuteGrace)
+	defer endMute()
+
+	if err := os.RemoveAll(contentDir); err != nil {
+		return fmt.Errorf("could not remove %s: %w", contentDir, err)
+	}
+	if err := os.Remove(stubPath); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("could not remove %s: %w", stubPath, err)
+	}
+
+	modID := mod.LoversLabFilePrefix + strconv.Itoa(fileID)
+	installs, err := a.loverslabInstalls.Load(gameID)
+	if err != nil {
+		log.Warnf("could not read the LoversLab install tracking file, so this mod's entry was left behind: %v", err)
+	} else {
+		installs, _ = loverslabtracking.With(installs, modID, loverslabtracking.Entry{})
+		if err := a.loverslabInstalls.Save(gameID, installs); err != nil {
+			log.Warnf("could not save LoversLab install tracking after uninstalling %s: %v", modID, err)
+		}
+	}
+
+	log.Infof("uninstalled %s from LoversLab for '%s'", modID, a.gameLabel(gameID))
+	a.emit("mods-changed", gameID)
+	return nil
+}
+
+// LoversLabInstalledMod is one mod this app has tracked as installed from
+// LoversLab for a game - see internal/loverslabtracking.Entry, which is what this
+// is actually built from.
+type LoversLabInstalledMod struct {
+	FileID                int
+	Title                 string
+	FileURL               string
+	InstalledAt           int64
+	InstalledDateModified string
+	// ContentMissing is true when this entry's own stub descriptor and content
+	// folder can no longer be found on disk - the mod was removed by hand outside
+	// this app, or the drive it lived on isn't connected. Shown so a person isn't
+	// offered to "uninstall" something that's already gone.
+	ContentMissing bool
+}
+
+// LoversLabInstalledMods lists every mod this app has tracked as installed from
+// LoversLab for gameID, newest install first - the Browse tab's own "Installed"
+// section, for reviewing and uninstalling them.
+func (a *App) LoversLabInstalledMods(gameID string) ([]LoversLabInstalledMod, error) {
+	installs, err := a.loverslabInstalls.Load(gameID)
+	if err != nil {
+		return nil, err
+	}
+
+	var modDir string
+	if locations, locErr := a.NewModLocations(gameID); locErr == nil && len(locations) > 0 {
+		modDir = locations[0].Path
+	}
+
+	out := make([]LoversLabInstalledMod, 0, len(installs))
+	for _, e := range installs {
+		missing := true
+		if modDir != "" {
+			if _, _, found := locateLoversLabInstall(modDir, e.FileID); found {
+				missing = false
+			}
+		}
+		out = append(out, LoversLabInstalledMod{
+			FileID:                e.FileID,
+			Title:                 e.Title,
+			FileURL:               e.FileURL,
+			InstalledAt:           e.InstalledAt,
+			InstalledDateModified: e.InstalledDateModified,
+			ContentMissing:        missing,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].InstalledAt > out[j].InstalledAt })
+	return out, nil
 }
 
 // LoversLabInstall downloads file from downloadURL (one of LoversLabDownloadDialog's

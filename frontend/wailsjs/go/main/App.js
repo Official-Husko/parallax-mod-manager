@@ -238,6 +238,10 @@ export function LoversLabInstall(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['main']['App']['LoversLabInstall'](arg1, arg2, arg3, arg4, arg5);
 }
 
+export function LoversLabInstalledMods(arg1) {
+  return window['go']['main']['App']['LoversLabInstalledMods'](arg1);
+}
+
 export function LoversLabPostComment(arg1, arg2) {
   return window['go']['main']['App']['LoversLabPostComment'](arg1, arg2);
 }
@@ -444,6 +448,10 @@ export function StopWatchingGameLog() {
 
 export function UndoModEdit(arg1, arg2) {
   return window['go']['main']['App']['UndoModEdit'](arg1, arg2);
+}
+
+export function UninstallLoversLabMod(arg1, arg2) {
+  return window['go']['main']['App']['UninstallLoversLabMod'](arg1, arg2);
 }
 
 export function WatchGameLog(arg1, arg2) {

@@ -94,11 +94,18 @@ for security, privacy, reliability or performance is called out (see the last tw
 - **Signing in to LoversLab is real** - a username/email and password, saved encrypted and bound to
   this computer (Settings > Steam API's key uses the same underlying `internal/credentials`
   package).
-- **A full mod detail view** - click a card for its real description, screenshot gallery, changelog
-  and comments (LoversLab files link an ordinary forum topic for support instead of having native
-  comments), all in one place instead of leaving the app.
+- **A full, tabbed mod detail view** - click a card for a much bigger overlay (Description, Files
+  and Comments tabs, a stats rail always visible on the side): real description and screenshot
+  gallery, changelog, and comments (LoversLab files link an ordinary forum topic for support
+  instead of having native comments), all in one place instead of leaving the app.
 - **Write a reply, not just read them** - post a real comment to a file's support topic straight
-  from its detail view, with no need to open a browser.
+  from the Comments tab, with no need to open a browser.
+- **Pick which file to install from its own Files tab** - every downloadable file for a mod,
+  each with its own Install (or Update, once installed) button.
+- **An Installed section, and uninstalling** - a new place in Browse, alongside its per-game
+  sidebar, listing everything installed from LoversLab for the current game; uninstall from
+  there (right-click) or from the mod's own detail view - either deletes its files for real,
+  after confirming.
 - **Download and install a LoversLab mod in one click** - extracts the real archive straight into
   the game's own mod folder, recognizes a mod already installed from LoversLab and updates it in
   place instead of leaving a duplicate, and shows real progress with a Cancel option throughout.

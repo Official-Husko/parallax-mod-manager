@@ -961,11 +961,14 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   is not a secret the way a password is - Settings > Steam API's own fingerprint-only convention
   would tell the person nothing useful here), while the password never is, matching the Steam key's
   own "never shown again" rule exactly.
-- **A full mod detail view for Browse**, opened by clicking a card: the file's real description and
-  screenshot gallery (both come from a `schema.org WebApplication` JSON-LD block every Downloads
-  file page embeds - confirmed live against three real files - rather than scraping the description
-  prose or the screenshot carousel's markup directly, which turned out to be unnecessary once that
-  block was found), its changelog inlined instead of its own separate popup, and its comments.
+- **A full, tabbed mod detail view for Browse**, opened by clicking a card: much bigger than a
+  changelog-only popup, laid out Nexus-Mods-style - a stats rail on the left (author, version,
+  file size, views/downloads, installed status, always visible) and a tabbed main area on the
+  right (Description, Files, Comments). The file's real description and screenshot gallery (both
+  come from a `schema.org WebApplication` JSON-LD block every Downloads file page embeds -
+  confirmed live against three real files - rather than scraping the description prose or the
+  screenshot carousel's markup directly, which turned out to be unnecessary once that block was
+  found) and its changelog live under Description; its comments live under their own tab.
   LoversLab files have no native comments; each optionally links an ordinary "Get Support" forum
   topic instead, so `internal/loverslab` reads that topic's replies (author, when, a deep link to
   the specific reply, its own text with any attachment links excluded - see below - and any files
@@ -981,9 +984,11 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   from, once again against this app's own port - showing up on the real topic afterward under the
   account's own username, not just a non-error return value.
 - **Downloading and installing a mod from Browse** (`loverslabinstall.go`,
-  `internal/loverslabinstall`, `internal/loverslabtracking`) - a Download button on the detail
-  view above: picks the right attachment when a file has more than one, downloads with real
-  progress and a Cancel option, then extracts straight into the game's own mod folder. A mod
+  `internal/loverslabinstall`, `internal/loverslabtracking`) - the detail view's own Files tab
+  lists every downloadable file for a mod directly (rather than a picker that only appeared after
+  clicking a single Download button), each with its own Install (or Update, once installed)
+  button: downloads with real progress and a Cancel option, then extracts straight into the
+  game's own mod folder. A mod
   already installed from LoversLab (tracked by its LoversLab file id, not by name - a file can be
   retitled without this app losing track of it) is updated in place rather than left as a
   duplicate. `mod.Source` gained `SourceLoversLab` (a `loverslab_` descriptor filename prefix,
@@ -1023,6 +1028,17 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   actually advances the saved timestamp checked against; signing in to LoversLab and installing a
   mod from it each also trigger an immediate check, rather than only ever finding out up to the
   configured interval later.
+- **An Installed section, and uninstalling** (`UninstallLoversLabMod`, `LoversLabInstalledMods` in
+  `loverslabinstall.go`) - a new place in Browse, alongside its per-game category sidebar, listing
+  every mod tracked as installed from LoversLab for the current game, flagging one whose files can
+  no longer be found on disk (removed by hand, or its drive isn't connected) rather than offering to
+  uninstall something already gone. Uninstall from there (right-click a row, the same
+  `openContextMenu` pattern Library/Workspace already use, then a two-step inline confirm) or from
+  the mod's own detail view (header, or its Files tab) - either deletes its content folder and stub
+  descriptor for real and drops its update-tracking entry, mirroring `LoversLabInstall`'s own
+  conventions exactly (the shared lock, muting the folder watcher while writing). The lookup for
+  "is this file installed, and where" is shared between installing and uninstalling, rather than
+  two separate ways of finding the same thing.
 - **Every top-bar tab now has its own icon**, not just Browse - a small, purely visual change that
   came along with adding Browse's own.
 - **Unlisted, private and deleted Workshop mods get their own flags** (`internal/steamapi/availability.go`,

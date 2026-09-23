@@ -1478,6 +1478,28 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class LoversLabInstalledMod {
+	    FileID: number;
+	    Title: string;
+	    FileURL: string;
+	    InstalledAt: number;
+	    InstalledDateModified: string;
+	    ContentMissing: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new LoversLabInstalledMod(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.FileID = source["FileID"];
+	        this.Title = source["Title"];
+	        this.FileURL = source["FileURL"];
+	        this.InstalledAt = source["InstalledAt"];
+	        this.InstalledDateModified = source["InstalledDateModified"];
+	        this.ContentMissing = source["ContentMissing"];
+	    }
+	}
 	export class LoversLabStatus {
 	    SignedIn: boolean;
 	    Username: string;

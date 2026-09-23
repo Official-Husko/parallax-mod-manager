@@ -298,3 +298,105 @@ func TestCancelLoversLabInstallOnAnUnknownRequestIsANoOp(t *testing.T) {
 	env := newInstallEnv(t)
 	env.a.CancelLoversLabInstall("no-such-request") // must not panic
 }
+
+func TestUninstallLoversLabModRemovesContentStubAndTrackingEntry(t *testing.T) {
+	env := newInstallEnv(t)
+	srv := zipServer(t, buildTestZip(t, map[string]string{
+		"descriptor.mod": "name=\"Removable\"\nversion=\"1.0\"\n",
+	}))
+	file := loverslab.FileSummary{ID: 900, Title: "Removable", URL: "https://www.loverslab.com/files/file/900-removable/", Updated: "today"}
+	if _, err := env.a.LoversLabInstall(env.cfg.ID, "req-u1", file, "2026-01-01T00:00:00+0000", srv.URL); err != nil {
+		t.Fatalf("LoversLabInstall: %v", err)
+	}
+	contentDir := filepath.Join(env.modDir, "Removable")
+	stubPath := filepath.Join(env.modDir, "loverslab_900.mod")
+	if _, err := os.Stat(contentDir); err != nil {
+		t.Fatalf("setup: content dir missing: %v", err)
+	}
+
+	if err := env.a.UninstallLoversLabMod(env.cfg.ID, 900); err != nil {
+		t.Fatalf("UninstallLoversLabMod: %v", err)
+	}
+	if _, err := os.Stat(contentDir); !os.IsNotExist(err) {
+		t.Errorf("content dir was not removed: %v", err)
+	}
+	if _, err := os.Stat(stubPath); !os.IsNotExist(err) {
+		t.Errorf("stub was not removed: %v", err)
+	}
+	installs, err := env.a.loverslabInstalls.Load(env.cfg.ID)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if _, ok := installs["loverslab_900"]; ok {
+		t.Error("the tracking entry was not removed")
+	}
+	if !env.sawEvent("mods-changed") {
+		t.Error("mods-changed was not emitted")
+	}
+}
+
+func TestUninstallLoversLabModOnAModThatIsNotInstalledReturnsAClearError(t *testing.T) {
+	env := newInstallEnv(t)
+	err := env.a.UninstallLoversLabMod(env.cfg.ID, 12345)
+	if err == nil {
+		t.Fatal("expected an error for a mod that was never installed")
+	}
+}
+
+func TestLoversLabInstalledModsReflectsTheTrackingStoreSortedNewestFirst(t *testing.T) {
+	env := newInstallEnv(t)
+	installs, err := env.a.loverslabInstalls.Load(env.cfg.ID)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	installs, _ = loverslabtracking.With(installs, "loverslab_1", loverslabtracking.Entry{
+		FileURL: "https://www.loverslab.com/files/file/1-older/", FileID: 1, Title: "Older", InstalledAt: 100,
+	})
+	installs, _ = loverslabtracking.With(installs, "loverslab_2", loverslabtracking.Entry{
+		FileURL: "https://www.loverslab.com/files/file/2-newer/", FileID: 2, Title: "Newer", InstalledAt: 200,
+	})
+	if err := env.a.loverslabInstalls.Save(env.cfg.ID, installs); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	got, err := env.a.LoversLabInstalledMods(env.cfg.ID)
+	if err != nil {
+		t.Fatalf("LoversLabInstalledMods: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("got %d entries, want 2", len(got))
+	}
+	if got[0].Title != "Newer" || got[1].Title != "Older" {
+		t.Errorf("not sorted newest-first: %+v", got)
+	}
+	// Neither was actually extracted to disk in this test - both should read as
+	// missing rather than crash or silently claim they're present.
+	if !got[0].ContentMissing || !got[1].ContentMissing {
+		t.Errorf("expected both entries to be flagged ContentMissing: %+v", got)
+	}
+}
+
+func TestLoversLabInstalledModsFlagsContentPresentAfterARealInstall(t *testing.T) {
+	env := newInstallEnv(t)
+	srv := zipServer(t, buildTestZip(t, map[string]string{
+		"descriptor.mod": "name=\"Present\"\nversion=\"1.0\"\n",
+	}))
+	file := loverslab.FileSummary{ID: 901, Title: "Present", URL: "https://www.loverslab.com/files/file/901-present/", Updated: "today"}
+	if _, err := env.a.LoversLabInstall(env.cfg.ID, "req-u2", file, "2026-01-01T00:00:00+0000", srv.URL); err != nil {
+		t.Fatalf("LoversLabInstall: %v", err)
+	}
+
+	got, err := env.a.LoversLabInstalledMods(env.cfg.ID)
+	if err != nil {
+		t.Fatalf("LoversLabInstalledMods: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("got %d entries, want 1", len(got))
+	}
+	if got[0].ContentMissing {
+		t.Error("a freshly installed mod should not be flagged ContentMissing")
+	}
+	if got[0].FileID != 901 || got[0].Title != "Present" {
+		t.Errorf("unexpected entry: %+v", got[0])
+	}
+}

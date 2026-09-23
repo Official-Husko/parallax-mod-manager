@@ -11,12 +11,15 @@ import {
     LoversLabFileDetail,
     LoversLabFiles,
     LoversLabInstall,
+    LoversLabInstalledMods,
     LoversLabPostComment,
     LoversLabStatus,
     SaveLoversLabCredentials,
+    UninstallLoversLabMod,
 } from '../../wailsjs/go/main/App';
 import type {library, loverslab, main} from '../../wailsjs/go/models';
 import {BrowserOpenURL, EventsOn} from '../../wailsjs/runtime/runtime';
+import {openContextMenu} from '../data/contextMenu';
 import {checkLoversLabNotifications, loversLabNotificationsURL, useLoversLabUnreadCount} from '../data/loversLabNotifications';
 import {checkLoversLabUpdates} from '../data/modUpdates';
 import {notify} from '../data/notifications';
@@ -73,15 +76,35 @@ type CommentsState =
     | { kind: 'error'; message: string }
     | { kind: 'ready'; posts: loverslab.Post[]; totalPages: number; hasTopic: boolean };
 
-// The Download button's own little flow: find what's downloadable, let the person
-// pick when there's more than one, confirm, then install with progress - all inside
-// the detail modal, never a second popup on top of it.
+// The detail modal's three tabs, Nexus/Steam Workshop/Thunderstore-style: a
+// description with screenshots and the changelog, the file's own downloadable
+// files (pick one to install), and comments (read and, per Phase 1, write).
+type DetailTab = 'description' | 'files' | 'comments';
+
+// The Files tab's own list of what's downloadable for the open file - loaded once,
+// lazily, the first time that tab is opened.
+type FilesTabState =
+    | { kind: 'idle' }
+    | { kind: 'loading' }
+    | { kind: 'error'; message: string }
+    | { kind: 'ready'; downloads: loverslab.FileDownload[] };
+
+type InstalledModsState =
+    | { kind: 'idle' }
+    | { kind: 'loading' }
+    | { kind: 'error'; message: string }
+    | { kind: 'ready'; mods: main.LoversLabInstalledMod[] };
+
+// Installing (from a Files-tab row's Install/Update button) and uninstalling (from
+// the header or the Files tab) share this one piece of state - both are shown the
+// same way, inline at the top of the tab body, never a second popup on top of the
+// detail modal itself.
 type InstallState =
     | { kind: 'idle' }
-    | { kind: 'loading-downloads' }
-    | { kind: 'picking'; downloads: loverslab.FileDownload[] }
     | { kind: 'confirm'; download: loverslab.FileDownload }
     | { kind: 'installing'; download: loverslab.FileDownload; progress: LoversLabInstallProgressEvent | null }
+    | { kind: 'uninstall-confirm' }
+    | { kind: 'uninstalling' }
     | { kind: 'error'; message: string };
 
 function errorText(err: unknown): string {
@@ -105,13 +128,24 @@ export function Browse({games, selectedGame}: {
     const [filesState, setFilesState] = useState<FilesState>({kind: 'idle'});
     const [search, setSearch] = useState('');
 
+    // The "Installed" section: a new place in the sidebar, alongside GAMES, to see and
+    // uninstall everything installed from LoversLab for the selected game.
+    const [viewingInstalled, setViewingInstalled] = useState(false);
+    const [installedState, setInstalledState] = useState<InstalledModsState>({kind: 'idle'});
+    const [confirmUninstallId, setConfirmUninstallId] = useState<number | null>(null);
+    // Which open file ids are installed - kept up to date alongside installedState,
+    // read by the detail modal to decide whether to offer Uninstall or Install/Update.
+    const [installedIds, setInstalledIds] = useState<Set<number>>(new Set());
+
     const [detailFor, setDetailFor] = useState<loverslab.FileSummary | null>(null);
+    const [detailTab, setDetailTab] = useState<DetailTab>('description');
     const [detailState, setDetailState] = useState<DetailState | null>(null);
     const [changelogState, setChangelogState] = useState<ChangelogState | null>(null);
     const [commentsState, setCommentsState] = useState<CommentsState | null>(null);
     const [commentsPage, setCommentsPage] = useState(1);
     const [commentDraft, setCommentDraft] = useState('');
     const [postingComment, setPostingComment] = useState(false);
+    const [filesTabState, setFilesTabState] = useState<FilesTabState>({kind: 'idle'});
 
     const [installState, setInstallState] = useState<InstallState>({kind: 'idle'});
     const installRequestRef = useRef<string | null>(null);
@@ -143,6 +177,32 @@ export function Browse({games, selectedGame}: {
         return () => { cancelled = true; };
     }, [status?.SignedIn]);
 
+    // What's installed from LoversLab for the selected game - kept live alongside the
+    // categories above (same trigger), independent of whether the Installed section is
+    // currently being looked at, since the detail modal also needs installedIds to know
+    // whether to offer Uninstall or Install/Update for whatever file is open.
+    async function refreshInstalled() {
+        if (!status?.SignedIn || !selectedGame) return;
+        setInstalledState((prev) => (prev.kind === 'ready' ? prev : {kind: 'loading'}));
+        try {
+            const mods = await LoversLabInstalledMods(selectedGame);
+            const list = mods ?? [];
+            setInstalledState({kind: 'ready', mods: list});
+            setInstalledIds(new Set(list.map((m) => m.FileID)));
+        } catch (err) {
+            setInstalledState({kind: 'error', message: errorText(err)});
+        }
+    }
+
+    useEffect(() => {
+        if (!status?.SignedIn || !selectedGame) {
+            setInstalledState({kind: 'idle'});
+            setInstalledIds(new Set());
+            return;
+        }
+        void refreshInstalled();
+    }, [status?.SignedIn, selectedGame]);
+
     useEffect(() => {
         if (!selectedCategory) {
             setFilesState({kind: 'idle'});
@@ -157,9 +217,16 @@ export function Browse({games, selectedGame}: {
     }, [selectedCategory, page]);
 
     function selectCategory(cat: loverslab.Category) {
+        setViewingInstalled(false);
         setSelectedCategory(cat);
         setPage(1);
         setSearch('');
+    }
+
+    function selectInstalled() {
+        setViewingInstalled(true);
+        setConfirmUninstallId(null);
+        void refreshInstalled();
     }
 
     async function save() {
@@ -204,8 +271,10 @@ export function Browse({games, selectedGame}: {
     // others from showing up.
     function openDetail(file: loverslab.FileSummary) {
         setDetailFor(file);
+        setDetailTab('description');
         setCommentsPage(1);
         setInstallState({kind: 'idle'});
+        setFilesTabState({kind: 'idle'});
 
         setDetailState({kind: 'loading'});
         LoversLabFileDetail(file.URL)
@@ -230,6 +299,24 @@ export function Browse({games, selectedGame}: {
             .catch((err) => { if (!cancelled) setCommentsState({kind: 'error', message: errorText(err)}); });
         return () => { cancelled = true; };
     }, [detailFor, commentsPage]);
+
+    // The Files tab's own list of what's downloadable, loaded once the first time that
+    // tab is opened (not eagerly with the rest of the detail, since most visits to a
+    // mod's page never need it).
+    useEffect(() => {
+        if (!detailFor || detailTab !== 'files' || filesTabState.kind !== 'idle') return;
+        setFilesTabState({kind: 'loading'});
+        LoversLabDownloadDialog(detailFor.URL)
+            .then((downloads) => setFilesTabState({kind: 'ready', downloads: downloads ?? []}))
+            .catch((err) => setFilesTabState({kind: 'error', message: errorText(err)}));
+    }, [detailFor, detailTab, filesTabState.kind]);
+
+    // Opening a mod straight from the Installed list: only FileID/Title/FileURL are
+    // known there (see LoversLabInstalledMod) - the rest (author, screenshots,
+    // description) loads the same way it does for a card from the browsing grid.
+    function openInstalledDetail(m: main.LoversLabInstalledMod) {
+        openDetail({ID: m.FileID, Title: m.Title, URL: m.FileURL, Author: '', AuthorURL: '', Updated: '', ThumbnailURL: ''} as loverslab.FileSummary);
+    }
 
     // Posting a reply: always reloads page 1 afterward rather than trying to splice the
     // new reply into whatever page is currently shown - simpler, and correct regardless
@@ -257,34 +344,17 @@ export function Browse({games, selectedGame}: {
     }
 
     function closeDetail() {
-        // An install in progress keeps the modal open - closing partway through would
-        // leave no way to see it finish, cancel it, or find out whether it succeeded.
-        if (installState.kind === 'installing') return;
+        // An install or uninstall in progress keeps the modal open - closing partway
+        // through would leave no way to see it finish, cancel it, or find out whether
+        // it succeeded.
+        if (installState.kind === 'installing' || installState.kind === 'uninstalling') return;
         setDetailFor(null);
         setDetailState(null);
         setChangelogState(null);
         setCommentsState(null);
         setCommentDraft('');
+        setFilesTabState({kind: 'idle'});
         setInstallState({kind: 'idle'});
-    }
-
-    // Download: find what's downloadable for the open file, skip straight to confirming
-    // when there's only one, otherwise let the person pick which version/attachment first.
-    function startDownload() {
-        if (!detailFor) return;
-        setInstallState({kind: 'loading-downloads'});
-        LoversLabDownloadDialog(detailFor.URL)
-            .then((downloads) => {
-                const list = downloads ?? [];
-                if (list.length === 0) {
-                    setInstallState({kind: 'error', message: 'No downloadable files were found for this mod.'});
-                } else if (list.length === 1) {
-                    setInstallState({kind: 'confirm', download: list[0]});
-                } else {
-                    setInstallState({kind: 'picking', downloads: list});
-                }
-            })
-            .catch((err) => setInstallState({kind: 'error', message: errorText(err)}));
     }
 
     async function runInstall(download: loverslab.FileDownload) {
@@ -303,6 +373,7 @@ export function Browse({games, selectedGame}: {
             // This mod's own tracked install just changed - a fresh check confirms it no
             // longer shows as outdated right away, rather than until the next scheduled one.
             void checkLoversLabUpdates(selectedGame);
+            void refreshInstalled();
         } catch (err) {
             const message = errorText(err);
             notify(message.includes('cancelled') ? 'info' : 'error', message);
@@ -317,8 +388,40 @@ export function Browse({games, selectedGame}: {
         if (installRequestRef.current) CancelLoversLabInstall(installRequestRef.current);
     }
 
+    // Uninstalling the file currently open in the detail modal (header or Files tab) -
+    // shares installState with the install flow above, so both show the same way,
+    // inline at the top of the tab body.
+    async function uninstallCurrent() {
+        if (!detailFor) return;
+        setInstallState({kind: 'uninstalling'});
+        try {
+            await UninstallLoversLabMod(selectedGame, detailFor.ID);
+            notify('success', `Uninstalled '${detailFor.Title}'.`);
+            setInstallState({kind: 'idle'});
+            void refreshInstalled();
+        } catch (err) {
+            notify('error', errorText(err));
+            setInstallState({kind: 'idle'});
+        }
+    }
+
+    // Uninstalling from the Installed list itself, after its own inline "Uninstall
+    // this mod?" confirm (set by the row's right-click menu) - see
+    // confirmUninstallId below.
+    async function uninstallFromList(fileId: number, title: string) {
+        setConfirmUninstallId(null);
+        try {
+            await UninstallLoversLabMod(selectedGame, fileId);
+            notify('success', `Uninstalled '${title}'.`);
+            void refreshInstalled();
+        } catch (err) {
+            notify('error', errorText(err));
+        }
+    }
+
     const gameName = games.find((g) => g.ID === selectedGame)?.DisplayName ?? selectedGame;
     const canSave = !busy && username.trim() !== '' && password !== '';
+    const isInstalled = detailFor ? installedIds.has(detailFor.ID) : false;
 
     const files = filesState.kind === 'ready' ? filesState.files : [];
     const visibleFiles = useMemo(() => {
@@ -362,6 +465,17 @@ export function Browse({games, selectedGame}: {
                                 </div>
                             )}
                         </div>
+
+                        <div className="sidebar-label">INSTALLED</div>
+                        <div className="browse-games">
+                            <div
+                                className={`browse-category-row depth-0 ${viewingInstalled ? 'active' : ''}`}
+                                onClick={selectInstalled}
+                            >
+                                <span className="cat-name">Installed mods</span>
+                                <span className="mono cat-count">{installedIds.size}</span>
+                            </div>
+                        </div>
                     </>
                 )}
 
@@ -373,7 +487,56 @@ export function Browse({games, selectedGame}: {
             </div>
 
             <div className="browse-main">
-                {!status?.SignedIn ? (
+                {status?.SignedIn && viewingInstalled ? (
+                    <>
+                        <div className="browse-toolbar">
+                            <div className="browse-installed-title">Installed from LoversLab</div>
+                        </div>
+                        {installedState.kind === 'loading' && <div className="browse-status-note">Loading...</div>}
+                        {installedState.kind === 'error' && <div className="browse-status-note error">{installedState.message}</div>}
+                        {installedState.kind === 'ready' && installedState.mods.length === 0 && (
+                            <div className="browse-status-note">Nothing installed from LoversLab yet for this game.</div>
+                        )}
+                        {installedState.kind === 'ready' && installedState.mods.length > 0 && (
+                            <div className="browse-installed-list">
+                                {installedState.mods.map((m) => (
+                                    <div
+                                        key={m.FileID}
+                                        className="browse-installed-row"
+                                        onClick={() => confirmUninstallId !== m.FileID && openInstalledDetail(m)}
+                                        onContextMenu={(e) => openContextMenu(e, [
+                                            {label: 'Open on LoversLab', onClick: () => BrowserOpenURL(m.FileURL)},
+                                            {label: 'Uninstall', danger: true, separatorBefore: true, onClick: () => setConfirmUninstallId(m.FileID)},
+                                        ])}
+                                    >
+                                        {confirmUninstallId === m.FileID ? (
+                                            <div className="browse-installed-confirm">
+                                                <span>Uninstall this mod? This deletes its files from your mod folder.</span>
+                                                <span className="spacer"/>
+                                                <span className="btn-ghost danger" onClick={(e) => { e.stopPropagation(); void uninstallFromList(m.FileID, m.Title); }}>Uninstall</span>
+                                                <span className="btn-ghost" onClick={(e) => { e.stopPropagation(); setConfirmUninstallId(null); }}>Keep</span>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <div className="browse-installed-main">
+                                                    <div className="browse-installed-name">{m.Title}</div>
+                                                    {m.ContentMissing && (
+                                                        <div className="browse-installed-missing">
+                                                            <i className="fa-solid fa-triangle-exclamation"/> Files not found on disk
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="browse-installed-date mono">
+                                                    {m.InstalledAt ? new Date(m.InstalledAt * 1000).toLocaleDateString() : ''}
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </>
+                ) : !status?.SignedIn ? (
                     <div className="browse-gate">
                         <i className="fa-solid fa-lock"/>
                         <div className="browse-gate-title">Sign in to browse LoversLab</div>
@@ -531,199 +694,261 @@ export function Browse({games, selectedGame}: {
                         <div className="browse-detail-header">
                             <span className="title" title={detailFor.Title}>{detailFor.Title}</span>
                             <div className="spacer"/>
-                            {installState.kind === 'idle' && (
-                                <button type="button" className="btn-primary browse-download-btn" onClick={startDownload}>
-                                    <i className="fa-solid fa-download"/> Download
-                                </button>
+                            {isInstalled && installState.kind === 'idle' && (
+                                <span className="btn-ghost danger browse-header-action" onClick={() => setInstallState({kind: 'uninstall-confirm'})}>
+                                    <i className="fa-solid fa-trash-can"/> Uninstall
+                                </span>
                             )}
                             <i className="fa-solid fa-up-right-from-square" title="Open on LoversLab" onClick={() => BrowserOpenURL(detailFor.URL)}/>
                             <i
-                                className={`fa-solid fa-xmark close-btn ${installState.kind === 'installing' ? 'inert' : ''}`}
-                                title={installState.kind === 'installing' ? 'Wait for the install to finish or cancel it first' : undefined}
+                                className={`fa-solid fa-xmark close-btn ${(installState.kind === 'installing' || installState.kind === 'uninstalling') ? 'inert' : ''}`}
+                                title={(installState.kind === 'installing' || installState.kind === 'uninstalling') ? 'Wait for this to finish first' : undefined}
                                 onClick={closeDetail}
                             />
                         </div>
-                        <div className="browse-detail-body">
-                            {installState.kind !== 'idle' && (
-                                <div className="browse-install-panel">
-                                    {installState.kind === 'loading-downloads' && <div className="browse-status-note">Finding downloads...</div>}
-                                    {installState.kind === 'error' && (
-                                        <div className="browse-install-error">
-                                            <i className="fa-solid fa-circle-exclamation"/> {installState.message}
-                                            <span className="browse-install-dismiss" onClick={() => setInstallState({kind: 'idle'})}>Dismiss</span>
+                        <div className="browse-detail-content">
+                            <div className="browse-detail-sidebar">
+                                {(detailFor.ThumbnailURL || (detailState?.kind === 'ready' && detailState.detail.Screenshots.length > 0)) && (
+                                    <div
+                                        className="browse-detail-sidebar-thumb"
+                                        style={{backgroundImage: `url(${
+                                            detailFor.ThumbnailURL ||
+                                            (detailState?.kind === 'ready' ? (detailState.detail.Screenshots[0].ThumbnailURL || detailState.detail.Screenshots[0].URL) : '')
+                                        })`}}
+                                    />
+                                )}
+                                <div className={`browse-detail-installed-flag ${isInstalled ? 'yes' : 'no'}`}>
+                                    <i className={`fa-solid ${isInstalled ? 'fa-circle-check' : 'fa-circle'}`}/> {isInstalled ? 'Installed' : 'Not installed'}
+                                </div>
+                                {detailState?.kind === 'ready' && (
+                                    <div className="browse-detail-stats">
+                                        <div
+                                            className={detailState.detail.Author.URL ? 'browse-detail-stat clickable' : 'browse-detail-stat'}
+                                            onClick={() => detailState.detail.Author.URL && BrowserOpenURL(detailState.detail.Author.URL)}
+                                        >
+                                            <i className="fa-solid fa-user"/> {detailState.detail.Author.Name}
+                                        </div>
+                                        {detailState.detail.Version && (
+                                            <div className="browse-detail-stat"><i className="fa-solid fa-code-branch"/> {detailState.detail.Version}</div>
+                                        )}
+                                        {detailState.detail.FileSize && (
+                                            <div className="browse-detail-stat"><i className="fa-solid fa-weight-hanging"/> {detailState.detail.FileSize}</div>
+                                        )}
+                                        <div className="browse-detail-stat"><i className="fa-solid fa-eye"/> {detailState.detail.Views.toLocaleString()} views</div>
+                                        <div className="browse-detail-stat"><i className="fa-solid fa-download"/> {detailState.detail.Downloads.toLocaleString()} downloads</div>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="browse-detail-main">
+                                <div className="browse-detail-tabs">
+                                    <span className={`browse-detail-tab ${detailTab === 'description' ? 'active' : ''}`} onClick={() => setDetailTab('description')}>
+                                        Description
+                                    </span>
+                                    <span className={`browse-detail-tab ${detailTab === 'files' ? 'active' : ''}`} onClick={() => setDetailTab('files')}>
+                                        Files
+                                    </span>
+                                    <span className={`browse-detail-tab ${detailTab === 'comments' ? 'active' : ''}`} onClick={() => setDetailTab('comments')}>
+                                        Comments{commentsState?.kind === 'ready' && commentsState.hasTopic ? ` (${commentsState.posts.length})` : ''}
+                                    </span>
+                                </div>
+                                <div className="browse-detail-tab-body">
+                                    {installState.kind !== 'idle' && (
+                                        <div className="browse-install-panel">
+                                            {installState.kind === 'error' && (
+                                                <div className="browse-install-error">
+                                                    <i className="fa-solid fa-circle-exclamation"/> {installState.message}
+                                                    <span className="browse-install-dismiss" onClick={() => setInstallState({kind: 'idle'})}>Dismiss</span>
+                                                </div>
+                                            )}
+                                            {installState.kind === 'confirm' && (
+                                                <>
+                                                    <div className="browse-install-label">
+                                                        Download and install <strong>{installState.download.Name}</strong>? If you already have
+                                                        this mod installed from LoversLab, this replaces it with this version.
+                                                    </div>
+                                                    <div className="browse-install-actions">
+                                                        <button type="button" className="btn-primary" onClick={() => runInstall(installState.download)}>Install</button>
+                                                        <button type="button" className="btn-ghost" onClick={() => setInstallState({kind: 'idle'})}>Cancel</button>
+                                                    </div>
+                                                </>
+                                            )}
+                                            {installState.kind === 'installing' && (
+                                                <>
+                                                    <div className="browse-install-label">
+                                                        {installState.progress?.Stage === 'extracting' ? 'Extracting...' : 'Downloading...'}
+                                                    </div>
+                                                    <div className="browse-install-bar">
+                                                        <div
+                                                            className={`browse-install-bar-fill ${!installState.progress || installState.progress.Total <= 0 ? 'indeterminate' : ''}`}
+                                                            style={
+                                                                installState.progress && installState.progress.Total > 0
+                                                                    ? {width: `${Math.min(100, (installState.progress.Done / installState.progress.Total) * 100)}%`}
+                                                                    : undefined
+                                                            }
+                                                        />
+                                                    </div>
+                                                    <div className="browse-install-actions">
+                                                        <button type="button" className="btn-ghost" onClick={cancelInstall}>Cancel</button>
+                                                    </div>
+                                                </>
+                                            )}
+                                            {installState.kind === 'uninstall-confirm' && (
+                                                <>
+                                                    <div className="browse-install-label">
+                                                        Uninstall <strong>{detailFor.Title}</strong>? This deletes its files from your mod folder.
+                                                    </div>
+                                                    <div className="browse-install-actions">
+                                                        <button type="button" className="btn-danger" onClick={uninstallCurrent}>Uninstall</button>
+                                                        <button type="button" className="btn-ghost" onClick={() => setInstallState({kind: 'idle'})}>Cancel</button>
+                                                    </div>
+                                                </>
+                                            )}
+                                            {installState.kind === 'uninstalling' && (
+                                                <div className="browse-install-label">Uninstalling...</div>
+                                            )}
                                         </div>
                                     )}
-                                    {installState.kind === 'picking' && (
+
+                                    {detailTab === 'description' && (
                                         <>
-                                            <div className="browse-install-label">This file has more than one download - pick one:</div>
-                                            {installState.downloads.map((d, i) => (
-                                                <div key={i} className="browse-install-option" onClick={() => setInstallState({kind: 'confirm', download: d})}>
-                                                    <i className="fa-solid fa-file-zipper"/> {d.Name}
+                                            {detailState?.kind === 'loading' && <div className="browse-status-note">Loading...</div>}
+                                            {detailState?.kind === 'error' && <div className="browse-status-note error">{detailState.message}</div>}
+                                            {detailState?.kind === 'ready' && detailState.detail.Screenshots.length > 0 && (
+                                                <div className="browse-detail-screenshots">
+                                                    {detailState.detail.Screenshots.map((s, i) => (
+                                                        <div
+                                                            key={i}
+                                                            className="browse-detail-screenshot"
+                                                            style={{backgroundImage: `url(${s.ThumbnailURL || s.URL})`}}
+                                                            title="Open full size"
+                                                            onClick={() => BrowserOpenURL(s.URL || s.ThumbnailURL)}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            )}
+                                            {detailState?.kind === 'ready' && detailState.detail.Description && (
+                                                <div className="browse-detail-description">{detailState.detail.Description}</div>
+                                            )}
+
+                                            <div className="browse-detail-section-label">CHANGELOG</div>
+                                            {changelogState?.kind === 'loading' && <div className="browse-status-note">Loading...</div>}
+                                            {changelogState?.kind === 'error' && <div className="browse-status-note error">{changelogState.message}</div>}
+                                            {changelogState?.kind === 'ready' && changelogState.entries.length === 0 && (
+                                                <div className="browse-status-note">The author hasn't written release notes for this file.</div>
+                                            )}
+                                            {changelogState?.kind === 'ready' && changelogState.entries.map((entry, i) => (
+                                                <div key={i} className="browse-changelog-entry">
+                                                    <div className="browse-changelog-version">
+                                                        <span className="mono">{entry.Version}</span>
+                                                        {entry.Released && <span className="browse-changelog-released">{entry.Released}</span>}
+                                                    </div>
+                                                    <div className="browse-changelog-description">{entry.Description}</div>
                                                 </div>
                                             ))}
                                         </>
                                     )}
-                                    {installState.kind === 'confirm' && (
+
+                                    {detailTab === 'files' && (
                                         <>
-                                            <div className="browse-install-label">
-                                                Download and install <strong>{installState.download.Name}</strong>? If you already have
-                                                this mod installed from LoversLab, this replaces it with this version.
-                                            </div>
-                                            <div className="browse-install-actions">
-                                                <button type="button" className="btn-primary" onClick={() => runInstall(installState.download)}>Install</button>
-                                                <button type="button" className="btn-ghost" onClick={() => setInstallState({kind: 'idle'})}>Cancel</button>
-                                            </div>
-                                        </>
-                                    )}
-                                    {installState.kind === 'installing' && (
-                                        <>
-                                            <div className="browse-install-label">
-                                                {installState.progress?.Stage === 'extracting' ? 'Extracting...' : 'Downloading...'}
-                                            </div>
-                                            <div className="browse-install-bar">
-                                                <div
-                                                    className={`browse-install-bar-fill ${!installState.progress || installState.progress.Total <= 0 ? 'indeterminate' : ''}`}
-                                                    style={
-                                                        installState.progress && installState.progress.Total > 0
-                                                            ? {width: `${Math.min(100, (installState.progress.Done / installState.progress.Total) * 100)}%`}
-                                                            : undefined
-                                                    }
-                                                />
-                                            </div>
-                                            <div className="browse-install-actions">
-                                                <button type="button" className="btn-ghost" onClick={cancelInstall}>Cancel</button>
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
-                            )}
-                            {detailState?.kind === 'loading' && <div className="browse-status-note">Loading...</div>}
-                            {detailState?.kind === 'error' && <div className="browse-status-note error">{detailState.message}</div>}
-                            {detailState?.kind === 'ready' && (
-                                <>
-                                    {detailState.detail.Screenshots.length > 0 && (
-                                        <div className="browse-detail-screenshots">
-                                            {detailState.detail.Screenshots.map((s, i) => (
-                                                <div
-                                                    key={i}
-                                                    className="browse-detail-screenshot"
-                                                    style={{backgroundImage: `url(${s.ThumbnailURL || s.URL})`}}
-                                                    title="Open full size"
-                                                    onClick={() => BrowserOpenURL(s.URL || s.ThumbnailURL)}
-                                                />
+                                            {filesTabState.kind === 'loading' && <div className="browse-status-note">Finding downloadable files...</div>}
+                                            {filesTabState.kind === 'error' && <div className="browse-status-note error">{filesTabState.message}</div>}
+                                            {filesTabState.kind === 'ready' && filesTabState.downloads.length === 0 && (
+                                                <div className="browse-status-note">No downloadable files were found for this mod.</div>
+                                            )}
+                                            {filesTabState.kind === 'ready' && filesTabState.downloads.map((d, i) => (
+                                                <div key={i} className="browse-file-row">
+                                                    <i className="fa-solid fa-file-zipper"/>
+                                                    <span className="browse-file-name" title={d.Name}>{d.Name}</span>
+                                                    <button
+                                                        type="button"
+                                                        className="btn-primary"
+                                                        disabled={installState.kind !== 'idle'}
+                                                        onClick={() => setInstallState({kind: 'confirm', download: d})}
+                                                    >
+                                                        {isInstalled ? 'Update' : 'Install'}
+                                                    </button>
+                                                </div>
                                             ))}
-                                        </div>
+                                        </>
                                     )}
 
-                                    <div className="browse-detail-meta">
-                                        <span
-                                            className={detailState.detail.Author.URL ? 'clickable' : ''}
-                                            onClick={() => detailState.detail.Author.URL && BrowserOpenURL(detailState.detail.Author.URL)}
-                                        >
-                                            <i className="fa-solid fa-user"/> {detailState.detail.Author.Name}
-                                        </span>
-                                        {detailState.detail.Version && <span><i className="fa-solid fa-code-branch"/> {detailState.detail.Version}</span>}
-                                        {detailState.detail.FileSize && <span><i className="fa-solid fa-weight-hanging"/> {detailState.detail.FileSize}</span>}
-                                        <span><i className="fa-solid fa-eye"/> {detailState.detail.Views.toLocaleString()}</span>
-                                        <span><i className="fa-solid fa-download"/> {detailState.detail.Downloads.toLocaleString()}</span>
-                                    </div>
-
-                                    {detailState.detail.Description && (
-                                        <div className="browse-detail-description">{detailState.detail.Description}</div>
+                                    {detailTab === 'comments' && (
+                                        <>
+                                            {commentsState?.kind === 'ready' && commentsState.totalPages > 1 && (
+                                                <div className="browse-comments-pager-row">
+                                                    <i
+                                                        className={`fa-solid fa-chevron-left ${commentsPage <= 1 ? 'inert' : ''}`}
+                                                        onClick={() => commentsPage > 1 && setCommentsPage(commentsPage - 1)}
+                                                    />
+                                                    <span className="mono">{commentsPage} / {commentsState.totalPages}</span>
+                                                    <i
+                                                        className={`fa-solid fa-chevron-right ${commentsPage >= commentsState.totalPages ? 'inert' : ''}`}
+                                                        onClick={() => commentsPage < commentsState.totalPages && setCommentsPage(commentsPage + 1)}
+                                                    />
+                                                </div>
+                                            )}
+                                            {commentsState?.kind === 'loading' && <div className="browse-status-note">Loading...</div>}
+                                            {commentsState?.kind === 'error' && <div className="browse-status-note error">{commentsState.message}</div>}
+                                            {commentsState?.kind === 'ready' && commentsState.hasTopic && (
+                                                <div className="browse-comment-write">
+                                                    <textarea
+                                                        className="browse-comment-input"
+                                                        placeholder="Write a reply..."
+                                                        value={commentDraft}
+                                                        disabled={postingComment}
+                                                        onInput={(e) => setCommentDraft((e.target as HTMLTextAreaElement).value)}
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        className="btn-primary browse-comment-post-btn"
+                                                        disabled={postingComment || commentDraft.trim() === ''}
+                                                        onClick={postComment}
+                                                    >
+                                                        {postingComment ? 'Posting...' : 'Post'}
+                                                    </button>
+                                                </div>
+                                            )}
+                                            {commentsState?.kind === 'ready' && !commentsState.hasTopic && (
+                                                <div className="browse-status-note">This file has no support topic to comment on.</div>
+                                            )}
+                                            {commentsState?.kind === 'ready' && commentsState.hasTopic && commentsState.posts.length === 0 && (
+                                                <div className="browse-status-note">No one has replied yet - be the first.</div>
+                                            )}
+                                            {commentsState?.kind === 'ready' && commentsState.posts.map((post) => (
+                                                <div key={post.ID} className="browse-comment">
+                                                    <div className="browse-comment-header">
+                                                        <span
+                                                            className={post.AuthorURL ? 'browse-comment-author clickable' : 'browse-comment-author'}
+                                                            onClick={() => post.AuthorURL && BrowserOpenURL(post.AuthorURL)}
+                                                        >
+                                                            {post.Author}
+                                                        </span>
+                                                        <span className="browse-comment-posted">{post.Posted}</span>
+                                                        <div className="spacer"/>
+                                                        {post.URL && (
+                                                            <i
+                                                                className="fa-solid fa-up-right-from-square"
+                                                                title="Open this reply on LoversLab"
+                                                                onClick={() => BrowserOpenURL(post.URL)}
+                                                            />
+                                                        )}
+                                                    </div>
+                                                    {post.Content && <div className="browse-comment-content">{post.Content}</div>}
+                                                    {post.Attachments.length > 0 && (
+                                                        <div className="browse-comment-attachments">
+                                                            {post.Attachments.map((a, i) => (
+                                                                <span key={i} className="browse-comment-attachment" onClick={() => BrowserOpenURL(a.URL)}>
+                                                                    <i className={`fa-solid ${a.IsImage ? 'fa-image' : 'fa-paperclip'}`}/> {a.Filename || 'attachment'}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </>
                                     )}
-                                </>
-                            )}
-
-                            <div className="browse-detail-section-label">CHANGELOG</div>
-                            {changelogState?.kind === 'loading' && <div className="browse-status-note">Loading...</div>}
-                            {changelogState?.kind === 'error' && <div className="browse-status-note error">{changelogState.message}</div>}
-                            {changelogState?.kind === 'ready' && changelogState.entries.length === 0 && (
-                                <div className="browse-status-note">The author hasn't written release notes for this file.</div>
-                            )}
-                            {changelogState?.kind === 'ready' && changelogState.entries.map((entry, i) => (
-                                <div key={i} className="browse-changelog-entry">
-                                    <div className="browse-changelog-version">
-                                        <span className="mono">{entry.Version}</span>
-                                        {entry.Released && <span className="browse-changelog-released">{entry.Released}</span>}
-                                    </div>
-                                    <div className="browse-changelog-description">{entry.Description}</div>
                                 </div>
-                            ))}
-
-                            <div className="browse-detail-section-label">
-                                COMMENTS
-                                {commentsState?.kind === 'ready' && commentsState.totalPages > 1 && (
-                                    <span className="browse-detail-section-pager">
-                                        <i
-                                            className={`fa-solid fa-chevron-left ${commentsPage <= 1 ? 'inert' : ''}`}
-                                            onClick={() => commentsPage > 1 && setCommentsPage(commentsPage - 1)}
-                                        />
-                                        <span className="mono">{commentsPage} / {commentsState.totalPages}</span>
-                                        <i
-                                            className={`fa-solid fa-chevron-right ${commentsPage >= commentsState.totalPages ? 'inert' : ''}`}
-                                            onClick={() => commentsPage < commentsState.totalPages && setCommentsPage(commentsPage + 1)}
-                                        />
-                                    </span>
-                                )}
                             </div>
-                            {commentsState?.kind === 'loading' && <div className="browse-status-note">Loading...</div>}
-                            {commentsState?.kind === 'error' && <div className="browse-status-note error">{commentsState.message}</div>}
-                            {commentsState?.kind === 'ready' && commentsState.hasTopic && (
-                                <div className="browse-comment-write">
-                                    <textarea
-                                        className="browse-comment-input"
-                                        placeholder="Write a reply..."
-                                        value={commentDraft}
-                                        disabled={postingComment}
-                                        onInput={(e) => setCommentDraft((e.target as HTMLTextAreaElement).value)}
-                                    />
-                                    <button
-                                        type="button"
-                                        className="btn-primary browse-comment-post-btn"
-                                        disabled={postingComment || commentDraft.trim() === ''}
-                                        onClick={postComment}
-                                    >
-                                        {postingComment ? 'Posting...' : 'Post'}
-                                    </button>
-                                </div>
-                            )}
-                            {commentsState?.kind === 'ready' && !commentsState.hasTopic && (
-                                <div className="browse-status-note">This file has no support topic to comment on.</div>
-                            )}
-                            {commentsState?.kind === 'ready' && commentsState.hasTopic && commentsState.posts.length === 0 && (
-                                <div className="browse-status-note">No one has replied yet - be the first.</div>
-                            )}
-                            {commentsState?.kind === 'ready' && commentsState.posts.map((post) => (
-                                <div key={post.ID} className="browse-comment">
-                                    <div className="browse-comment-header">
-                                        <span
-                                            className={post.AuthorURL ? 'browse-comment-author clickable' : 'browse-comment-author'}
-                                            onClick={() => post.AuthorURL && BrowserOpenURL(post.AuthorURL)}
-                                        >
-                                            {post.Author}
-                                        </span>
-                                        <span className="browse-comment-posted">{post.Posted}</span>
-                                        <div className="spacer"/>
-                                        {post.URL && (
-                                            <i
-                                                className="fa-solid fa-up-right-from-square"
-                                                title="Open this reply on LoversLab"
-                                                onClick={() => BrowserOpenURL(post.URL)}
-                                            />
-                                        )}
-                                    </div>
-                                    {post.Content && <div className="browse-comment-content">{post.Content}</div>}
-                                    {post.Attachments.length > 0 && (
-                                        <div className="browse-comment-attachments">
-                                            {post.Attachments.map((a, i) => (
-                                                <span key={i} className="browse-comment-attachment" onClick={() => BrowserOpenURL(a.URL)}>
-                                                    <i className={`fa-solid ${a.IsImage ? 'fa-image' : 'fa-paperclip'}`}/> {a.Filename || 'attachment'}
-                                                </span>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
                         </div>
                     </div>
                 </div>
