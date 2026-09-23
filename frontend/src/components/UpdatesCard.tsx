@@ -36,14 +36,19 @@ export function UpdatesCard({gameId, onReview}: { gameId: string; onReview: () =
         icon = 'fa-triangle-exclamation';
         tone = 'warn';
         title = "Couldn't read your mods";
+    } else if (summary.fresh > 0) {
+        // Checked before BaselineAt === 0 below: for a pure Steam Workshop report the
+        // two never coincide (Diff reports nothing as New on a first run, when there's
+        // no earlier snapshot to compare against), but a LoversLab update merged in
+        // (see data/modUpdates.ts's withLoversLabChanges) is always New - it needs its
+        // own real headline even on a game whose Workshop side has no baseline yet.
+        icon = 'fa-bell';
+        tone = 'warn';
+        title = `${summary.fresh} ${summary.fresh === 1 ? 'mod' : 'mods'} changed since last start`;
     } else if (report.BaselineAt === 0) {
         icon = 'fa-clock-rotate-left';
         tone = '';
         title = 'Tracking starts now';
-    } else if (summary.fresh > 0) {
-        icon = 'fa-bell';
-        tone = 'warn';
-        title = `${summary.fresh} ${summary.fresh === 1 ? 'mod' : 'mods'} changed since last start`;
     } else if (summary.standing > 0) {
         icon = 'fa-cloud-slash';
         tone = 'warn';

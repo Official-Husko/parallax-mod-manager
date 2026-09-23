@@ -32,13 +32,15 @@ func fakeLoversLabSession(t *testing.T) *loverslab.Client {
 	return client
 }
 
-// newLoversLabApp is an App whose LoversLab settings live in dir and whose login and
-// session verification are both scripted (never a real request against the real site):
-// login succeeds only for auth/password matching testLoversLabUser/testLoversLabPass,
-// verify trusts whatever IsLoggedIn's own local, no-network cookie check already says -
-// the same swappable-verify pattern newSteamApp (steamapi_settings_test.go) uses for the
-// same reason. Individual tests that care about exactly when/how often verify runs
-// (ensureLoversLabSession's caching - see loverslab_test.go) replace this default with
+// newLoversLabApp is an App whose LoversLab settings live in dir and whose login,
+// session verification and file-detail fetching are all scripted (never a real
+// request against the real site): login succeeds only for auth/password matching
+// testLoversLabUser/testLoversLabPass, verify trusts whatever IsLoggedIn's own local,
+// no-network cookie check already says, and getFileDetail refuses by default (tests
+// that need it - loverslabupdates_test.go - replace it with their own fake) - the same
+// swappable-verify pattern newSteamApp (steamapi_settings_test.go) uses for the same
+// reason. Individual tests that care about exactly when/how often verify runs
+// (ensureLoversLabSession's caching - see loverslab_test.go) replace that one with
 // their own counting fake afterward.
 func newLoversLabApp(t *testing.T, dir string) *App {
 	t.Helper()
@@ -51,6 +53,9 @@ func newLoversLabApp(t *testing.T, dir string) *App {
 	}
 	a.loverslab.verify = func(ctx context.Context, client *loverslab.Client) (bool, error) {
 		return client.IsLoggedIn(), nil
+	}
+	a.loverslab.getFileDetail = func(ctx context.Context, client *loverslab.Client, fileURL string) (loverslab.FileDetail, error) {
+		return loverslab.FileDetail{}, errors.New("getFileDetail: not scripted for this test")
 	}
 	a.initLoversLab(dir)
 	return a

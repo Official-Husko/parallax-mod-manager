@@ -11,8 +11,8 @@ import (
 func TestSaveThenLoadRoundTrips(t *testing.T) {
 	s := Store{Dir: filepath.Join(t.TempDir(), "loverslab_installs")}
 	installs := map[string]Entry{
-		"loverslab_31347": {FileURL: "https://www.loverslab.com/files/file/31347-stable-portraits/", FileID: 31347, Title: "Stable Portraits", InstalledUpdated: "2 days ago", InstalledAt: 1758000000},
-		"loverslab_44226": {FileURL: "https://www.loverslab.com/files/file/44226-deluxe-species-pack-reforged/", FileID: 44226, Title: "Deluxe Species pack reforged, with \"quotes\"", InstalledUpdated: "September 13", InstalledAt: 1758000001},
+		"loverslab_31347": {FileURL: "https://www.loverslab.com/files/file/31347-stable-portraits/", FileID: 31347, Title: "Stable Portraits", InstalledDateModified: "2 days ago", InstalledAt: 1758000000},
+		"loverslab_44226": {FileURL: "https://www.loverslab.com/files/file/44226-deluxe-species-pack-reforged/", FileID: 44226, Title: "Deluxe Species pack reforged, with \"quotes\"", InstalledDateModified: "September 13", InstalledAt: 1758000001},
 	}
 	if err := s.Save("g1", installs); err != nil {
 		t.Fatalf("Save: %v", err)
@@ -82,8 +82,8 @@ func TestHandWrittenJSONCIsRead(t *testing.T) {
 {
   "installs": {
     // the good one
-    "loverslab_1": {"fileUrl": "https://www.loverslab.com/files/file/1-a/", "fileId": 1, "title": "One", "installedUpdated": "today", "installedAt": 1,},
-    "loverslab_2": {"fileUrl": "   ", "fileId": 2, "title": "Blank URL - not real", "installedUpdated": "", "installedAt": 0},  // no real entry
+    "loverslab_1": {"fileUrl": "https://www.loverslab.com/files/file/1-a/", "fileId": 1, "title": "One", "installedDateModified": "today", "installedAt": 1,},
+    "loverslab_2": {"fileUrl": "   ", "fileId": 2, "title": "Blank URL - not real", "installedDateModified": "", "installedAt": 0},  // no real entry
   },
 }`
 	if err := os.WriteFile(filepath.Join(dir, "g1.jsonc"), []byte(body), 0o644); err != nil {
@@ -93,7 +93,7 @@ func TestHandWrittenJSONCIsRead(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := map[string]Entry{"loverslab_1": {FileURL: "https://www.loverslab.com/files/file/1-a/", FileID: 1, Title: "One", InstalledUpdated: "today", InstalledAt: 1}}
+	want := map[string]Entry{"loverslab_1": {FileURL: "https://www.loverslab.com/files/file/1-a/", FileID: 1, Title: "One", InstalledDateModified: "today", InstalledAt: 1}}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Load = %+v, want %+v", got, want)
 	}
@@ -112,7 +112,7 @@ func TestGamesKeepSeparateFiles(t *testing.T) {
 
 func TestWith(t *testing.T) {
 	base := map[string]Entry{"a": {FileURL: "https://www.loverslab.com/files/file/1-a/", Title: "keep"}}
-	newEntry := Entry{FileURL: "https://www.loverslab.com/files/file/2-b/", FileID: 2, Title: "Bee", InstalledUpdated: "today", InstalledAt: 100}
+	newEntry := Entry{FileURL: "https://www.loverslab.com/files/file/2-b/", FileID: 2, Title: "Bee", InstalledDateModified: "today", InstalledAt: 100}
 	got, err := With(base, "b", newEntry)
 	if err != nil {
 		t.Fatal(err)
@@ -124,9 +124,9 @@ func TestWith(t *testing.T) {
 		t.Error("With modified its input")
 	}
 	// Overwriting.
-	updated := Entry{FileURL: "https://www.loverslab.com/files/file/2-b/", FileID: 2, Title: "Bee", InstalledUpdated: "yesterday", InstalledAt: 200}
+	updated := Entry{FileURL: "https://www.loverslab.com/files/file/2-b/", FileID: 2, Title: "Bee", InstalledDateModified: "yesterday", InstalledAt: 200}
 	got, _ = With(got, "b", updated)
-	if got["b"].InstalledUpdated != "yesterday" {
+	if got["b"].InstalledDateModified != "yesterday" {
 		t.Errorf("overwrite: %+v", got)
 	}
 	// A zero-value entry (empty FileURL) removes it.

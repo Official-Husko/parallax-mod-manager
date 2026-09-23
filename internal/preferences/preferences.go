@@ -170,7 +170,19 @@ type Preferences struct {
 	// builds (wails dev) have the Debug tab or honour it - a release build ignores
 	// it (see devtools.go).
 	DeveloperTools bool `json:"developerTools"`
+	// LoversLabCheckUpdates gates the periodic check for newer versions of mods
+	// installed from LoversLab (see loverslabupdates.go) - on startup and then every
+	// LoversLabCheckIntervalHours, same as this app already does once per run for
+	// Steam Workshop mods, just repeating. On by default.
+	LoversLabCheckUpdates bool `json:"loversLabCheckUpdates"`
+	// LoversLabCheckIntervalHours is how often that check repeats while the app is
+	// open. DefaultLoversLabCheckIntervalHours is what the app shipped with.
+	LoversLabCheckIntervalHours int `json:"loversLabCheckIntervalHours"`
 }
+
+// DefaultLoversLabCheckIntervalHours is what the app shipped with - see
+// Preferences.LoversLabCheckIntervalHours.
+const DefaultLoversLabCheckIntervalHours = 4
 
 // VersionChange is one game whose installed version differs from the last one
 // seen.
@@ -286,14 +298,16 @@ func (p Preferences) normalized() Preferences {
 // Defaults returns the preferences a fresh install starts with.
 func Defaults() Preferences {
 	return Preferences{
-		ScanForNewMods:       true,
-		WarnOnPatchMismatch:  true,
-		AutosortDependencies: true,
-		AutosortFixesLast:    true,
-		AutosortPatchLast:    true,
-		BackgroundSource:     BackgroundSourceOnline,
-		BackgroundDarken:     DefaultBackgroundDarken,
-		AccentMode:           AccentModeGame,
+		ScanForNewMods:              true,
+		WarnOnPatchMismatch:         true,
+		AutosortDependencies:        true,
+		AutosortFixesLast:           true,
+		AutosortPatchLast:           true,
+		BackgroundSource:            BackgroundSourceOnline,
+		BackgroundDarken:            DefaultBackgroundDarken,
+		AccentMode:                  AccentModeGame,
+		LoversLabCheckUpdates:       true,
+		LoversLabCheckIntervalHours: DefaultLoversLabCheckIntervalHours,
 	}
 }
 

@@ -1,7 +1,7 @@
 // Package loverslabtracking keeps a record of which locally installed mods came from
-// LoversLab, one file per game - what loverslabinstall.go's own update check
-// (loverslab.go's LoversLabCheckUpdates) compares against later to notice a newer
-// version. Mirrors internal/modnotes' own Store{Dir}/one-JSONC-file-per-game shape,
+// LoversLab, one file per game - what the update check compares against later to
+// notice a newer version. Mirrors internal/modnotes' own Store{Dir}/one-JSONC-file-
+// per-game shape,
 // since it's the same kind of small, per-mod, per-game side data - written as JSONC
 // with a comment explaining the file, and hand-editable, even though (unlike a note)
 // nothing here is normally typed by a person; it's recorded automatically by
@@ -34,12 +34,12 @@ type Entry struct {
 	// file (or a "here's what might have an update" list) can tell entries apart;
 	// the mod itself is found by its own ID (this entry's own map key).
 	Title string `json:"title"`
-	// InstalledUpdated is LoversLab's own "Updated" display string (e.g. "2 days
-	// ago") at install time - the update check compares this against the same
-	// field's current value, not a parsed date (see docs/loverslab.md: the site
-	// renders this inconsistently depending on age, with no reliable machine-
-	// readable timestamp in the listing view a fresh check would also be reading).
-	InstalledUpdated string `json:"installedUpdated"`
+	// InstalledDateModified is the site's own "dateModified" ISO 8601 timestamp (see
+	// loverslab.FileDetail) at install time - the update check re-fetches the file's
+	// own page and compares this against its current value; a real timestamp, unlike
+	// the category listing's own display string (FileSummary.Updated, e.g. "2 days
+	// ago"), which the site renders inconsistently depending on age.
+	InstalledDateModified string `json:"installedDateModified"`
 	// InstalledAt is when this app installed or last updated this mod (unix
 	// seconds) - shown alongside Title for a person's own reference; not read by
 	// the update check itself.
@@ -132,10 +132,10 @@ func render(installs map[string]Entry) []byte {
 //
 // One entry per mod, keyed by the mod's ID (its descriptor filename without the
 // extension - see internal/mod's LoversLabFilePrefix). Recorded automatically each
-// time a mod is downloaded and installed from Browse; "installedUpdated" is what the
-// update check compares against LoversLab's current listing to notice a newer
-// version. Deleting an entry here just stops that one mod being checked for updates -
-// it does not uninstall anything.
+// time a mod is downloaded and installed from Browse; "installedDateModified" is what
+// the update check compares against LoversLab's own current value for the same file
+// to notice a newer version. Deleting an entry here just stops that one mod being
+// checked for updates - it does not uninstall anything.
 {
   "installs": {
 `)
@@ -145,7 +145,7 @@ func render(installs map[string]Entry) []byte {
 			"\"fileUrl\": " + quote(e.FileURL) + ", " +
 			"\"fileId\": " + fmt.Sprint(e.FileID) + ", " +
 			"\"title\": " + quote(e.Title) + ", " +
-			"\"installedUpdated\": " + quote(e.InstalledUpdated) + ", " +
+			"\"installedDateModified\": " + quote(e.InstalledDateModified) + ", " +
 			"\"installedAt\": " + fmt.Sprint(e.InstalledAt) +
 			"}")
 		if i < len(ids)-1 {

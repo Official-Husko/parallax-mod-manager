@@ -16,6 +16,7 @@ import {
 } from '../../wailsjs/go/main/App';
 import type {library, loverslab, main} from '../../wailsjs/go/models';
 import {BrowserOpenURL, EventsOn} from '../../wailsjs/runtime/runtime';
+import {checkLoversLabUpdates} from '../data/modUpdates';
 import {notify} from '../data/notifications';
 
 // A "loverslab-install-progress" event's shape - not a Wails-bound method's own
@@ -165,6 +166,10 @@ export function Browse({games, selectedGame}: {
             setUsername('');
             setPassword('');
             notify('success', 'LoversLab sign-in saved (encrypted on this computer).');
+            // A fresh sign-in is exactly when a LoversLab update check first becomes
+            // possible - don't make signing in and then waiting up to
+            // loversLabCheckIntervalHours the only way to see it.
+            void checkLoversLabUpdates(selectedGame);
         } catch (err) {
             setError(errorText(err));
         } finally {
@@ -259,9 +264,13 @@ export function Browse({games, selectedGame}: {
             if (p.RequestID === requestId) setInstallState({kind: 'installing', download, progress: p});
         });
         try {
-            await LoversLabInstall(selectedGame, requestId, detailFor, download.URL);
+            const dateModified = detailState?.kind === 'ready' ? detailState.detail.DateModified : '';
+            await LoversLabInstall(selectedGame, requestId, detailFor, dateModified, download.URL);
             notify('success', `Installed '${detailFor.Title}'.`);
             setInstallState({kind: 'idle'});
+            // This mod's own tracked install just changed - a fresh check confirms it no
+            // longer shows as outdated right away, rather than until the next scheduled one.
+            void checkLoversLabUpdates(selectedGame);
         } catch (err) {
             const message = errorText(err);
             notify(message.includes('cancelled') ? 'info' : 'error', message);

@@ -201,7 +201,7 @@ func (a *App) LoversLabFileDetail(filePageURL string) (loverslab.FileDetail, err
 	if err != nil {
 		return loverslab.FileDetail{}, err
 	}
-	detail, err := client.GetFileDetail(a.baseContext(), filePageURL)
+	detail, err := a.loverslab.getFileDetail(a.baseContext(), client, filePageURL)
 	if err != nil {
 		applog.For("LoversLab").Warnf("getting file detail for %s failed: %v", filePageURL, err)
 	}

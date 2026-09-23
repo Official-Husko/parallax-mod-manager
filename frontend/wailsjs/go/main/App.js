@@ -62,6 +62,10 @@ export function CheckGameUpdates() {
   return window['go']['main']['App']['CheckGameUpdates']();
 }
 
+export function CheckLoversLabUpdates(arg1) {
+  return window['go']['main']['App']['CheckLoversLabUpdates'](arg1);
+}
+
 export function CheckMod(arg1, arg2, arg3) {
   return window['go']['main']['App']['CheckMod'](arg1, arg2, arg3);
 }
@@ -230,8 +234,8 @@ export function LoversLabFiles(arg1, arg2) {
   return window['go']['main']['App']['LoversLabFiles'](arg1, arg2);
 }
 
-export function LoversLabInstall(arg1, arg2, arg3, arg4) {
-  return window['go']['main']['App']['LoversLabInstall'](arg1, arg2, arg3, arg4);
+export function LoversLabInstall(arg1, arg2, arg3, arg4, arg5) {
+  return window['go']['main']['App']['LoversLabInstall'](arg1, arg2, arg3, arg4, arg5);
 }
 
 export function LoversLabStatus() {

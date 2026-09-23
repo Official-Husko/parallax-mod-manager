@@ -102,9 +102,14 @@ func (a *App) resolveLoversLabInstallLocation(gameID string, fileID int, title s
 // own results) and installs it for gameID: extracted content first, then the stub
 // that makes the game see it - see the package comment above for why, and
 // resolveLoversLabInstallLocation for how an existing install of the same file is
-// updated in place rather than duplicated. requestID tags the progress events this
-// emits while it runs, and is what CancelLoversLabInstall stops.
-func (a *App) LoversLabInstall(gameID, requestID string, file loverslab.FileSummary, downloadURL string) (SaveResult, error) {
+// updated in place rather than duplicated. dateModified is the file's own current
+// "dateModified" (loverslab.FileDetail, already fetched by the detail view this
+// Download button lives on - not re-fetched here, since the frontend already has it)
+// - recorded for the update check to later compare against; an empty string just
+// means this install won't be checked for updates until the next one, never a reason
+// to fail the install itself. requestID tags the progress events this emits while it
+// runs, and is what CancelLoversLabInstall stops.
+func (a *App) LoversLabInstall(gameID, requestID string, file loverslab.FileSummary, dateModified, downloadURL string) (SaveResult, error) {
 	modEditMu.Lock()
 	defer modEditMu.Unlock()
 	log := applog.For("LoversLab")
@@ -212,11 +217,11 @@ func (a *App) LoversLabInstall(gameID, requestID string, file loverslab.FileSumm
 		log.Warnf("could not read the LoversLab install tracking file, so this install was not recorded for update checks: %v", err)
 	} else {
 		installs, _ = loverslabtracking.With(installs, modID, loverslabtracking.Entry{
-			FileURL:          file.URL,
-			FileID:           file.ID,
-			Title:            file.Title,
-			InstalledUpdated: file.Updated,
-			InstalledAt:      time.Now().Unix(),
+			FileURL:               file.URL,
+			FileID:                file.ID,
+			Title:                 file.Title,
+			InstalledDateModified: dateModified,
+			InstalledAt:           time.Now().Unix(),
 		})
 		if err := a.loverslabInstalls.Save(gameID, installs); err != nil {
 			log.Warnf("could not save LoversLab install tracking for '%s': %v", file.Title, err)

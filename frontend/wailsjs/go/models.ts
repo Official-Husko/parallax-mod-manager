@@ -827,6 +827,7 @@ export namespace loverslab {
 	    Screenshots: Screenshot[];
 	    Views: number;
 	    Downloads: number;
+	    DateModified: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new FileDetail(source);
@@ -842,6 +843,7 @@ export namespace loverslab {
 	        this.Screenshots = this.convertValues(source["Screenshots"], Screenshot);
 	        this.Views = source["Views"];
 	        this.Downloads = source["Downloads"];
+	        this.DateModified = source["DateModified"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -1856,6 +1858,8 @@ export namespace preferences {
 	    accentMode: string;
 	    accentColor: string;
 	    developerTools: boolean;
+	    loversLabCheckUpdates: boolean;
+	    loversLabCheckIntervalHours: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new Preferences(source);
@@ -1888,6 +1892,8 @@ export namespace preferences {
 	        this.accentMode = source["accentMode"];
 	        this.accentColor = source["accentColor"];
 	        this.developerTools = source["developerTools"];
+	        this.loversLabCheckUpdates = source["loversLabCheckUpdates"];
+	        this.loversLabCheckIntervalHours = source["loversLabCheckIntervalHours"];
 	    }
 	}
 

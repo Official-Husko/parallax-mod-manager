@@ -37,7 +37,7 @@ import {BackupPanel} from './BackupPanel';
 import {DebugPanel} from './DebugPanel';
 import {AccentSettings} from './AccentSettings';
 
-type Section = 'manage' | 'launch' | 'playsets' | 'sort' | 'steam' | 'backup' | 'appearance' | 'advanced' | 'debug' | 'about';
+type Section = 'manage' | 'launch' | 'playsets' | 'sort' | 'steam' | 'browse' | 'backup' | 'appearance' | 'advanced' | 'debug' | 'about';
 
 export function Settings({jumpToManageGames, jumpToBackup, onGamesChanged, onPreferencesChanged}: {
     // Incremented by app.tsx (the TopBar's own "Manage games" entry) to
@@ -79,7 +79,7 @@ export function Settings({jumpToManageGames, jumpToBackup, onGamesChanged, onPre
             <div className="settings-nav">
                 <div className="sidebar-label">SETTINGS</div>
                 {settingsNav.filter((s) => s.key !== 'debug' || debugAvailable).map((s) => {
-                    const clickable = s.key === 'manage' || s.key === 'launch' || s.key === 'playsets' || s.key === 'sort' || s.key === 'steam' || s.key === 'backup' || s.key === 'appearance' || s.key === 'advanced' || s.key === 'debug' || s.key === 'about';
+                    const clickable = s.key === 'manage' || s.key === 'launch' || s.key === 'playsets' || s.key === 'sort' || s.key === 'steam' || s.key === 'browse' || s.key === 'backup' || s.key === 'appearance' || s.key === 'advanced' || s.key === 'debug' || s.key === 'about';
                     const active = clickable && s.key === section;
                     return (
                         <div
@@ -99,6 +99,7 @@ export function Settings({jumpToManageGames, jumpToBackup, onGamesChanged, onPre
             {section === 'playsets' && <PlaysetsSettingsPanel/>}
             {section === 'sort' && <SortRulesPanel/>}
             {section === 'steam' && <SteamApiPanel/>}
+            {section === 'browse' && <BrowseSettingsPanel/>}
             {section === 'backup' && <BackupPanel/>}
             {section === 'appearance' && <AppearancePanel onPreferencesChanged={onPreferencesChanged}/>}
             {section === 'advanced' && <AdvancedPanel/>}
@@ -719,6 +720,123 @@ function AdvancedPanel() {
                             </div>
                         </div>
                         <Toggle on={prefs.autosortPatchLast} onClick={() => togglePref('autosortPatchLast')}/>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+const MIN_LOVERSLAB_CHECK_INTERVAL_HOURS = 1;
+const MAX_LOVERSLAB_CHECK_INTERVAL_HOURS = 24;
+const DEFAULT_LOVERSLAB_CHECK_INTERVAL_HOURS = 4;
+
+// Browse-related settings: currently just whether (and how often) this app checks
+// mods installed from LoversLab for a newer version - see data/modUpdates.ts's own
+// ensureLoversLabUpdates, and loverslabupdates.go on the backend. Anything else about
+// Browse itself (signing in, browsing) lives on the tab, not here - this is the one
+// setting worth a place in Settings, the same way Steam API's own key has one.
+function BrowseSettingsPanel() {
+    const [prefs, setPrefs] = useState<preferences.Preferences | null>(null);
+    // Its own local, text-editable copy of loversLabCheckIntervalHours - not committed
+    // (parsed, clamped, saved) until blur, the same reason AppearancePanel's own
+    // background interval field works this way: typing "12" would otherwise fire a
+    // save for "1" and another for "12".
+    const [intervalInput, setIntervalInput] = useState('4');
+
+    useEffect(() => {
+        GetPreferences().then((p) => {
+            setPrefs(p);
+            setIntervalInput(String(p.loversLabCheckIntervalHours || DEFAULT_LOVERSLAB_CHECK_INTERVAL_HOURS));
+        }).catch(() => undefined);
+    }, []);
+
+    function toggleEnabled() {
+        if (!prefs) return;
+        const next = {...prefs, loversLabCheckUpdates: !prefs.loversLabCheckUpdates};
+        setPrefs(next);
+        SetPreferences(next).catch(() => setPrefs(prefs));
+    }
+
+    function commitInterval() {
+        if (!prefs) return;
+        const parsed = Math.round(Number(intervalInput));
+        const clamped = Math.min(MAX_LOVERSLAB_CHECK_INTERVAL_HOURS, Math.max(MIN_LOVERSLAB_CHECK_INTERVAL_HOURS, Number.isFinite(parsed) ? parsed : DEFAULT_LOVERSLAB_CHECK_INTERVAL_HOURS));
+        setIntervalInput(String(clamped));
+        if (clamped === prefs.loversLabCheckIntervalHours) return;
+        const next = {...prefs, loversLabCheckIntervalHours: clamped};
+        setPrefs(next);
+        SetPreferences(next).catch(() => setPrefs(prefs));
+    }
+
+    function stepInterval(delta: number) {
+        if (!prefs) return;
+        const clamped = Math.min(MAX_LOVERSLAB_CHECK_INTERVAL_HOURS, Math.max(MIN_LOVERSLAB_CHECK_INTERVAL_HOURS, (Number(intervalInput) || DEFAULT_LOVERSLAB_CHECK_INTERVAL_HOURS) + delta));
+        setIntervalInput(String(clamped));
+        const next = {...prefs, loversLabCheckIntervalHours: clamped};
+        setPrefs(next);
+        SetPreferences(next).catch(() => setPrefs(prefs));
+    }
+
+    return (
+        <div className="settings-content single">
+            <div>
+                <div className="settings-title">Browse</div>
+                <div className="settings-subtitle">
+                    Settings for browsing unofficial mod sources - currently just LoversLab.
+                </div>
+            </div>
+            {prefs && (
+                <div className="sort-rules-list">
+                    <div className="sort-rule-row">
+                        <div className="sort-rule-main">
+                            <div className="sort-rule-name">Check LoversLab mods for updates</div>
+                            <div className="sort-rule-desc">
+                                On startup, then repeating while the app is open - LoversLab has nothing
+                                like Steam Workshop's own auto-updating, so this is the only way this app
+                                finds out a mod you installed from it has a newer version.
+                            </div>
+                        </div>
+                        <Toggle on={prefs.loversLabCheckUpdates} onClick={toggleEnabled}/>
+                    </div>
+                    <div className={`profile-toggle-row ${prefs.loversLabCheckUpdates ? '' : 'disabled'}`}>
+                        <span>Check every</span>
+                        <span className="appearance-interval">
+                            <span className={`interval-stepper ${!prefs.loversLabCheckUpdates ? 'disabled' : ''}`}>
+                                <input
+                                    type="number"
+                                    step={1}
+                                    min={MIN_LOVERSLAB_CHECK_INTERVAL_HOURS}
+                                    max={MAX_LOVERSLAB_CHECK_INTERVAL_HOURS}
+                                    value={intervalInput}
+                                    disabled={!prefs.loversLabCheckUpdates}
+                                    onInput={(e) => setIntervalInput((e.target as HTMLInputElement).value)}
+                                    onBlur={commitInterval}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                                />
+                                <span className="interval-stepper-buttons">
+                                    <button
+                                        type="button"
+                                        className="interval-stepper-btn up"
+                                        tabIndex={-1}
+                                        disabled={!prefs.loversLabCheckUpdates}
+                                        onClick={() => stepInterval(1)}
+                                    >
+                                        <i className="fa-solid fa-chevron-up"/>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="interval-stepper-btn down"
+                                        tabIndex={-1}
+                                        disabled={!prefs.loversLabCheckUpdates}
+                                        onClick={() => stepInterval(-1)}
+                                    >
+                                        <i className="fa-solid fa-chevron-down"/>
+                                    </button>
+                                </span>
+                            </span>
+                            <span className="mono unit">hours</span>
+                        </span>
                     </div>
                 </div>
             )}

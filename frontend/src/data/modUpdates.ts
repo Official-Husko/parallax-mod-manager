@@ -1,6 +1,6 @@
 import {useEffect, useState} from 'preact/hooks';
-import {CheckModUpdates, MarkModUpdatesSeen} from '../../wailsjs/go/main/App';
-import type {modupdates} from '../../wailsjs/go/models';
+import {CheckLoversLabUpdates, CheckModUpdates, MarkModUpdatesSeen} from '../../wailsjs/go/main/App';
+import {modupdates} from '../../wailsjs/go/models';
 import {FLAG} from './flags';
 
 // What happened to a game's mods since the app last started - the frontend half
@@ -26,6 +26,19 @@ const states = new Map<string, ModUpdatesState>();
 const started = new Set<string>();
 const listeners = new Set<() => void>();
 
+// The latest LoversLab-sourced changes known per game, kept separate from states so
+// that whichever of checkModUpdates/checkLoversLabUpdates happens to resolve last
+// never silently drops the other's contribution - withLoversLabChanges re-attaches
+// this every time either one sets a fresh report, regardless of which finished first.
+const loversLabChanges = new Map<string, modupdates.Change[]>();
+
+function withLoversLabChanges(gameId: string, report: modupdates.Report): modupdates.Report {
+    const ll = loversLabChanges.get(gameId);
+    if (!ll || ll.length === 0) return report;
+    const llIds = new Set(ll.map((c) => c.ModID));
+    return modupdates.Report.createFrom({...report, Changes: [...report.Changes.filter((c) => !llIds.has(c.ModID)), ...ll]});
+}
+
 function setState(gameId: string, next: ModUpdatesState) {
     states.set(gameId, next);
     for (const listener of listeners) listener();
@@ -40,7 +53,7 @@ export async function checkModUpdates(gameId: string, refresh = false): Promise<
     setState(gameId, {...current, status: 'checking', error: ''});
     try {
         const report = await CheckModUpdates(gameId, refresh);
-        setState(gameId, {status: 'ready', report, error: ''});
+        setState(gameId, {status: 'ready', report: withLoversLabChanges(gameId, report), error: ''});
     } catch (err) {
         setState(gameId, {status: 'error', report: current.report, error: String(err)});
     }
@@ -54,13 +67,74 @@ export function ensureModUpdates(gameId: string): void {
     void checkModUpdates(gameId);
 }
 
+// checkLoversLabUpdates asks which of gameId's LoversLab-installed mods have a newer
+// version, and merges the result into the same report checkModUpdates already keeps
+// (Source "loverslab", same Change shape - see loverslabupdates.go) rather than a
+// second, separate updates display. A mod already listed under the same id is
+// replaced, not duplicated, so repeat checks stay idempotent. A failure here (not
+// signed in to LoversLab, most commonly - an entirely normal state, not a bug) is
+// swallowed rather than surfaced as this whole report's own error: the Workshop
+// side's own report, if any, keeps showing exactly as it was.
+export async function checkLoversLabUpdates(gameId: string): Promise<void> {
+    try {
+        const llChanges = await CheckLoversLabUpdates(gameId);
+        loversLabChanges.set(gameId, llChanges ?? []);
+        if (!llChanges || llChanges.length === 0) return;
+        const current = states.get(gameId) ?? IDLE;
+        const base = current.report ?? modupdates.Report.createFrom({
+            GameID: gameId,
+            CheckedAt: Math.floor(Date.now() / 1000),
+            BaselineAt: 0,
+            Changes: [],
+            ModsChecked: 0,
+            WorkshopChecked: false,
+            WorkshopError: '',
+            Unreadable: false,
+        });
+        setState(gameId, {status: 'ready', report: withLoversLabChanges(gameId, base), error: current.error});
+    } catch {
+        // Not signed in to LoversLab, or a network hiccup - nothing to show yet,
+        // and not a reason to blank out or error whatever's already displayed.
+    }
+}
+
+// ensureLoversLabUpdates starts (or restarts, if enabled/intervalHours changed since
+// the last call) a periodic LoversLab update check for gameId: once immediately, then
+// every intervalHours while the app stays open - the same "on startup" moment
+// ensureModUpdates already covers, just repeating, since (unlike Steam Workshop) this
+// app has no other way to learn a LoversLab mod updated. enabled false stops it
+// (Settings > Browse's own toggle - see BrowseSettingsPanel.tsx).
+const loversLabTimers = new Map<string, ReturnType<typeof setInterval>>();
+const loversLabConfig = new Map<string, string>();
+
+export function ensureLoversLabUpdates(gameId: string, enabled: boolean, intervalHours: number): void {
+    if (!gameId) return;
+    const key = `${enabled}:${intervalHours}`;
+    if (loversLabConfig.get(gameId) === key) return; // nothing about this game's own check has changed
+    loversLabConfig.set(gameId, key);
+
+    const existing = loversLabTimers.get(gameId);
+    if (existing !== undefined) {
+        clearInterval(existing);
+        loversLabTimers.delete(gameId);
+    }
+    if (!enabled) return;
+
+    void checkLoversLabUpdates(gameId);
+    const ms = Math.max(1, intervalHours) * 60 * 60 * 1000;
+    loversLabTimers.set(gameId, setInterval(() => void checkLoversLabUpdates(gameId), ms));
+}
+
 // markModUpdatesSeen makes what is installed now the point later checks compare
-// with, so what was listed stops being listed.
+// with, so what was listed stops being listed - the Workshop side only: a LoversLab
+// update has no equivalent "acknowledge and stop nagging" action, since the only real
+// way to resolve one is to actually install it (which is what makes it disappear on
+// its own - see loverslabinstall.go), so it keeps showing here even after this.
 export async function markModUpdatesSeen(gameId: string): Promise<void> {
     const current = states.get(gameId) ?? IDLE;
     try {
         const report = await MarkModUpdatesSeen(gameId);
-        setState(gameId, {status: 'ready', report, error: ''});
+        setState(gameId, {status: 'ready', report: withLoversLabChanges(gameId, report), error: ''});
     } catch (err) {
         setState(gameId, {...current, status: 'error', error: String(err)});
     }

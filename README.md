@@ -991,6 +991,21 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   took (recognizing the pattern, then not over-matching it against an ordinary flat-root archive
   that just happens to also have a subfolder). Only `.zip` archives are supported; anything else
   is refused with a clear message rather than failing silently.
+- **Checking LoversLab mods for updates** (`loverslabupdates.go`, `internal/preferences`,
+  `data/modUpdates.ts`, `BrowseSettingsPanel` in `Settings.tsx`) - on startup and every
+  `LoversLabCheckIntervalHours` (Settings > Browse, default 4, on by default) while the app stays
+  open, since LoversLab has nothing like Steam Workshop's own auto-updating for this app to lean
+  on instead. Reuses `modupdates.Change`/`Report` directly (`Source: "loverslab"`) rather than a
+  second, separate updates display, so a LoversLab update shows up in the exact same Updates card
+  and modal a Workshop one already would, with its own badge. The two checks' results are kept
+  merged rather than one clobbering the other, whichever finishes first - a real race condition an
+  end-to-end headless run caught before this shipped, alongside a related display bug it also
+  caught: a LoversLab update on a game with no Workshop check yet was being hidden behind a "first
+  run" placeholder message instead of shown. A LoversLab update has no "mark seen" of its own the
+  way a Workshop one does - the only real way to resolve it is to reinstall it, which is what
+  actually advances the saved timestamp checked against; signing in to LoversLab and installing a
+  mod from it each also trigger an immediate check, rather than only ever finding out up to the
+  configured interval later.
 - **Every top-bar tab now has its own icon**, not just Browse - a small, purely visual change that
   came along with adding Browse's own.
 - **Unlisted, private and deleted Workshop mods get their own flags** (`internal/steamapi/availability.go`,

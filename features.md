@@ -100,6 +100,10 @@ for security, privacy, reliability or performance is called out (see the last tw
 - **Download and install a LoversLab mod in one click** - extracts the real archive straight into
   the game's own mod folder, recognizes a mod already installed from LoversLab and updates it in
   place instead of leaving a duplicate, and shows real progress with a Cancel option throughout.
+- **Checked for updates automatically** - on startup and every few hours while the app is open
+  (Settings > Browse), shown in the exact same Updates list Steam Workshop mods already appear in,
+  with their own badge. Signing in or installing also checks right away, rather than only up to
+  that interval later.
 - **A file's changelog, when it has one** - most files never had release notes written for them, so
   no changelog is a normal result, not an error.
 - **Opening a file's own page, an author, or a comment still links out** - this app never mirrors a

@@ -10,7 +10,7 @@ import {ContextMenu} from './components/ContextMenu';
 import {installBackupNotifications} from './data/backups';
 import {installModStubNotifications} from './data/modStubs';
 import {setShiftRightClickNative, wantsNativeContextMenu} from './data/developerTools';
-import {ensureModUpdates} from './data/modUpdates';
+import {ensureLoversLabUpdates, ensureModUpdates} from './data/modUpdates';
 import {Tooltip} from './components/Tooltip';
 import {AppBackground} from './components/AppBackground';
 import {DEFAULT_BACKGROUND_BLUR, DEFAULT_BACKGROUND_DARKEN} from './data/backgroundLook';
@@ -292,6 +292,17 @@ export function App() {
     useEffect(() => {
         if (onboarded && selectedGame) ensureModUpdates(selectedGame);
     }, [onboarded, selectedGame]);
+
+    // The same, repeating: LoversLab has no equivalent of Steam Workshop auto-updating,
+    // so a mod installed from it is only ever checked when this app itself looks - on
+    // startup, then every Settings > Browse's own interval (default 4 hours) while the
+    // app stays open, not gated on the Browse tab being open. Results merge into the
+    // exact same report/sidebar card ensureModUpdates already populates.
+    useEffect(() => {
+        if (onboarded && selectedGame && prefs) {
+            ensureLoversLabUpdates(selectedGame, prefs.loversLabCheckUpdates, prefs.loversLabCheckIntervalHours || 4);
+        }
+    }, [onboarded, selectedGame, prefs?.loversLabCheckUpdates, prefs?.loversLabCheckIntervalHours]);
 
     if (!onboarded) {
         return (

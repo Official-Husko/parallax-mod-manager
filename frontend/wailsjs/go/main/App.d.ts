@@ -47,6 +47,8 @@ export function CancelLoversLabInstall(arg1:string):Promise<void>;
 
 export function CheckGameUpdates():Promise<Array<library.GameUpdate>>;
 
+export function CheckLoversLabUpdates(arg1:string):Promise<Array<modupdates.Change>>;
+
 export function CheckMod(arg1:string,arg2:string,arg3:Array<string>):Promise<main.CheckResult>;
 
 export function CheckModUpdates(arg1:string,arg2:boolean):Promise<modupdates.Report>;
@@ -131,7 +133,7 @@ export function LoversLabFileDetail(arg1:string):Promise<loverslab.FileDetail>;
 
 export function LoversLabFiles(arg1:string,arg2:number):Promise<main.LoversLabFileList>;
 
-export function LoversLabInstall(arg1:string,arg2:string,arg3:loverslab.FileSummary,arg4:string):Promise<main.SaveResult>;
+export function LoversLabInstall(arg1:string,arg2:string,arg3:loverslab.FileSummary,arg4:string,arg5:string):Promise<main.SaveResult>;
 
 export function LoversLabStatus():Promise<main.LoversLabStatus>;
 

@@ -34,6 +34,13 @@ type FileDetail struct {
 	Screenshots []Screenshot
 	Views       int
 	Downloads   int
+	// DateModified is the site's own ISO 8601 "dateModified" timestamp, kept as the
+	// raw string (not parsed into a time.Time) the same way every other site-supplied
+	// string in this package is trusted as-is - a real timestamp, unlike the category
+	// listing's own display string (FileSummary.Updated, e.g. "2 days ago"), so this
+	// is what the update check compares against a saved install's own value, not that
+	// display string (see internal/loverslabtracking.Entry.InstalledDateModified).
+	DateModified string
 }
 
 // webApplicationLD mirrors the schema.org WebApplication JSON-LD block every
@@ -58,7 +65,8 @@ type webApplicationLD struct {
 		InteractionType      string `json:"interactionType"`
 		UserInteractionCount int    `json:"userInteractionCount"`
 	} `json:"interactionStatistic"`
-	Screenshot []struct {
+	DateModified string `json:"dateModified"`
+	Screenshot   []struct {
 		URL       string `json:"url"`
 		Thumbnail struct {
 			URL string `json:"url"`
@@ -97,11 +105,12 @@ func parseFileDetail(doc *html.Node) (FileDetail, bool) {
 		}
 
 		detail := FileDetail{
-			Title:       ld.Name,
-			Description: ld.Description,
-			Version:     ld.SoftwareVersion,
-			FileSize:    ld.FileSize,
-			Author:      FileAuthor{Name: ld.Author.Name, URL: ld.Author.URL, ImageURL: ld.Author.Image},
+			Title:        ld.Name,
+			Description:  ld.Description,
+			Version:      ld.SoftwareVersion,
+			FileSize:     ld.FileSize,
+			Author:       FileAuthor{Name: ld.Author.Name, URL: ld.Author.URL, ImageURL: ld.Author.Image},
+			DateModified: ld.DateModified,
 		}
 		for _, s := range ld.InteractionStatistic {
 			switch s.InteractionType {

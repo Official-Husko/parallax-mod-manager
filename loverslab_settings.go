@@ -48,6 +48,11 @@ type loversLabState struct {
 	// production (a thin wrapper around Client.VerifySession), replaced in tests with
 	// one that never makes a real request - same reason as login above.
 	verify func(ctx context.Context, client *loverslab.Client) (bool, error)
+	// getFileDetail fetches a file's own page (loverslabupdates.go's own use: the
+	// update check's fresh dateModified); loverslabGetFileDetail in production (a
+	// thin wrapper around Client.GetFileDetail), replaced in tests with one that
+	// never makes a real request - same reason as login/verify above.
+	getFileDetail func(ctx context.Context, client *loverslab.Client, fileURL string) (loverslab.FileDetail, error)
 }
 
 // loverslabLogin is loversLabState.login's real, production implementation.
@@ -65,6 +70,12 @@ func loverslabLogin(ctx context.Context, auth, password string) (*loverslab.Clie
 // loverslabVerify is loversLabState.verify's real, production implementation.
 func loverslabVerify(ctx context.Context, client *loverslab.Client) (bool, error) {
 	return client.VerifySession(ctx)
+}
+
+// loverslabGetFileDetail is loversLabState.getFileDetail's real, production
+// implementation.
+func loverslabGetFileDetail(ctx context.Context, client *loverslab.Client, fileURL string) (loverslab.FileDetail, error) {
+	return client.GetFileDetail(ctx, fileURL)
 }
 
 // LoversLabStatus is what the Browsing Extensions panel shows for LoversLab. It never
@@ -102,6 +113,9 @@ func (a *App) initLoversLab(dir string) {
 	}
 	if a.loverslab.verify == nil {
 		a.loverslab.verify = loverslabVerify
+	}
+	if a.loverslab.getFileDetail == nil {
+		a.loverslab.getFileDetail = loverslabGetFileDetail
 	}
 }
 

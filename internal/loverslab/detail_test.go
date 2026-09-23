@@ -80,6 +80,9 @@ func TestParseFileDetail(t *testing.T) {
 	if detail.Downloads != 6049 {
 		t.Errorf("Downloads = %d, want 6049", detail.Downloads)
 	}
+	if detail.DateModified != "2026-09-13T20:01:52+0200" {
+		t.Errorf("DateModified = %q, want the real ISO 8601 timestamp", detail.DateModified)
+	}
 	if len(detail.Screenshots) != 2 {
 		t.Fatalf("got %d screenshots, want 2", len(detail.Screenshots))
 	}
