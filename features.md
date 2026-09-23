@@ -145,6 +145,13 @@ for security, privacy, reliability or performance is called out (see the last tw
   fetch, so paging back and forth or re-opening a mod already looked at doesn't visibly re-fetch
   every time; posting a comment always invalidates that topic's own cache first, so it never
   shows a stale, pre-reply copy back to you.
+- **Browsing cards fill in a real avatar, view count and posted date over time** - the real
+  listing page itself never has any of these three at all, only a plain author name and a
+  downloads count, so this app keeps a small on-disk cache of what it separately, genuinely
+  already learned about a file the moment its own detail page was opened - never fetched
+  specially just to fill a card in. A file never opened yet shows exactly what it always did
+  (an initial-letter avatar, no date); anything you've actually looked at gets richer for good,
+  even after restarting the app.
 - **Opening a file's own page, an author, or a comment still links out** - this app never mirrors a
   foreign site's content beyond what the detail view shows; thumbnails and screenshots load straight
   off LoversLab's own public image CDN.

@@ -74,7 +74,7 @@ type FilesState =
     | { kind: 'idle' }
     | { kind: 'loading' }
     | { kind: 'error'; message: string }
-    | { kind: 'ready'; files: loverslab.FileSummary[]; totalPages: number };
+    | { kind: 'ready'; files: app.LoversLabFileSummary[]; totalPages: number };
 
 type ChangelogState =
     | { kind: 'loading' }
@@ -976,6 +976,16 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
     // each having its own card-grid and row-list markup.
     const browsingItems = useMemo<BrowseListItem[]>(() => visibleFiles.map((f) => {
         const extras = mockExtrasFor(f.ID);
+        // RealUpdated/Views/AuthorAvatarURL are this app's own opportunistic
+        // cache (internal/loverslabmeta) - real, but only ever present for a
+        // file this app has separately, already opened its own detail view
+        // for at some point; the listing page itself has none of these three
+        // at all (confirmed live), so a file never opened yet just shows
+        // none of them, same as before this cache existed. f.Updated (the
+        // listing's own display string) is kept as a fallback, though the
+        // real site stopped rendering it there entirely.
+        const dateText = f.RealUpdated ? formatUpdated(f.RealUpdated) : f.Updated;
+        const viewsText = f.Views > 0 ? `${f.Views.toLocaleString()} views` : '';
         return {
             id: f.ID,
             title: f.Title,
@@ -984,9 +994,10 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
             tagColor: extras.tagColor,
             stateIcon: updateAvailableIds.has(f.ID) ? 'update' : installedIds.has(f.ID) ? 'installed' : null,
             authorName: f.Author,
+            authorAvatarURL: f.AuthorAvatarURL,
             lineOne: f.Author,
             onLineOneClick: f.AuthorURL ? () => BrowserOpenURL(f.AuthorURL) : undefined,
-            lineTwo: f.Updated,
+            lineTwo: [dateText, viewsText].filter(Boolean).join(' · '),
             onClick: () => openDetail(f),
         };
     }), [visibleFiles, installedIds, updateAvailableIds]);

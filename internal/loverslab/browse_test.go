@@ -162,6 +162,16 @@ func TestParseFileListingDefaultsToOnePageWithoutPagination(t *testing.T) {
 	}
 }
 
+func TestFileIDFromURL(t *testing.T) {
+	id, ok := FileIDFromURL("https://www.loverslab.com/files/file/8719-stellaris-lustful-void/")
+	if !ok || id != 8719 {
+		t.Errorf("FileIDFromURL = %d, %v, want 8719, true", id, ok)
+	}
+	if _, ok := FileIDFromURL("https://www.loverslab.com/topic/119724-not-a-file-page/"); ok {
+		t.Error("expected false for a URL with no /files/file/ id in it at all")
+	}
+}
+
 func TestSideMenuDepthTopLevelIsZero(t *testing.T) {
 	doc := parseFixture(t, categorySidebarFixture)
 	cats := parseCategories(doc)

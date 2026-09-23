@@ -120,6 +120,22 @@ type FileSummary struct {
 
 var fileIDPattern = regexp.MustCompile(`/files/file/(\d+)-`)
 
+// FileIDFromURL pulls a Downloads file's own numeric ID out of its page URL
+// (the same pattern ListFiles already uses to populate FileSummary.ID) -
+// exported for a caller that only has the URL on hand, not a FileSummary,
+// e.g. internal/app's own opportunistic file-metadata cache.
+func FileIDFromURL(url string) (int, bool) {
+	m := fileIDPattern.FindStringSubmatch(url)
+	if m == nil {
+		return 0, false
+	}
+	id, err := strconv.Atoi(m[1])
+	if err != nil {
+		return 0, false
+	}
+	return id, true
+}
+
 // ListFiles returns the files on one (1-indexed) page of a category
 // listing, plus the total number of pages available.
 func (c *Client) ListFiles(ctx context.Context, categoryURL string, page int) ([]FileSummary, int, error) {

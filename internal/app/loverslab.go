@@ -10,6 +10,7 @@ import (
 
 	"github.com/Official-Husko/parallax-mod-manager/internal/applog"
 	"github.com/Official-Husko/parallax-mod-manager/internal/loverslab"
+	"github.com/Official-Husko/parallax-mod-manager/internal/loverslabmeta"
 )
 
 // sessionRecheckInterval is how long an already-verified LoversLab session is trusted before
@@ -26,8 +27,50 @@ const sessionRecheckInterval = 5 * time.Minute
 // Wails bound methods return a single value plus an error, so they're wrapped here the
 // same way library.ModFiles wraps ListModFiles' own pair.
 type LoversLabFileList struct {
-	Files      []loverslab.FileSummary
+	Files      []LoversLabFileSummary
 	TotalPages int
+}
+
+// LoversLabFileSummary is one browsing-grid card's real data: the listing
+// page's own fields (see loverslab.FileSummary) plus whatever this app has
+// separately, opportunistically learned about that same file from a real
+// visit to its own detail page (see internal/loverslabmeta and
+// cacheFileMeta) - AuthorAvatarURL, Views and RealUpdated are blank for any
+// file never opened yet, the same as before any of this existed; they are
+// never fetched just to fill a card in.
+type LoversLabFileSummary struct {
+	ID              int
+	Title           string
+	URL             string
+	Author          string
+	AuthorURL       string
+	Updated         string // loverslab.FileSummary's own listing-page display string - see RealUpdated below, which is what actually has a value today
+	ThumbnailURL    string
+	AuthorAvatarURL string
+	Views           int
+	// RealUpdated is the site's own real "dateModified" ISO 8601 timestamp
+	// (loverslab.FileDetail.DateModified), cached from a real detail-page
+	// visit - distinct from Updated above, which is the listing page's own
+	// display string and, confirmed live, is always empty now (the real
+	// site stopped rendering it there entirely).
+	RealUpdated string
+}
+
+// withCachedMeta fills in whatever this app has separately cached for f's
+// own file ID (see internal/loverslabmeta) - f itself already has every
+// field the listing page ever provides; this only ever adds to it, never
+// overwrites a field the listing page did supply.
+func withCachedMeta(f loverslab.FileSummary, cached map[int]loverslabmeta.Entry) LoversLabFileSummary {
+	out := LoversLabFileSummary{
+		ID: f.ID, Title: f.Title, URL: f.URL, Author: f.Author, AuthorURL: f.AuthorURL,
+		Updated: f.Updated, ThumbnailURL: f.ThumbnailURL,
+	}
+	if e, ok := cached[f.ID]; ok {
+		out.AuthorAvatarURL = e.AuthorAvatarURL
+		out.Views = e.Views
+		out.RealUpdated = e.Updated
+	}
+	return out
 }
 
 // LoversLabAccountProfile is the signed-in account's own real display name,
@@ -190,7 +233,19 @@ func (a *App) LoversLabFiles(categoryURL string, page int) (LoversLabFileList, e
 		applog.For("LoversLab").Warnf("listing files in %s failed: %v", categoryURL, err)
 		return LoversLabFileList{}, err
 	}
-	return LoversLabFileList{Files: files, TotalPages: totalPages}, nil
+
+	// Never a reason to fail the listing itself - an unreadable or absent
+	// cache just means every card falls back to what it always showed.
+	cached, cacheErr := a.loverslabMeta.Load()
+	if cacheErr != nil {
+		applog.For("LoversLab").Warnf("reading the cached file details failed, cards will show without them: %v", cacheErr)
+		cached = nil
+	}
+	summaries := make([]LoversLabFileSummary, 0, len(files))
+	for _, f := range files {
+		summaries = append(summaries, withCachedMeta(f, cached))
+	}
+	return LoversLabFileList{Files: summaries, TotalPages: totalPages}, nil
 }
 
 // LoversLabChangelog returns a file's release notes, if it has any - nil, no error is
@@ -217,8 +272,38 @@ func (a *App) LoversLabFileDetail(filePageURL string) (loverslab.FileDetail, err
 	detail, err := a.loverslab.getFileDetail(a.baseContext(), client, filePageURL)
 	if err != nil {
 		applog.For("LoversLab").Warnf("getting file detail for %s failed: %v", filePageURL, err)
+		return detail, err
 	}
-	return detail, err
+	a.cacheFileMeta(filePageURL, detail)
+	return detail, nil
+}
+
+// cacheFileMeta opportunistically saves whatever detail's own author avatar/
+// view count/updated date is, keyed by the file ID in filePageURL, so a
+// later visit to the browsing grid can show it on that file's own card - see
+// internal/loverslabmeta. Never fails the caller: a file whose ID can't be
+// parsed from its own URL, or a cache that can't be read/saved, just means
+// this one opportunity to enrich a future card is missed, nothing more.
+func (a *App) cacheFileMeta(filePageURL string, detail loverslab.FileDetail) {
+	id, ok := loverslab.FileIDFromURL(filePageURL)
+	if !ok {
+		return
+	}
+	log := applog.For("LoversLab")
+	cached, err := a.loverslabMeta.Load()
+	if err != nil {
+		log.Warnf("reading the cached file details failed, not caching %s: %v", filePageURL, err)
+		return
+	}
+	cached = loverslabmeta.With(cached, id, loverslabmeta.Entry{
+		AuthorAvatarURL: detail.Author.ImageURL,
+		Views:           detail.Views,
+		Updated:         detail.DateModified,
+		CachedAt:        time.Now().Unix(),
+	})
+	if err := a.loverslabMeta.Save(cached); err != nil {
+		log.Warnf("saving the cached file details failed for %s: %v", filePageURL, err)
+	}
 }
 
 // LoversLabCommentList is one page of a file's support-topic replies (see

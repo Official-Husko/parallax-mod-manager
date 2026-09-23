@@ -615,8 +615,38 @@ export namespace app {
 		    return a;
 		}
 	}
+	export class LoversLabFileSummary {
+	    ID: number;
+	    Title: string;
+	    URL: string;
+	    Author: string;
+	    AuthorURL: string;
+	    Updated: string;
+	    ThumbnailURL: string;
+	    AuthorAvatarURL: string;
+	    Views: number;
+	    RealUpdated: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new LoversLabFileSummary(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.Title = source["Title"];
+	        this.URL = source["URL"];
+	        this.Author = source["Author"];
+	        this.AuthorURL = source["AuthorURL"];
+	        this.Updated = source["Updated"];
+	        this.ThumbnailURL = source["ThumbnailURL"];
+	        this.AuthorAvatarURL = source["AuthorAvatarURL"];
+	        this.Views = source["Views"];
+	        this.RealUpdated = source["RealUpdated"];
+	    }
+	}
 	export class LoversLabFileList {
-	    Files: loverslab.FileSummary[];
+	    Files: LoversLabFileSummary[];
 	    TotalPages: number;
 	
 	    static createFrom(source: any = {}) {
@@ -625,7 +655,7 @@ export namespace app {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.Files = this.convertValues(source["Files"], loverslab.FileSummary);
+	        this.Files = this.convertValues(source["Files"], LoversLabFileSummary);
 	        this.TotalPages = source["TotalPages"];
 	    }
 	
@@ -647,6 +677,7 @@ export namespace app {
 		    return a;
 		}
 	}
+	
 	export class LoversLabInstalledMod {
 	    FileID: number;
 	    Title: string;

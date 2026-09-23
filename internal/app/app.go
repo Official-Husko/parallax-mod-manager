@@ -31,6 +31,7 @@ import (
 	"github.com/Official-Husko/parallax-mod-manager/internal/launcherdb"
 	"github.com/Official-Husko/parallax-mod-manager/internal/launchershim"
 	"github.com/Official-Husko/parallax-mod-manager/internal/library"
+	"github.com/Official-Husko/parallax-mod-manager/internal/loverslabmeta"
 	"github.com/Official-Husko/parallax-mod-manager/internal/loverslabtracking"
 	"github.com/Official-Husko/parallax-mod-manager/internal/mod"
 	"github.com/Official-Husko/parallax-mod-manager/internal/modnotes"
@@ -126,6 +127,11 @@ type App struct {
 	// loverslabInstalls tracks which local mods came from LoversLab, for the update
 	// check - see internal/loverslabtracking and loverslabinstall.go.
 	loverslabInstalls loverslabtracking.Store
+	// loverslabMeta is a partial, opportunistic cache of a LoversLab file's own
+	// author avatar/view count/real updated date - fields the Browse tab's browsing
+	// grid has nowhere else to get at all (see internal/loverslabmeta), filled in
+	// as a side effect of LoversLabFileDetail, never fetched on purpose for this.
+	loverslabMeta loverslabmeta.Store
 	// installMu guards installCancel: the download running for each LoversLabInstall
 	// request, so a Cancel call can reach and stop it - the same reason duplicateMu
 	// guards duplicateCancel just below.
@@ -273,6 +279,7 @@ func (a *App) startup(ctx context.Context) {
 		a.patchOverrides = patchoverride.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "patch_overrides")}
 		a.modNotes = modnotes.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "mod_notes")}
 		a.loverslabInstalls = loverslabtracking.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "loverslab_installs")}
+		a.loverslabMeta = loverslabmeta.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "loverslab_meta")}
 		a.versionIgnore = versionignore.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "version_ignore")}
 		a.modPins = modpins.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "mod_pins")}
 		a.resolvedConflicts = resolvedconflicts.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "resolved_conflicts")}

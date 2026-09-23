@@ -1050,6 +1050,21 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   since it can see genuinely different, account-specific content. Deliberately does not cover
   `ListDownloads` - its own per-click download links are single-use/session-bound, so caching
   that page would risk handing back an already-spent or expired one.
+- **A small, partial, persistent cache of a file's own author avatar, view count, and real
+  updated date** (`internal/loverslabmeta`) - confirmed live that the browsing grid's own
+  listing page has none of these three at all (just a plain author-name link and a downloads
+  count), and adding them for real would mean an extra detail-page fetch per card, exactly the
+  N+1 request pattern that would make Browse feel slower, not faster. Instead, `LoversLabFileDetail`
+  opportunistically saves a file's own real `Author.ImageURL`/`Views`/`DateModified` to this
+  on-disk JSONC cache (`internal/loverslabmeta.Store`, one file, atomic writes, the same
+  `internal/loverslabtracking`-style shape) the moment its own detail view is opened for any
+  other reason - never a request made specially to fill this in. `LoversLabFiles` (the app-level
+  wrapper, now returning `LoversLabFileSummary` instead of the raw `loverslab.FileSummary`) merges
+  a matching cached entry onto each card it returns. This is genuinely partial by design: a file
+  never opened yet shows exactly what it always did (a hashed-initial-letter avatar, no date/
+  views); one that has been gets richer for good, surviving an app restart, at zero added
+  request cost on every later listing fetch. Soft-capped at 4,000 entries (evicting the oldest
+  tenth by cache time first) so a long-running install's own cache file can't grow unbounded.
 - **Posting a reply from Browse's detail view** (`internal/loverslab/comments.go`,
   `LoversLabPostComment`) - the write side of the comments above: a plain-text box that gets
   escaped and wrapped into the simple `<p>`/`<br>` HTML the site's own rich text editor actually
