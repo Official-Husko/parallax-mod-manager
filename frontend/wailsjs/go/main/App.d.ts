@@ -135,6 +135,8 @@ export function LoversLabFiles(arg1:string,arg2:number):Promise<main.LoversLabFi
 
 export function LoversLabInstall(arg1:string,arg2:string,arg3:loverslab.FileSummary,arg4:string,arg5:string):Promise<main.SaveResult>;
 
+export function LoversLabPostComment(arg1:string,arg2:string):Promise<void>;
+
 export function LoversLabStatus():Promise<main.LoversLabStatus>;
 
 export function MarkModUpdatesSeen(arg1:string):Promise<modupdates.Report>;

@@ -1415,6 +1415,7 @@ export namespace main {
 	export class LoversLabCommentList {
 	    Posts: loverslab.Post[];
 	    TotalPages: number;
+	    HasTopic: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new LoversLabCommentList(source);
@@ -1424,6 +1425,7 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.Posts = this.convertValues(source["Posts"], loverslab.Post);
 	        this.TotalPages = source["TotalPages"];
+	        this.HasTopic = source["HasTopic"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"html"
 	"strings"
 	"time"
 
@@ -214,20 +215,82 @@ func (a *App) LoversLabFileDetail(filePageURL string) (loverslab.FileDetail, err
 type LoversLabCommentList struct {
 	Posts      []loverslab.Post
 	TotalPages int
+	// HasTopic is false when the file has no linked support topic at all - lets the
+	// frontend tell "nothing to write a comment to" apart from "has a topic, just
+	// zero replies so far, be the first."
+	HasTopic bool
 }
 
 // LoversLabComments returns one (1-indexed) page of a file's linked support-topic
-// replies. A file with no linked topic at all returns a zero-value, no-error result -
-// not an error, since plenty of files simply don't have one.
+// replies. A file with no linked topic at all returns a zero-value, no-error result
+// (HasTopic false) - not an error, since plenty of files simply don't have one.
+//
+// This resolves the support topic URL itself (client.SupportTopicURL) rather than
+// calling the package's own ListFileSupportPosts convenience wrapper, which would
+// just do the same lookup again internally - HasTopic needs to see that result
+// directly, and this way it costs nothing extra.
 func (a *App) LoversLabComments(filePageURL string, page int) (LoversLabCommentList, error) {
 	client, err := a.ensureLoversLabSession(a.baseContext())
 	if err != nil {
 		return LoversLabCommentList{}, err
 	}
-	posts, totalPages, err := client.ListFileSupportPosts(a.baseContext(), filePageURL, page)
+	topicURL, err := client.SupportTopicURL(a.baseContext(), filePageURL)
+	if err != nil {
+		applog.For("LoversLab").Warnf("finding the support topic for %s failed: %v", filePageURL, err)
+		return LoversLabCommentList{}, err
+	}
+	if topicURL == "" {
+		return LoversLabCommentList{}, nil
+	}
+	posts, totalPages, err := client.ListTopicPosts(a.baseContext(), topicURL, page)
 	if err != nil {
 		applog.For("LoversLab").Warnf("listing comments for %s failed: %v", filePageURL, err)
 		return LoversLabCommentList{}, err
 	}
-	return LoversLabCommentList{Posts: posts, TotalPages: totalPages}, nil
+	return LoversLabCommentList{Posts: posts, TotalPages: totalPages, HasTopic: true}, nil
+}
+
+// LoversLabPostComment posts content as a reply to filePageURL's linked support
+// topic - the write side of LoversLabComments. content is plain text typed into this
+// app's own comment box; it is escaped and wrapped into the simple <p> HTML the
+// site's own rich text editor actually submits (see paragraphsToHTML) before being
+// sent, and returns a clear error if the file has no support topic to write to.
+func (a *App) LoversLabPostComment(filePageURL, content string) error {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return errors.New("write something before posting")
+	}
+	client, err := a.ensureLoversLabSession(a.baseContext())
+	if err != nil {
+		return err
+	}
+	if err := a.loverslab.postComment(a.baseContext(), client, filePageURL, paragraphsToHTML(content)); err != nil {
+		applog.For("LoversLab").Warnf("posting a comment on %s failed: %v", filePageURL, err)
+		return err
+	}
+	applog.For("LoversLab").Infof("posted a comment on %s", filePageURL)
+	return nil
+}
+
+// paragraphsToHTML turns plain text typed into this app's own comment box into the
+// simple HTML the site's real rich text editor submits for an ordinary reply (see
+// docs/loverslab.md's Notifications/Comments research) - blank-line-separated
+// paragraphs, each escaped and wrapped in <p>, single line breaks within a paragraph
+// becoming <br>.
+func paragraphsToHTML(content string) string {
+	paras := strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n\n")
+	var b strings.Builder
+	for _, p := range paras {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		b.WriteString("<p>")
+		b.WriteString(strings.ReplaceAll(html.EscapeString(p), "\n", "<br>"))
+		b.WriteString("</p>")
+	}
+	if b.Len() == 0 {
+		return "<p>" + html.EscapeString(content) + "</p>"
+	}
+	return b.String()
 }

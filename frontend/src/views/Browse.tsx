@@ -11,6 +11,7 @@ import {
     LoversLabFileDetail,
     LoversLabFiles,
     LoversLabInstall,
+    LoversLabPostComment,
     LoversLabStatus,
     SaveLoversLabCredentials,
 } from '../../wailsjs/go/main/App';
@@ -69,7 +70,7 @@ type DetailState =
 type CommentsState =
     | { kind: 'loading' }
     | { kind: 'error'; message: string }
-    | { kind: 'ready'; posts: loverslab.Post[]; totalPages: number };
+    | { kind: 'ready'; posts: loverslab.Post[]; totalPages: number; hasTopic: boolean };
 
 // The Download button's own little flow: find what's downloadable, let the person
 // pick when there's more than one, confirm, then install with progress - all inside
@@ -107,6 +108,8 @@ export function Browse({games, selectedGame}: {
     const [changelogState, setChangelogState] = useState<ChangelogState | null>(null);
     const [commentsState, setCommentsState] = useState<CommentsState | null>(null);
     const [commentsPage, setCommentsPage] = useState(1);
+    const [commentDraft, setCommentDraft] = useState('');
+    const [postingComment, setPostingComment] = useState(false);
 
     const [installState, setInstallState] = useState<InstallState>({kind: 'idle'});
     const installRequestRef = useRef<string | null>(null);
@@ -220,10 +223,35 @@ export function Browse({games, selectedGame}: {
         let cancelled = false;
         setCommentsState({kind: 'loading'});
         LoversLabComments(detailFor.URL, commentsPage)
-            .then((result) => { if (!cancelled) setCommentsState({kind: 'ready', posts: result.Posts ?? [], totalPages: result.TotalPages || 1}); })
+            .then((result) => { if (!cancelled) setCommentsState({kind: 'ready', posts: result.Posts ?? [], totalPages: result.TotalPages || 1, hasTopic: result.HasTopic}); })
             .catch((err) => { if (!cancelled) setCommentsState({kind: 'error', message: errorText(err)}); });
         return () => { cancelled = true; };
     }, [detailFor, commentsPage]);
+
+    // Posting a reply: always reloads page 1 afterward rather than trying to splice the
+    // new reply into whatever page is currently shown - simpler, and correct regardless
+    // of which page the person was looking at when they posted.
+    async function postComment() {
+        if (!detailFor) return;
+        const content = commentDraft.trim();
+        if (!content) return;
+        setPostingComment(true);
+        try {
+            await LoversLabPostComment(detailFor.URL, content);
+            setCommentDraft('');
+            notify('success', 'Comment posted.');
+            if (commentsPage === 1) {
+                const result = await LoversLabComments(detailFor.URL, 1);
+                setCommentsState({kind: 'ready', posts: result.Posts ?? [], totalPages: result.TotalPages || 1, hasTopic: result.HasTopic});
+            } else {
+                setCommentsPage(1);
+            }
+        } catch (err) {
+            notify('error', errorText(err));
+        } finally {
+            setPostingComment(false);
+        }
+    }
 
     function closeDetail() {
         // An install in progress keeps the modal open - closing partway through would
@@ -233,6 +261,7 @@ export function Browse({games, selectedGame}: {
         setDetailState(null);
         setChangelogState(null);
         setCommentsState(null);
+        setCommentDraft('');
         setInstallState({kind: 'idle'});
     }
 
@@ -622,10 +651,30 @@ export function Browse({games, selectedGame}: {
                             </div>
                             {commentsState?.kind === 'loading' && <div className="browse-status-note">Loading...</div>}
                             {commentsState?.kind === 'error' && <div className="browse-status-note error">{commentsState.message}</div>}
-                            {commentsState?.kind === 'ready' && commentsState.posts.length === 0 && (
-                                <div className="browse-status-note">
-                                    This file has no support topic, or no one has replied to it yet.
+                            {commentsState?.kind === 'ready' && commentsState.hasTopic && (
+                                <div className="browse-comment-write">
+                                    <textarea
+                                        className="browse-comment-input"
+                                        placeholder="Write a reply..."
+                                        value={commentDraft}
+                                        disabled={postingComment}
+                                        onInput={(e) => setCommentDraft((e.target as HTMLTextAreaElement).value)}
+                                    />
+                                    <button
+                                        type="button"
+                                        className="btn-primary browse-comment-post-btn"
+                                        disabled={postingComment || commentDraft.trim() === ''}
+                                        onClick={postComment}
+                                    >
+                                        {postingComment ? 'Posting...' : 'Post'}
+                                    </button>
                                 </div>
+                            )}
+                            {commentsState?.kind === 'ready' && !commentsState.hasTopic && (
+                                <div className="browse-status-note">This file has no support topic to comment on.</div>
+                            )}
+                            {commentsState?.kind === 'ready' && commentsState.hasTopic && commentsState.posts.length === 0 && (
+                                <div className="browse-status-note">No one has replied yet - be the first.</div>
                             )}
                             {commentsState?.kind === 'ready' && commentsState.posts.map((post) => (
                                 <div key={post.ID} className="browse-comment">

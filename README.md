@@ -973,6 +973,13 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   rendered the same way a changelog entry's is, except an attachment's own link is dropped from the
   rendered text entirely rather than trailing the sentence as a raw upload URL, since the attachment
   already gets its own chip right below - showing the same URL twice would just be noise.
+- **Posting a reply from Browse's detail view** (`internal/loverslab/comments.go`,
+  `LoversLabPostComment`) - the write side of the comments above: a plain-text box that gets
+  escaped and wrapped into the simple `<p>`/`<br>` HTML the site's own rich text editor actually
+  submits, posted to the file's linked support topic, only shown when a file actually has one to
+  write to. Confirmed live, twice - once against the standalone research client this was ported
+  from, once again against this app's own port - showing up on the real topic afterward under the
+  account's own username, not just a non-error return value.
 - **Downloading and installing a mod from Browse** (`loverslabinstall.go`,
   `internal/loverslabinstall`, `internal/loverslabtracking`) - a Download button on the detail
   view above: picks the right attachment when a file has more than one, downloads with real

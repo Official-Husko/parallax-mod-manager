@@ -238,6 +238,10 @@ export function LoversLabInstall(arg1, arg2, arg3, arg4, arg5) {
   return window['go']['main']['App']['LoversLabInstall'](arg1, arg2, arg3, arg4, arg5);
 }
 
+export function LoversLabPostComment(arg1, arg2) {
+  return window['go']['main']['App']['LoversLabPostComment'](arg1, arg2);
+}
+
 export function LoversLabStatus() {
   return window['go']['main']['App']['LoversLabStatus']();
 }

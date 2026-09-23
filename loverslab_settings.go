@@ -53,6 +53,11 @@ type loversLabState struct {
 	// thin wrapper around Client.GetFileDetail), replaced in tests with one that
 	// never makes a real request - same reason as login/verify above.
 	getFileDetail func(ctx context.Context, client *loverslab.Client, fileURL string) (loverslab.FileDetail, error)
+	// postComment posts a reply to filePageURL's linked support topic;
+	// loverslabPostComment in production (resolves the topic URL, then
+	// Client.PostComment), replaced in tests with one that never makes a real
+	// request - same reason as login/verify/getFileDetail above.
+	postComment func(ctx context.Context, client *loverslab.Client, filePageURL, content string) error
 }
 
 // loverslabLogin is loversLabState.login's real, production implementation.
@@ -76,6 +81,20 @@ func loverslabVerify(ctx context.Context, client *loverslab.Client) (bool, error
 // implementation.
 func loverslabGetFileDetail(ctx context.Context, client *loverslab.Client, fileURL string) (loverslab.FileDetail, error) {
 	return client.GetFileDetail(ctx, fileURL)
+}
+
+// loverslabPostComment is loversLabState.postComment's real, production
+// implementation: resolves filePageURL's linked support topic, then posts to it -
+// a clear error if the file has none.
+func loverslabPostComment(ctx context.Context, client *loverslab.Client, filePageURL, content string) error {
+	topicURL, err := client.SupportTopicURL(ctx, filePageURL)
+	if err != nil {
+		return err
+	}
+	if topicURL == "" {
+		return errors.New("this mod has no support topic to comment on")
+	}
+	return client.PostComment(ctx, topicURL, content)
 }
 
 // LoversLabStatus is what the Browsing Extensions panel shows for LoversLab. It never
@@ -116,6 +135,9 @@ func (a *App) initLoversLab(dir string) {
 	}
 	if a.loverslab.getFileDetail == nil {
 		a.loverslab.getFileDetail = loverslabGetFileDetail
+	}
+	if a.loverslab.postComment == nil {
+		a.loverslab.postComment = loverslabPostComment
 	}
 }
 
