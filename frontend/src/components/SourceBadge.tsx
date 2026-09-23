@@ -3,9 +3,10 @@ import {colorFromName} from '../data/nameColor';
 
 // A mod's source, shown as a small icon instead of a plain colored-box
 // letter: the real Steam logo for a Workshop mod, a folder (tinted by the
-// mod's own name - see colorFromName) for a local one. Paradox-Launcher
-// mods keep the original letter-box style, since there's no equivalently
-// obvious icon for that source.
+// mod's own name - see colorFromName) for a local one, the same heart
+// Browse's own sidebar uses for a mod downloaded from LoversLab. Paradox-
+// Launcher mods keep the original letter-box style, since there's no
+// equivalently obvious icon for that source.
 export function SourceBadge({source, name}: { source: string; name: string }) {
     if (source === 'workshop') {
         return (
@@ -16,6 +17,13 @@ export function SourceBadge({source, name}: { source: string; name: string }) {
     }
     if (source === 'paradox-launcher') {
         return <span className="src-badge badge-paradox-launcher" title="Paradox Launcher">P</span>;
+    }
+    if (source === 'loverslab') {
+        return (
+            <span className="src-icon-badge" title="LoversLab">
+                <i className="fa-solid fa-heart src-icon-loverslab"/>
+            </span>
+        );
     }
     return (
         <span className="src-icon-badge" title="Local mod" style={{color: colorFromName(name)}}>

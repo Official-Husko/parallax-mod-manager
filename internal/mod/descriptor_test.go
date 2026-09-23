@@ -15,6 +15,8 @@ func TestClassifySource(t *testing.T) {
 		{"my_local_mod.mod", SourceLocal},
 		{"/some/dir/ugc_42.mod", SourceWorkshop},
 		{"descriptor.mod", SourceLocal},
+		{"loverslab_31347.mod", SourceLoversLab},
+		{"/some/dir/loverslab_31347.mod", SourceLoversLab},
 	}
 	for _, tt := range tests {
 		if got := ClassifySource(tt.filename); got != tt.want {

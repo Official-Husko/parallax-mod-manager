@@ -43,6 +43,8 @@ export function CancelBackgroundDownload():Promise<void>;
 
 export function CancelDuplicate(arg1:string):Promise<void>;
 
+export function CancelLoversLabInstall(arg1:string):Promise<void>;
+
 export function CheckGameUpdates():Promise<Array<library.GameUpdate>>;
 
 export function CheckMod(arg1:string,arg2:string,arg3:Array<string>):Promise<main.CheckResult>;
@@ -123,9 +125,13 @@ export function LoversLabChangelog(arg1:string):Promise<Array<loverslab.Changelo
 
 export function LoversLabComments(arg1:string,arg2:number):Promise<main.LoversLabCommentList>;
 
+export function LoversLabDownloadDialog(arg1:string):Promise<Array<loverslab.FileDownload>>;
+
 export function LoversLabFileDetail(arg1:string):Promise<loverslab.FileDetail>;
 
 export function LoversLabFiles(arg1:string,arg2:number):Promise<main.LoversLabFileList>;
+
+export function LoversLabInstall(arg1:string,arg2:string,arg3:loverslab.FileSummary,arg4:string):Promise<main.SaveResult>;
 
 export function LoversLabStatus():Promise<main.LoversLabStatus>;
 

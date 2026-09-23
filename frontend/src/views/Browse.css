@@ -425,6 +425,19 @@
     font-size: 13px;
 }
 
+.browse-detail-header i.inert {
+    color: var(--text-dim);
+    cursor: not-allowed;
+}
+
+.browse-download-btn {
+    padding: 5px 12px;
+    font-size: 11.5px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
 .browse-detail-body {
     padding: 14px 16px 16px;
     overflow-y: auto;
@@ -605,4 +618,91 @@
 .browse-comment-attachment:hover {
     color: var(--text-mid);
     border-color: var(--border);
+}
+
+/* The Download button's own flow (finding downloads, picking one, confirming,
+   installing with progress) - sits inline at the top of the detail body, never a
+   second popup stacked on top of the detail modal itself. */
+.browse-install-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    border: 1px solid var(--border-light);
+    border-radius: 6px;
+    padding: 12px 14px;
+    background: var(--bg-inset);
+}
+
+.browse-install-label {
+    font: 400 12px/1.5 Barlow, sans-serif;
+    color: var(--text-mid);
+}
+
+.browse-install-label strong {
+    color: var(--text-bright);
+}
+
+.browse-install-error {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font: 500 12px/1.5 Barlow, sans-serif;
+    color: var(--red);
+}
+
+.browse-install-dismiss {
+    margin-left: auto;
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: 11px;
+    text-decoration: underline;
+}
+
+.browse-install-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font: 500 12px Barlow, sans-serif;
+    color: var(--text-mid);
+    padding: 7px 10px;
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.browse-install-option:hover {
+    color: var(--text-bright);
+    border-color: var(--border);
+}
+
+.browse-install-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.browse-install-bar {
+    height: 6px;
+    border-radius: 3px;
+    background: var(--bg-panel);
+    overflow: hidden;
+}
+
+.browse-install-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: var(--rust, var(--blue));
+    transition: width .2s ease;
+}
+
+/* No real total to measure against yet (still waiting on Content-Length, or mid-
+   extraction where progress is by file count rather than a byte total) - a moving
+   segment instead of a stalled, wrong-looking full-width or empty bar. */
+.browse-install-bar-fill.indeterminate {
+    width: 40%;
+    animation: browse-install-indeterminate 1.1s ease-in-out infinite;
+}
+
+@keyframes browse-install-indeterminate {
+    0% { margin-left: -40%; }
+    100% { margin-left: 100%; }
 }

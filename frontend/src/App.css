@@ -487,6 +487,13 @@
     font-size: 14px;
 }
 
+/* Matches Browse.css's own .browse-source-icon.loverslab - the same source, the same
+   color, wherever a mod's origin is shown. */
+.src-icon-badge .src-icon-loverslab {
+    font-size: 13px;
+    color: var(--flag-private);
+}
+
 .toggle-pill {
     display: inline-block;
     width: 32px;

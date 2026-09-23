@@ -1,19 +1,33 @@
 import './Browse.css';
 import {Fragment, h} from 'preact';
-import {useEffect, useMemo, useState} from 'preact/hooks';
+import {useEffect, useMemo, useRef, useState} from 'preact/hooks';
 import {
+    CancelLoversLabInstall,
     ClearLoversLabCredentials,
     LoversLabCategories,
     LoversLabChangelog,
     LoversLabComments,
+    LoversLabDownloadDialog,
     LoversLabFileDetail,
     LoversLabFiles,
+    LoversLabInstall,
     LoversLabStatus,
     SaveLoversLabCredentials,
 } from '../../wailsjs/go/main/App';
 import type {library, loverslab, main} from '../../wailsjs/go/models';
-import {BrowserOpenURL} from '../../wailsjs/runtime/runtime';
+import {BrowserOpenURL, EventsOn} from '../../wailsjs/runtime/runtime';
 import {notify} from '../data/notifications';
+
+// A "loverslab-install-progress" event's shape - not a Wails-bound method's own
+// parameter or return type, so it never gets a generated model (see
+// loverslabinstall.go's LoversLabInstallProgress, and EditorNew.tsx's own
+// DuplicateProgressEvent for the same reason).
+interface LoversLabInstallProgressEvent {
+    RequestID: string;
+    Stage: string; // "downloading" | "extracting"
+    Done: number;
+    Total: number; // -1 when unknown
+}
 
 // Browse: additional, unofficial places to find mods beyond the Steam Workshop (already
 // covered by Library/Workspace). LoversLab is the first real source - see
@@ -56,6 +70,17 @@ type CommentsState =
     | { kind: 'error'; message: string }
     | { kind: 'ready'; posts: loverslab.Post[]; totalPages: number };
 
+// The Download button's own little flow: find what's downloadable, let the person
+// pick when there's more than one, confirm, then install with progress - all inside
+// the detail modal, never a second popup on top of it.
+type InstallState =
+    | { kind: 'idle' }
+    | { kind: 'loading-downloads' }
+    | { kind: 'picking'; downloads: loverslab.FileDownload[] }
+    | { kind: 'confirm'; download: loverslab.FileDownload }
+    | { kind: 'installing'; download: loverslab.FileDownload; progress: LoversLabInstallProgressEvent | null }
+    | { kind: 'error'; message: string };
+
 function errorText(err: unknown): string {
     return String(err).replace(/^Error:\s*/, '');
 }
@@ -81,6 +106,9 @@ export function Browse({games, selectedGame}: {
     const [changelogState, setChangelogState] = useState<ChangelogState | null>(null);
     const [commentsState, setCommentsState] = useState<CommentsState | null>(null);
     const [commentsPage, setCommentsPage] = useState(1);
+
+    const [installState, setInstallState] = useState<InstallState>({kind: 'idle'});
+    const installRequestRef = useRef<string | null>(null);
 
     useEffect(() => {
         LoversLabStatus().then(setStatus).catch(() => undefined);
@@ -166,6 +194,7 @@ export function Browse({games, selectedGame}: {
     function openDetail(file: loverslab.FileSummary) {
         setDetailFor(file);
         setCommentsPage(1);
+        setInstallState({kind: 'idle'});
 
         setDetailState({kind: 'loading'});
         LoversLabFileDetail(file.URL)
@@ -192,10 +221,59 @@ export function Browse({games, selectedGame}: {
     }, [detailFor, commentsPage]);
 
     function closeDetail() {
+        // An install in progress keeps the modal open - closing partway through would
+        // leave no way to see it finish, cancel it, or find out whether it succeeded.
+        if (installState.kind === 'installing') return;
         setDetailFor(null);
         setDetailState(null);
         setChangelogState(null);
         setCommentsState(null);
+        setInstallState({kind: 'idle'});
+    }
+
+    // Download: find what's downloadable for the open file, skip straight to confirming
+    // when there's only one, otherwise let the person pick which version/attachment first.
+    function startDownload() {
+        if (!detailFor) return;
+        setInstallState({kind: 'loading-downloads'});
+        LoversLabDownloadDialog(detailFor.URL)
+            .then((downloads) => {
+                const list = downloads ?? [];
+                if (list.length === 0) {
+                    setInstallState({kind: 'error', message: 'No downloadable files were found for this mod.'});
+                } else if (list.length === 1) {
+                    setInstallState({kind: 'confirm', download: list[0]});
+                } else {
+                    setInstallState({kind: 'picking', downloads: list});
+                }
+            })
+            .catch((err) => setInstallState({kind: 'error', message: errorText(err)}));
+    }
+
+    async function runInstall(download: loverslab.FileDownload) {
+        if (!detailFor) return;
+        const requestId = `ll-install-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        installRequestRef.current = requestId;
+        setInstallState({kind: 'installing', download, progress: null});
+        const off = EventsOn('loverslab-install-progress', (p: LoversLabInstallProgressEvent) => {
+            if (p.RequestID === requestId) setInstallState({kind: 'installing', download, progress: p});
+        });
+        try {
+            await LoversLabInstall(selectedGame, requestId, detailFor, download.URL);
+            notify('success', `Installed '${detailFor.Title}'.`);
+            setInstallState({kind: 'idle'});
+        } catch (err) {
+            const message = errorText(err);
+            notify(message.includes('cancelled') ? 'info' : 'error', message);
+            setInstallState({kind: 'idle'});
+        } finally {
+            off();
+            installRequestRef.current = null;
+        }
+    }
+
+    function cancelInstall() {
+        if (installRequestRef.current) CancelLoversLabInstall(installRequestRef.current);
     }
 
     const gameName = games.find((g) => g.ID === selectedGame)?.DisplayName ?? selectedGame;
@@ -398,10 +476,72 @@ export function Browse({games, selectedGame}: {
                         <div className="browse-detail-header">
                             <span className="title" title={detailFor.Title}>{detailFor.Title}</span>
                             <div className="spacer"/>
+                            {installState.kind === 'idle' && (
+                                <button type="button" className="btn-primary browse-download-btn" onClick={startDownload}>
+                                    <i className="fa-solid fa-download"/> Download
+                                </button>
+                            )}
                             <i className="fa-solid fa-up-right-from-square" title="Open on LoversLab" onClick={() => BrowserOpenURL(detailFor.URL)}/>
-                            <i className="fa-solid fa-xmark close-btn" onClick={closeDetail}/>
+                            <i
+                                className={`fa-solid fa-xmark close-btn ${installState.kind === 'installing' ? 'inert' : ''}`}
+                                title={installState.kind === 'installing' ? 'Wait for the install to finish or cancel it first' : undefined}
+                                onClick={closeDetail}
+                            />
                         </div>
                         <div className="browse-detail-body">
+                            {installState.kind !== 'idle' && (
+                                <div className="browse-install-panel">
+                                    {installState.kind === 'loading-downloads' && <div className="browse-status-note">Finding downloads...</div>}
+                                    {installState.kind === 'error' && (
+                                        <div className="browse-install-error">
+                                            <i className="fa-solid fa-circle-exclamation"/> {installState.message}
+                                            <span className="browse-install-dismiss" onClick={() => setInstallState({kind: 'idle'})}>Dismiss</span>
+                                        </div>
+                                    )}
+                                    {installState.kind === 'picking' && (
+                                        <>
+                                            <div className="browse-install-label">This file has more than one download - pick one:</div>
+                                            {installState.downloads.map((d, i) => (
+                                                <div key={i} className="browse-install-option" onClick={() => setInstallState({kind: 'confirm', download: d})}>
+                                                    <i className="fa-solid fa-file-zipper"/> {d.Name}
+                                                </div>
+                                            ))}
+                                        </>
+                                    )}
+                                    {installState.kind === 'confirm' && (
+                                        <>
+                                            <div className="browse-install-label">
+                                                Download and install <strong>{installState.download.Name}</strong>? If you already have
+                                                this mod installed from LoversLab, this replaces it with this version.
+                                            </div>
+                                            <div className="browse-install-actions">
+                                                <button type="button" className="btn-primary" onClick={() => runInstall(installState.download)}>Install</button>
+                                                <button type="button" className="btn-ghost" onClick={() => setInstallState({kind: 'idle'})}>Cancel</button>
+                                            </div>
+                                        </>
+                                    )}
+                                    {installState.kind === 'installing' && (
+                                        <>
+                                            <div className="browse-install-label">
+                                                {installState.progress?.Stage === 'extracting' ? 'Extracting...' : 'Downloading...'}
+                                            </div>
+                                            <div className="browse-install-bar">
+                                                <div
+                                                    className={`browse-install-bar-fill ${!installState.progress || installState.progress.Total <= 0 ? 'indeterminate' : ''}`}
+                                                    style={
+                                                        installState.progress && installState.progress.Total > 0
+                                                            ? {width: `${Math.min(100, (installState.progress.Done / installState.progress.Total) * 100)}%`}
+                                                            : undefined
+                                                    }
+                                                />
+                                            </div>
+                                            <div className="browse-install-actions">
+                                                <button type="button" className="btn-ghost" onClick={cancelInstall}>Cancel</button>
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            )}
                             {detailState?.kind === 'loading' && <div className="browse-status-note">Loading...</div>}
                             {detailState?.kind === 'error' && <div className="browse-status-note error">{detailState.message}</div>}
                             {detailState?.kind === 'ready' && (

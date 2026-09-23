@@ -28,6 +28,15 @@ const (
 	SourceLocal Source = iota
 	SourceWorkshop
 	SourceParadoxLauncher
+	// SourceLoversLab is a mod this app downloaded and installed from LoversLab (see
+	// loverslabinstall.go) - unlike Workshop or the Paradox Launcher, nothing external
+	// re-manages its files afterward, so it behaves like SourceLocal almost everywhere
+	// (editable, eligible for Purge, backed up normally, written as plain "local" in
+	// mods_registry.json - a real Paradox-Launcher-format file, not this app's to
+	// invent new values for). The one place it's treated distinctly is the update
+	// check (a LoversLab file id to compare against, the same way SourceWorkshop's
+	// RemoteFileID drives its own) and the Browse-sourced badge shown for it.
+	SourceLoversLab
 )
 
 const (
@@ -37,12 +46,21 @@ const (
 	// write one itself (see WriteClassicDescriptor and internal/scan).
 	WorkshopFilePrefix = "ugc_"
 	launcherFilePrefix = "pdx_"
+	// LoversLabFilePrefix marks a classic-format descriptor filename as a mod this
+	// app installed from LoversLab, e.g. "loverslab_31347.mod" - the same convention
+	// WorkshopFilePrefix uses, just for a different remote source. Deliberately not
+	// the shorter "ll_": classification below matches by Contains, not HasPrefix (the
+	// same looseness "ugc_"/"pdx_" already accept), and "ll_" is short and common
+	// enough to plausibly turn up inside an unrelated local mod's own name (e.g.
+	// "shell_script.mod") - "loverslab_" is long and specific enough that collision
+	// risk is not a real concern. See loverslabinstall.go.
+	LoversLabFilePrefix = "loverslab_"
 )
 
 // ClassifySource determines a mod's source from its descriptor's filename
-// (e.g. "ugc_1830063425.mod", "pdx_00001.mod", or anything else for a local
-// mod). Only the base filename is inspected; any directory components in
-// descriptorFilename are ignored.
+// (e.g. "ugc_1830063425.mod", "pdx_00001.mod", "loverslab_31347.mod", or
+// anything else for a local mod). Only the base filename is inspected; any
+// directory components in descriptorFilename are ignored.
 func ClassifySource(descriptorFilename string) Source {
 	name := filepath.Base(descriptorFilename)
 	switch {
@@ -50,6 +68,8 @@ func ClassifySource(descriptorFilename string) Source {
 		return SourceWorkshop
 	case strings.Contains(name, launcherFilePrefix):
 		return SourceParadoxLauncher
+	case strings.Contains(name, LoversLabFilePrefix):
+		return SourceLoversLab
 	default:
 		return SourceLocal
 	}
@@ -74,7 +94,11 @@ type Descriptor struct {
 	// internal/library.ModThumbnail, which checks both.
 	Picture string
 
-	RemoteFileID string // classic format: Steam Workshop file id
+	// RemoteFileID is this mod's id at whatever remote source it came from, classic
+	// format only - a Steam Workshop file id for SourceWorkshop, or a LoversLab file
+	// id for SourceLoversLab (see loverslabinstall.go). Empty for a mod with no
+	// remote source at all.
+	RemoteFileID string
 	UserDir      string // classic format
 
 	ID               string         // JSON format: the descriptor's own id

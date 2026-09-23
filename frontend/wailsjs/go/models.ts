@@ -862,6 +862,20 @@ export namespace loverslab {
 		    return a;
 		}
 	}
+	export class FileDownload {
+	    Name: string;
+	    URL: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new FileDownload(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Name = source["Name"];
+	        this.URL = source["URL"];
+	    }
+	}
 	export class FileSummary {
 	    ID: number;
 	    Title: string;

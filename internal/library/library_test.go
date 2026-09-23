@@ -17,6 +17,7 @@ func TestSourceString(t *testing.T) {
 		{mod.SourceLocal, "local"},
 		{mod.SourceWorkshop, "workshop"},
 		{mod.SourceParadoxLauncher, "paradox-launcher"},
+		{mod.SourceLoversLab, "loverslab"},
 	}
 	for _, tt := range tests {
 		if got := sourceString(tt.source); got != tt.want {

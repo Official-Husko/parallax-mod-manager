@@ -527,6 +527,8 @@ func sourceString(s mod.Source) string {
 		return "workshop"
 	case mod.SourceParadoxLauncher:
 		return "paradox-launcher"
+	case mod.SourceLoversLab:
+		return "loverslab"
 	default:
 		return "local"
 	}

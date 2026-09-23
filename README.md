@@ -973,6 +973,24 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   rendered the same way a changelog entry's is, except an attachment's own link is dropped from the
   rendered text entirely rather than trailing the sentence as a raw upload URL, since the attachment
   already gets its own chip right below - showing the same URL twice would just be noise.
+- **Downloading and installing a mod from Browse** (`loverslabinstall.go`,
+  `internal/loverslabinstall`, `internal/loverslabtracking`) - a Download button on the detail
+  view above: picks the right attachment when a file has more than one, downloads with real
+  progress and a Cancel option, then extracts straight into the game's own mod folder. A mod
+  already installed from LoversLab (tracked by its LoversLab file id, not by name - a file can be
+  retitled without this app losing track of it) is updated in place rather than left as a
+  duplicate. `mod.Source` gained `SourceLoversLab` (a `loverslab_` descriptor filename prefix,
+  the same convention Workshop's `ugc_` and the Paradox Launcher's `pdx_` already use), and it
+  gets its own badge everywhere a mod's source is already shown (`SourceBadge.tsx`), the same
+  heart Browse's own sidebar uses for the source. Confirmed end to end against the real site,
+  with a real (small) file, into a scratch temp mod folder rather than a real game install - which
+  caught a real archive-packaging style neither the design nor the fixture tests had anticipated:
+  some archives hold a ready-to-drop-in content folder *plus a sibling `.mod` stub file* beside
+  it, exactly how a real Paradox mod folder is laid out, rather than either "content at the root"
+  or "one wrapping folder" - see [docs/loverslab.md](docs/loverslab.md) for the two-part fix that
+  took (recognizing the pattern, then not over-matching it against an ordinary flat-root archive
+  that just happens to also have a subfolder). Only `.zip` archives are supported; anything else
+  is refused with a clear message rather than failing silently.
 - **Every top-bar tab now has its own icon**, not just Browse - a small, purely visual change that
   came along with adding Browse's own.
 - **Unlisted, private and deleted Workshop mods get their own flags** (`internal/steamapi/availability.go`,
@@ -1369,10 +1387,6 @@ that legitimately does rewrite the file's `modsOrder`).
 - **Publishing to the Steam Workshop** - the Editor's **Publish** tab is laid out (upload as a new
   item or update one you own, a change note, visibility, tags, an upload log) but not connected to
   Steam; every control is disabled and its example log line content is clearly marked as an example.
-- **Downloading and installing from LoversLab** - `internal/loverslab` can already fetch a file's
-  download links (see [Progress](#progress) above and [docs/loverslab.md](docs/loverslab.md)), but
-  the Browse tab only browses; actually fetching a file onto disk, and deciding what "installing"
-  it even means, is a deliberately separate decision not yet made.
 - **Playset sharing via codes** - the Library screen's collections and bulk actions are now real
   (see [Progress](#progress) above); encoding/decoding a playset as a shareable local code
   ("Import code"/"Share"/"Join a friend's playset" in the Playsets modal) is still a static

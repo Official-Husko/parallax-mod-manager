@@ -97,6 +97,9 @@ for security, privacy, reliability or performance is called out (see the last tw
 - **A full mod detail view** - click a card for its real description, screenshot gallery, changelog
   and comments (LoversLab files link an ordinary forum topic for support instead of having native
   comments), all in one place instead of leaving the app.
+- **Download and install a LoversLab mod in one click** - extracts the real archive straight into
+  the game's own mod folder, recognizes a mod already installed from LoversLab and updates it in
+  place instead of leaving a duplicate, and shows real progress with a Cancel option throughout.
 - **A file's changelog, when it has one** - most files never had release notes written for them, so
   no changelog is a normal result, not an error.
 - **Opening a file's own page, an author, or a comment still links out** - this app never mirrors a

@@ -70,9 +70,12 @@ func parseDownloadDialog(body []byte) []FileDownload {
 	return downloads
 }
 
-// DownloadFile streams a file version (as returned by ListDownloads) to w,
-// and returns the filename the server suggests via Content-Disposition.
-func (c *Client) DownloadFile(ctx context.Context, downloadURL string, w io.Writer) (string, error) {
+// DownloadFile streams a file version (as returned by ListDownloads) to w, and returns
+// the filename the server suggests via Content-Disposition. onProgress, if not nil, is
+// called periodically as the body streams in - done is bytes copied so far, total is
+// the response's own Content-Length, or -1 when the server didn't send one (a caller
+// wanting a determinate progress bar should treat that as "unknown", not zero).
+func (c *Client) DownloadFile(ctx context.Context, downloadURL string, w io.Writer, onProgress func(done, total int64)) (string, error) {
 	req, err := c.newRequest(ctx, http.MethodGet, downloadURL, nil)
 	if err != nil {
 		return "", err
@@ -90,10 +93,32 @@ func (c *Client) DownloadFile(ctx context.Context, downloadURL string, w io.Writ
 
 	filename := filenameFromContentDisposition(resp.Header.Get("Content-Disposition"))
 
-	if _, err := io.Copy(w, resp.Body); err != nil {
+	dst := w
+	if onProgress != nil {
+		total := resp.ContentLength // -1 when absent, matching this method's own documented meaning
+		dst = &progressWriter{w: w, total: total, onProgress: onProgress}
+	}
+	if _, err := io.Copy(dst, resp.Body); err != nil {
 		return filename, fmt.Errorf("downloading file: %w", err)
 	}
 	return filename, nil
+}
+
+// progressWriter wraps an io.Writer, reporting cumulative bytes written after every
+// Write call - DownloadFile's own progress reporting, kept here rather than inline so
+// io.Copy can use it directly without DownloadFile re-implementing the copy loop.
+type progressWriter struct {
+	w          io.Writer
+	done       int64
+	total      int64
+	onProgress func(done, total int64)
+}
+
+func (p *progressWriter) Write(b []byte) (int, error) {
+	n, err := p.w.Write(b)
+	p.done += int64(n)
+	p.onProgress(p.done, p.total)
+	return n, err
 }
 
 func filenameFromContentDisposition(header string) string {
