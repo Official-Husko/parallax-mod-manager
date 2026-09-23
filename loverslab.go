@@ -193,3 +193,41 @@ func (a *App) LoversLabChangelog(filePageURL string) ([]loverslab.ChangelogEntry
 	}
 	return entries, err
 }
+
+// LoversLabFileDetail returns a file's full description and screenshot gallery, for
+// the Browse tab's mod detail view.
+func (a *App) LoversLabFileDetail(filePageURL string) (loverslab.FileDetail, error) {
+	client, err := a.ensureLoversLabSession(a.baseContext())
+	if err != nil {
+		return loverslab.FileDetail{}, err
+	}
+	detail, err := client.GetFileDetail(a.baseContext(), filePageURL)
+	if err != nil {
+		applog.For("LoversLab").Warnf("getting file detail for %s failed: %v", filePageURL, err)
+	}
+	return detail, err
+}
+
+// LoversLabCommentList is one page of a file's support-topic replies (see
+// docs/loverslab.md's Comments section: files have no native comments, this is the
+// closest thing) - wrapped the same way LoversLabFileList wraps ListFiles' own pair.
+type LoversLabCommentList struct {
+	Posts      []loverslab.Post
+	TotalPages int
+}
+
+// LoversLabComments returns one (1-indexed) page of a file's linked support-topic
+// replies. A file with no linked topic at all returns a zero-value, no-error result -
+// not an error, since plenty of files simply don't have one.
+func (a *App) LoversLabComments(filePageURL string, page int) (LoversLabCommentList, error) {
+	client, err := a.ensureLoversLabSession(a.baseContext())
+	if err != nil {
+		return LoversLabCommentList{}, err
+	}
+	posts, totalPages, err := client.ListFileSupportPosts(a.baseContext(), filePageURL, page)
+	if err != nil {
+		applog.For("LoversLab").Warnf("listing comments for %s failed: %v", filePageURL, err)
+		return LoversLabCommentList{}, err
+	}
+	return LoversLabCommentList{Posts: posts, TotalPages: totalPages}, nil
+}

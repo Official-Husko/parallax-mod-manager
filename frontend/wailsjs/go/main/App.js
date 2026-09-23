@@ -210,6 +210,14 @@ export function LoversLabChangelog(arg1) {
   return window['go']['main']['App']['LoversLabChangelog'](arg1);
 }
 
+export function LoversLabComments(arg1, arg2) {
+  return window['go']['main']['App']['LoversLabComments'](arg1, arg2);
+}
+
+export function LoversLabFileDetail(arg1) {
+  return window['go']['main']['App']['LoversLabFileDetail'](arg1);
+}
+
 export function LoversLabFiles(arg1, arg2) {
   return window['go']['main']['App']['LoversLabFiles'](arg1, arg2);
 }

@@ -380,12 +380,14 @@
     color: var(--text-muted);
 }
 
-/* A file's changelog, opened on top of everything else - see .overlay in App.css for the
-   dimmed backdrop this sits on. Styled close to UpdatesModal.css's own modal, since it's
-   the same idea (a focused read-only panel over the app) used a second time. */
-.browse-changelog-modal {
-    width: 480px;
-    max-height: 70%;
+/* A file's full detail - description, screenshots, changelog and comments - opened on
+   top of everything else - see .overlay in App.css for the dimmed backdrop this sits
+   on. Styled close to UpdatesModal.css's own modal, since it's the same idea (a
+   focused read-only panel over the app) used a second time, just wider/taller since
+   it holds a lot more than the changelog-only popup it replaced did. */
+.browse-detail-modal {
+    width: 640px;
+    max-height: 85%;
     background: var(--bg-panel);
     border: 1px solid var(--border);
     border-radius: 8px;
@@ -394,7 +396,7 @@
     flex-direction: column;
 }
 
-.browse-changelog-header {
+.browse-detail-header {
     display: flex;
     align-items: center;
     height: 42px;
@@ -405,7 +407,7 @@
     flex: none;
 }
 
-.browse-changelog-header .title {
+.browse-detail-header .title {
     font: 600 13px Barlow, sans-serif;
     color: var(--text-bright);
     overflow: hidden;
@@ -413,22 +415,100 @@
     white-space: nowrap;
 }
 
-.browse-changelog-header .spacer {
+.browse-detail-header .spacer {
     flex: 1;
 }
 
-.browse-changelog-header i {
+.browse-detail-header i {
     color: var(--text-muted);
     cursor: pointer;
     font-size: 13px;
 }
 
-.browse-changelog-body {
-    padding: 12px 16px 16px;
+.browse-detail-body {
+    padding: 14px 16px 16px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
     gap: 14px;
+}
+
+.browse-detail-screenshots {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+}
+
+.browse-detail-screenshot {
+    flex: none;
+    width: 160px;
+    height: 90px;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    background-size: cover;
+    background-position: center;
+    background-color: #141c27;
+    cursor: pointer;
+}
+
+.browse-detail-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px;
+    font: 500 11.5px Barlow, sans-serif;
+    color: var(--text-muted);
+}
+
+.browse-detail-meta i {
+    margin-right: 4px;
+    color: var(--text-dim);
+}
+
+.browse-detail-meta .clickable {
+    cursor: pointer;
+}
+
+.browse-detail-meta .clickable:hover {
+    color: var(--text-mid);
+    text-decoration: underline;
+}
+
+.browse-detail-description {
+    font: 400 12.5px/1.6 Barlow, sans-serif;
+    color: var(--text-mid);
+    white-space: pre-wrap;
+}
+
+.browse-detail-section-label {
+    display: flex;
+    align-items: center;
+    font: 700 10.5px Barlow, sans-serif;
+    color: var(--text-dim);
+    letter-spacing: .04em;
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+}
+
+.browse-detail-section-pager {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11px;
+    color: var(--text-muted);
+    text-transform: none;
+    letter-spacing: normal;
+}
+
+.browse-detail-section-pager i {
+    cursor: pointer;
+}
+
+.browse-detail-section-pager i.inert {
+    color: var(--text-dim);
+    cursor: not-allowed;
 }
 
 .browse-changelog-entry {
@@ -454,4 +534,75 @@
     font: 400 12px/1.6 Barlow, sans-serif;
     color: var(--text-mid);
     white-space: pre-wrap;
+}
+
+.browse-comment {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-light);
+}
+
+.browse-comment:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.browse-comment-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11.5px;
+}
+
+.browse-comment-author {
+    font: 600 12px Barlow, sans-serif;
+    color: var(--text-bright);
+}
+
+.browse-comment-author.clickable {
+    cursor: pointer;
+}
+
+.browse-comment-author.clickable:hover {
+    text-decoration: underline;
+}
+
+.browse-comment-posted {
+    color: var(--text-dim);
+}
+
+.browse-comment-header i {
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+.browse-comment-content {
+    font: 400 12px/1.6 Barlow, sans-serif;
+    color: var(--text-mid);
+    white-space: pre-wrap;
+}
+
+.browse-comment-attachments {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.browse-comment-attachment {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10.5px;
+    color: var(--text-muted);
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    padding: 3px 8px;
+    cursor: pointer;
+}
+
+.browse-comment-attachment:hover {
+    color: var(--text-mid);
+    border-color: var(--border);
 }

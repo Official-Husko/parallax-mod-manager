@@ -1,7 +1,16 @@
 import './Browse.css';
 import {Fragment, h} from 'preact';
 import {useEffect, useMemo, useState} from 'preact/hooks';
-import {ClearLoversLabCredentials, LoversLabCategories, LoversLabChangelog, LoversLabFiles, LoversLabStatus, SaveLoversLabCredentials} from '../../wailsjs/go/main/App';
+import {
+    ClearLoversLabCredentials,
+    LoversLabCategories,
+    LoversLabChangelog,
+    LoversLabComments,
+    LoversLabFileDetail,
+    LoversLabFiles,
+    LoversLabStatus,
+    SaveLoversLabCredentials,
+} from '../../wailsjs/go/main/App';
 import type {library, loverslab, main} from '../../wailsjs/go/models';
 import {BrowserOpenURL} from '../../wailsjs/runtime/runtime';
 import {notify} from '../data/notifications';
@@ -37,6 +46,16 @@ type ChangelogState =
     | { kind: 'error'; message: string }
     | { kind: 'ready'; entries: loverslab.ChangelogEntry[] };
 
+type DetailState =
+    | { kind: 'loading' }
+    | { kind: 'error'; message: string }
+    | { kind: 'ready'; detail: loverslab.FileDetail };
+
+type CommentsState =
+    | { kind: 'loading' }
+    | { kind: 'error'; message: string }
+    | { kind: 'ready'; posts: loverslab.Post[]; totalPages: number };
+
 function errorText(err: unknown): string {
     return String(err).replace(/^Error:\s*/, '');
 }
@@ -56,8 +75,12 @@ export function Browse({games, selectedGame}: {
     const [page, setPage] = useState(1);
     const [filesState, setFilesState] = useState<FilesState>({kind: 'idle'});
     const [search, setSearch] = useState('');
-    const [changelogFor, setChangelogFor] = useState<loverslab.FileSummary | null>(null);
+
+    const [detailFor, setDetailFor] = useState<loverslab.FileSummary | null>(null);
+    const [detailState, setDetailState] = useState<DetailState | null>(null);
     const [changelogState, setChangelogState] = useState<ChangelogState | null>(null);
+    const [commentsState, setCommentsState] = useState<CommentsState | null>(null);
+    const [commentsPage, setCommentsPage] = useState(1);
 
     useEffect(() => {
         LoversLabStatus().then(setStatus).catch(() => undefined);
@@ -136,12 +159,43 @@ export function Browse({games, selectedGame}: {
         }
     }
 
-    function openChangelog(file: loverslab.FileSummary) {
-        setChangelogFor(file);
+    // Opening a card fetches its detail, changelog and first page of comments together -
+    // three independent requests shown as three independent sections below, so a slow or
+    // failed one (a file with no changelog, or no support topic at all) never blocks the
+    // others from showing up.
+    function openDetail(file: loverslab.FileSummary) {
+        setDetailFor(file);
+        setCommentsPage(1);
+
+        setDetailState({kind: 'loading'});
+        LoversLabFileDetail(file.URL)
+            .then((detail) => setDetailState({kind: 'ready', detail}))
+            .catch((err) => setDetailState({kind: 'error', message: errorText(err)}));
+
         setChangelogState({kind: 'loading'});
         LoversLabChangelog(file.URL)
             .then((entries) => setChangelogState({kind: 'ready', entries: entries ?? []}))
             .catch((err) => setChangelogState({kind: 'error', message: errorText(err)}));
+    }
+
+    useEffect(() => {
+        if (!detailFor) {
+            setCommentsState(null);
+            return;
+        }
+        let cancelled = false;
+        setCommentsState({kind: 'loading'});
+        LoversLabComments(detailFor.URL, commentsPage)
+            .then((result) => { if (!cancelled) setCommentsState({kind: 'ready', posts: result.Posts ?? [], totalPages: result.TotalPages || 1}); })
+            .catch((err) => { if (!cancelled) setCommentsState({kind: 'error', message: errorText(err)}); });
+        return () => { cancelled = true; };
+    }, [detailFor, commentsPage]);
+
+    function closeDetail() {
+        setDetailFor(null);
+        setDetailState(null);
+        setChangelogState(null);
+        setCommentsState(null);
     }
 
     const gameName = games.find((g) => g.ID === selectedGame)?.DisplayName ?? selectedGame;
@@ -244,7 +298,7 @@ export function Browse({games, selectedGame}: {
                         {filesState.kind === 'ready' && (
                             <div className="browse-grid">
                                 {visibleFiles.map((f) => (
-                                    <div key={f.ID} className="browse-card" onClick={() => BrowserOpenURL(f.URL)}>
+                                    <div key={f.ID} className="browse-card" onClick={() => openDetail(f)}>
                                         {f.ThumbnailURL ? (
                                             <div className="browse-card-thumb" style={{backgroundImage: `url(${f.ThumbnailURL})`}}/>
                                         ) : (
@@ -261,12 +315,6 @@ export function Browse({games, selectedGame}: {
                                             </div>
                                             <div className="browse-card-stats">
                                                 <span><i className="fa-solid fa-clock"/>{f.Updated}</span>
-                                                <span
-                                                    className="browse-card-changelog"
-                                                    onClick={(e) => { e.stopPropagation(); openChangelog(f); }}
-                                                >
-                                                    <i className="fa-solid fa-file-lines"/> Changelog
-                                                </span>
                                             </div>
                                         </div>
                                     </div>
@@ -344,16 +392,54 @@ export function Browse({games, selectedGame}: {
                 )}
             </div>
 
-            {changelogFor && (
-                <div className="overlay" onClick={() => setChangelogFor(null)}>
-                    <div className="browse-changelog-modal" onClick={(e) => e.stopPropagation()}>
-                        <div className="browse-changelog-header">
-                            <span className="title" title={changelogFor.Title}>{changelogFor.Title}</span>
+            {detailFor && (
+                <div className="overlay" onClick={closeDetail}>
+                    <div className="browse-detail-modal" onClick={(e) => e.stopPropagation()}>
+                        <div className="browse-detail-header">
+                            <span className="title" title={detailFor.Title}>{detailFor.Title}</span>
                             <div className="spacer"/>
-                            <i className="fa-solid fa-up-right-from-square" title="Open on LoversLab" onClick={() => BrowserOpenURL(changelogFor.URL)}/>
-                            <i className="fa-solid fa-xmark close-btn" onClick={() => setChangelogFor(null)}/>
+                            <i className="fa-solid fa-up-right-from-square" title="Open on LoversLab" onClick={() => BrowserOpenURL(detailFor.URL)}/>
+                            <i className="fa-solid fa-xmark close-btn" onClick={closeDetail}/>
                         </div>
-                        <div className="browse-changelog-body">
+                        <div className="browse-detail-body">
+                            {detailState?.kind === 'loading' && <div className="browse-status-note">Loading...</div>}
+                            {detailState?.kind === 'error' && <div className="browse-status-note error">{detailState.message}</div>}
+                            {detailState?.kind === 'ready' && (
+                                <>
+                                    {detailState.detail.Screenshots.length > 0 && (
+                                        <div className="browse-detail-screenshots">
+                                            {detailState.detail.Screenshots.map((s, i) => (
+                                                <div
+                                                    key={i}
+                                                    className="browse-detail-screenshot"
+                                                    style={{backgroundImage: `url(${s.ThumbnailURL || s.URL})`}}
+                                                    title="Open full size"
+                                                    onClick={() => BrowserOpenURL(s.URL || s.ThumbnailURL)}
+                                                />
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    <div className="browse-detail-meta">
+                                        <span
+                                            className={detailState.detail.Author.URL ? 'clickable' : ''}
+                                            onClick={() => detailState.detail.Author.URL && BrowserOpenURL(detailState.detail.Author.URL)}
+                                        >
+                                            <i className="fa-solid fa-user"/> {detailState.detail.Author.Name}
+                                        </span>
+                                        {detailState.detail.Version && <span><i className="fa-solid fa-code-branch"/> {detailState.detail.Version}</span>}
+                                        {detailState.detail.FileSize && <span><i className="fa-solid fa-weight-hanging"/> {detailState.detail.FileSize}</span>}
+                                        <span><i className="fa-solid fa-eye"/> {detailState.detail.Views.toLocaleString()}</span>
+                                        <span><i className="fa-solid fa-download"/> {detailState.detail.Downloads.toLocaleString()}</span>
+                                    </div>
+
+                                    {detailState.detail.Description && (
+                                        <div className="browse-detail-description">{detailState.detail.Description}</div>
+                                    )}
+                                </>
+                            )}
+
+                            <div className="browse-detail-section-label">CHANGELOG</div>
                             {changelogState?.kind === 'loading' && <div className="browse-status-note">Loading...</div>}
                             {changelogState?.kind === 'error' && <div className="browse-status-note error">{changelogState.message}</div>}
                             {changelogState?.kind === 'ready' && changelogState.entries.length === 0 && (
@@ -366,6 +452,61 @@ export function Browse({games, selectedGame}: {
                                         {entry.Released && <span className="browse-changelog-released">{entry.Released}</span>}
                                     </div>
                                     <div className="browse-changelog-description">{entry.Description}</div>
+                                </div>
+                            ))}
+
+                            <div className="browse-detail-section-label">
+                                COMMENTS
+                                {commentsState?.kind === 'ready' && commentsState.totalPages > 1 && (
+                                    <span className="browse-detail-section-pager">
+                                        <i
+                                            className={`fa-solid fa-chevron-left ${commentsPage <= 1 ? 'inert' : ''}`}
+                                            onClick={() => commentsPage > 1 && setCommentsPage(commentsPage - 1)}
+                                        />
+                                        <span className="mono">{commentsPage} / {commentsState.totalPages}</span>
+                                        <i
+                                            className={`fa-solid fa-chevron-right ${commentsPage >= commentsState.totalPages ? 'inert' : ''}`}
+                                            onClick={() => commentsPage < commentsState.totalPages && setCommentsPage(commentsPage + 1)}
+                                        />
+                                    </span>
+                                )}
+                            </div>
+                            {commentsState?.kind === 'loading' && <div className="browse-status-note">Loading...</div>}
+                            {commentsState?.kind === 'error' && <div className="browse-status-note error">{commentsState.message}</div>}
+                            {commentsState?.kind === 'ready' && commentsState.posts.length === 0 && (
+                                <div className="browse-status-note">
+                                    This file has no support topic, or no one has replied to it yet.
+                                </div>
+                            )}
+                            {commentsState?.kind === 'ready' && commentsState.posts.map((post) => (
+                                <div key={post.ID} className="browse-comment">
+                                    <div className="browse-comment-header">
+                                        <span
+                                            className={post.AuthorURL ? 'browse-comment-author clickable' : 'browse-comment-author'}
+                                            onClick={() => post.AuthorURL && BrowserOpenURL(post.AuthorURL)}
+                                        >
+                                            {post.Author}
+                                        </span>
+                                        <span className="browse-comment-posted">{post.Posted}</span>
+                                        <div className="spacer"/>
+                                        {post.URL && (
+                                            <i
+                                                className="fa-solid fa-up-right-from-square"
+                                                title="Open this reply on LoversLab"
+                                                onClick={() => BrowserOpenURL(post.URL)}
+                                            />
+                                        )}
+                                    </div>
+                                    {post.Content && <div className="browse-comment-content">{post.Content}</div>}
+                                    {post.Attachments.length > 0 && (
+                                        <div className="browse-comment-attachments">
+                                            {post.Attachments.map((a, i) => (
+                                                <span key={i} className="browse-comment-attachment" onClick={() => BrowserOpenURL(a.URL)}>
+                                                    <i className={`fa-solid ${a.IsImage ? 'fa-image' : 'fa-paperclip'}`}/> {a.Filename || 'attachment'}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>

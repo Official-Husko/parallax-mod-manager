@@ -94,11 +94,14 @@ for security, privacy, reliability or performance is called out (see the last tw
 - **Signing in to LoversLab is real** - a username/email and password, saved encrypted and bound to
   this computer (Settings > Steam API's key uses the same underlying `internal/credentials`
   package).
+- **A full mod detail view** - click a card for its real description, screenshot gallery, changelog
+  and comments (LoversLab files link an ordinary forum topic for support instead of having native
+  comments), all in one place instead of leaving the app.
 - **A file's changelog, when it has one** - most files never had release notes written for them, so
   no changelog is a normal result, not an error.
-- **Every card links out, nothing is mirrored here** - opening a file or its author goes straight to
-  its real LoversLab page in your browser; thumbnails load straight off LoversLab's own public
-  image CDN.
+- **Opening a file's own page, an author, or a comment still links out** - this app never mirrors a
+  foreign site's content beyond what the detail view shows; thumbnails and screenshots load straight
+  off LoversLab's own public image CDN.
 
 ## Multiplayer checksum
 

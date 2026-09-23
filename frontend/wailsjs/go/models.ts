@@ -788,6 +788,80 @@ export namespace loverslab {
 	        this.Description = source["Description"];
 	    }
 	}
+	export class FileAuthor {
+	    Name: string;
+	    URL: string;
+	    ImageURL: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new FileAuthor(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Name = source["Name"];
+	        this.URL = source["URL"];
+	        this.ImageURL = source["ImageURL"];
+	    }
+	}
+	export class Screenshot {
+	    URL: string;
+	    ThumbnailURL: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Screenshot(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.URL = source["URL"];
+	        this.ThumbnailURL = source["ThumbnailURL"];
+	    }
+	}
+	export class FileDetail {
+	    Title: string;
+	    Description: string;
+	    Version: string;
+	    FileSize: string;
+	    Author: FileAuthor;
+	    Screenshots: Screenshot[];
+	    Views: number;
+	    Downloads: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new FileDetail(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Title = source["Title"];
+	        this.Description = source["Description"];
+	        this.Version = source["Version"];
+	        this.FileSize = source["FileSize"];
+	        this.Author = this.convertValues(source["Author"], FileAuthor);
+	        this.Screenshots = this.convertValues(source["Screenshots"], Screenshot);
+	        this.Views = source["Views"];
+	        this.Downloads = source["Downloads"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class FileSummary {
 	    ID: number;
 	    Title: string;
@@ -812,6 +886,67 @@ export namespace loverslab {
 	        this.ThumbnailURL = source["ThumbnailURL"];
 	    }
 	}
+	export class PostAttachment {
+	    Filename: string;
+	    Extension: string;
+	    URL: string;
+	    IsImage: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new PostAttachment(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Filename = source["Filename"];
+	        this.Extension = source["Extension"];
+	        this.URL = source["URL"];
+	        this.IsImage = source["IsImage"];
+	    }
+	}
+	export class Post {
+	    ID: string;
+	    Author: string;
+	    AuthorURL: string;
+	    Posted: string;
+	    URL: string;
+	    Content: string;
+	    Attachments: PostAttachment[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Post(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.Author = source["Author"];
+	        this.AuthorURL = source["AuthorURL"];
+	        this.Posted = source["Posted"];
+	        this.URL = source["URL"];
+	        this.Content = source["Content"];
+	        this.Attachments = this.convertValues(source["Attachments"], PostAttachment);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 
 }
 
@@ -1261,6 +1396,38 @@ export namespace main {
 		}
 	}
 	
+	export class LoversLabCommentList {
+	    Posts: loverslab.Post[];
+	    TotalPages: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new LoversLabCommentList(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Posts = this.convertValues(source["Posts"], loverslab.Post);
+	        this.TotalPages = source["TotalPages"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class LoversLabFileList {
 	    Files: loverslab.FileSummary[];
 	    TotalPages: number;

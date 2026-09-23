@@ -936,9 +936,10 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   sign in with a username/email and password, then browse "All" (every Paradox game's mods
   together, since LoversLab does not split most of them into their own section the way it does
   Skyrim or Fallout) or one of its few real per-game sections (currently Crusader Kings II,
-  Crusader Kings III and Stellaris) as a real, paginated file listing card grid, open a file's real
-  changelog if it has one, and open any file or author straight on loverslab.com in your own
-  browser - this app never mirrors a foreign site's content, only links to it. `internal/loverslab`
+  Crusader Kings III and Stellaris) as a real, paginated file listing card grid, click any card for
+  its full detail view (see below), and open a file's own page, its author, or any comment straight
+  on loverslab.com in your own browser from there - this app never mirrors a foreign site's content
+  beyond what that detail view shows, only links to it. `internal/loverslab`
   is a real HTTP client for LoversLab's forum software (Invision Community, with no public API of
   its own): logging in, reading the category tree and file listings, and reading a changelog all
   parse real HTML, since the markup has no simpler alternative; a session (the three cookies that
@@ -960,6 +961,18 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   is not a secret the way a password is - Settings > Steam API's own fingerprint-only convention
   would tell the person nothing useful here), while the password never is, matching the Steam key's
   own "never shown again" rule exactly.
+- **A full mod detail view for Browse**, opened by clicking a card: the file's real description and
+  screenshot gallery (both come from a `schema.org WebApplication` JSON-LD block every Downloads
+  file page embeds - confirmed live against three real files - rather than scraping the description
+  prose or the screenshot carousel's markup directly, which turned out to be unnecessary once that
+  block was found), its changelog inlined instead of its own separate popup, and its comments.
+  LoversLab files have no native comments; each optionally links an ordinary "Get Support" forum
+  topic instead, so `internal/loverslab` reads that topic's replies (author, when, a deep link to
+  the specific reply, its own text with any attachment links excluded - see below - and any files
+  a member attached directly to their reply, shown as their own chip). A reply's rich-text body is
+  rendered the same way a changelog entry's is, except an attachment's own link is dropped from the
+  rendered text entirely rather than trailing the sentence as a raw upload URL, since the attachment
+  already gets its own chip right below - showing the same URL twice would just be noise.
 - **Every top-bar tab now has its own icon**, not just Browse - a small, purely visual change that
   came along with adding Browse's own.
 - **Unlisted, private and deleted Workshop mods get their own flags** (`internal/steamapi/availability.go`,

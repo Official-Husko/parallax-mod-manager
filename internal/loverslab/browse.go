@@ -210,3 +210,28 @@ func parseFileListing(doc *html.Node) ([]FileSummary, int) {
 	}
 	return files, totalPages
 }
+
+// SupportTopicURL returns the URL of a Downloads file's linked "Get Support" forum
+// topic, or "" if it has none - plenty of files don't link one at all. Files on this
+// site don't have native comments (see docs/loverslab.md's Comments section); this
+// linked topic is the closest thing, read by ListFileSupportPosts.
+func (c *Client) SupportTopicURL(ctx context.Context, filePageURL string) (string, error) {
+	doc, err := c.getDocument(ctx, filePageURL)
+	if err != nil {
+		return "", fmt.Errorf("finding support topic: %w", err)
+	}
+	return parseSupportTopicURL(doc), nil
+}
+
+// parseSupportTopicURL is SupportTopicURL's own parsing, pulled out so it can be
+// tested directly against a hand-built document instead of a real request - see
+// topics_test.go.
+func parseSupportTopicURL(doc *html.Node) string {
+	link := findOne(doc, func(n *html.Node) bool {
+		return isElement(n, "a") && attrOr(n, "title") == "Get support for this download"
+	})
+	if link == nil {
+		return ""
+	}
+	return attrOr(link, "href")
+}

@@ -121,6 +121,10 @@ export function LoversLabCategories():Promise<Array<loverslab.Category>>;
 
 export function LoversLabChangelog(arg1:string):Promise<Array<loverslab.ChangelogEntry>>;
 
+export function LoversLabComments(arg1:string,arg2:number):Promise<main.LoversLabCommentList>;
+
+export function LoversLabFileDetail(arg1:string):Promise<loverslab.FileDetail>;
+
 export function LoversLabFiles(arg1:string,arg2:number):Promise<main.LoversLabFileList>;
 
 export function LoversLabStatus():Promise<main.LoversLabStatus>;
