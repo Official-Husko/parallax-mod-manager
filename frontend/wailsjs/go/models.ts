@@ -567,6 +567,7 @@ export namespace app {
 	    Posts: loverslab.Post[];
 	    TotalPages: number;
 	    HasTopic: boolean;
+	    TopicAuthor: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new LoversLabCommentList(source);
@@ -577,6 +578,7 @@ export namespace app {
 	        this.Posts = this.convertValues(source["Posts"], loverslab.Post);
 	        this.TotalPages = source["TotalPages"];
 	        this.HasTopic = source["HasTopic"];
+	        this.TopicAuthor = source["TopicAuthor"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -1596,6 +1598,59 @@ export namespace loverslab {
 	        this.Description = source["Description"];
 	    }
 	}
+	export class DescriptionRun {
+	    Text: string;
+	    Bold: boolean;
+	    Italic: boolean;
+	    Underline: boolean;
+	    LinkURL: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DescriptionRun(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Text = source["Text"];
+	        this.Bold = source["Bold"];
+	        this.Italic = source["Italic"];
+	        this.Underline = source["Underline"];
+	        this.LinkURL = source["LinkURL"];
+	    }
+	}
+	export class DescriptionBlock {
+	    ImageURL: string;
+	    Runs: DescriptionRun[];
+	
+	    static createFrom(source: any = {}) {
+	        return new DescriptionBlock(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ImageURL = source["ImageURL"];
+	        this.Runs = this.convertValues(source["Runs"], DescriptionRun);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	export class FileAuthor {
 	    Name: string;
 	    URL: string;
@@ -1629,6 +1684,7 @@ export namespace loverslab {
 	export class FileDetail {
 	    Title: string;
 	    Description: string;
+	    DescriptionBlocks: DescriptionBlock[];
 	    Version: string;
 	    FileSize: string;
 	    Author: FileAuthor;
@@ -1645,6 +1701,7 @@ export namespace loverslab {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.Title = source["Title"];
 	        this.Description = source["Description"];
+	        this.DescriptionBlocks = this.convertValues(source["DescriptionBlocks"], DescriptionBlock);
 	        this.Version = source["Version"];
 	        this.FileSize = source["FileSize"];
 	        this.Author = this.convertValues(source["Author"], FileAuthor);

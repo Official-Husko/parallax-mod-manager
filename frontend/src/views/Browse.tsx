@@ -21,6 +21,7 @@ import {
 import type {app, library, loverslab} from '../../wailsjs/go/models';
 import {BrowserOpenURL, EventsOn} from '../../wailsjs/runtime/runtime';
 import {Avatar} from '../components/Avatar';
+import {EmptyState} from '../components/EmptyState';
 import {openContextMenu} from '../data/contextMenu';
 import {mockCommentExtrasFor, mockExtrasFor} from '../data/browseMockData';
 import {checkLoversLabNotifications, loversLabNotificationsURL, useLoversLabUnreadCount} from '../data/loversLabNotifications';
@@ -78,6 +79,14 @@ type CommentsState =
     | { kind: 'loading' }
     | { kind: 'error'; message: string }
     | { kind: 'ready'; posts: loverslab.Post[]; totalPages: number; hasTopic: boolean };
+
+// mergeTopicAuthor keeps whatever topic-author name is already known once a later
+// page's own fetch returns none of its own - LoversLabCommentList.TopicAuthor is
+// only ever populated from a page 1 fetch (that's the only page which ever actually
+// sees the topic's own opening post), so moving to page 2+ must not forget it.
+function mergeTopicAuthor(existing: string, fetched: string): string {
+    return fetched || existing;
+}
 
 // The detail overlay's four tabs, Nexus/Steam Workshop/Thunderstore-style: an
 // overview (description, screenshots stay outside the tabs - see the mockup this
@@ -190,13 +199,14 @@ function ViewModeToggle({mode, onChange}: {mode: ViewMode; onChange: (m: ViewMod
 // both the browsing grid and the Installed section, switched by ViewModeToggle
 // above. Kept generic (BrowseListItem, not either backend type directly) so this
 // rendering is never duplicated for the two different kinds of data it shows.
-function BrowseItemsView({items, viewMode, emptyMessage}: {
+function BrowseItemsView({items, viewMode, emptyIcon, emptyMessage}: {
     items: BrowseListItem[];
     viewMode: ViewMode;
+    emptyIcon: string;
     emptyMessage: string;
 }) {
     if (items.length === 0) {
-        return <div className="browse-status-note">{emptyMessage}</div>;
+        return <EmptyState icon={emptyIcon} title={emptyMessage}/>;
     }
 
     if (viewMode === 'tree') {
@@ -285,6 +295,27 @@ function BrowseItemsView({items, viewMode, emptyMessage}: {
     );
 }
 
+// DescriptionRunView renders one loverslab.DescriptionRun - a real line break
+// (originally a <br>) as an actual <br/> (a literal "\n" in JSX text has no visual
+// effect at all - browsers collapse it, the same as any other whitespace in
+// normal text flow), otherwise the run's own text wrapped in whichever of
+// bold/italic/underline/link it carries. A link opens in the system browser like
+// every other external link in this app, never navigating away from it in place.
+function DescriptionRunView({run}: {run: loverslab.DescriptionRun}) {
+    if (run.Text === '\n') {
+        return <br/>;
+    }
+    let node: JSX.Element | string = run.Text;
+    if (run.LinkURL) {
+        const url = run.LinkURL;
+        node = <span className="browse-description-link" onClick={() => BrowserOpenURL(url)}>{node}</span>;
+    }
+    if (run.Underline) node = <u>{node}</u>;
+    if (run.Italic) node = <em>{node}</em>;
+    if (run.Bold) node = <strong>{node}</strong>;
+    return <>{node}</>;
+}
+
 // StateBadge is the small circular install-state indicator overlaid on a card's
 // thumbnail (and shown plainly in list view) - installed (a real, tracked
 // LoversLab install) or missing (installed but its files are gone from disk,
@@ -299,9 +330,14 @@ function StateBadge({state, className}: {state?: 'installed' | 'missing' | null;
     );
 }
 
-export function Browse({games, selectedGame}: {
+export function Browse({games, selectedGame, onOpenInWorkspace}: {
     games: library.GameInfo[];
     selectedGame: string;
+    // Requirements (in the detail overlay) needs to send the person to Workspace
+    // with the matching mod selected there - app.tsx owns the actual view switch
+    // and the pending-selection state Workspace itself resolves, since neither is
+    // Browse's own to hold.
+    onOpenInWorkspace: (modName: string) => void;
 }) {
     const unreadNotifications = useLoversLabUnreadCount();
     const [status, setStatus] = useState<app.LoversLabStatus | null>(null);
@@ -338,6 +374,10 @@ export function Browse({games, selectedGame}: {
     const [detailState, setDetailState] = useState<DetailState | null>(null);
     const [changelogState, setChangelogState] = useState<ChangelogState | null>(null);
     const [commentsState, setCommentsState] = useState<CommentsState | null>(null);
+    // Who started the open file's support topic - real data (see LoversLabCommentList.
+    // TopicAuthor), only ever refreshed by a page 1 fetch, kept across later pages of
+    // the same topic rather than lost once the page moves on.
+    const [topicAuthor, setTopicAuthor] = useState('');
     const [commentsPage, setCommentsPage] = useState(1);
     const [commentDraft, setCommentDraft] = useState('');
     const [postingComment, setPostingComment] = useState(false);
@@ -487,12 +527,17 @@ export function Browse({games, selectedGame}: {
     useEffect(() => {
         if (!detailFor) {
             setCommentsState(null);
+            setTopicAuthor('');
             return;
         }
         let cancelled = false;
         setCommentsState({kind: 'loading'});
         LoversLabComments(detailFor.URL, commentsPage)
-            .then((result) => { if (!cancelled) setCommentsState({kind: 'ready', posts: result.Posts ?? [], totalPages: result.TotalPages || 1, hasTopic: result.HasTopic}); })
+            .then((result) => {
+                if (cancelled) return;
+                setCommentsState({kind: 'ready', posts: result.Posts ?? [], totalPages: result.TotalPages || 1, hasTopic: result.HasTopic});
+                setTopicAuthor((prev) => mergeTopicAuthor(prev, result.TopicAuthor));
+            })
             .catch((err) => { if (!cancelled) setCommentsState({kind: 'error', message: errorText(err)}); });
         return () => { cancelled = true; };
     }, [detailFor, commentsPage]);
@@ -530,6 +575,7 @@ export function Browse({games, selectedGame}: {
             if (commentsPage === 1) {
                 const result = await LoversLabComments(detailFor.URL, 1);
                 setCommentsState({kind: 'ready', posts: result.Posts ?? [], totalPages: result.TotalPages || 1, hasTopic: result.HasTopic});
+                setTopicAuthor((prev) => mergeTopicAuthor(prev, result.TopicAuthor));
             } else {
                 setCommentsPage(1);
             }
@@ -750,28 +796,21 @@ export function Browse({games, selectedGame}: {
                             <div className="spacer"/>
                             <ViewModeToggle mode={viewMode} onChange={setViewMode}/>
                         </div>
-                        {installedState.kind === 'loading' && <div className="browse-status-note">Loading...</div>}
-                        {installedState.kind === 'error' && <div className="browse-status-note error">{installedState.message}</div>}
+                        {installedState.kind === 'loading' && <EmptyState icon="fa-spinner fa-spin" title="Loading..."/>}
+                        {installedState.kind === 'error' && <EmptyState icon="fa-triangle-exclamation" tone="error" title="Couldn't load your installed mods" subtitle={installedState.message}/>}
                         {installedState.kind === 'ready' && (
                             <BrowseItemsView
                                 items={installedItems}
                                 viewMode={viewMode}
+                                emptyIcon="fa-box-open"
                                 emptyMessage="Nothing installed from LoversLab yet for this game."
                             />
                         )}
                     </>
                 ) : !status?.SignedIn ? (
-                    <div className="browse-gate">
-                        <i className="fa-solid fa-lock"/>
-                        <div className="browse-gate-title">Sign in to browse LoversLab</div>
-                        <div>Enter a username or email and a password on the right to see your Paradox games' real Downloads sections.</div>
-                    </div>
+                    <EmptyState icon="fa-lock" title="Sign in to browse LoversLab" subtitle="Enter a username or email and a password on the right to see your Paradox games' real Downloads sections."/>
                 ) : !selectedCategory ? (
-                    <div className="browse-gate">
-                        <i className="fa-solid fa-gamepad"/>
-                        <div className="browse-gate-title">Pick a game</div>
-                        <div>Choose a game from the sidebar to see what's in it.</div>
-                    </div>
+                    <EmptyState icon="fa-gamepad" title="Pick a game" subtitle="Choose a game from the sidebar to see what's in it."/>
                 ) : (
                     <>
                         <div className="browse-toolbar">
@@ -800,12 +839,13 @@ export function Browse({games, selectedGame}: {
                             <ViewModeToggle mode={viewMode} onChange={setViewMode}/>
                         </div>
 
-                        {filesState.kind === 'loading' && <div className="browse-status-note">Loading...</div>}
-                        {filesState.kind === 'error' && <div className="browse-status-note error">{filesState.message}</div>}
+                        {filesState.kind === 'loading' && <EmptyState icon="fa-spinner fa-spin" title="Loading..."/>}
+                        {filesState.kind === 'error' && <EmptyState icon="fa-triangle-exclamation" tone="error" title="Couldn't load this category" subtitle={filesState.message}/>}
                         {filesState.kind === 'ready' && (
                             <BrowseItemsView
                                 items={browsingItems}
                                 viewMode={viewMode}
+                                emptyIcon={search ? 'fa-magnifying-glass' : 'fa-box-open'}
                                 emptyMessage={search ? 'No files match that search on this page.' : 'No files here.'}
                             />
                         )}
@@ -1043,9 +1083,20 @@ export function Browse({games, selectedGame}: {
 
                                     {detailTab === 'overview' && (
                                         <>
-                                            {detailState?.kind === 'loading' && <div className="browse-status-note">Loading...</div>}
-                                            {detailState?.kind === 'error' && <div className="browse-status-note error">{detailState.message}</div>}
-                                            {detailState?.kind === 'ready' && detailState.detail.Description && (
+                                            {detailState?.kind === 'loading' && <EmptyState icon="fa-spinner fa-spin" title="Loading..."/>}
+                                            {detailState?.kind === 'error' && <EmptyState icon="fa-triangle-exclamation" tone="error" title="Couldn't load this mod's page" subtitle={detailState.message}/>}
+                                            {detailState?.kind === 'ready' && detailState.detail.DescriptionBlocks.length > 0 && (
+                                                <div className="browse-detail-description rich">
+                                                    {detailState.detail.DescriptionBlocks.map((block, i) => (
+                                                        block.ImageURL ? (
+                                                            <img key={i} className="browse-description-image" src={block.ImageURL} alt="" loading="lazy"/>
+                                                        ) : (
+                                                            <p key={i}>{block.Runs.map((run, j) => <DescriptionRunView key={j} run={run}/>)}</p>
+                                                        )
+                                                    ))}
+                                                </div>
+                                            )}
+                                            {detailState?.kind === 'ready' && detailState.detail.DescriptionBlocks.length === 0 && detailState.detail.Description && (
                                                 <div className="browse-detail-description">{detailState.detail.Description}</div>
                                             )}
                                             {extras && extras.features.length > 0 && (
@@ -1061,10 +1112,10 @@ export function Browse({games, selectedGame}: {
 
                                     {detailTab === 'changelog' && (
                                         <>
-                                            {changelogState?.kind === 'loading' && <div className="browse-status-note">Loading...</div>}
-                                            {changelogState?.kind === 'error' && <div className="browse-status-note error">{changelogState.message}</div>}
+                                            {changelogState?.kind === 'loading' && <EmptyState icon="fa-spinner fa-spin" title="Loading..."/>}
+                                            {changelogState?.kind === 'error' && <EmptyState icon="fa-triangle-exclamation" tone="error" title="Couldn't load the changelog" subtitle={changelogState.message}/>}
                                             {changelogState?.kind === 'ready' && changelogState.entries.length === 0 && (
-                                                <div className="browse-status-note">The author hasn't written release notes for this file.</div>
+                                                <EmptyState icon="fa-clock-rotate-left" title="No changelog" subtitle="The author hasn't written release notes for this file."/>
                                             )}
                                             {changelogState?.kind === 'ready' && changelogState.entries.map((entry, i) => (
                                                 <div key={i} className="browse-changelog-entry">
@@ -1080,10 +1131,10 @@ export function Browse({games, selectedGame}: {
 
                                     {detailTab === 'files' && (
                                         <>
-                                            {filesTabState.kind === 'loading' && <div className="browse-status-note">Finding downloadable files...</div>}
-                                            {filesTabState.kind === 'error' && <div className="browse-status-note error">{filesTabState.message}</div>}
+                                            {filesTabState.kind === 'loading' && <EmptyState icon="fa-spinner fa-spin" title="Finding downloadable files..."/>}
+                                            {filesTabState.kind === 'error' && <EmptyState icon="fa-triangle-exclamation" tone="error" title="Couldn't find the downloadable files" subtitle={filesTabState.message}/>}
                                             {filesTabState.kind === 'ready' && filesTabState.downloads.length === 0 && (
-                                                <div className="browse-status-note">No downloadable files were found for this mod.</div>
+                                                <EmptyState icon="fa-file-circle-question" title="No downloadable files" subtitle="None were found for this mod."/>
                                             )}
                                             {filesTabState.kind === 'ready' && filesTabState.downloads.map((d, i) => (
                                                 <div key={i} className="browse-file-row">
@@ -1117,8 +1168,8 @@ export function Browse({games, selectedGame}: {
                                                     />
                                                 </div>
                                             )}
-                                            {commentsState?.kind === 'loading' && <div className="browse-status-note">Loading...</div>}
-                                            {commentsState?.kind === 'error' && <div className="browse-status-note error">{commentsState.message}</div>}
+                                            {commentsState?.kind === 'loading' && <EmptyState icon="fa-spinner fa-spin" title="Loading..."/>}
+                                            {commentsState?.kind === 'error' && <EmptyState icon="fa-triangle-exclamation" tone="error" title="Couldn't load comments" subtitle={commentsState.message}/>}
                                             {commentsState?.kind === 'ready' && commentsState.hasTopic && (
                                                 <div className="browse-comment-write">
                                                     <Avatar name={status?.Username || '?'} size={28}/>
@@ -1142,19 +1193,14 @@ export function Browse({games, selectedGame}: {
                                                 </div>
                                             )}
                                             {commentsState?.kind === 'ready' && !commentsState.hasTopic && (
-                                                <div className="browse-empty-card">
-                                                    <div className="browse-empty-title">No support topic</div>
-                                                    <div className="browse-empty-body">The author hasn't linked a discussion thread.</div>
-                                                </div>
+                                                <EmptyState icon="fa-comment-slash" title="No support topic" subtitle="The author hasn't linked a discussion thread."/>
                                             )}
                                             {commentsState?.kind === 'ready' && commentsState.hasTopic && commentsState.posts.length === 0 && (
-                                                <div className="browse-empty-card">
-                                                    <div className="browse-empty-title">No comments yet</div>
-                                                    <div className="browse-empty-body">The support topic exists. Write the first comment above.</div>
-                                                </div>
+                                                <EmptyState icon="fa-comments" title="No comments yet" subtitle="The support topic exists. Write the first comment above."/>
                                             )}
-                                            {commentsState?.kind === 'ready' && commentsState.posts.map((post, idx) => {
-                                                const cx = mockCommentExtrasFor(post.ID, commentsPage === 1 && idx === 0);
+                                            {commentsState?.kind === 'ready' && commentsState.posts.map((post) => {
+                                                const cx = mockCommentExtrasFor(post.ID);
+                                                const isTopicAuthor = topicAuthor !== '' && post.Author === topicAuthor;
                                                 return (
                                                     <div key={post.ID} className="browse-comment">
                                                         <div className="browse-comment-authorcol">
@@ -1171,7 +1217,7 @@ export function Browse({games, selectedGame}: {
                                                         </div>
                                                         <div className="browse-comment-body">
                                                             <div className="browse-comment-header">
-                                                                {cx.isTopicAuthor && <span className="browse-comment-badge author">TOPIC AUTHOR</span>}
+                                                                {isTopicAuthor && <span className="browse-comment-badge author">TOPIC AUTHOR</span>}
                                                                 {cx.isPopular && <span className="browse-comment-badge popular">POPULAR POST</span>}
                                                                 <span className="browse-comment-posted">{post.Posted}{cx.edited ? ' (edited)' : ''}</span>
                                                                 <div className="spacer"/>
@@ -1233,12 +1279,6 @@ export function Browse({games, selectedGame}: {
                                             <i className="fa-solid fa-download"/> Install
                                         </button>
                                     )}
-                                    {extras && (
-                                        <>
-                                            <span className="browse-detail-like-btn"><i className="fa-solid fa-heart"/> {extras.likes}</span>
-                                            <span className="browse-detail-follow-btn">Follow &middot; {extras.followers}</span>
-                                        </>
-                                    )}
                                 </div>
                                 {detailState?.kind === 'ready' && (
                                     <div className="browse-detail-statgrid">
@@ -1284,7 +1324,12 @@ export function Browse({games, selectedGame}: {
                                     <div className="browse-detail-requirements">
                                         <div className="browse-detail-section-label">REQUIREMENTS</div>
                                         {extras.requirements.map((r, i) => (
-                                            <div key={i} className={`browse-requirement-row ${r.installed ? 'installed' : ''}`}>
+                                            <div
+                                                key={i}
+                                                className={`browse-requirement-row clickable ${r.installed ? 'installed' : ''}`}
+                                                title="Open in Workspace"
+                                                onClick={() => onOpenInWorkspace(r.name)}
+                                            >
                                                 <i className={`fa-solid ${r.installed ? 'fa-check' : 'fa-circle'}`}/>
                                                 <span className="browse-requirement-name">{r.name}</span>
                                                 {r.installed && <span className="browse-requirement-status mono">INSTALLED</span>}

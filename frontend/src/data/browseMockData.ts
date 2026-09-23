@@ -30,7 +30,6 @@ export interface MockCommentExtras {
     authorGroup: string;
     authorPostCount: number;
     authorTitle?: string;
-    isTopicAuthor: boolean;
     isPopular: boolean;
     reactions: number;
     edited: boolean;
@@ -91,15 +90,14 @@ const GROUP_POOL = ['Members', 'Advanced Member', 'Community Team'];
 const TITLE_POOL: (string | undefined)[] = [undefined, 'Snuggle Butt Princess', 'Perpetually Tired Modder', undefined, 'Definitely Not a Bot'];
 
 // mockCommentExtrasFor derives a stable set of per-comment fields for a real post, keyed by its
-// own comment ID. isTopicAuthor is passed in rather than derived here - only the caller (which
-// page/position a post is at) knows whether it's the topic's own opening post.
-export function mockCommentExtrasFor(commentID: string, isTopicAuthor: boolean): MockCommentExtras {
+// own comment ID. Whether a post is the topic author's own (for the "Topic Author" badge) is
+// real data now, not mock - LoversLabCommentList.TopicAuthor - so it isn't part of this.
+export function mockCommentExtrasFor(commentID: string): MockCommentExtras {
     const seed = commentID || 'x';
     return {
         authorGroup: GROUP_POOL[hashIndex(seed + 'g', GROUP_POOL.length)],
         authorPostCount: 40 + hashIndex(seed + 'pc', 900),
         authorTitle: TITLE_POOL[hashIndex(seed + 't', TITLE_POOL.length)],
-        isTopicAuthor,
         isPopular: hashIndex(seed + 'pop', 5) === 0,
         reactions: hashIndex(seed + 'r', 180),
         edited: hashIndex(seed + 'e', 6) === 0,

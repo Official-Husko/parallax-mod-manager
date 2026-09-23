@@ -1,6 +1,11 @@
 package loverslab
 
-import "testing"
+import (
+	"strings"
+	"testing"
+
+	"golang.org/x/net/html"
+)
 
 // Trimmed from a real file page (Stable Portraits, fetched 2026-09-23 - see
 // docs/loverslab.md's "A file's detail page" section), including a couple of the
@@ -106,4 +111,115 @@ func TestParseFileDetailIgnoresNonWebApplicationBlocks(t *testing.T) {
 	if _, ok := parseFileDetail(doc); ok {
 		t.Error("expected no WebApplication block among only WebSite/Organization ones")
 	}
+}
+
+// TestParseFileDetailAlsoParsesTheRealDescriptionBody confirms the two parsers
+// (JSON-LD for everything else, the rich-text DOM for DescriptionBlocks) work
+// together against one full page - the real reason DescriptionBlocks exists at
+// all: the JSON-LD description field flattens away formatting, images, and a lot
+// of the source page's own empty spacer paragraphs into one plain, whitespace-
+// heavy string, confirmed live against the real "Lustful Void" page.
+func TestParseFileDetailAlsoParsesTheRealDescriptionBody(t *testing.T) {
+	doc := parseFixture(t, `<html><head>
+<script type='application/ld+json'>{"@context":"http://schema.org","@type":"WebApplication","name":"Fixture Mod"}</script>
+</head><body>
+<div class="ipsType_richText" data-controller="core.front.core.lightboxedImages">
+<p style="text-align:center;"> </p>
+<p><strong>Fixture Mod</strong> is a test fixture.</p>
+<p>&nbsp;</p>
+<p><img src="https://static.loverslab.com/uploads/example.png" /></p>
+</div>
+</body></html>`)
+	detail, ok := parseFileDetail(doc)
+	if !ok {
+		t.Fatal("expected the WebApplication block to be found")
+	}
+	if len(detail.DescriptionBlocks) != 2 {
+		t.Fatalf("got %d blocks, want 2 (the spacer paragraphs dropped): %+v", len(detail.DescriptionBlocks), detail.DescriptionBlocks)
+	}
+	if detail.DescriptionBlocks[0].ImageURL != "" {
+		t.Errorf("blocks[0] = %+v, want the text block first", detail.DescriptionBlocks[0])
+	}
+	if detail.DescriptionBlocks[1].ImageURL != "https://static.loverslab.com/uploads/example.png" {
+		t.Errorf("blocks[1] = %+v, want the image block", detail.DescriptionBlocks[1])
+	}
+}
+
+func TestParseDescriptionBlocksDropsEmptySpacerParagraphs(t *testing.T) {
+	doc := parseFixture(t, `<div><p> </p><p>&nbsp;</p><p>Real text.</p><p> &nbsp; </p></div>`)
+	body := findOne(doc, func(n *html.Node) bool { return isElement(n, "div") })
+	blocks := parseDescriptionBlocks(body)
+	if len(blocks) != 1 {
+		t.Fatalf("got %d blocks, want 1 (three spacer paragraphs dropped): %+v", len(blocks), blocks)
+	}
+	if got := runsText(blocks[0].Runs); got != "Real text." {
+		t.Errorf("blocks[0] text = %q, want %q", got, "Real text.")
+	}
+}
+
+func TestParseDescriptionBlocksExtractsFormattingAndLinks(t *testing.T) {
+	doc := parseFixture(t, `<div><p><strong>Bold</strong> and <em>italic</em> and <u>underline</u> and
+<a href="https://example.com/mod">a link</a>.</p></div>`)
+	body := findOne(doc, func(n *html.Node) bool { return isElement(n, "div") })
+	blocks := parseDescriptionBlocks(body)
+	if len(blocks) != 1 {
+		t.Fatalf("got %d blocks, want 1: %+v", len(blocks), blocks)
+	}
+	runs := blocks[0].Runs
+
+	find := func(text string) DescriptionRun {
+		for _, r := range runs {
+			if strings.Contains(r.Text, text) {
+				return r
+			}
+		}
+		t.Fatalf("no run containing %q among %+v", text, runs)
+		return DescriptionRun{}
+	}
+	if !find("Bold").Bold {
+		t.Error("the 'Bold' run should carry Bold")
+	}
+	if !find("italic").Italic {
+		t.Error("the 'italic' run should carry Italic")
+	}
+	if !find("underline").Underline {
+		t.Error("the 'underline' run should carry Underline")
+	}
+	if link := find("a link"); link.LinkURL != "https://example.com/mod" {
+		t.Errorf("the 'a link' run's LinkURL = %q, want the real href", link.LinkURL)
+	}
+}
+
+func TestParseDescriptionBlocksExtractsImagesAsTheirOwnBlock(t *testing.T) {
+	doc := parseFixture(t, `<div><p>Before.</p><p><img src="https://static.loverslab.com/x.png" /></p><p>After.</p></div>`)
+	body := findOne(doc, func(n *html.Node) bool { return isElement(n, "div") })
+	blocks := parseDescriptionBlocks(body)
+	if len(blocks) != 3 {
+		t.Fatalf("got %d blocks, want 3: %+v", len(blocks), blocks)
+	}
+	if blocks[1].ImageURL != "https://static.loverslab.com/x.png" {
+		t.Errorf("blocks[1] = %+v, want the image block in the middle", blocks[1])
+	}
+}
+
+func TestParseDescriptionBlocksHandlesLineBreaks(t *testing.T) {
+	doc := parseFixture(t, `<div><p>Line one.<br>Line two.</p></div>`)
+	body := findOne(doc, func(n *html.Node) bool { return isElement(n, "div") })
+	blocks := parseDescriptionBlocks(body)
+	if len(blocks) != 1 {
+		t.Fatalf("got %d blocks, want 1: %+v", len(blocks), blocks)
+	}
+	if got := runsText(blocks[0].Runs); got != "Line one.\nLine two." {
+		t.Errorf("text = %q, want a real newline between the two lines", got)
+	}
+}
+
+// runsText joins a block's runs back into plain text, for tests that only care
+// about the words, not which runs carry which formatting.
+func runsText(runs []DescriptionRun) string {
+	var sb strings.Builder
+	for _, r := range runs {
+		sb.WriteString(r.Text)
+	}
+	return sb.String()
 }

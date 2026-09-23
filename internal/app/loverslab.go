@@ -219,6 +219,14 @@ type LoversLabCommentList struct {
 	// frontend tell "nothing to write a comment to" apart from "has a topic, just
 	// zero replies so far, be the first."
 	HasTopic bool
+	// TopicAuthor is who started the support topic - a forum topic's own post #1 is
+	// always its opening post (confirmed live: its author and posted date always
+	// match the file's own author/submitted date), not a real reply, so it never
+	// appears in Posts at all - only its author survives, for badging any of their
+	// later real replies as the topic's own author. Only ever set from a page 1
+	// fetch (where that post is actually seen); the frontend keeps reusing it across
+	// later pages of the same topic rather than losing it once the page moves on.
+	TopicAuthor string
 }
 
 // LoversLabComments returns one (1-indexed) page of a file's linked support-topic
@@ -247,7 +255,12 @@ func (a *App) LoversLabComments(filePageURL string, page int) (LoversLabCommentL
 		applog.For("LoversLab").Warnf("listing comments for %s failed: %v", filePageURL, err)
 		return LoversLabCommentList{}, err
 	}
-	return LoversLabCommentList{Posts: posts, TotalPages: totalPages, HasTopic: true}, nil
+	var topicAuthor string
+	if page == 1 && len(posts) > 0 {
+		topicAuthor = posts[0].Author
+		posts = posts[1:]
+	}
+	return LoversLabCommentList{Posts: posts, TotalPages: totalPages, HasTopic: true, TopicAuthor: topicAuthor}, nil
 }
 
 // LoversLabPostComment posts content as a reply to filePageURL's linked support

@@ -61,6 +61,11 @@ function fetchGameVersions(list: library.GameInfo[]): Promise<Record<string, str
 
 export function App() {
     const [view, setView] = useState<ViewKey>('workspace');
+    // Set by Browse's own Requirements list (a mod's own detail overlay) to jump
+    // straight to Workspace with the matching mod selected - Workspace clears this
+    // itself once it's acted on it (found or not), so switching back to Browse and
+    // opening a different mod's Requirements later never replays a stale request.
+    const [pendingWorkspaceSelectName, setPendingWorkspaceSelectName] = useState<string | null>(null);
     const [games, setGames] = useState<library.GameInfo[]>([]);
     const [selectedGame, setSelectedGame] = useState('');
     const [prefs, setPrefs] = useState<preferences.Preferences | null>(null);
@@ -419,6 +424,8 @@ export function App() {
                         onOpenUpdates={() => setShowUpdates(true)}
                         showPlaysets={showPlaysets}
                         setShowPlaysets={setShowPlaysets}
+                        pendingSelectName={pendingWorkspaceSelectName}
+                        onPendingSelectHandled={() => setPendingWorkspaceSelectName(null)}
                     />
                 </div>
             )}
@@ -439,7 +446,11 @@ export function App() {
             )}
             {!gamesUnavailable && visitedViews.has('browse') && (
                 <div style={{display: view === 'browse' ? 'contents' : 'none'}}>
-                    <Browse games={games} selectedGame={selectedGame}/>
+                    <Browse
+                        games={games}
+                        selectedGame={selectedGame}
+                        onOpenInWorkspace={(name) => { setPendingWorkspaceSelectName(name); setView('workspace'); }}
+                    />
                 </div>
             )}
             {/* Settings isn't gated on gamesUnavailable like the views above - unlike

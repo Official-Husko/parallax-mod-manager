@@ -77,7 +77,7 @@ type DetailTab = 'overview' | 'files' | 'conflicts' | 'changelog';
 const MAX_DETAIL_NAME_LENGTH = 70;
 const MAX_AUTHOR_NAME_LENGTH = 40;
 
-export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange, onOpenUpdates, showPlaysets, setShowPlaysets}: {
+export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange, onOpenUpdates, showPlaysets, setShowPlaysets, pendingSelectName, onPendingSelectHandled}: {
     games: library.GameInfo[];
     selectedGame: string;
     // The real, currently-installed game version (e.g. "v4.4.6"), fetched
@@ -94,6 +94,13 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
     // own.
     showPlaysets: boolean;
     setShowPlaysets: (show: boolean) => void;
+    // Set by app.tsx when Browse's own Requirements list asked to jump here with
+    // a specific mod selected (by its declared name - the same name-based lookup
+    // OverviewTab's own REQUIRES rows already use within this view, see idByName
+    // there). null most of the time. Cleared via onPendingSelectHandled once
+    // acted on, found or not - never retried on its own.
+    pendingSelectName?: string | null;
+    onPendingSelectHandled?: () => void;
 }) {
     const [summary, setSummary] = useState<library.Summary | null>(null);
     const [order, setOrderState] = useState<string[]>([]);
@@ -758,6 +765,25 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
         }
         return m;
     }, [allMods]);
+
+    // Resolving a pendingSelectName from Browse's own Requirements list - the
+    // same name-based lookup OverviewTab's own REQUIRES rows already use (see
+    // idByName there), just triggered from outside this view instead of a click
+    // within it. Waits for summary to actually finish loading (null means the
+    // scan just hasn't come back yet, not "no mods at all") before deciding
+    // there's genuinely no match, so a fresh game switch never reports a false
+    // negative while still scanning.
+    useEffect(() => {
+        if (!pendingSelectName || summary === null) return;
+        const match = allMods.find((m) => m.Name === pendingSelectName);
+        if (match) {
+            setSelectedId(match.ID);
+        } else {
+            notify('info', `No currently scanned mod named "${pendingSelectName}" was found.`);
+        }
+        onPendingSelectHandled?.();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [pendingSelectName, summary, allMods]);
 
     const orderSet = useMemo(() => new Set(order), [order]);
     // The scan's conflicts, narrowed to the mods in the load order right now -
