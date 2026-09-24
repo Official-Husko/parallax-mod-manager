@@ -24,20 +24,14 @@
     display: flex;
     align-items: center;
     justify-content: center;
-}
-
-.checkbox-box i {
-    font-size: 8px;
+    font: 700 8.5px Barlow, sans-serif;
     color: transparent;
 }
 
 .checkbox input:checked + .checkbox-box {
     border-color: var(--rust);
     background: var(--rust);
-}
-
-.checkbox input:checked + .checkbox-box i {
-    color: var(--text-bright);
+    color: var(--rust-text);
 }
 
 .checkbox input:focus-visible + .checkbox-box {

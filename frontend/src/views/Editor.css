@@ -1063,16 +1063,19 @@
 .publish-file-layout {
     display: grid;
     grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
-    gap: 10px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    overflow: hidden;
 }
 
 .publish-file-picker {
     max-height: 260px;
+    border: none;
+    border-radius: 0;
+    border-right: 1px solid var(--border);
 }
 
 .publish-file-preview {
-    border: 1px solid var(--border);
-    border-radius: 5px;
     padding: 10px;
     display: flex;
     flex-direction: column;

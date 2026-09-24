@@ -23,7 +23,7 @@ export function Checkbox({checked, onChange, disabled, id, title}: {
                 disabled={disabled}
                 onChange={(e) => onChange((e.target as HTMLInputElement).checked)}
             />
-            <span className="checkbox-box"><i className="fa-solid fa-check"/></span>
+            <span className="checkbox-box">&#10003;</span>
         </label>
     );
 }

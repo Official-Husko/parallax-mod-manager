@@ -27,11 +27,12 @@
     white-space: nowrap;
 }
 
-/* An excluded row (or one under an excluded folder) - dimmed, never hidden,
-   so picking what to leave out of a Workshop upload stays a visible choice
-   rather than the row disappearing. */
-.file-row.excluded {
-    opacity: .45;
+/* An excluded row (or one under an excluded folder) - its own extension color drops to plain
+   muted and the name gets struck through, never hidden entirely, so picking what to leave out
+   of a Workshop upload stays a visible choice rather than the row disappearing. */
+.file-row.excluded i,
+.file-row.excluded .name {
+    color: var(--text-muted);
 }
 
 .file-row.excluded .name {
@@ -51,19 +52,6 @@
     box-shadow: inset 2px 0 0 var(--rust);
 }
 
-.file-row-check {
-    flex: none;
-    width: 12px;
-    height: 12px;
-    margin: 0;
-    accent-color: var(--rust);
-    cursor: pointer;
-}
-
-.file-row-check:disabled {
-    cursor: not-allowed;
-}
-
 /* A dedicated class rather than the generic .badge ConflictResolver.css
    also defines - that shared name was the real cause of this text once
    being unreadable: ConflictResolver's own .badge sets a dark
@@ -74,8 +62,8 @@
    is module-scoped - this one gets its own name instead of trying to win a
    specificity fight. */
 .file-row .file-size {
-    font-size: 9.5px;
-    color: var(--text-dim);
+    font-size: 10px;
+    color: var(--text-muted);
     flex: none;
 }
 

@@ -2,6 +2,7 @@ import './FileTree.css';
 import {h} from 'preact';
 import type {JSX} from 'preact';
 import type {library} from '../../wailsjs/go/models';
+import {Checkbox} from './Checkbox';
 import {formatBytes} from '../data/format';
 
 type TreeNode = {
@@ -201,16 +202,14 @@ function renderNodes(
                     </span>
                 )}
                 {selection && (
-                    <input
-                        type="checkbox"
-                        className="file-row-check"
+                    <Checkbox
                         checked={!excluded}
                         disabled={ancestorExcluded}
                         title={ancestorExcluded ? 'Included or excluded together with its own folder above' : excluded ? 'Excluded from the upload' : 'Included in the upload'}
                         onChange={() => selection.onToggle(node.relPath, node.isDir)}
                     />
                 )}
-                <i className={`fa-solid ${visual.icon}`} style={{color: visual.color}}/>
+                <i className={`fa-solid ${visual.icon}`} style={{color: excluded ? undefined : visual.color}}/>
                 <span className="mono name">{node.name}</span>
                 <span className="mono file-size">{formatBytes(node.size)}</span>
             </div>
