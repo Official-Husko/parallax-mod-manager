@@ -1113,43 +1113,6 @@
     color: var(--text-mid);
 }
 
-/* --- New tab: the big-mod warning and the duplicate progress overlay --- */
-
-.editor-warn-screen,
-.editor-progress-screen {
-    width: 420px;
-    max-width: calc(100% - 32px);
-    background: var(--bg-panel-solid);
-    border: 1px solid var(--border-light);
-    border-radius: 10px;
-    padding: 22px;
-    text-align: center;
-}
-
-.editor-warn-screen > i {
-    font-size: 22px;
-    color: var(--amber);
-    margin-bottom: 8px;
-}
-
-.editor-warn-title {
-    font: 700 15px Barlow, sans-serif;
-    color: var(--text-bright);
-    margin-bottom: 10px;
-}
-
-.editor-warn-screen p {
-    font: 400 12.5px/1.6 Barlow, sans-serif;
-    color: var(--text-mid);
-    margin: 0 0 16px;
-}
-
-.editor-warn-actions {
-    display: flex;
-    justify-content: center;
-    gap: 10px;
-}
-
 /* --- Translate tab: SOURCE card and PROGRESS's own header row --- */
 
 .translate-source-stats {

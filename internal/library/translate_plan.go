@@ -29,30 +29,42 @@ func hashText(text string) string {
 	return fmt.Sprintf("%016x", xhash.Bytes([]byte(text)))
 }
 
-// localeFilesUnder returns modRoot's own real localisation/<folder>/*.yml
-// files (root-relative, forward-slashed), in the same deterministic order
-// pipeline.EnumerateFiles already guarantees - ASCIIbetical within the
-// folder, so a later file's same-key entry is the one that wins on a
-// same-mod clash, matching the last-file-wins convention already
-// documented for cross-mod merging, applied here within one mod's own
-// files instead.
-//
-// Note: this walks via cfg.ScanFolders, the same path every other feature
-// in this app uses - which means it inherits that path's own known,
-// pre-existing limitation (only Stellaris's ScanFolders list actually
-// names "localisation" today; see the parent project's own plan notes) -
-// not something this function tries to work around.
+// localisationFolderSpellings are the two real on-disk spellings a Paradox game's own
+// launcher/mod folder convention uses for its localisation-type top-level folder - British
+// ("localisation", confirmed against a real Stellaris install - see docs/patch-mods.md's own
+// "Two real bugs" section) and American ("localization", the spelling CK3/Imperator/Victoria 3's
+// own real launcher-settings.json convention actually uses). Checking both, rather than
+// hardcoding one, is what makes localeFilesUnder correct for every registered game, not just
+// Stellaris - see data/games.jsonc's own per-game comments, which now list both spellings in
+// ScanFolders for exactly this reason.
+var localisationFolderSpellings = []string{"localisation", "localization"}
+
+// localeFilesUnder returns modRoot's own real <localisation-folder>/<folder>/*.yml files
+// (root-relative, forward-slashed, matching either spelling above), in the same deterministic
+// order pipeline.EnumerateFiles already guarantees - ASCIIbetical within the folder, so a later
+// file's same-key entry is the one that wins on a same-mod clash,
+// matching the last-file-wins convention already documented for cross-mod merging, applied here
+// within one mod's own files instead.
 func localeFilesUnder(cfg game.GameConfig, modRoot, folder string) ([]string, error) {
 	all, err := pipeline.EnumerateFiles(modRoot, cfg.ScanFolders)
 	if err != nil {
 		return nil, err
 	}
-	prefix := "localisation/" + folder + "/"
+	var prefixes []string
+	for _, spelling := range localisationFolderSpellings {
+		prefixes = append(prefixes, spelling+"/"+folder+"/")
+	}
 	var matched []string
 	for _, rel := range all {
 		slashRel := filepath.ToSlash(rel)
-		if strings.HasPrefix(slashRel, prefix) && strings.HasSuffix(slashRel, ".yml") {
-			matched = append(matched, rel)
+		if !strings.HasSuffix(slashRel, ".yml") {
+			continue
+		}
+		for _, prefix := range prefixes {
+			if strings.HasPrefix(slashRel, prefix) {
+				matched = append(matched, rel)
+				break
+			}
 		}
 	}
 	sort.Strings(matched)

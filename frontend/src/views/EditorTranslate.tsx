@@ -258,7 +258,7 @@ export function EditorTranslate({gameId, mod}: { gameId: string; mod: library.Mo
                         <i className="fa-solid fa-circle-xmark editor-alert-icon"/>
                         <div className="editor-alert-body">
                             <div className="editor-alert-title">No English text found</div>
-                            <div className="editor-alert-text">Searched localisation/english/. Translate needs English source strings.</div>
+                            <div className="editor-alert-text">Searched localisation/english/ and localization/english/. Translate needs English source strings.</div>
                         </div>
                     </div>
                 )}

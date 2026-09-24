@@ -69,6 +69,47 @@ func TestEnglishCatalogIgnoresOtherLanguageFolders(t *testing.T) {
 	}
 }
 
+// TestEnglishCatalogFindsFilesUnderTheAmericanSpellingToo is the real regression test for the
+// repo-wide scan-folder fix: CK3/Imperator/Victoria 3's own real launcher-settings.json convention
+// spells this folder "localization", not "localisation" - a game config listing that spelling
+// (not Stellaris' own British one) must still find its mods' English text.
+func TestEnglishCatalogFindsFilesUnderTheAmericanSpellingToo(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "localization/english/a.yml", "l_english:\n GREETING:0 \"Hello\"\n")
+
+	cfg := game.GameConfig{ID: "ck3-like", DescriptorType: mod.DescriptorClassic, ScanFolders: []string{"localization"}}
+	got, err := EnglishCatalog(cfg, dir)
+	if err != nil {
+		t.Fatalf("EnglishCatalog() error = %v", err)
+	}
+	if len(got) != 1 || got[0].Text != "Hello" {
+		t.Errorf("got %+v, want the American-spelled folder's own entry", got)
+	}
+}
+
+// TestEnglishCatalogMergesBothSpellingsWhenAGameListsBoth mirrors data/games.jsonc's own new
+// per-game ScanFolders entries (both spellings listed defensively) - a mod using either (or, in
+// this fixture, both at once) must still be read correctly, with the later file winning a clash
+// exactly like two files under one spelling already do.
+func TestEnglishCatalogMergesBothSpellingsWhenAGameListsBoth(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "localisation/english/a.yml", "l_english:\n GREETING:0 \"Hello\"\n FAREWELL:0 \"Old\"\n")
+	writeFile(t, dir, "localization/english/z.yml", "l_english:\n FAREWELL:0 \"New\"\n")
+
+	cfg := game.GameConfig{ID: "both-spellings", DescriptorType: mod.DescriptorClassic, ScanFolders: []string{"localisation", "localization"}}
+	got, err := EnglishCatalog(cfg, dir)
+	if err != nil {
+		t.Fatalf("EnglishCatalog() error = %v", err)
+	}
+	byKey := map[string]SourceEntry{}
+	for _, e := range got {
+		byKey[e.Key] = e
+	}
+	if len(got) != 2 || byKey["GREETING"].Text != "Hello" || byKey["FAREWELL"].Text != "New" {
+		t.Errorf("got %+v, want GREETING=Hello (localisation/) and FAREWELL=New (the later file, localization/z.yml, wins)", got)
+	}
+}
+
 func TestEnglishCatalogOnAModWithNoLocalisationIsEmptyNotAnError(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "common/buildings/a.txt", "thing = { cost = 1 }")

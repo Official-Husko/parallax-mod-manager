@@ -87,7 +87,7 @@ func (a *App) TranslateEligibility(gameID, modID string) (TranslateEligibility, 
 		AuthorModeReason:      t.reason,
 		DeepLKeyReady:         a.DeepLStatus().HasKey,
 		TargetCount:           len(translate.ExpandTargets(translate.AllLanguagesCode)),
-		SourcePath:            "localisation/english/",
+		SourcePath:            "localisation/english/ or localization/english/",
 	}
 	if t.m.ContentPath != "" {
 		english, err := library.EnglishCatalog(t.cfg, t.m.ContentPath)

@@ -424,7 +424,16 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   install-folder name Steam itself uses - never guessed from a display name), confirmed against
   a real `appmanifest_281990.acf` on a real Stellaris install. Only Stellaris has actually been
   verified end to end against a real installed copy; the other five were seeded from public
-  Paradox game data and haven't been tested against a real install of any of them yet.
+  Paradox game data and haven't been tested against a real install of any of them yet. Every
+  game's own `scan_folders` now lists both real localisation-folder spellings - British
+  `localisation` (Stellaris' own, confirmed on a real install) and American `localization` (the
+  other five games' real launcher-settings.json convention) - since listing a folder that doesn't
+  exist for a given game is always harmless (`pipeline.EnumerateFiles` just skips it); before this,
+  Crusader Kings III/Imperator/Victoria 3 could only ever see the American spelling and Europa
+  Universalis IV/Hearts of Iron IV named no localisation folder at all, so none of the five ever
+  saw a localisation-key conflict, or had anything for the Translate tab to find.
+  `internal/library/translate_plan.go`'s own `localeFilesUnder` checks both spellings too, for the
+  same reason.
 - **First-run wizard** (`frontend/src/views/FirstRunWizard.tsx`, `App.DetectGames`,
   `App.BrowseForGameInstall`/`BrowseForAnyGameInstall`) - real, not a mockup replica: it detects
   which registered games are actually installed and how many mods each already has, lets you

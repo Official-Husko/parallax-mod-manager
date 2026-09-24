@@ -304,8 +304,8 @@ func TestTranslateEligibilityReportsSourceStats(t *testing.T) {
 	if elig.TargetCount != wantTargets {
 		t.Errorf("TargetCount = %d, want %d", elig.TargetCount, wantTargets)
 	}
-	if elig.SourcePath != "localisation/english/" {
-		t.Errorf("SourcePath = %q, want %q", elig.SourcePath, "localisation/english/")
+	if elig.SourcePath != "localisation/english/ or localization/english/" {
+		t.Errorf("SourcePath = %q, want %q", elig.SourcePath, "localisation/english/ or localization/english/")
 	}
 }
 

@@ -332,46 +332,49 @@ export function EditorNew({gameId, selected, onCreated}: {
                                     {dupPreview.FreeAtTarget >= 0 && ` ${formatBytes(dupPreview.FreeAtTarget)} free at the target location.`}
                                 </div>
                             )}
-                            <div className="editor-actions">
-                                <button type="button" className="btn-primary" disabled={!canStartDuplicate} onClick={startDuplicate}>Duplicate</button>
-                            </div>
+
+                            {confirmingBig && dupPreview && (
+                                <div className="editor-alert info">
+                                    <i className="fa-solid fa-circle-info editor-alert-icon"/>
+                                    <div className="editor-alert-body">
+                                        <div className="editor-alert-title">This is a large copy</div>
+                                        <div className="editor-alert-text">
+                                            {selected?.Name} is {formatBytes(dupPreview.SourceBytes)} in {dupPreview.SourceFiles.toLocaleString()} files.
+                                            {dupPreview.FreeAtTarget >= 0 && ` ${formatBytes(dupPreview.FreeAtTarget)} free at the target.`}
+                                        </div>
+                                        <div className="editor-alert-actions">
+                                            <button type="button" className="btn-ghost" onClick={() => setConfirmingBig(false)}>Cancel</button>
+                                            <button type="button" className="btn-primary" onClick={() => void runDuplicate()}>Copy anyway</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {progress && (
+                                <div className="editor-card">
+                                    <div className="editor-progress-header-row">
+                                        <span className="mono">{formatBytes(progress.Done)} / {formatBytes(progress.Total)}</span>
+                                        <span className="mono">{progress.Total > 0 ? Math.round((progress.Done / progress.Total) * 100) : 0}%</span>
+                                    </div>
+                                    <div className="editor-progress-bar">
+                                        <div className="editor-progress-fill" style={{width: `${progress.Total > 0 ? Math.min(100, (progress.Done / progress.Total) * 100) : 0}%`}}/>
+                                    </div>
+                                    <div className="editor-progress-file mono">{progress.File || 'Starting...'}</div>
+                                    <div className="editor-actions">
+                                        <button type="button" className="btn-ghost" onClick={cancelDuplicate}>Cancel</button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {!confirmingBig && !progress && (
+                                <div className="editor-actions">
+                                    <button type="button" className="btn-primary" disabled={!canStartDuplicate} onClick={startDuplicate}>Duplicate</button>
+                                </div>
+                            )}
                         </>
                     )}
                 </div>
             </div>
-
-            {confirmingBig && dupPreview && (
-                <div className="overlay">
-                    <div className="editor-warn-screen">
-                        <i className="fa-solid fa-triangle-exclamation"/>
-                        <div className="editor-warn-title">This might take a while</div>
-                        <p>
-                            This mod is {formatBytes(dupPreview.SourceBytes)} across {dupPreview.SourceFiles} files - duplicating it may take a while.
-                            Make sure the target location has enough free space
-                            {dupPreview.FreeAtTarget >= 0 && ` (${formatBytes(dupPreview.FreeAtTarget)} free there now)`}.
-                        </p>
-                        <div className="editor-warn-actions">
-                            <button type="button" className="btn-ghost" onClick={() => setConfirmingBig(false)}>Cancel</button>
-                            <button type="button" className="btn-primary" onClick={() => void runDuplicate()}>Continue</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {progress && (
-                <div className="overlay">
-                    <div className="editor-progress-screen">
-                        <div className="editor-warn-title">Duplicating {selected?.Name}...</div>
-                        <div className="editor-progress-bar">
-                            <div className="editor-progress-fill" style={{width: `${progress.Total > 0 ? Math.min(100, (progress.Done / progress.Total) * 100) : 0}%`}}/>
-                        </div>
-                        <div className="editor-progress-file mono">{progress.File || 'Starting...'}</div>
-                        <div className="editor-warn-actions">
-                            <button type="button" className="btn-ghost" onClick={cancelDuplicate}>Cancel</button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }

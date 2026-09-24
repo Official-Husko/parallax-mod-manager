@@ -60,7 +60,13 @@
             // Paradox game data, not yet verified against a real install on this machine.
             "launcher_settings_path": "launcher/launcher-settings.json",
             "signature_files": ["launcher/launcher-settings.json"],
-            "scan_folders": ["common", "events", "history", "map_data", "gui", "localization", "data_binding"],
+            // "localization" (American) is this game's own real launcher-settings
+            // convention; "localisation" (British - the spelling Stellaris' own install
+            // actually uses, see internal/library/translate_plan.go's own doc comment) is
+            // added defensively alongside it, unconfirmed for this game specifically but
+            // harmless if absent - EnumerateFiles silently skips a scan folder that doesn't
+            // exist, so listing both can never cost anything on a game that only has one.
+            "scan_folders": ["common", "events", "history", "map_data", "gui", "localization", "localisation", "data_binding"],
             "dlc": []
         },
         {
@@ -71,7 +77,10 @@
             "descriptor_type": "classic",
             "launcher_settings_path": "launcher-settings.json",
             "signature_files": ["launcher-settings.json"],
-            "scan_folders": ["common", "events", "missions", "decisions", "history", "map"],
+            // This entry never named a localisation-type folder at all until both spellings
+            // were added here defensively - see Crusader Kings III's own comment above for
+            // why listing both is always safe.
+            "scan_folders": ["common", "events", "missions", "decisions", "history", "map", "localisation", "localization"],
             "dlc": []
         },
         {
@@ -82,7 +91,8 @@
             "descriptor_type": "classic",
             "launcher_settings_path": "launcher-settings.json",
             "signature_files": ["launcher-settings.json"],
-            "scan_folders": ["common", "events", "history", "map"],
+            // See Europa Universalis IV's own comment just above - same gap, same fix.
+            "scan_folders": ["common", "events", "history", "map", "localisation", "localization"],
             "checksum": "hoi4",
             "dlc": [],
             // Confirmed on a real install, same as Stellaris above - see that entry's comment.
@@ -96,7 +106,9 @@
             "descriptor_type": "classic",
             "launcher_settings_path": "launcher/launcher-settings.json",
             "signature_files": ["launcher/launcher-settings.json"],
-            "scan_folders": ["common", "events", "decisions", "gui", "localization", "map_data", "setup"],
+            // See Crusader Kings III's own comment above for why "localisation" is added
+            // alongside this game's own "localization".
+            "scan_folders": ["common", "events", "decisions", "gui", "localization", "localisation", "map_data", "setup"],
             "dlc": []
         },
         {
@@ -111,7 +123,9 @@
             "descriptor_type": "json_v1",
             "launcher_settings_path": "launcher/launcher-settings.json",
             "signature_files": ["launcher/launcher-settings.json"],
-            "scan_folders": ["common", "events", "map_data", "gui", "localization"],
+            // See Crusader Kings III's own comment above for why "localisation" is added
+            // alongside this game's own "localization".
+            "scan_folders": ["common", "events", "map_data", "gui", "localization", "localisation"],
             "dlc": []
         }
     ]

@@ -178,7 +178,15 @@ export function Editor({games, selectedGame, gameVersion}: {
                     )}
                     {error && <EmptyState icon="fa-triangle-exclamation" title="Couldn't load mods" subtitle={error} tone="error"/>}
                     {!loading && !error && visible.length === 0 && (
-                        <EmptyState icon="fa-magnifying-glass" title="No mods found"/>
+                        search.trim() ? (
+                            <EmptyState icon="fa-magnifying-glass" title="No mods found"/>
+                        ) : (
+                            <EmptyState
+                                icon="fa-pen-ruler"
+                                title={`No mods for ${games.find((g) => g.ID === selectedGame)?.DisplayName ?? 'this game'} yet`}
+                                subtitle="You're on the New tab. Create one from a template."
+                            />
+                        )
                     )}
                     {visible.map((m) => (
                         <div
