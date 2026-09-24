@@ -288,6 +288,77 @@ func TestTranslateModEmitsProgressEvents(t *testing.T) {
 	}
 }
 
+func TestTranslateEligibilityReportsSourceStats(t *testing.T) {
+	a, modID := newTranslateTestApp(t, map[string]string{"GREETING": "Hello", "FAREWELL": "Bye"})
+	elig, err := a.TranslateEligibility(game.Stellaris.ID, modID)
+	if err != nil {
+		t.Fatalf("TranslateEligibility() error = %v", err)
+	}
+	if elig.EnglishKeyCount != 2 {
+		t.Errorf("EnglishKeyCount = %d, want 2", elig.EnglishKeyCount)
+	}
+	if elig.EnglishFileCount != 1 {
+		t.Errorf("EnglishFileCount = %d, want 1", elig.EnglishFileCount)
+	}
+	wantTargets := len(translate.AllLanguages) - 2 // every real language except EN and the synthetic ALL entry
+	if elig.TargetCount != wantTargets {
+		t.Errorf("TargetCount = %d, want %d", elig.TargetCount, wantTargets)
+	}
+	if elig.SourcePath != "localisation/english/" {
+		t.Errorf("SourcePath = %q, want %q", elig.SourcePath, "localisation/english/")
+	}
+}
+
+func TestTranslateModProgressCarriesLanguageIndexAndCount(t *testing.T) {
+	a, modID := newTranslateTestApp(t, map[string]string{"GREETING": "Hello"})
+	fake := &fakeTranslator{}
+	a.translatorFor = func(string, string, string) (translate.Translator, error) { return fake, nil }
+
+	var languageStages, doneStages []TranslateProgress
+	a.eventSink = func(name string, data ...any) {
+		if name != "translate-progress" || len(data) < 2 {
+			return
+		}
+		p, ok := data[1].(TranslateProgress)
+		if !ok {
+			return
+		}
+		switch p.Stage {
+		case "language":
+			languageStages = append(languageStages, p)
+		case "language_done":
+			doneStages = append(doneStages, p)
+		}
+	}
+
+	// BG (Bulgarian) is one of the dropdown's own unconfirmed-folder entries.
+	if _, err := a.TranslateMod(game.Stellaris.ID, modID, "req-lang", TranslateRequest{Service: "translanova", TargetCode: "BG", Mode: "author"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(languageStages) != 1 || len(doneStages) != 1 {
+		t.Fatalf("got %d language stages and %d language_done stages, want 1 each", len(languageStages), len(doneStages))
+	}
+	if languageStages[0].LanguageIndex != 1 || languageStages[0].LanguageTotal != 1 {
+		t.Errorf("language stage LanguageIndex/Total = %d/%d, want 1/1", languageStages[0].LanguageIndex, languageStages[0].LanguageTotal)
+	}
+	if languageStages[0].Message == "" {
+		t.Error("language stage Message is empty, want a note about BG's unconfirmed folder name")
+	}
+	if doneStages[0].Count != 1 {
+		t.Errorf("language_done Count = %d, want 1 (one key translated and written)", doneStages[0].Count)
+	}
+	if doneStages[0].LanguageIndex != 1 || doneStages[0].LanguageTotal != 1 {
+		t.Errorf("language_done LanguageIndex/Total = %d/%d, want 1/1", doneStages[0].LanguageIndex, doneStages[0].LanguageTotal)
+	}
+	wantFile := "localisation/bulgarian/zzz_parallax_auto_translated_l_bulgarian.yml"
+	if languageStages[0].OutputFile != wantFile {
+		t.Errorf("language stage OutputFile = %q, want %q", languageStages[0].OutputFile, wantFile)
+	}
+	if doneStages[0].OutputFile != wantFile {
+		t.Errorf("language_done OutputFile = %q, want %q", doneStages[0].OutputFile, wantFile)
+	}
+}
+
 func TestTranslateModAllLanguagesTranslatesIntoEveryRealLanguage(t *testing.T) {
 	a, modID := newTranslateTestApp(t, map[string]string{"GREETING": "Hello"})
 	fake := &fakeTranslator{}

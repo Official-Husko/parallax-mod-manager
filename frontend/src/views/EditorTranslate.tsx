@@ -44,12 +44,18 @@ function timestamp(): string {
 // describeStage turns one raw progress event into the log line shown for it -
 // deliberately coarse (only real milestones, never one line per key): the
 // progress bar itself already shows the fine-grained "103/894" count.
+// "language" doubles as the unconfirmed-folder notice (Message is only ever
+// populated there when the target folder name isn't confirmed for this game).
 function describeStage(p: TranslateProgressEvent, languageName: string): { tone: LogTone; text: string } | null {
     switch (p.Stage) {
         case 'opening':
             return {tone: 'info', text: 'Reading this mod\'s own English text...'};
         case 'language':
-            return {tone: 'info', text: `Translating into ${languageName || p.Language}...`};
+            return p.Message
+                ? {tone: 'warn', text: `${languageName || p.Language}: ${p.Message}`}
+                : {tone: 'info', text: `Translating into ${languageName || p.Language}...`};
+        case 'language_done':
+            return {tone: 'success', text: `${languageName || p.Language}: ${p.Count.toLocaleString()} key${p.Count === 1 ? '' : 's'} written`};
         case 'writing':
             return {tone: 'info', text: 'Writing the translated file(s)...'};
         case 'done':
@@ -73,6 +79,10 @@ interface TranslateProgressEvent {
     Message: string;
     Done: number;
     Total: number;
+    LanguageIndex: number;
+    LanguageTotal: number;
+    Count: number;
+    OutputFile: string;
 }
 
 export function EditorTranslate({gameId, mod}: { gameId: string; mod: library.ModSummary }) {
@@ -84,7 +94,9 @@ export function EditorTranslate({gameId, mod}: { gameId: string; mod: library.Mo
     const [mode, setMode] = useState<'author' | 'player'>('player');
     const [forced, setForced] = useState(false);
     const [running, setRunning] = useState(false);
-    const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+    const [progress, setProgress] = useState<{
+        done: number; total: number; language: string; languageIndex: number; languageTotal: number; outputFile: string;
+    } | null>(null);
     const [log, setLog] = useState<LogLine[]>([]);
     const [error, setError] = useState('');
     const requestIdRef = useRef('');
@@ -120,7 +132,10 @@ export function EditorTranslate({gameId, mod}: { gameId: string; mod: library.Mo
     useEffect(() => {
         const off = EventsOn('translate-progress', (eventGameId: string, p: TranslateProgressEvent) => {
             if (eventGameId !== gameId || p.RequestID !== requestIdRef.current) return;
-            setProgress({done: p.Done, total: p.Total});
+            setProgress({
+                done: p.Done, total: p.Total, language: p.Language,
+                languageIndex: p.LanguageIndex, languageTotal: p.LanguageTotal, outputFile: p.OutputFile,
+            });
             const name = languagesRef.current.find((l) => l.Code === p.Language)?.Name ?? '';
             const line = describeStage(p, name);
             if (line) setLog((prev) => [...prev, {time: timestamp(), tone: line.tone, text: line.text}]);
@@ -136,7 +151,7 @@ export function EditorTranslate({gameId, mod}: { gameId: string; mod: library.Mo
         requestIdRef.current = requestId;
         setRunning(true);
         setError('');
-        setProgress({done: 0, total: 0});
+        setProgress({done: 0, total: 0, language: '', languageIndex: 0, languageTotal: 0, outputFile: ''});
         setLog([{time: timestamp(), tone: 'info', text: `Starting (${SERVICES.find((s) => s.service === service)?.name}, ${mode === 'author' ? 'writing into this mod' : 'generating a companion mod'})...`}]);
 
         TranslateMod(gameId, mod.ID, requestId, {
@@ -266,14 +281,46 @@ export function EditorTranslate({gameId, mod}: { gameId: string; mod: library.Mo
             </div>
 
             <div className="editor-column">
+                {eligibility && eligibility.HasEnglishContent && (
+                    <div className="editor-card">
+                        <div className="editor-card-title">SOURCE</div>
+                        <div className="translate-source-stats">
+                            <div>
+                                <div className="translate-source-stat-value mono">{eligibility.EnglishKeyCount.toLocaleString()}</div>
+                                <div className="editor-hint">English keys</div>
+                            </div>
+                            <div>
+                                <div className="translate-source-stat-value mono">{eligibility.EnglishFileCount.toLocaleString()}</div>
+                                <div className="editor-hint">files</div>
+                            </div>
+                            <div>
+                                <div className="translate-source-stat-value mono">{eligibility.TargetCount.toLocaleString()}</div>
+                                <div className="editor-hint">targets</div>
+                            </div>
+                        </div>
+                        <span className="editor-hint mono">{eligibility.SourcePath}</span>
+                    </div>
+                )}
+
                 {progress && (
                     <div className="editor-card">
-                        <div className="editor-card-title">PROGRESS</div>
+                        <div className="editor-card-title">
+                            PROGRESS
+                            {progress.languageTotal > 0 && (
+                                <span className="editor-card-count mono">
+                                    {' '}&middot; {languages.find((l) => l.Code === progress.language)?.Name || progress.language} &middot; {progress.languageIndex} of {progress.languageTotal}
+                                </span>
+                            )}
+                        </div>
+                        <div className="editor-progress-header-row">
+                            <span className="mono">{progress.done.toLocaleString()} / {progress.total.toLocaleString()} keys</span>
+                            <span className="mono">{progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0}%</span>
+                        </div>
                         <div className="editor-progress-bar">
                             <div className="editor-progress-fill" style={{width: `${progress.total > 0 ? Math.min(100, (progress.done / progress.total) * 100) : 0}%`}}/>
                         </div>
                         <div className="editor-progress-file mono">
-                            {progress.total > 0 ? `${progress.done}/${progress.total} translated` : running ? 'Starting...' : `${progress.done} translated`}
+                            {progress.outputFile || (running ? 'Starting...' : `${progress.done} translated`)}
                         </div>
                     </div>
                 )}

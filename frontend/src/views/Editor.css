@@ -1096,6 +1096,26 @@
     gap: 10px;
 }
 
+/* --- Translate tab: SOURCE card and PROGRESS's own header row --- */
+
+.translate-source-stats {
+    display: flex;
+    gap: 18px;
+}
+
+.translate-source-stat-value {
+    font: 700 17px "Azeret Mono", monospace;
+    color: var(--text-bright);
+}
+
+.editor-progress-header-row {
+    display: flex;
+    justify-content: space-between;
+    font: 500 11px "Azeret Mono", monospace;
+    color: var(--text-mid);
+    margin-bottom: 6px;
+}
+
 .editor-progress-bar {
     height: 8px;
     border-radius: 4px;

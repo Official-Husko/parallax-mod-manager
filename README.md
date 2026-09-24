@@ -817,8 +817,15 @@ This list grows as features land - see [Progress](#progress) below, which is kep
     that is new, or whose English text has since changed, is ever translated again. A translation
     that already existed before this feature ever touched the mod (your own, or another tool's) is
     recorded once and permanently left alone, even if the English text later changes - it is never
-    silently overwritten. A live progress bar tracks real progress across the whole run (for example
-    "103/894 translated").
+    silently overwritten. A **Source** card shows the mod's real English key and file counts and how
+    many target languages exist; a live progress bar tracks real progress across the whole run (for
+    example "103/894 translated"), names which language is currently running and where it's out of
+    the run's own target list ("German - 4 of 27" for an "All languages" run), and shows that
+    language's own real output file path. Each language's own file is now written the moment its own
+    translating finishes (not batched to the very end), so a cancelled run still leaves every
+    language done so far actually on disk, and the log reports each one's own real key count
+    ("French: 3,120 keys written") plus a note when a language's own folder name isn't confirmed for
+    the game (`unconfirmed for this game, used "polish"`).
 - **Checks for a mod's own problems** (the Editor's **Checks** tab, `internal/modcheck`,
   `checks.go`, `frontend/src/views/EditorChecks.tsx`) - four things worth knowing about a mod
   before you publish or share it: files and script keys it overwrites from the base game instead

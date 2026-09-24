@@ -64,6 +64,14 @@ type TranslateEligibility struct {
 	// HasEnglishContent is false when the mod has no English localisation
 	// at all - nothing to translate from, regardless of destination mode.
 	HasEnglishContent bool
+	// EnglishKeyCount/EnglishFileCount describe the mod's own English source (0/0 when there is
+	// none). TargetCount is how many real target languages exist to translate into (the "All
+	// languages" expansion's own length, translate.AllLanguagesCode's own real-language count).
+	// SourcePath is where they were found, for display only.
+	EnglishKeyCount  int
+	EnglishFileCount int
+	TargetCount      int
+	SourcePath       string
 }
 
 // TranslateEligibility reports whether/how modID can be auto-translated -
@@ -78,6 +86,8 @@ func (a *App) TranslateEligibility(gameID, modID string) (TranslateEligibility, 
 		AuthorModeOverridable: t.overridable,
 		AuthorModeReason:      t.reason,
 		DeepLKeyReady:         a.DeepLStatus().HasKey,
+		TargetCount:           len(translate.ExpandTargets(translate.AllLanguagesCode)),
+		SourcePath:            "localisation/english/",
 	}
 	if t.m.ContentPath != "" {
 		english, err := library.EnglishCatalog(t.cfg, t.m.ContentPath)
@@ -85,6 +95,10 @@ func (a *App) TranslateEligibility(gameID, modID string) (TranslateEligibility, 
 			return out, err
 		}
 		out.HasEnglishContent = len(english) > 0
+		out.EnglishKeyCount = len(english)
+		if fileCount, err := library.EnglishFileCount(t.cfg, t.m.ContentPath); err == nil {
+			out.EnglishFileCount = fileCount
+		}
 	}
 	return out, nil
 }
@@ -109,13 +123,26 @@ type TranslateRequest struct {
 // this session.
 type TranslateProgress struct {
 	RequestID string
-	// Stage is one of: "opening", "language", "translating", "writing", "done", "error".
+	// Stage is one of: "opening", "language", "translating", "language_done", "writing",
+	// "done", "error". "language_done" fires once per language, right after its own output file
+	// is written (Count is that file's own real key count); "writing" only ever fires once, for
+	// player mode's own companion-mod manifest step, which happens after every language's file
+	// is already on disk.
 	Stage    string
 	Language string
 	Key      string
 	Message  string
 	Done     int
 	Total    int
+	// LanguageIndex/LanguageTotal say which target language this is out of how many in this
+	// run - "German - 4 of 27" for an "All languages" run, "German - 1 of 1" for a single one.
+	LanguageIndex int
+	LanguageTotal int
+	// Count is the real number of keys just written for Language, on a "language_done" stage.
+	Count int
+	// OutputFile is Language's own output file, relative to the mod's (or companion's) own
+	// content folder - set from the "language" stage onward, once known.
+	OutputFile string
 }
 
 // TranslateResult is a finished TranslateMod call's own outcome.
@@ -269,23 +296,37 @@ func (a *App) TranslateMod(gameID, modID, requestID string, req TranslateRequest
 		log.Warnf("saving the translation cache for %s failed: %v", modID, err)
 	}
 
+	endMute := a.watchMute.Begin(modWatchMuteGrace)
+	defer endMute()
+
 	result := TranslateResult{}
 	done := 0
-	for _, p := range plans {
+	languageTotal := len(plans)
+	for i, p := range plans {
 		if ctx.Err() != nil {
 			return result, errors.New("translation was cancelled")
 		}
-		emit(TranslateProgress{Stage: "language", Language: p.lang.Code, Done: done, Total: total})
+		langMsg := ""
+		if !p.lang.Confirmed {
+			langMsg = fmt.Sprintf("folder name unconfirmed for this game, used %q", p.lang.ParadoxFolder)
+		}
+		filename := authorModeFilePrefix + p.lang.ParadoxFolder + ".yml"
+		if req.Mode == "player" {
+			filename = companion.ModID + "_l_" + p.lang.ParadoxFolder + ".yml"
+		}
+		outputFile := filepath.ToSlash(filepath.Join("localisation", p.lang.ParadoxFolder, filename))
+
+		emit(TranslateProgress{Stage: "language", Language: p.lang.Code, Message: langMsg, OutputFile: outputFile, Done: done, Total: total, LanguageIndex: i + 1, LanguageTotal: languageTotal})
 
 		for _, need := range p.needs {
 			if ctx.Err() != nil {
 				return result, errors.New("translation was cancelled")
 			}
-			emit(TranslateProgress{Stage: "translating", Language: p.lang.Code, Key: need.Key, Done: done, Total: total})
+			emit(TranslateProgress{Stage: "translating", Language: p.lang.Code, Key: need.Key, OutputFile: outputFile, Done: done, Total: total, LanguageIndex: i + 1, LanguageTotal: languageTotal})
 
 			translated, err := translator.Translate(ctx, need.EnglishText, p.lang)
 			if err != nil {
-				emit(TranslateProgress{Stage: "error", Language: p.lang.Code, Key: need.Key, Message: err.Error(), Done: done, Total: total})
+				emit(TranslateProgress{Stage: "error", Language: p.lang.Code, Key: need.Key, Message: err.Error(), Done: done, Total: total, LanguageIndex: i + 1, LanguageTotal: languageTotal})
 				return result, fmt.Errorf("translating %q into %s: %w", need.Key, p.lang.Name, err)
 			}
 
@@ -301,38 +342,32 @@ func (a *App) TranslateMod(gameID, modID, requestID string, req TranslateRequest
 			}
 			done++
 			result.Translated++
-			emit(TranslateProgress{Stage: "translating", Language: p.lang.Code, Key: need.Key, Done: done, Total: total})
+			emit(TranslateProgress{Stage: "translating", Language: p.lang.Code, Key: need.Key, OutputFile: outputFile, Done: done, Total: total, LanguageIndex: i + 1, LanguageTotal: languageTotal})
 		}
 		result.AlreadyCovered += len(p.rewrite)
-	}
 
-	emit(TranslateProgress{Stage: "writing", Done: done, Total: total})
-	endMute := a.watchMute.Begin(modWatchMuteGrace)
-	defer endMute()
-
-	for _, p := range plans {
+		// This language's own file is written right away, incrementally - a cancellation
+		// partway through a run leaves every language finished so far actually on disk, and
+		// "language_done" can report this language's own real, final key count.
 		projected := map[string]string{}
 		for _, e := range english {
 			if entry, ok := cache.Entries[p.lang.Code][e.Key]; ok {
 				projected[e.Key] = entry.TranslatedText
 			}
 		}
-		if len(projected) == 0 {
-			continue
+		if len(projected) > 0 {
+			rendered := locale.RenderFile(p.lang.ParadoxFolder, projected)
+			dir := filepath.Join(outputRoot, "localisation", p.lang.ParadoxFolder)
+			if _, err := atomicfile.Write(dir, filename, rendered); err != nil {
+				emit(TranslateProgress{Stage: "error", Language: p.lang.Code, Message: err.Error(), LanguageIndex: i + 1, LanguageTotal: languageTotal})
+				return result, fmt.Errorf("writing %s: %w", filename, err)
+			}
 		}
-		rendered := locale.RenderFile(p.lang.ParadoxFolder, projected)
-		filename := authorModeFilePrefix + p.lang.ParadoxFolder + ".yml"
-		if req.Mode == "player" {
-			filename = companion.ModID + "_l_" + p.lang.ParadoxFolder + ".yml"
-		}
-		dir := filepath.Join(outputRoot, "localisation", p.lang.ParadoxFolder)
-		if _, err := atomicfile.Write(dir, filename, rendered); err != nil {
-			emit(TranslateProgress{Stage: "error", Message: err.Error()})
-			return result, fmt.Errorf("writing %s: %w", filename, err)
-		}
+		emit(TranslateProgress{Stage: "language_done", Language: p.lang.Code, Count: len(projected), OutputFile: outputFile, Done: done, Total: total, LanguageIndex: i + 1, LanguageTotal: languageTotal})
 	}
 
 	if req.Mode == "player" {
+		emit(TranslateProgress{Stage: "writing", Done: done, Total: total})
 		gameVersion, _ := a.GameVersion(gameID)
 		if err := library.EnsureTranslationCompanion(companion, modID, t.m.Descriptor.Name, gameVersion); err != nil {
 			emit(TranslateProgress{Stage: "error", Message: err.Error()})

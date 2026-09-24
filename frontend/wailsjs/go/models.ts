@@ -947,6 +947,10 @@ export namespace app {
 	    AuthorModeReason: string;
 	    DeepLKeyReady: boolean;
 	    HasEnglishContent: boolean;
+	    EnglishKeyCount: number;
+	    EnglishFileCount: number;
+	    TargetCount: number;
+	    SourcePath: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new TranslateEligibility(source);
@@ -959,6 +963,10 @@ export namespace app {
 	        this.AuthorModeReason = source["AuthorModeReason"];
 	        this.DeepLKeyReady = source["DeepLKeyReady"];
 	        this.HasEnglishContent = source["HasEnglishContent"];
+	        this.EnglishKeyCount = source["EnglishKeyCount"];
+	        this.EnglishFileCount = source["EnglishFileCount"];
+	        this.TargetCount = source["TargetCount"];
+	        this.SourcePath = source["SourcePath"];
 	    }
 	}
 	export class TranslateLanguage {

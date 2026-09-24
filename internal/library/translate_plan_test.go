@@ -82,6 +82,32 @@ func TestEnglishCatalogOnAModWithNoLocalisationIsEmptyNotAnError(t *testing.T) {
 	}
 }
 
+func TestEnglishFileCountCountsRealFilesOnly(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "localisation/english/a.yml", "l_english:\n GREETING:0 \"Hello\"\n")
+	writeFile(t, dir, "localisation/english/b.yml", "l_english:\n FAREWELL:0 \"Goodbye\"\n")
+	writeFile(t, dir, "localisation/german/a.yml", "l_german:\n GREETING:0 \"Hallo\"\n")
+
+	got, err := EnglishFileCount(localeTestGameConfig(), dir)
+	if err != nil {
+		t.Fatalf("EnglishFileCount() error = %v", err)
+	}
+	if got != 2 {
+		t.Errorf("EnglishFileCount() = %d, want 2", got)
+	}
+}
+
+func TestEnglishFileCountOnAModWithNoneIsZero(t *testing.T) {
+	dir := t.TempDir()
+	got, err := EnglishFileCount(localeTestGameConfig(), dir)
+	if err != nil {
+		t.Fatalf("EnglishFileCount() error = %v", err)
+	}
+	if got != 0 {
+		t.Errorf("EnglishFileCount() = %d, want 0", got)
+	}
+}
+
 func TestTargetCatalogReadsOneLanguageFolder(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "localisation/german/a.yml", "l_german:\n GREETING:0 \"Hallo\"\n")

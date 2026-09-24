@@ -59,6 +59,18 @@ func localeFilesUnder(cfg game.GameConfig, modRoot, folder string) ([]string, er
 	return matched, nil
 }
 
+// EnglishFileCount says how many localisation/english/*.yml files modRoot has - the Translate
+// tab's own Source card wants a real file count alongside EnglishCatalog's own merged key count,
+// and this is cheaper than re-deriving it from SourceEntry (which carries no per-file
+// information at all, by design - see its own doc comment).
+func EnglishFileCount(cfg game.GameConfig, modRoot string) (int, error) {
+	files, err := localeFilesUnder(cfg, modRoot, "english")
+	if err != nil {
+		return 0, fmt.Errorf("library: finding %s's own English localisation files: %w", modRoot, err)
+	}
+	return len(files), nil
+}
+
 // EnglishCatalog reads every localisation/english/*.yml under modRoot and
 // returns its merged key set, ready to translate. A key defined in more
 // than one file within this same mod takes the later file's value
