@@ -22,12 +22,12 @@
 .chip-item {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 2px 8px;
+    gap: 5px;
+    padding: 3px 9px;
     background: var(--bg-highlight);
     border: 1px solid var(--border-light);
     border-radius: 11px;
-    font: 500 11.5px Barlow, sans-serif;
+    font: 500 10.5px Barlow, sans-serif;
     color: var(--text-mid);
 }
 
@@ -39,15 +39,18 @@
 .chip-item.flagged {
     border-color: var(--amber);
     color: var(--amber);
+    background: color-mix(in srgb, var(--amber) 8%, transparent);
 }
 
-.chip-item i {
-    font-size: 9px;
+.chip-item-flag {
+    font: 700 9px Barlow, sans-serif;
 }
 
 .chip-item-remove {
     cursor: pointer;
     color: var(--text-dim);
+    font-size: 11px;
+    line-height: 1;
 }
 
 .chip-item-remove:hover {

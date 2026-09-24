@@ -49,6 +49,17 @@
     white-space: nowrap;
 }
 
+/* A small pill for the trigger's own current-selection hint (e.g. "default" - see New's own
+   Location field) - the option row's version of the same hint (.select-option-hint alone) stays
+   plain text, this is specifically the closed trigger's badge treatment. */
+.select-trigger-hint {
+    color: var(--text-mid);
+    background: var(--bg-highlight);
+    border: 1px solid var(--border-light);
+    border-radius: 11px;
+    padding: 3px 9px;
+}
+
 .select-chevron {
     flex: none;
     width: auto;

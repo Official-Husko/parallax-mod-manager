@@ -36,10 +36,10 @@ export function ChipList({items, onChange, placeholder, mono, suggestions, flagg
         <div className={`chip-list ${disabled ? 'disabled' : ''}`}>
             {items.map((item) => (
                 <span key={item} className={`chip-item ${mono ? 'mono' : ''} ${flagged?.has(item) ? 'flagged' : ''}`} title={flagged?.has(item) ? flagTitle : undefined}>
-                    {flagged?.has(item) && <i className="fa-solid fa-triangle-exclamation"/>}
+                    {flagged?.has(item) && <span className="chip-item-flag">!</span>}
                     <span className="chip-item-text">{item}</span>
                     {!disabled && (
-                        <i className="fa-solid fa-xmark chip-item-remove" onClick={() => onChange(items.filter((x) => x !== item))}/>
+                        <span className="chip-item-remove" onClick={() => onChange(items.filter((x) => x !== item))}>&times;</span>
                     )}
                 </span>
             ))}

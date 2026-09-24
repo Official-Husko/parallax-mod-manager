@@ -16,6 +16,7 @@ import {Select} from '../components/Select';
 import type {SelectOption} from '../components/Select';
 import {formatBytes} from '../data/format';
 import {notify} from '../data/notifications';
+import {checkVersionCompatibility, displayVersion} from '../data/versionCompat';
 import {FileChange} from './EditorEdit';
 
 // A "duplicate-progress" event's shape - not a Wails-bound method's own parameter or return
@@ -68,8 +69,12 @@ const DUP_LOG_INTERVAL_MS = 1500;
 // duplicate it into a brand-new, independent one instead (a safe way to "edit" a Steam Workshop
 // mod without ever touching Steam's own copy). Neither ever feeds the Edit tab's own "Undo last
 // save" history - see newmod.go's own comment on why.
-export function EditorNew({gameId, selected, onCreated}: {
+export function EditorNew({gameId, gameVersion, selected, onCreated}: {
     gameId: string;
+    // The game's own real, installed version - "v4.0.21", say - for the create form's own
+    // "Matches installed X" hint under Made for game version (see EditorEdit.tsx's own
+    // identical hint on the same field for an existing mod).
+    gameVersion: string;
     selected: library.ModSummary | null;
     onCreated: (name: string) => void;
 }) {
@@ -223,6 +228,7 @@ export function EditorNew({gameId, selected, onCreated}: {
 
     const createProblems = preview?.Problems ?? [];
     const canCreate = !!location && name.trim() !== '' && !busy && preview !== null && !preview.Nothing && createProblems.length === 0;
+    const supportedVersionCompat = supportedVersion && gameVersion ? checkVersionCompatibility(supportedVersion.trim(), gameVersion) : null;
 
     const dupProblems = dupPreview?.Problems ?? [];
     const canStartDuplicate = !!location && dupName.trim() !== '' && !busy && dupPreview !== null && !dupPreview.Nothing && dupProblems.length === 0;
@@ -269,7 +275,7 @@ export function EditorNew({gameId, selected, onCreated}: {
                                 <div key={t.ID} className={`template-tile ${template === t.ID ? 'active' : ''}`} onClick={() => setTemplate(t.ID)}>
                                     <div className="template-tile-head">
                                         <span className="template-tile-name">{t.Name}</span>
-                                        {template === t.ID && <i className="fa-solid fa-check template-tile-check"/>}
+                                        {template === t.ID && <span className="template-tile-check">&#10003;</span>}
                                     </div>
                                     <span className="template-tile-desc">{t.Description}</span>
                                     <span className="template-tile-count mono">{t.FileCount} file{t.FileCount === 1 ? '' : 's'}</span>
@@ -302,6 +308,13 @@ export function EditorNew({gameId, selected, onCreated}: {
                                 <label className="editor-field">
                                     <span className="editor-label">Made for game version</span>
                                     <input className="editor-input mono" value={supportedVersion} placeholder="v4.*" onInput={(e) => setSupportedVersion((e.target as HTMLInputElement).value)}/>
+                                    {supportedVersionCompat && supportedVersionCompat.known && (
+                                        <span className={`editor-hint ${supportedVersionCompat.compatible ? 'good' : 'warn'}`}>
+                                            {supportedVersionCompat.compatible
+                                                ? `Matches installed ${displayVersion(gameVersion)}.`
+                                                : `Built for another version than the installed ${displayVersion(gameVersion)}.`}
+                                        </span>
+                                    )}
                                 </label>
                                 <label className="editor-field">
                                     <span className="editor-label">Folder name</span>
@@ -359,7 +372,9 @@ export function EditorNew({gameId, selected, onCreated}: {
                                 <div className="editor-file">
                                     <div className="editor-file-head">
                                         <span className="mono">thumbnail.png</span>
-                                        <span className="editor-file-tag">new file</span>
+                                        <span className="editor-file-tag">new</span>
+                                        <span className="editor-file-count mono"/>
+                                        <span className="editor-file-chevron">&#9656;</span>
                                     </div>
                                     <div className="editor-file-note">
                                         Placeholder {preview.Thumbnail.Width} x {preview.Thumbnail.Height}. Replace it on the Edit tab.

@@ -251,7 +251,7 @@ export function Editor({games, selectedGame, gameVersion, onOpenToolsSettings}: 
                 </div>
                 <div className="editor-tab-body">
                     {tab === 'new' && (
-                        <EditorNew gameId={selectedGame} selected={selected} onCreated={afterCreated}/>
+                        <EditorNew gameId={selectedGame} gameVersion={gameVersion} selected={selected} onCreated={afterCreated}/>
                     )}
                     {tab !== 'new' && !selected && (
                         <EmptyState icon="fa-pen-ruler" title="No mod selected" subtitle="Select a mod from the list, or create one from New."/>

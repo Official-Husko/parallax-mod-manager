@@ -124,6 +124,7 @@ export function Select({value, options, onChange, disabled, placeholder, classNa
                 onKeyDown={onKeyDown}
             >
                 <span className="select-label">{current?.label ?? placeholder ?? ''}</span>
+                {current?.hint && <span className="select-option-hint select-trigger-hint">{current.hint}</span>}
                 <i className="fa-solid fa-chevron-down select-chevron"/>
             </button>
             {open && (

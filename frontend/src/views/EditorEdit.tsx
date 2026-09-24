@@ -48,6 +48,11 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
     const [loadError, setLoadError] = useState('');
     const [draft, setDraftState] = useState<Draft | null>(initialDraft);
     const [thumb, setThumb] = useState<string | null>(null);
+    // The current thumbnail's own real pixel size, decoded client-side from thumb (ModThumbnail
+    // returns image bytes, not dimensions) - just for "WHAT WILL CHANGE"'s own "512x384, was
+    // 1024x768" note; the THUMBNAIL card above has its own, separate "current" description that
+    // doesn't need this.
+    const [thumbDims, setThumbDims] = useState<{width: number; height: number} | null>(null);
     const [newThumb, setNewThumb] = useState<app.ThumbnailPreview | null>(null);
     const [preview, setPreview] = useState<app.EditPreview | null>(null);
     const [busy, setBusy] = useState(false);
@@ -73,6 +78,16 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
             .catch(() => { if (!cancelled) setThumb(''); });
         return () => { cancelled = true; };
     }, [gameId, mod.ID, reload]);
+
+    useEffect(() => {
+        if (!thumb) { setThumbDims(null); return; }
+        let cancelled = false;
+        const img = new Image();
+        img.onload = () => { if (!cancelled) setThumbDims({width: img.naturalWidth, height: img.naturalHeight}); };
+        img.onerror = () => { if (!cancelled) setThumbDims(null); };
+        img.src = thumb;
+        return () => { cancelled = true; };
+    }, [thumb]);
 
     // Resolves the chosen picture into a resized preview - both right after it is picked, and
     // again for a draft (with a picture already chosen) restored by switching back to this mod.
@@ -287,7 +302,7 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
                         <div className="editor-version-bump">
                             <div className="editor-version-bump-head">
                                 <span className="editor-version-bump-title">Version bump</span>
-                                <span className="chip chip-new">NEW</span>
+                                <span className="editor-version-bump-new">NEW</span>
                             </div>
                             <div className="editor-version-bump-pills">
                                 {BUMP_KINDS.map((kind) => {
@@ -317,7 +332,7 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
                             {compat && compat.known && (
                                 <span className={`editor-hint ${compat.compatible ? 'good' : 'warn'}`}>
                                     {compat.compatible
-                                        ? `Matches the installed game (${displayVersion(gameVersion)}).`
+                                        ? `Matches installed ${displayVersion(gameVersion)}.`
                                         : `Built for another version than the installed ${displayVersion(gameVersion)}.`}
                                 </span>
                             )}
@@ -333,7 +348,7 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
                         <ChipList id="editor-tags" items={draft.tags} onChange={(tags) => change({tags})} disabled={readOnly} placeholder="Gameplay, Graphics, Fixes..."/>
                     </div>
                     <div className="editor-field">
-                        <span className="editor-label">Needs these mods (by name)</span>
+                        <span className="editor-label">Dependencies</span>
                         <ChipList
                             id="editor-deps"
                             items={draft.dependencies}
@@ -344,9 +359,14 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
                             flagged={unknownDeps}
                             flagTitle="No installed mod has this name"
                         />
+                        {unknownDeps.size > 0 && (
+                            <span className="editor-hint warn">
+                                No installed mod is named {Array.from(unknownDeps).map((d) => `"${d}"`).join(', ')}.
+                            </span>
+                        )}
                     </div>
                     <div className="editor-field">
-                        <span className="editor-label">Replaces these folders of the game and other mods</span>
+                        <span className="editor-label">Replace paths</span>
                         <ChipList id="editor-replace" items={draft.replacePaths} onChange={(replacePaths) => change({replacePaths})} disabled={readOnly} mono placeholder="common/buildings"/>
                     </div>
                 </div>
@@ -403,10 +423,12 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
                         <div className="editor-file">
                             <div className="editor-file-head">
                                 <span className="mono">thumbnail.png</span>
-                                <span className="editor-file-tag">{thumb ? 'replaced' : 'new file'}</span>
+                                <span className={`editor-file-tag ${thumb ? 'changed' : ''}`}>{thumb ? 'changed' : 'new'}</span>
+                                <span className="editor-file-count mono"/>
+                                <span className="editor-file-chevron">&#9656;</span>
                             </div>
                             <div className="editor-file-note">
-                                {newThumb.Width} x {newThumb.Height}, {formatBytes(newThumb.Bytes)}.
+                                {newThumb.Width} x {newThumb.Height}{thumbDims ? `, was ${thumbDims.width} x ${thumbDims.height}` : ''}.
                             </div>
                         </div>
                     )}
@@ -445,16 +467,27 @@ export function FileChange({file}: {file: app.EditPreviewFile}) {
     const name = file.Path.split(/[\\/]/).pop() ?? file.Path;
     const diff = useMemo(() => (file.Changed ? diffText(file.Before, file.After) : null), [file.Before, file.After, file.Changed]);
     const what = file.Kind === 'stub' ? 'the file the game reads' : "in the mod's folder";
+    // Each row starts open - the mockup shows a mix of open/collapsed rows, but that is one
+    // static screenshot's own illustrative variety, not a "collapse every row but the first"
+    // rule worth hard-coding; a real diff is exactly what "what will change" is here for.
+    const [open, setOpen] = useState(true);
     return (
         <div className="editor-file">
-            <div className="editor-file-head">
+            <div className="editor-file-head" onClick={diff ? () => setOpen((o) => !o) : undefined} style={{cursor: diff ? 'pointer' : undefined}}>
                 <span className="mono">{name}</span>
                 <span className="editor-file-what">{what}</span>
-                {file.Create && <span className="editor-file-tag">new file</span>}
+                {file.Create && <span className="editor-file-tag">new</span>}
+                {!file.Create && file.Changed && <span className="editor-file-tag changed">changed</span>}
                 {!file.Changed && <span className="editor-file-tag same">unchanged</span>}
-                {diff && <span className="editor-file-count mono"><span className="add">+{diff.added}</span> <span className="del">-{diff.removed}</span></span>}
+                {diff && (
+                    <span className="editor-file-count mono">
+                        <span className="add">+{diff.added}</span>
+                        {diff.removed > 0 && <span className="del">-{diff.removed}</span>}
+                    </span>
+                )}
+                {diff && <span className="editor-file-chevron">{open ? '▾' : '▸'}</span>}
             </div>
-            {diff && (
+            {diff && open && (
                 <pre className="editor-diff">
                     {diff.rows.map((row, i) => (
                         <div key={i} className={`editor-diff-row ${row.kind}`}>

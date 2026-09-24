@@ -289,7 +289,7 @@
 }
 
 .template-tile-check {
-    font-size: 10px;
+    font: 700 10px Barlow, sans-serif;
     color: var(--rust);
 }
 
@@ -514,6 +514,16 @@
     color: var(--text-bright);
 }
 
+/* A small "this is new" flag, distinct from (and much smaller than) the .chip family - the
+   version-bump card's own single use, not shared with anything a .chip modifier already covers. */
+.editor-version-bump-new {
+    font: 500 9px "Azeret Mono", monospace;
+    color: var(--blue);
+    border: 1px solid var(--blue);
+    border-radius: 3px;
+    padding: 1px 5px;
+}
+
 .editor-version-bump-pills {
     display: flex;
     gap: 6px;
@@ -643,7 +653,7 @@
 }
 
 .editor-file-what {
-    color: var(--text-dim);
+    color: var(--text-muted);
     font: 400 11px Barlow, sans-serif;
 }
 
@@ -654,13 +664,18 @@
     text-transform: uppercase;
 }
 
+.editor-file-tag.changed {
+    color: var(--amber);
+}
+
 .editor-file-tag.same {
-    color: var(--text-dim);
+    color: var(--text-muted);
 }
 
 .editor-file-count {
     margin-left: auto;
-    font-size: 10.5px;
+    font: 500 10.5px "Azeret Mono", monospace;
+    white-space: nowrap;
 }
 
 .editor-file-count .add {
@@ -669,6 +684,12 @@
 
 .editor-file-count .del {
     color: var(--red);
+}
+
+.editor-file-chevron {
+    font: 500 10px Barlow, sans-serif;
+    color: var(--text-muted);
+    flex: none;
 }
 
 .editor-file-note {
