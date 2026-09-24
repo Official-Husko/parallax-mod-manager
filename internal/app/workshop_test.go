@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/Official-Husko/parallax-mod-manager/internal/game"
@@ -21,6 +22,10 @@ type fakePublisher struct {
 	result        workshop.PublishResult
 	err           error
 	progressCalls []workshop.PublishProgress
+
+	gotIdentityReq workshop.IdentityRequest
+	identityResult workshop.IdentityResult
+	identityErr    error
 }
 
 func (f *fakePublisher) Publish(_ context.Context, req workshop.PublishRequest, onProgress func(workshop.PublishProgress)) (workshop.PublishResult, error) {
@@ -31,6 +36,11 @@ func (f *fakePublisher) Publish(_ context.Context, req workshop.PublishRequest, 
 		f.progressCalls = append(f.progressCalls, p)
 	}
 	return f.result, f.err
+}
+
+func (f *fakePublisher) Identity(_ context.Context, req workshop.IdentityRequest) (workshop.IdentityResult, error) {
+	f.gotIdentityReq = req
+	return f.identityResult, f.identityErr
 }
 
 const testModName = "My Mod"
@@ -148,7 +158,7 @@ func TestSteamLibraryPathFailsCleanlyWhenTheLibraryIsMissing(t *testing.T) {
 
 func TestPublishModToWorkshopRejectsAnUnknownGame(t *testing.T) {
 	a, modID := newWorkshopTestApp(t, "")
-	_, err := a.PublishModToWorkshop("no-such-game", modID, WorkshopPublishRequest{})
+	_, err := a.PublishModToWorkshop("no-such-game", modID, "req-test", WorkshopPublishRequest{})
 	if err == nil {
 		t.Fatal("want an error for an unknown game id")
 	}
@@ -156,7 +166,7 @@ func TestPublishModToWorkshopRejectsAnUnknownGame(t *testing.T) {
 
 func TestPublishModToWorkshopFailsWhenInstallCannotBeFound(t *testing.T) {
 	a, modID := newWorkshopTestApp(t, "") // no override, and DetectInstall will find nothing real on the test machine
-	_, err := a.PublishModToWorkshop(game.Stellaris.ID, modID, WorkshopPublishRequest{})
+	_, err := a.PublishModToWorkshop(game.Stellaris.ID, modID, "req-test", WorkshopPublishRequest{})
 	if err == nil {
 		t.Fatal("want an error when the game's install cannot be resolved")
 	}
@@ -165,7 +175,7 @@ func TestPublishModToWorkshopFailsWhenInstallCannotBeFound(t *testing.T) {
 func TestPublishModToWorkshopFailsWhenTheInstallHasNoSteamworksLibrary(t *testing.T) {
 	dir := newStellarisInstallDir(t, false) // valid install, but no library file
 	a, modID := newWorkshopTestApp(t, dir)
-	_, err := a.PublishModToWorkshop(game.Stellaris.ID, modID, WorkshopPublishRequest{})
+	_, err := a.PublishModToWorkshop(game.Stellaris.ID, modID, "req-test", WorkshopPublishRequest{})
 	if err == nil {
 		t.Fatal("want an error when the install has no Steamworks library")
 	}
@@ -176,7 +186,7 @@ func TestPublishModToWorkshopFailsWhenTheModCannotBeFound(t *testing.T) {
 	a, _ := newWorkshopTestApp(t, dir)
 	a.workshopPublisher = &fakePublisher{}
 
-	_, err := a.PublishModToWorkshop(game.Stellaris.ID, "no-such-mod", WorkshopPublishRequest{})
+	_, err := a.PublishModToWorkshop(game.Stellaris.ID, "no-such-mod", "req-test", WorkshopPublishRequest{})
 	if err == nil {
 		t.Fatal("want an error when the mod itself cannot be found")
 	}
@@ -188,7 +198,7 @@ func TestPublishModToWorkshopPassesTheResolvedAppIDLibraryAndContentPathToThePub
 	fake := &fakePublisher{result: workshop.PublishResult{PublishedFileID: 12345}}
 	a.workshopPublisher = fake
 
-	result, err := a.PublishModToWorkshop(game.Stellaris.ID, modID, WorkshopPublishRequest{
+	result, err := a.PublishModToWorkshop(game.Stellaris.ID, modID, "req-test", WorkshopPublishRequest{
 		Title:      testModName,
 		Visibility: "private",
 	})
@@ -219,7 +229,7 @@ func TestPublishModToWorkshopPassesExcludePathsThroughUnchanged(t *testing.T) {
 	a.workshopPublisher = fake
 
 	req := WorkshopPublishRequest{ExcludePaths: []string{"common/notes.txt", "screenshots"}}
-	if _, err := a.PublishModToWorkshop(game.Stellaris.ID, modID, req); err != nil {
+	if _, err := a.PublishModToWorkshop(game.Stellaris.ID, modID, "req-test", req); err != nil {
 		t.Fatalf("PublishModToWorkshop() error = %v", err)
 	}
 	if len(fake.gotReq.ExcludePaths) != 2 || fake.gotReq.ExcludePaths[0] != "common/notes.txt" || fake.gotReq.ExcludePaths[1] != "screenshots" {
@@ -233,7 +243,7 @@ func TestPublishModToWorkshopParsesAnExistingItemIDFromTheRequest(t *testing.T) 
 	fake := &fakePublisher{result: workshop.PublishResult{PublishedFileID: 555}}
 	a.workshopPublisher = fake
 
-	if _, err := a.PublishModToWorkshop(game.Stellaris.ID, modID, WorkshopPublishRequest{ItemID: "555"}); err != nil {
+	if _, err := a.PublishModToWorkshop(game.Stellaris.ID, modID, "req-test", WorkshopPublishRequest{ItemID: "555"}); err != nil {
 		t.Fatalf("PublishModToWorkshop() error = %v", err)
 	}
 	if fake.gotReq.ItemID != 555 {
@@ -246,7 +256,7 @@ func TestPublishModToWorkshopRejectsANonNumericItemID(t *testing.T) {
 	a, modID := newWorkshopTestApp(t, dir)
 	a.workshopPublisher = &fakePublisher{}
 
-	_, err := a.PublishModToWorkshop(game.Stellaris.ID, modID, WorkshopPublishRequest{ItemID: "not-a-number"})
+	_, err := a.PublishModToWorkshop(game.Stellaris.ID, modID, "req-test", WorkshopPublishRequest{ItemID: "not-a-number"})
 	if err == nil {
 		t.Fatal("want an error for a non-numeric item id")
 	}
@@ -262,7 +272,7 @@ func TestPublishModToWorkshopEmitsProgressEvents(t *testing.T) {
 		gotEvents = append(gotEvents, name)
 	}
 
-	if _, err := a.PublishModToWorkshop(game.Stellaris.ID, modID, WorkshopPublishRequest{}); err != nil {
+	if _, err := a.PublishModToWorkshop(game.Stellaris.ID, modID, "req-test", WorkshopPublishRequest{}); err != nil {
 		t.Fatalf("PublishModToWorkshop() error = %v", err)
 	}
 	found := false
@@ -281,8 +291,115 @@ func TestPublishModToWorkshopPropagatesThePublishersOwnError(t *testing.T) {
 	a, modID := newWorkshopTestApp(t, dir)
 	a.workshopPublisher = &fakePublisher{err: context.DeadlineExceeded}
 
-	_, err := a.PublishModToWorkshop(game.Stellaris.ID, modID, WorkshopPublishRequest{})
+	_, err := a.PublishModToWorkshop(game.Stellaris.ID, modID, "req-test", WorkshopPublishRequest{})
 	if err == nil {
+		t.Fatal("want the fake publisher's own error to propagate")
+	}
+}
+
+func TestCancelPublishStopsARunningPublish(t *testing.T) {
+	dir := newStellarisInstallDir(t, true)
+	a, modID := newWorkshopTestApp(t, dir)
+	fake := &fakePublisher{}
+	fake.err = context.Canceled // simulates what a cancelled context looks like to the caller
+	a.workshopPublisher = fake
+
+	// CancelPublish before the publish call is a plain no-op (nothing to cancel yet).
+	a.CancelPublish("no-such-request")
+
+	_, err := a.PublishModToWorkshop(game.Stellaris.ID, modID, "req-cancel", WorkshopPublishRequest{})
+	if err == nil {
+		t.Fatal("want an error when the publisher itself fails")
+	}
+	// The request is cleaned up after it finishes - cancelling it again is a no-op, not a panic.
+	a.CancelPublish("req-cancel")
+}
+
+func TestSteamAccountInfoRejectsAnUnknownGame(t *testing.T) {
+	a, _ := newWorkshopTestApp(t, "")
+	if _, err := a.SteamAccountInfo("no-such-game"); err == nil {
+		t.Fatal("want an error for an unknown game id")
+	}
+}
+
+func TestSteamAccountInfoFailsWhenInstallCannotBeFound(t *testing.T) {
+	a, _ := newWorkshopTestApp(t, "")
+	if _, err := a.SteamAccountInfo(game.Stellaris.ID); err == nil {
+		t.Fatal("want an error when the game's install cannot be resolved")
+	}
+}
+
+func TestSteamAccountInfoReturnsThePublishersOwnPersonaName(t *testing.T) {
+	dir := newStellarisInstallDir(t, true)
+	a, _ := newWorkshopTestApp(t, dir)
+	fake := &fakePublisher{identityResult: workshop.IdentityResult{PersonaName: "Kestrel_Admiral"}}
+	a.workshopPublisher = fake
+
+	info, err := a.SteamAccountInfo(game.Stellaris.ID)
+	if err != nil {
+		t.Fatalf("SteamAccountInfo() error = %v", err)
+	}
+	if info.PersonaName != "Kestrel_Admiral" {
+		t.Errorf("PersonaName = %q, want %q", info.PersonaName, "Kestrel_Admiral")
+	}
+	if fake.gotIdentityReq.AppID != 281990 {
+		t.Errorf("Publisher got AppID %d, want 281990", fake.gotIdentityReq.AppID)
+	}
+	if fake.gotIdentityReq.LibraryPath != filepath.Join(dir, realLibraryName()) {
+		t.Errorf("Publisher got LibraryPath %q, want the resolved install dir's own library", fake.gotIdentityReq.LibraryPath)
+	}
+}
+
+func TestPreviewModFileReturnsAResizedPreviewForARealPicture(t *testing.T) {
+	a, modID := newWorkshopTestApp(t, "")
+	contentFolder, err := library.ModFolderPath(a.baseContext(), game.Stellaris, library.Options{ExtraFolders: a.extraModFolders(game.Stellaris.ID)}, modID)
+	if err != nil {
+		t.Fatalf("ModFolderPath: %v", err)
+	}
+	writePNG(t, filepath.Join(contentFolder, "thumbnail.png"), 800, 600)
+
+	preview, err := a.PreviewModFile(game.Stellaris.ID, modID, "thumbnail.png")
+	if err != nil {
+		t.Fatalf("PreviewModFile() error = %v", err)
+	}
+	if preview.Kind != "image" {
+		t.Errorf("Kind = %q, want %q", preview.Kind, "image")
+	}
+	if preview.Width == 0 || preview.Height == 0 {
+		t.Errorf("Width/Height = %d/%d, want real positive numbers", preview.Width, preview.Height)
+	}
+	if !strings.HasPrefix(preview.DataURI, "data:image/png;base64,") {
+		t.Errorf("DataURI = %q, want a data:image/png;base64, prefix", preview.DataURI[:min(40, len(preview.DataURI))])
+	}
+}
+
+func TestPreviewModFileReturnsNoneForANonPictureFile(t *testing.T) {
+	a, modID := newWorkshopTestApp(t, "")
+	preview, err := a.PreviewModFile(game.Stellaris.ID, modID, "common/a.txt")
+	if err != nil {
+		t.Fatalf("PreviewModFile() error = %v", err)
+	}
+	if preview.Kind != "none" {
+		t.Errorf("Kind = %q, want %q for a non-picture file", preview.Kind, "none")
+	}
+	if preview.DataURI != "" {
+		t.Errorf("DataURI = %q, want empty for a non-picture file", preview.DataURI)
+	}
+}
+
+func TestPreviewModFileRefusesAPathOutsideTheModsOwnFolder(t *testing.T) {
+	a, modID := newWorkshopTestApp(t, "")
+	if _, err := a.PreviewModFile(game.Stellaris.ID, modID, "../../etc/passwd.png"); err == nil {
+		t.Fatal("want an error for a path that escapes the mod's own folder")
+	}
+}
+
+func TestSteamAccountInfoPropagatesThePublishersOwnError(t *testing.T) {
+	dir := newStellarisInstallDir(t, true)
+	a, _ := newWorkshopTestApp(t, dir)
+	a.workshopPublisher = &fakePublisher{identityErr: context.DeadlineExceeded}
+
+	if _, err := a.SteamAccountInfo(game.Stellaris.ID); err == nil {
 		t.Fatal("want the fake publisher's own error to propagate")
 	}
 }

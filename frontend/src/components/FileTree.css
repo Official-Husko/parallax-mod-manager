@@ -38,6 +38,19 @@
     text-decoration: line-through;
 }
 
+.file-row.selectable {
+    cursor: pointer;
+}
+
+.file-row.selectable:hover {
+    background: var(--bg-highlight);
+}
+
+.file-row.selected {
+    background: var(--bg-highlight);
+    box-shadow: inset 2px 0 0 var(--rust);
+}
+
 .file-row-check {
     flex: none;
     width: 12px;

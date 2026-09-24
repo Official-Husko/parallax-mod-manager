@@ -303,14 +303,20 @@ for security, privacy, reliability or performance is called out (see the last tw
 - **Publish a mod straight to the Steam Workshop** - the Publish tab: upload as a brand new item, or
   push an update to one the mod already has (decided automatically, not asked). Talks to this
   computer's own already-running Steam client the way the game itself would, through an isolated
-  companion process - never Steam's own launcher or SteamCMD. Title, description and tags come from
+  companion process - never Steam's own launcher or SteamCMD. Shows who is actually signed in
+  (name and a colored avatar) rather than just a generic note. Title, description and tags come from
   the mod's own metadata; you only type a change note and pick a visibility (private by default).
-  Every real step streams into a live upload log as it happens.
+  Every real step streams into a live upload log as it happens, alongside a real byte/percent
+  progress bar, and an existing item's row links straight to its own Workshop page.
 - **Leave specific files out of a Workshop upload** - the Publish tab's own file tree: untick a
   file or a whole folder to keep it off Steam entirely (unticking a folder does the same to
   everything inside it) - it stays on your computer either way, nothing is deleted or moved. A
   temporary copy of the mod, minus whatever you excluded, is what actually gets uploaded; your own
-  real mod folder is never touched.
+  real mod folder is never touched. Folders show their own real total size, and clicking a picture
+  file previews it right there.
+- **Cancel a running Workshop upload** - Steam has no clean way to stop mid-upload, so this kills the
+  publish outright; a warning before it happens says a cancelled item may be left partially updated,
+  so you can check its Workshop page afterward if you're unsure.
 - **Auto-translate a mod's own English text** - the Translate tab: pick DeepL's own official API
   (needs a key of your own - see Settings > Tools), or either of two free, unofficial DeepL-powered
   services (Translanova, Vust), then a target language (or "All languages" for every one at once) and
@@ -369,9 +375,12 @@ for security, privacy, reliability or performance is called out (see the last tw
   with the app if that fails). The About page itself makes no network requests.
 - **Publishing never signs you into anything, and never launches the real game** - it uses whichever
   Steam account is already logged into your own, already-running Steam client (the same one the
-  game itself would use), so this app never sees or asks for a Steam password. A published item
-  defaults to **private** unless you choose otherwise, and a file you untick in the Publish tab's
-  file picker never leaves your computer at all - it is never included in what gets uploaded.
+  game itself would use), so this app never sees or asks for a Steam password. The Publish tab's own
+  account row only reads your already-signed-in display name for the same reason it already shows
+  the item id or change note - never a password, a token, or anything that could sign into anything.
+  A published item defaults to **private** unless you choose otherwise, and a file you untick in the
+  Publish tab's file picker never leaves your computer at all - it is never included in what gets
+  uploaded.
 - **Mod edits stay inside the mod's own folders** - the Editor only ever writes inside a mod's own folder and
   the game's mod folder; earlier versions it keeps for Undo live in the settings folder, and what you typed
   into a field is never written to the activity log. Duplicating a mod (including a Steam Workshop one) only

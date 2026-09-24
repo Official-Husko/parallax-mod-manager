@@ -40,6 +40,18 @@ func TestResolveVersionReportsNotFoundWhenNothingResolves(t *testing.T) {
 	}
 }
 
+func TestResolveVersionPicksTheConfirmedFriendsAccessor(t *testing.T) {
+	// Regression case for the one real, confirmed data point steamFriendsVersions is built on:
+	// nm -D against Stellaris' own bundled libsteam_api.so exports exactly this symbol.
+	present := map[string]bool{"SteamAPI_SteamFriends_v017": true}
+	resolves := func(name string) bool { return present[name] }
+
+	got, ok := resolveVersion(steamFriendsVersions, resolves)
+	if !ok || got != "SteamAPI_SteamFriends_v017" {
+		t.Errorf("resolveVersion(%v) = %q, %v, want SteamAPI_SteamFriends_v017, true", steamFriendsVersions, got, ok)
+	}
+}
+
 func TestResolveVersionNeverProbesPastTheFirstHit(t *testing.T) {
 	probed := map[string]int{}
 	resolves := func(name string) bool {

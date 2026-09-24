@@ -88,6 +88,7 @@ func stageExcluding(ctx context.Context, contentFolder, workDir string, excludeP
 // two separate Go modules (the same reason internal/launchershim mirrors
 // companions/launcher-shim's own status type rather than importing it).
 type helperRequest struct {
+	Mode          string `json:"mode,omitempty"`
 	LibraryPath   string `json:"libraryPath"`
 	WorkDir       string `json:"workDir"`
 	AppID         uint32 `json:"appId"`
@@ -107,6 +108,7 @@ type helperEvent struct {
 	Processed       uint64 `json:"processed,omitempty"`
 	Total           uint64 `json:"total,omitempty"`
 	PublishedFileID uint64 `json:"publishedFileId,omitempty"`
+	PersonaName     string `json:"personaName,omitempty"`
 }
 
 // HelperPublisher is the real Publisher, driving a real
@@ -197,6 +199,74 @@ func (h HelperPublisher) Publish(ctx context.Context, req PublishRequest, onProg
 		return PublishResult{}, fmt.Errorf("workshop: the helper exited with an error: %w", waitErr)
 	}
 	return result, nil
+}
+
+// Identity starts the helper in "identity" mode - no item is created or
+// touched, and no local staging happens (there is no content to stage) - and
+// returns whatever persona name its final "done" event reports.
+func (h HelperPublisher) Identity(ctx context.Context, req IdentityRequest) (IdentityResult, error) {
+	binPath, err := h.binaryPath()
+	if err != nil {
+		return IdentityResult{}, err
+	}
+	if _, err := os.Stat(binPath); err != nil {
+		return IdentityResult{}, fmt.Errorf("workshop: helper binary not found at %s (has it been installed with this build?): %w", binPath, err)
+	}
+
+	workDir, err := workDirFor(req.AppID)
+	if err != nil {
+		return IdentityResult{}, err
+	}
+
+	payload, err := json.Marshal(helperRequest{Mode: "identity", LibraryPath: req.LibraryPath, WorkDir: workDir, AppID: req.AppID})
+	if err != nil {
+		return IdentityResult{}, fmt.Errorf("workshop: encoding the helper request: %w", err)
+	}
+
+	cmd := exec.CommandContext(ctx, binPath)
+	cmd.Stdin = bytes.NewReader(payload)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return IdentityResult{}, fmt.Errorf("workshop: opening the helper's stdout: %w", err)
+	}
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	if err := cmd.Start(); err != nil {
+		return IdentityResult{}, fmt.Errorf("workshop: starting the helper: %w", err)
+	}
+
+	var personaName string
+	var decodeErr error
+	scanner := bufio.NewScanner(stdout)
+	for scanner.Scan() {
+		line := bytes.TrimSpace(scanner.Bytes())
+		if len(line) == 0 {
+			continue
+		}
+		var e helperEvent
+		if err := json.Unmarshal(line, &e); err != nil {
+			continue
+		}
+		switch e.Stage {
+		case "done":
+			personaName = e.PersonaName
+		case "error":
+			decodeErr = errors.New(e.Message)
+		}
+	}
+	waitErr := cmd.Wait()
+
+	if decodeErr != nil {
+		return IdentityResult{}, fmt.Errorf("workshop: %w", decodeErr)
+	}
+	if waitErr != nil {
+		if msg := strings.TrimSpace(stderr.String()); msg != "" {
+			return IdentityResult{}, fmt.Errorf("workshop: the helper exited with an error: %s", msg)
+		}
+		return IdentityResult{}, fmt.Errorf("workshop: the helper exited with an error: %w", waitErr)
+	}
+	return IdentityResult{PersonaName: personaName}, nil
 }
 
 // errNoFinalEvent is decodeEvents' own error for a helper that exits

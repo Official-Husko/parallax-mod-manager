@@ -32,6 +32,7 @@ var requiredSymbols = []string{
 	"SteamAPI_ISteamUGC_SetItemPreview",
 	"SteamAPI_ISteamUGC_SubmitItemUpdate",
 	"SteamAPI_ISteamUGC_GetItemUpdateProgress",
+	"SteamAPI_ISteamFriends_GetPersonaName",
 }
 
 // Client is a single open handle to a real, on-disk libsteam_api.so/
@@ -40,9 +41,10 @@ var requiredSymbols = []string{
 // gets loaded, and nothing here is left around for a second, unrelated call
 // to accidentally reuse.
 type Client struct {
-	handle uintptr
-	utils  uintptr // ISteamUtils* - only valid once Init has succeeded
-	ugc    uintptr // ISteamUGC* - only valid once Init has succeeded
+	handle  uintptr
+	utils   uintptr // ISteamUtils* - only valid once Init has succeeded
+	ugc     uintptr // ISteamUGC* - only valid once Init has succeeded
+	friends uintptr // ISteamFriends* - only valid once Init has succeeded
 
 	fn steamFuncs
 }
@@ -55,12 +57,14 @@ type steamFuncs struct {
 	shutdown     func()
 	runCallbacks func()
 
-	getUtils func() uintptr
-	getUGC   func() uintptr
+	getUtils   func() uintptr
+	getUGC     func() uintptr
+	getFriends func() uintptr
 
 	getAppID           func(self uintptr) uint32
 	isAPICallCompleted func(self uintptr, call uint64, pbFailed *bool) bool
 	getAPICallResult   func(self uintptr, call uint64, pCallback unsafe.Pointer, cubCallback int32, iCallbackExpected int32, pbFailed *bool) bool
+	getPersonaName     func(self uintptr) string
 
 	createItem            func(self uintptr, appID uint32, fileType int32) uint64
 	startItemUpdate       func(self uintptr, appID uint32, itemID uint64) uint64
@@ -97,6 +101,10 @@ func Open(libPath string) (*Client, error) {
 	if !ok {
 		return nil, fmt.Errorf("steamworks: %s exports no known ISteamUGC accessor (tried %v)", libPath, steamUGCVersions)
 	}
+	friendsAccessor, ok := resolveVersion(steamFriendsVersions, resolves)
+	if !ok {
+		return nil, fmt.Errorf("steamworks: %s exports no known ISteamFriends accessor (tried %v)", libPath, steamFriendsVersions)
+	}
 	for _, name := range requiredSymbols {
 		if !resolves(name) {
 			return nil, fmt.Errorf("steamworks: %s is missing required symbol %s", libPath, name)
@@ -109,6 +117,7 @@ func Open(libPath string) (*Client, error) {
 	purego.RegisterLibFunc(&c.fn.runCallbacks, handle, "SteamAPI_RunCallbacks")
 	purego.RegisterLibFunc(&c.fn.getUtils, handle, utilsAccessor)
 	purego.RegisterLibFunc(&c.fn.getUGC, handle, ugcAccessor)
+	purego.RegisterLibFunc(&c.fn.getFriends, handle, friendsAccessor)
 	purego.RegisterLibFunc(&c.fn.getAppID, handle, "SteamAPI_ISteamUtils_GetAppID")
 	purego.RegisterLibFunc(&c.fn.isAPICallCompleted, handle, "SteamAPI_ISteamUtils_IsAPICallCompleted")
 	purego.RegisterLibFunc(&c.fn.getAPICallResult, handle, "SteamAPI_ISteamUtils_GetAPICallResult")
@@ -121,6 +130,7 @@ func Open(libPath string) (*Client, error) {
 	purego.RegisterLibFunc(&c.fn.setItemPreview, handle, "SteamAPI_ISteamUGC_SetItemPreview")
 	purego.RegisterLibFunc(&c.fn.submitItemUpdate, handle, "SteamAPI_ISteamUGC_SubmitItemUpdate")
 	purego.RegisterLibFunc(&c.fn.getItemUpdateProgress, handle, "SteamAPI_ISteamUGC_GetItemUpdateProgress")
+	purego.RegisterLibFunc(&c.fn.getPersonaName, handle, "SteamAPI_ISteamFriends_GetPersonaName")
 
 	return c, nil
 }
@@ -138,6 +148,7 @@ func (c *Client) Init() (ok bool) {
 	}
 	c.utils = c.fn.getUtils()
 	c.ugc = c.fn.getUGC()
+	c.friends = c.fn.getFriends()
 	return true
 }
 
@@ -151,6 +162,13 @@ func (c *Client) Shutdown() {
 // effect, expected to equal whichever AppID it named.
 func (c *Client) AppID() uint32 {
 	return c.fn.getAppID(c.utils)
+}
+
+// PersonaName returns the display name of whichever Steam account is
+// currently signed into the local client - purely informational, never used
+// to decide anything about the publish itself.
+func (c *Client) PersonaName() string {
+	return c.fn.getPersonaName(c.friends)
 }
 
 // CreateItemAndWait creates a new, empty Workshop item for appID and blocks

@@ -62,6 +62,10 @@ export function CancelLoversLabInstall(arg1) {
   return window['go']['main']['App']['CancelLoversLabInstall'](arg1);
 }
 
+export function CancelPublish(arg1) {
+  return window['go']['main']['App']['CancelPublish'](arg1);
+}
+
 export function CancelTranslate(arg1) {
   return window['go']['main']['App']['CancelTranslate'](arg1);
 }
@@ -350,6 +354,10 @@ export function PreviewModEdit(arg1, arg2, arg3) {
   return window['go']['main']['App']['PreviewModEdit'](arg1, arg2, arg3);
 }
 
+export function PreviewModFile(arg1, arg2, arg3) {
+  return window['go']['main']['App']['PreviewModFile'](arg1, arg2, arg3);
+}
+
 export function PreviewNewMod(arg1, arg2) {
   return window['go']['main']['App']['PreviewNewMod'](arg1, arg2);
 }
@@ -362,8 +370,8 @@ export function PriorityRuleOverrides(arg1) {
   return window['go']['main']['App']['PriorityRuleOverrides'](arg1);
 }
 
-export function PublishModToWorkshop(arg1, arg2, arg3) {
-  return window['go']['main']['App']['PublishModToWorkshop'](arg1, arg2, arg3);
+export function PublishModToWorkshop(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['PublishModToWorkshop'](arg1, arg2, arg3, arg4);
 }
 
 export function PurgeMods(arg1, arg2) {
@@ -488,6 +496,10 @@ export function StartupNotice() {
 
 export function SteamAPIStatus() {
   return window['go']['main']['App']['SteamAPIStatus']();
+}
+
+export function SteamAccountInfo(arg1) {
+  return window['go']['main']['App']['SteamAccountInfo'](arg1);
 }
 
 export function StopGame(arg1) {

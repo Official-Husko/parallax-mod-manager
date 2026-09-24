@@ -38,6 +38,18 @@ var steamUGCVersions = []string{
 	"SteamAPI_SteamUGC_v014",
 }
 
+// steamFriendsVersions: v017 is confirmed firsthand (nm -D against Stellaris'
+// own bundled libsteam_api.so on a real Linux install exports exactly
+// SteamAPI_SteamFriends_v017); the others are the same defensive
+// newest/oldest bracket steamUtilsVersions/steamUGCVersions already keep,
+// never confirmed against a real library the way v017 is.
+var steamFriendsVersions = []string{
+	"SteamAPI_SteamFriends_v018",
+	"SteamAPI_SteamFriends_v017",
+	"SteamAPI_SteamFriends_v016",
+	"SteamAPI_SteamFriends_v015",
+}
+
 // resolveVersion returns the first name in candidates (newest first) that
 // resolves reports present, given resolves - a thin seam so this probing
 // logic is unit-testable without a real library ever being loaded (see

@@ -13,12 +13,13 @@ import (
 // pre-loaded, so publish's own orchestration (not steamworks itself) is what
 // gets exercised here.
 type fakeClient struct {
-	initOK    bool
-	appID     uint32
-	created   steamworks.CreateItemResult
-	createErr error
-	submitted steamworks.SubmitItemUpdateResult
-	submitErr error
+	initOK      bool
+	appID       uint32
+	personaName string
+	created     steamworks.CreateItemResult
+	createErr   error
+	submitted   steamworks.SubmitItemUpdateResult
+	submitErr   error
 
 	shutdownCalled bool
 	startedHandle  uint64
@@ -30,9 +31,10 @@ type fakeClient struct {
 	progressCalls  int
 }
 
-func (f *fakeClient) Init() bool    { return f.initOK }
-func (f *fakeClient) Shutdown()     { f.shutdownCalled = true }
-func (f *fakeClient) AppID() uint32 { return f.appID }
+func (f *fakeClient) Init() bool          { return f.initOK }
+func (f *fakeClient) Shutdown()           { f.shutdownCalled = true }
+func (f *fakeClient) AppID() uint32       { return f.appID }
+func (f *fakeClient) PersonaName() string { return f.personaName }
 func (f *fakeClient) CreateItemAndWait(uint32, steamworks.FileType, time.Duration) (steamworks.CreateItemResult, error) {
 	return f.created, f.createErr
 }

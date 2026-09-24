@@ -17,6 +17,11 @@ package main
 // separate Go modules (the same reason companions/launcher-shim's own status
 // type is mirrored by internal/launchershim rather than imported).
 type Request struct {
+	// Mode is "" (or "publish") for the ordinary create-or-update flow, or
+	// "identity" to only report who is currently signed into the local
+	// Steam client (see identity.go) - no item is created or touched
+	// either way for "identity".
+	Mode string `json:"mode,omitempty"`
 	// LibraryPath is the target game's own real libsteam_api.so/
 	// steam_api64.dll, already resolved by the caller from that game's own
 	// install directory - never guessed or searched for here.
@@ -64,4 +69,7 @@ type Event struct {
 	// PublishedFileID is set from "created" onward, and again, unchanged,
 	// on the final "done" event.
 	PublishedFileID uint64 `json:"publishedFileId,omitempty"`
+	// PersonaName is set on the final "done" event of an "identity" mode
+	// request - the signed-in Steam user's own display name.
+	PersonaName string `json:"personaName,omitempty"`
 }

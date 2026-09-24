@@ -953,6 +953,60 @@
     color: var(--text-muted);
 }
 
+/* --- Publish: account row, and the file picker's own preview pane --- */
+
+.publish-account-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.publish-account-name {
+    font: 600 13px Barlow, sans-serif;
+    color: var(--text-bright);
+}
+
+.publish-file-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+    gap: 10px;
+}
+
+.publish-file-picker {
+    max-height: 260px;
+}
+
+.publish-file-preview {
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+.publish-file-preview-img {
+    max-width: 100%;
+    max-height: 160px;
+    border-radius: 4px;
+    object-fit: contain;
+}
+
+.publish-file-preview-none {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    border-radius: 4px;
+    background: repeating-linear-gradient(115deg, #1b2330 0 9px, #19202c 9px 18px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-dim);
+    font-size: 22px;
+}
+
 /* --- Publish: the file picker and the upload log --- */
 
 /* Caps how tall the tree gets before it scrolls - the same reason

@@ -1,6 +1,8 @@
 package app
 
 import (
+	"context"
+	"encoding/base64"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/Official-Husko/parallax-mod-manager/internal/library"
+	"github.com/Official-Husko/parallax-mod-manager/internal/modedit"
 	"github.com/Official-Husko/parallax-mod-manager/internal/workshop"
 )
 
@@ -77,7 +80,10 @@ func (a *App) workshopPublisherOrDefault() workshop.Publisher {
 // confirmed limits. Progress streams to the frontend as
 // "workshop-publish-progress" events (gameID, WorkshopPublishProgress) while
 // this call is in flight; the return value is only the final outcome.
-func (a *App) PublishModToWorkshop(gameID, modID string, req WorkshopPublishRequest) (WorkshopPublishResult, error) {
+// requestID (any string the caller makes up per attempt) tags this run so
+// CancelPublish can stop it - see that function's own doc comment for
+// exactly what "cancel" can and can't mean here.
+func (a *App) PublishModToWorkshop(gameID, modID, requestID string, req WorkshopPublishRequest) (WorkshopPublishResult, error) {
 	cfg, ok := a.registry.Get(gameID)
 	if !ok {
 		return WorkshopPublishResult{}, fmt.Errorf("unknown game %q", gameID)
@@ -125,7 +131,21 @@ func (a *App) PublishModToWorkshop(gameID, modID string, req WorkshopPublishRequ
 		ExcludePaths:  req.ExcludePaths,
 	}
 
-	result, err := a.workshopPublisherOrDefault().Publish(a.baseContext(), pubReq, func(p workshop.PublishProgress) {
+	ctx, cancel := context.WithCancel(a.baseContext())
+	a.workshopMu.Lock()
+	if a.workshopCancel == nil {
+		a.workshopCancel = map[string]context.CancelFunc{}
+	}
+	a.workshopCancel[requestID] = cancel
+	a.workshopMu.Unlock()
+	defer func() {
+		a.workshopMu.Lock()
+		delete(a.workshopCancel, requestID)
+		a.workshopMu.Unlock()
+		cancel()
+	}()
+
+	result, err := a.workshopPublisherOrDefault().Publish(ctx, pubReq, func(p workshop.PublishProgress) {
 		a.emit("workshop-publish-progress", gameID, WorkshopPublishProgress{
 			Stage:           p.Stage,
 			Message:         p.Message,
@@ -135,9 +155,114 @@ func (a *App) PublishModToWorkshop(gameID, modID string, req WorkshopPublishRequ
 		})
 	})
 	if err != nil {
+		if ctx.Err() != nil {
+			return WorkshopPublishResult{}, fmt.Errorf("publishing was cancelled - Steam may have been left with a partially updated item; check its Workshop page")
+		}
 		return WorkshopPublishResult{}, err
 	}
 	return WorkshopPublishResult{PublishedFileID: formatFileID(result.PublishedFileID)}, nil
+}
+
+// CancelPublish stops the PublishModToWorkshop call tagged with requestID, if it is still
+// running - a no-op otherwise (it may already be finished). Steamworks' own flat API exposes no
+// real "abort upload" call, so this only ever kills the companion process itself (the context
+// cancellation reaches its exec.CommandContext, in internal/workshop) - never a clean mid-upload
+// stop. Cancelling after the byte upload has actually started can leave the Workshop item
+// partially updated; the frontend warns about this before calling here mid-upload, but this
+// function itself does not gate on which stage is currently in flight.
+func (a *App) CancelPublish(requestID string) {
+	a.workshopMu.Lock()
+	cancel := a.workshopCancel[requestID]
+	a.workshopMu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+}
+
+// SteamAccountInfo is who is currently signed into the local Steam client,
+// for the Publish tab's own STEAM ACCOUNT card.
+type SteamAccountInfo struct {
+	PersonaName string
+}
+
+// SteamAccountInfo asks the local Steam client who is signed in, using
+// gameID's own Steamworks library (any registered game with a real,
+// findable install works equally well here - the signed-in identity is not
+// really per-game, but SteamAPI_Init still needs a real AppID context to
+// succeed at all).
+func (a *App) SteamAccountInfo(gameID string) (SteamAccountInfo, error) {
+	cfg, ok := a.registry.Get(gameID)
+	if !ok {
+		return SteamAccountInfo{}, fmt.Errorf("unknown game %q", gameID)
+	}
+	if cfg.SteamAppID == "" {
+		return SteamAccountInfo{}, fmt.Errorf("%s has no Steam AppID configured", cfg.DisplayName)
+	}
+	appID64, err := strconv.ParseUint(cfg.SteamAppID, 10, 32)
+	if err != nil {
+		return SteamAccountInfo{}, fmt.Errorf("%s's Steam AppID %q is not numeric: %w", cfg.DisplayName, cfg.SteamAppID, err)
+	}
+
+	installDir, ok := a.resolveInstallDir(cfg)
+	if !ok {
+		return SteamAccountInfo{}, fmt.Errorf("%s's install could not be found - set its install path in Settings first", cfg.DisplayName)
+	}
+	libPath, err := steamLibraryPath(installDir)
+	if err != nil {
+		return SteamAccountInfo{}, err
+	}
+
+	result, err := a.workshopPublisherOrDefault().Identity(a.baseContext(), workshop.IdentityRequest{AppID: uint32(appID64), LibraryPath: libPath})
+	if err != nil {
+		return SteamAccountInfo{}, err
+	}
+	return SteamAccountInfo{PersonaName: result.PersonaName}, nil
+}
+
+// FilePreview is a small, resized preview of one file in a mod's own folder - the Publish tab's
+// own file tree wants this for a picture the person might exclude, without opening it in an
+// external viewer. Kind is "image" for a recognized picture (see modedit.HasPictureExtension),
+// "none" for anything else - the frontend shows a generic icon then, never an error, since most
+// files in a real mod are not pictures at all.
+type FilePreview struct {
+	Kind          string
+	DataURI       string
+	Width, Height int
+	Bytes         int64
+}
+
+// PreviewModFile resolves relPath (forward-slashed, relative to modID's own content folder - the
+// same convention library.FileEntry.RelPath/WorkshopPublishRequest.ExcludePaths already use, so
+// the frontend only ever passes back a path it got from ListModFiles, never one it made up) and,
+// for a recognized picture, returns a resized preview via the exact same modedit.PrepareThumbnail
+// path the Edit tab's own thumbnail preview already uses - one image pipeline, not two.
+func (a *App) PreviewModFile(gameID, modID, relPath string) (FilePreview, error) {
+	cfg, ok := a.registry.Get(gameID)
+	if !ok {
+		return FilePreview{}, fmt.Errorf("unknown game %q", gameID)
+	}
+	contentFolder, err := library.ModFolderPath(a.baseContext(), cfg, library.Options{SteamRoots: a.steamRoots, ExtraFolders: a.extraModFolders(gameID)}, modID)
+	if err != nil {
+		return FilePreview{}, fmt.Errorf("finding %s's own content folder: %w", modID, err)
+	}
+	if !modedit.HasPictureExtension(relPath) {
+		return FilePreview{Kind: "none"}, nil
+	}
+
+	full := filepath.Clean(filepath.Join(contentFolder, filepath.FromSlash(relPath)))
+	root := filepath.Clean(contentFolder)
+	if full != root && !strings.HasPrefix(full, root+string(filepath.Separator)) {
+		return FilePreview{}, fmt.Errorf("app: %q is outside the mod's own folder", relPath)
+	}
+
+	th, err := modedit.PrepareThumbnail(full)
+	if err != nil {
+		return FilePreview{}, err
+	}
+	return FilePreview{
+		Kind: "image", DataURI: "data:image/png;base64," + base64.StdEncoding.EncodeToString(th.PNG),
+		Width: th.Width, Height: th.Height, Bytes: int64(len(th.PNG)),
+	}, nil
 }
 
 // formatFileID renders a PublishedFileId as a string, empty for 0 (not yet

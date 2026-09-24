@@ -21,6 +21,7 @@ type steamClient interface {
 	Init() bool
 	Shutdown()
 	AppID() uint32
+	PersonaName() string
 	CreateItemAndWait(appID uint32, fileType steamworks.FileType, timeout time.Duration) (steamworks.CreateItemResult, error)
 	StartItemUpdate(appID uint32, itemID uint64) uint64
 	SetItemTitle(handle uint64, title string) bool
@@ -29,6 +30,25 @@ type steamClient interface {
 	SetItemContent(handle uint64, contentFolder string) bool
 	SetItemPreview(handle uint64, previewFile string) bool
 	SubmitItemUpdateAndWait(handle uint64, changeNote string, timeout time.Duration, onProgress func(status steamworks.UpdateStatus, processed, total uint64)) (steamworks.SubmitItemUpdateResult, error)
+}
+
+// identity answers an "identity"-mode Request: just SteamAPI_Init, read the
+// signed-in user's own persona name, and shut down again - no item is
+// created, updated, or even looked up. Kept as its own small flow rather
+// than a branch inside publish, since the two share only Init/Shutdown/AppID
+// and nothing about items at all.
+func identity(client steamClient, req Request, emit func(Event)) error {
+	emit(Event{Stage: "opening"})
+	if !client.Init() {
+		return fmt.Errorf("SteamAPI_Init failed - is Steam running and logged in, with %s/steam_appid.txt in place?", req.WorkDir)
+	}
+	defer client.Shutdown()
+
+	if gotAppID := client.AppID(); gotAppID != req.AppID {
+		return fmt.Errorf("Steam reports AppID %d, expected %d - steam_appid.txt did not take effect", gotAppID, req.AppID)
+	}
+	emit(Event{Stage: "done", PersonaName: client.PersonaName()})
+	return nil
 }
 
 // visibilityFromString maps Request.Visibility to steamworks.Visibility,

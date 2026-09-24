@@ -161,6 +161,14 @@ type App struct {
 	// and stop it - the same reason duplicateCancel exists.
 	translateMu     sync.Mutex
 	translateCancel map[string]context.CancelFunc
+	// workshopMu guards workshopCancel: the publish/update running for each
+	// PublishModToWorkshop request, so an explicit CancelPublish call (see workshop.go) can
+	// reach and stop it - the same reason duplicateCancel exists. Steamworks' own flat API has
+	// no real "abort" call, so cancelling only ever kills the companion process itself (via the
+	// context already threaded into exec.CommandContext in internal/workshop) - never a clean
+	// mid-upload stop.
+	workshopMu     sync.Mutex
+	workshopCancel map[string]context.CancelFunc
 	// translatorFor resolves a translate.Translator for one of the three
 	// services; resolveTranslator in production, replaced in tests with
 	// one that returns a fake Translator that never makes a real network

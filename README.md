@@ -775,14 +775,27 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   tags come straight from the mod's own existing metadata rather than asking you to retype them.
   A change note and visibility (**private by default**) are the only things you type. Every real
   step - connecting to Steam, creating the item, uploading, Steam's own numeric result on failure
-  - streams into a live upload log as it happens. The same tab's own file tree (built from
-  `internal/library.ListModFiles`, the same one Workspace's file browser uses) lets you untick a
-  file, or a whole folder, to leave it out of the upload entirely - unticking a folder does the
-  same to everything inside it, shown dimmed and struck through rather than hidden, so what's
-  excluded stays a visible choice. Nothing excluded is ever deleted, moved, or even read
-  destructively: `internal/fsutil.CopyTreeExcluding` stages a temporary copy of the mod, missing
-  whatever was unticked, and that copy - never the real mod folder - is what Steam actually
-  receives.
+  - streams into a live upload log as it happens, alongside a real byte/percent progress bar
+  during the actual upload. The **Steam account** card shows who is really signed in - a real
+  persona name via `ISteamFriends::GetPersonaName` (a companion-process addition of its own,
+  confirmed against a real Stellaris-bundled `libsteam_api.so` with `nm -D` before writing any
+  code against it: it exports exactly `SteamAPI_SteamFriends_v017`) - shown as a colored-initial
+  avatar (`frontend/src/components/Avatar.tsx`, already used everywhere else a person is shown),
+  never a downloaded profile picture. An existing item's own destination row links straight to its
+  Workshop page. **Cancel** is available any time a publish is running - Steamworks' own flat API
+  has no real "abort upload" call, so this only ever kills the companion process itself (the same
+  cancellation plumbing `DuplicateMod`/`TranslateMod` already use), which can leave the Workshop
+  item partially updated if it fires mid-upload; a confirmation says so before it happens. The same
+  tab's own file tree (built from `internal/library.ListModFiles`, the same one Workspace's file
+  browser uses) lets you untick a file, or a whole folder, to leave it out of the upload entirely -
+  unticking a folder does the same to everything inside it, shown dimmed and struck through rather
+  than hidden, so what's excluded stays a visible choice; every folder also shows its own real
+  total size, rolled up client-side since `ListModFiles` itself only reports real files' sizes.
+  Clicking a picture file previews it (`PreviewModFile`, reusing the exact same resize pipeline the
+  Edit tab's own thumbnail preview already uses - one image pipeline, not two) beside the tree.
+  Nothing excluded is ever deleted, moved, or even read destructively:
+  `internal/fsutil.CopyTreeExcluding` stages a temporary copy of the mod, missing whatever was
+  unticked, and that copy - never the real mod folder - is what Steam actually receives.
 - **Auto-translating a mod's own English text** (the Editor's **Translate** tab, `internal/translate`
   and its `deepl`/`translanova`/`vust` subpackages, `internal/translatecache`, `internal/library`'s
   `translate_plan.go`/`translate_companion.go`, `internal/app/translate.go`,

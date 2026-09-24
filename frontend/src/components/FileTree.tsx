@@ -50,7 +50,21 @@ function buildTree(entries: library.FileEntry[]): TreeNode[] {
     }
 
     sortTree(root.children);
+    rollUpDirSizes(root.children);
     return root.children;
+}
+
+// rollUpDirSizes fills in each directory node's own size as the sum of its real descendant
+// files' sizes - ListModFiles' own FileEntry.Size is always 0 for a directory (there is no
+// rolled-up size on the backend at all), so this is the only place a folder's total comes from.
+// Returns the subtree's own total, so a parent's sum only ever walks its immediate children.
+function rollUpDirSizes(nodes: TreeNode[]): number {
+    let total = 0;
+    for (const n of nodes) {
+        if (n.isDir) n.size = rollUpDirSizes(n.children);
+        total += n.size;
+    }
+    return total;
 }
 
 // Folders before files, alphabetical within each group - the convention
@@ -129,9 +143,18 @@ export interface SelectionProps {
     onToggle: (relPath: string, isDir: boolean) => void;
 }
 
-export function FileTree({entries, selection}: { entries: library.FileEntry[]; selection?: SelectionProps }) {
+export function FileTree({entries, selection, onSelectFile, selectedPath}: {
+    entries: library.FileEntry[];
+    selection?: SelectionProps;
+    // onSelectFile, when given, makes each file row clickable (a folder row's own
+    // collapse/expand is not part of this component at all - every folder always
+    // shows fully expanded) - the Publish tab's own file preview pane uses this;
+    // Workspace's read-only file browser leaves it out entirely.
+    onSelectFile?: (relPath: string) => void;
+    selectedPath?: string;
+}) {
     const tree = buildTree(entries);
-    return <div className="file-tree-rows">{renderNodes(tree, [], selection, false)}</div>;
+    return <div className="file-tree-rows">{renderNodes(tree, [], selection, false, onSelectFile, selectedPath)}</div>;
 }
 
 // renderNodes recurses depth-first, tracking (for each ancestor level)
@@ -147,13 +170,25 @@ export function FileTree({entries, selection}: { entries: library.FileEntry[]; s
 // interleave with its siblings' in one flat list - exactly the shape a
 // file tree's rows actually need, without reaching for a keyed Fragment
 // per node (which preact's JSX typing here doesn't accept).
-function renderNodes(nodes: TreeNode[], ancestorsContinue: boolean[], selection: SelectionProps | undefined, ancestorExcluded: boolean): JSX.Element[] {
+function renderNodes(
+    nodes: TreeNode[],
+    ancestorsContinue: boolean[],
+    selection: SelectionProps | undefined,
+    ancestorExcluded: boolean,
+    onSelectFile?: (relPath: string) => void,
+    selectedPath?: string,
+): JSX.Element[] {
     return nodes.flatMap((node, i) => {
         const isLast = i === nodes.length - 1;
         const visual = visualFor(node);
         const excluded = ancestorExcluded || !!selection?.excluded.has(node.relPath);
+        const clickable = !node.isDir && !!onSelectFile;
         const row = (
-            <div key={node.relPath} className={`file-row ${excluded ? 'excluded' : ''}`}>
+            <div
+                key={node.relPath}
+                className={`file-row ${excluded ? 'excluded' : ''} ${clickable ? 'selectable' : ''} ${clickable && selectedPath === node.relPath ? 'selected' : ''}`}
+                onClick={clickable ? () => onSelectFile!(node.relPath) : undefined}
+            >
                 {ancestorsContinue.length > 0 && (
                     <span className="tree-guides">
                         {ancestorsContinue.map((cont, idx) => (
@@ -177,11 +212,11 @@ function renderNodes(nodes: TreeNode[], ancestorsContinue: boolean[], selection:
                 )}
                 <i className={`fa-solid ${visual.icon}`} style={{color: visual.color}}/>
                 <span className="mono name">{node.name}</span>
-                {!node.isDir && <span className="mono file-size">{formatBytes(node.size)}</span>}
+                <span className="mono file-size">{formatBytes(node.size)}</span>
             </div>
         );
         const childRows = node.isDir && node.children.length > 0
-            ? renderNodes(node.children, [...ancestorsContinue, !isLast], selection, excluded)
+            ? renderNodes(node.children, [...ancestorsContinue, !isLast], selection, excluded, onSelectFile, selectedPath)
             : [];
         return [row, ...childRows];
     });

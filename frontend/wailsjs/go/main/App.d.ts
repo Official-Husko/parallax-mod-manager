@@ -47,6 +47,8 @@ export function CancelDuplicate(arg1:string):Promise<void>;
 
 export function CancelLoversLabInstall(arg1:string):Promise<void>;
 
+export function CancelPublish(arg1:string):Promise<void>;
+
 export function CancelTranslate(arg1:string):Promise<void>;
 
 export function CheckGameUpdates():Promise<Array<library.GameUpdate>>;
@@ -191,13 +193,15 @@ export function PreviewDuplicateMod(arg1:string,arg2:string,arg3:app.DuplicateRe
 
 export function PreviewModEdit(arg1:string,arg2:string,arg3:app.ModEdit):Promise<app.EditPreview>;
 
+export function PreviewModFile(arg1:string,arg2:string,arg3:string):Promise<app.FilePreview>;
+
 export function PreviewNewMod(arg1:string,arg2:app.NewModRequest):Promise<app.EditPreview>;
 
 export function PreviewThumbnail(arg1:string):Promise<app.ThumbnailPreview>;
 
 export function PriorityRuleOverrides(arg1:string):Promise<Record<string, string>>;
 
-export function PublishModToWorkshop(arg1:string,arg2:string,arg3:app.WorkshopPublishRequest):Promise<app.WorkshopPublishResult>;
+export function PublishModToWorkshop(arg1:string,arg2:string,arg3:string,arg4:app.WorkshopPublishRequest):Promise<app.WorkshopPublishResult>;
 
 export function PurgeMods(arg1:string,arg2:Array<string>):Promise<library.PurgeResult>;
 
@@ -260,6 +264,8 @@ export function StartBackgroundDownload(arg1:Array<string>):Promise<void>;
 export function StartupNotice():Promise<string>;
 
 export function SteamAPIStatus():Promise<app.SteamAPIStatus>;
+
+export function SteamAccountInfo(arg1:string):Promise<app.SteamAccountInfo>;
 
 export function StopGame(arg1:string):Promise<number>;
 

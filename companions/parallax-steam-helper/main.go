@@ -61,7 +61,12 @@ func run(in io.Reader, out io.Writer) error {
 		return err
 	}
 
-	if err := publish(client, req, emit); err != nil {
+	if req.Mode == "identity" {
+		err = identity(client, req, emit)
+	} else {
+		err = publish(client, req, emit)
+	}
+	if err != nil {
 		emit(Event{Stage: "error", Message: err.Error()})
 		return err
 	}

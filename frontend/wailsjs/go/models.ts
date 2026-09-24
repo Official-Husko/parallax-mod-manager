@@ -577,6 +577,26 @@ export namespace app {
 		}
 	}
 	
+	export class FilePreview {
+	    Kind: string;
+	    DataURI: string;
+	    Width: number;
+	    Height: number;
+	    Bytes: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new FilePreview(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Kind = source["Kind"];
+	        this.DataURI = source["DataURI"];
+	        this.Width = source["Width"];
+	        this.Height = source["Height"];
+	        this.Bytes = source["Bytes"];
+	    }
+	}
 	export class LauncherShimStatus {
 	    Supported: boolean;
 	    State: string;
@@ -920,6 +940,18 @@ export namespace app {
 	        this.ItemsFromFree = source["ItemsFromFree"];
 	        this.Rescued = source["Rescued"];
 	        this.Protection = source["Protection"];
+	    }
+	}
+	export class SteamAccountInfo {
+	    PersonaName: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SteamAccountInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.PersonaName = source["PersonaName"];
 	    }
 	}
 	export class TemplateSummary {

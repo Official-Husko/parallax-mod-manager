@@ -108,6 +108,47 @@ func TestHelperPublisherEndToEndAgainstAFakeHelperProcess(t *testing.T) {
 	}
 }
 
+func TestHelperPublisherIdentityReturnsThePersonaName(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fixture is a Unix shell script - see the test's own doc comment")
+	}
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	script := "#!/bin/sh\ncat > /dev/null\necho '{\"stage\":\"opening\"}'\necho '{\"stage\":\"done\",\"personaName\":\"Kestrel_Admiral\"}'\n"
+	path := filepath.Join(t.TempDir(), "fake-helper.sh")
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	pub := HelperPublisher{BinaryPath: path}
+	result, err := pub.Identity(context.Background(), IdentityRequest{AppID: 281990})
+	if err != nil {
+		t.Fatalf("Identity() error = %v", err)
+	}
+	if result.PersonaName != "Kestrel_Admiral" {
+		t.Errorf("PersonaName = %q, want %q", result.PersonaName, "Kestrel_Admiral")
+	}
+}
+
+func TestHelperPublisherIdentityReturnsTheHelpersOwnErrorMessage(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fixture is a Unix shell script - see the test's own doc comment")
+	}
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	script := "#!/bin/sh\ncat > /dev/null\necho '{\"stage\":\"error\",\"message\":\"Steam is not running\"}'\n"
+	path := filepath.Join(t.TempDir(), "fake-helper.sh")
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	pub := HelperPublisher{BinaryPath: path}
+	_, err := pub.Identity(context.Background(), IdentityRequest{AppID: 281990})
+	if err == nil || !strings.Contains(err.Error(), "Steam is not running") {
+		t.Errorf("Identity() error = %v, want it to mention the helper's own message", err)
+	}
+}
+
 // TestHelperPublisherStagesAContentFolderExcludingChosenFiles is
 // TestHelperPublisherEndToEndAgainstAFakeHelperProcess's own sibling, adding
 // ExcludePaths. Publish's own defer removes the staged folder the moment it

@@ -74,11 +74,27 @@ type PublishResult struct {
 	PublishedFileID uint64
 }
 
+// IdentityRequest asks who is currently signed into the local Steam client -
+// the same AppID/LibraryPath a PublishRequest needs, since SteamAPI_Init
+// still needs a real AppID context to succeed at all, even though the
+// signed-in identity itself is not really per-game.
+type IdentityRequest struct {
+	AppID       uint32
+	LibraryPath string
+}
+
+// IdentityResult is the signed-in Steam user's own persona name, "" if it
+// could not be determined (Steam not running, not logged in, and so on).
+type IdentityResult struct {
+	PersonaName string
+}
+
 // Publisher publishes or updates a Workshop item, reporting progress as it
-// happens through onProgress (which may be nil). The only real
-// implementation is HelperPublisher; the interface exists so callers (and
-// their own tests) never depend on companions/parallax-steam-helper being
-// present on disk.
+// happens through onProgress (which may be nil), and separately reports who
+// is signed into the local Steam client. The only real implementation is
+// HelperPublisher; the interface exists so callers (and their own tests)
+// never depend on companions/parallax-steam-helper being present on disk.
 type Publisher interface {
 	Publish(ctx context.Context, req PublishRequest, onProgress func(PublishProgress)) (PublishResult, error)
+	Identity(ctx context.Context, req IdentityRequest) (IdentityResult, error)
 }
