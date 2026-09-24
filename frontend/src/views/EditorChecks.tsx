@@ -124,7 +124,7 @@ interface FindingGroup {
 type NavItem =
     | {kind: 'group'; group: FindingGroup}
     | {kind: 'finding'; finding: modcheck.Finding}
-    | {kind: 'more'; group: FindingGroup; more: number};
+    | {kind: 'more'; navKey: string; label: string; count: number; onExpand: () => void};
 
 function buildGroups(findings: modcheck.Finding[], group: GroupBy): FindingGroup[] {
     if (group === 'category') {
@@ -149,6 +149,11 @@ function buildGroups(findings: modcheck.Finding[], group: GroupBy): FindingGroup
 }
 
 const GROUP_SHOW_CAP = 6;
+// List view has no per-group cap to fall back on, and a badly broken mod's own findings are
+// genuinely unbounded server-side (a mangled file can produce one parse error per line) - this
+// caps the flat list the same "Show N more" way grouped view already caps each group, rather
+// than ever rendering thousands of rows at once.
+const LIST_SHOW_CAP = 200;
 
 export function EditorChecks({gameId, gameName, gameVersion, mod, installedNames, initialResult, onResult}: {
     gameId: string;
@@ -181,6 +186,7 @@ export function EditorChecks({gameId, gameName, gameVersion, mod, installedNames
     const [filterText, setFilterText] = useState('');
     const [severityFilter, setSeverityFilter] = useState<Set<string>>(new Set());
     const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+    const [listExpanded, setListExpanded] = useState(false);
 
     function setResult(r: app.CheckResult | null) {
         setResultState(r);
@@ -269,7 +275,15 @@ export function EditorChecks({gameId, gameName, gameVersion, mod, installedNames
     }
 
     const flatNav = useMemo<NavItem[]>(() => {
-        if (view === 'list') return filtered.map((f) => ({kind: 'finding', finding: f}));
+        if (view === 'list') {
+            const shown = listExpanded ? filtered : filtered.slice(0, LIST_SHOW_CAP);
+            const items: NavItem[] = shown.map((f) => ({kind: 'finding', finding: f}));
+            const more = filtered.length - shown.length;
+            if (more > 0) {
+                items.push({kind: 'more', navKey: '__list_more__', label: 'the list', count: more, onExpand: () => setListExpanded(true)});
+            }
+            return items;
+        }
         const items: NavItem[] = [];
         for (const g of groups) {
             items.push({kind: 'group', group: g});
@@ -277,11 +291,19 @@ export function EditorChecks({gameId, gameName, gameVersion, mod, installedNames
                 const shown = g.findings.slice(0, GROUP_SHOW_CAP);
                 for (const f of shown) items.push({kind: 'finding', finding: f});
                 const more = g.findings.length - shown.length;
-                if (more > 0) items.push({kind: 'more', group: g, more});
+                if (more > 0) {
+                    items.push({
+                        kind: 'more',
+                        navKey: `more-${g.key}`,
+                        label: g.label,
+                        count: more,
+                        onExpand: () => setCollapsed((prev) => { const next = new Set(prev); next.delete(g.key); return next; }),
+                    });
+                }
             }
         }
         return items;
-    }, [view, filtered, groups, collapsed]);
+    }, [view, filtered, groups, collapsed, listExpanded]);
     const flatNavRef = useRef<NavItem[]>([]);
     flatNavRef.current = flatNav;
 
@@ -315,7 +337,7 @@ export function EditorChecks({gameId, gameName, gameVersion, mod, installedNames
             if (item.kind === 'group') {
                 if (e.key === 'Enter' || collapsed.has(item.group.key)) toggleGroupCollapsed(item.group.key);
             } else if (item.kind === 'more' && e.key === 'Enter') {
-                setCollapsed((prev) => { const next = new Set(prev); next.delete(item.group.key); return next; });
+                item.onExpand();
             } else if (item.kind === 'finding' && e.key === 'Enter' && item.finding.File) {
                 OpenModFolder(gameId, mod.ID).catch(() => undefined);
             }
@@ -522,12 +544,12 @@ export function EditorChecks({gameId, gameName, gameVersion, mod, installedNames
                                     if (item.kind === 'more') {
                                         return (
                                             <div
-                                                key={`m-${item.group.key}`}
+                                                key={`m-${item.navKey}`}
                                                 ref={setRef}
                                                 className={`findings-group-more${focused ? ' focused' : ''}`}
-                                                onClick={() => setCollapsed((prev) => { const next = new Set(prev); next.delete(item.group.key); return next; })}
+                                                onClick={item.onExpand}
                                             >
-                                                Show {item.more} more in {item.group.label}
+                                                Show {item.count} more in {item.label}
                                             </div>
                                         );
                                     }
