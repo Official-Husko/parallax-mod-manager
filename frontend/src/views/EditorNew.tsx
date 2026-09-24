@@ -101,6 +101,14 @@ export function EditorNew({gameId, gameVersion, selected, onCreated}: {
     const requestRef = useRef<string | null>(null);
     const dupFileCountRef = useRef(0);
     const dupLastLogAtRef = useRef(0);
+    const dupLogBoxRef = useRef<HTMLDivElement>(null);
+
+    // The log box has its own capped height (see .editor-upload-log) so a long copy never grows
+    // the card without bound - this keeps the newest line in view as it grows.
+    useEffect(() => {
+        const box = dupLogBoxRef.current;
+        if (box) box.scrollTop = box.scrollHeight;
+    }, [dupLog.length]);
 
     useEffect(() => {
         setMode('create');
@@ -440,7 +448,7 @@ export function EditorNew({gameId, gameVersion, selected, onCreated}: {
                                     </div>
                                     <div className="editor-progress-file mono">{progress.File || 'Starting...'}</div>
                                     {dupLog.length > 0 && (
-                                        <div className="editor-upload-log">
+                                        <div className="editor-upload-log" ref={dupLogBoxRef}>
                                             {dupLog.map((line, i) => (
                                                 <div key={i} className="editor-log-line">
                                                     <span className="editor-log-time mono">{line.time}</span>

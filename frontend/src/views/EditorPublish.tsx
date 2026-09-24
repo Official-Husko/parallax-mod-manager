@@ -139,6 +139,15 @@ export function EditorPublish({gameId, mod}: { gameId: string; mod: library.ModS
     // setProgress below) - this gates its own log line to the first occurrence only, so the
     // log doesn't fill with one "Uploading..." entry per tick.
     const loggedUploadingRef = useRef(false);
+    const logBoxRef = useRef<HTMLDivElement>(null);
+
+    // The log box has its own capped height (see .editor-upload-log) so a long publish never
+    // grows the card without bound - this keeps the newest line in view as it grows instead of
+    // leaving it scrolled to whatever position it was at when the box first appeared.
+    useEffect(() => {
+        const box = logBoxRef.current;
+        if (box) box.scrollTop = box.scrollHeight;
+    }, [log.length]);
 
     // A different mod selected - this tab's own log/draft/exclusions belong to
     // whichever mod was open when they were set, never carried over to a
@@ -423,7 +432,7 @@ export function EditorPublish({gameId, mod}: { gameId: string; mod: library.ModS
                     {log.length === 0 ? (
                         <div className="editor-muted">Nothing uploaded yet. Each step and Steam's own answer appear here as they happen.</div>
                     ) : (
-                        <div className="editor-upload-log">
+                        <div className="editor-upload-log" ref={logBoxRef}>
                             {log.map((line, i) => (
                                 <div key={i} className={`editor-log-line ${line.tone}`}>
                                     <span className="editor-log-time mono">{line.time}</span>

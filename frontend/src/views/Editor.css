@@ -1121,7 +1121,12 @@
 .editor-upload-log {
     border: 1px solid var(--border);
     border-radius: 5px;
-    overflow: hidden;
+    overflow-y: auto;
+    overflow-x: hidden;
+    /* A long-running publish/translate/duplicate can log a few hundred lines (one per real
+       milestone, not one per byte/file - see the "uploading"/"staged" stage comments in
+       EditorPublish.tsx) - caps how tall the card gets rather than growing without bound. */
+    max-height: 220px;
 }
 
 .editor-log-line {

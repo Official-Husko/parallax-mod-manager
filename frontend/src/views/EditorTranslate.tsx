@@ -110,11 +110,19 @@ export function EditorTranslate({gameId, gameName, mod, onOpenToolsSettings}: {
     const [log, setLog] = useState<LogLine[]>([]);
     const [error, setError] = useState('');
     const requestIdRef = useRef('');
+    const logBoxRef = useRef<HTMLDivElement>(null);
     // Mirrors `languages` for the progress-event handler below, so that
     // handler's own subscribing effect only ever needs to depend on
     // gameId - never resubscribing (and briefly running with no listener
     // at all mid-swap) just because the language list finished loading.
     const languagesRef = useRef<app.TranslateLanguage[]>([]);
+
+    // The log box has its own capped height (see .editor-upload-log) so a long translate run
+    // never grows the card without bound - this keeps the newest line in view as it grows.
+    useEffect(() => {
+        const box = logBoxRef.current;
+        if (box) box.scrollTop = box.scrollHeight;
+    }, [log.length]);
 
     useEffect(() => {
         TranslateLanguages().then((l) => {
@@ -356,7 +364,7 @@ export function EditorTranslate({gameId, gameName, mod, onOpenToolsSettings}: {
                     {log.length === 0 ? (
                         <div className="editor-muted">Nothing translated yet. Each real step appears here as it happens.</div>
                     ) : (
-                        <div className="editor-upload-log">
+                        <div className="editor-upload-log" ref={logBoxRef}>
                             {log.map((line, i) => (
                                 <div key={i} className={`editor-log-line ${line.tone}`}>
                                     <span className="editor-log-time mono">{line.time}</span>
