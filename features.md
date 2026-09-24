@@ -264,6 +264,10 @@ for security, privacy, reliability or performance is called out (see the last tw
   tile, and picking any existing mod always opens it on Edit, whatever tab was showing before.
 - **Create a mod from scratch** - name, version, made-for-game-version and tags, placed in the game's own mod
   folder or a configured extra folder, previewed before anything is written.
+- **Start a new mod from a template** - Blank (just a descriptor and a placeholder thumbnail), or, for
+  Stellaris, five real starter kits (Event chain, Localisation, Portrait set, Shipset, Game rule) that also
+  write the matching script/localisation files - every one previewed the same as a blank mod before anything
+  is written.
 - **Duplicate a mod, including a Steam Workshop one** - copies its whole folder into a brand-new, independent
   mod under a new name, keeping every other field, and never touches the mod it was copied from. A big copy
   warns first (its size, and free space at the target) and shows a cancellable progress bar naming the file

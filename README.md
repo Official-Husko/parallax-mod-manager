@@ -830,12 +830,21 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   no longer hold for files that just changed. A game that could not be found skips only the
   base-game category, named as the reason instead of a false "clean".
 - **Creating and duplicating a mod** (the Editor's **New** tab, first of the four - `newmod.go`,
-  `internal/modedit`'s `FolderName`/`NewFiles`/`NewStub`, `frontend/src/views/EditorNew.tsx`) - the
+  `internal/modedit`'s `FolderName`/`NewFiles`/`NewStub`/`Templates`, `frontend/src/views/EditorNew.tsx`) - the
   mod list's first row is always a dashed "+ New mod" tile, and picking any existing mod always
   opens it on Edit, whatever tab was showing. **Create** asks for a name, version, made-for-game-
-  version and tags, and where the mod's own folder goes: the game's own mod folder (the default) or
-  a folder already added as an extra one in Settings; a folder in the game's own mod folder also
-  gets the stub the game reads to find it. **Duplicate** (shown instead, once a mod is selected)
+  version and tags, a starter **template**, and where the mod's own folder goes: the game's own mod
+  folder (the default) or a folder already added as an extra one in Settings; a folder in the game's
+  own mod folder also gets the stub the game reads to find it. Every game gets **Blank** (a
+  descriptor and a placeholder thumbnail - a checkerboard in this app's own two panel tones, so a
+  fresh mod never looks broken before its picture is replaced on the Edit tab); Stellaris also gets
+  five real starter kits - **Event chain** (an event, an `on_actions` hook and matching
+  localisation), **Localisation** (just the folder layout a translation-only mod needs), **Portrait
+  set** (a species class, a portrait group and an asset selector stub), **Shipset** (a graphical
+  culture entry and a marked placeholder for the hull entity a real mesh would need) and **Game
+  rule** (an on/off rule and its localisation pair) - every skeleton is verified to parse cleanly
+  through this app's own Clausewitz parser, though the exact fields inside are a starting point to
+  build from, not confirmed against a real game load. **Duplicate** (shown instead, once a mod is selected)
   copies that mod's whole folder into a brand-new, independent mod under a new name, keeping every
   other field - it never touches the mod it was copied from, which makes it a safe way to build on a
   Steam Workshop mod without Steam ever overwriting the result. Either is previewed first the same

@@ -807,6 +807,7 @@ export namespace app {
 	export class NewModRequest {
 	    Fields: modedit.Fields;
 	    Location: string;
+	    Template: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new NewModRequest(source);
@@ -816,6 +817,7 @@ export namespace app {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.Fields = this.convertValues(source["Fields"], modedit.Fields);
 	        this.Location = source["Location"];
+	        this.Template = source["Template"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -900,6 +902,24 @@ export namespace app {
 	        this.ItemsFromFree = source["ItemsFromFree"];
 	        this.Rescued = source["Rescued"];
 	        this.Protection = source["Protection"];
+	    }
+	}
+	export class TemplateSummary {
+	    ID: string;
+	    Name: string;
+	    Description: string;
+	    FileCount: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new TemplateSummary(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ID = source["ID"];
+	        this.Name = source["Name"];
+	        this.Description = source["Description"];
+	        this.FileCount = source["FileCount"];
 	    }
 	}
 	

@@ -263,6 +263,8 @@ export function StopGame(arg1:string):Promise<number>;
 
 export function StopWatchingGameLog():Promise<void>;
 
+export function TemplatesForGame(arg1:string):Promise<Array<app.TemplateSummary>>;
+
 export function TranslateEligibility(arg1:string,arg2:string):Promise<app.TranslateEligibility>;
 
 export function TranslateLanguages():Promise<Array<app.TranslateLanguage>>;

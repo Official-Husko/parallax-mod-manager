@@ -65,17 +65,23 @@ func TestCreateModInTheGamesOwnFolderWritesADescriptorAndAStub(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateMod: %v", err)
 	}
-	if len(res.Files) != 2 {
-		t.Fatalf("wrote %v, want 2 files", res.Files)
+	// descriptor.mod, the stub, and - since the default (Blank) template always includes one
+	// now - a placeholder thumbnail.png.
+	if len(res.Files) != 3 {
+		t.Fatalf("wrote %v, want 3 files", res.Files)
 	}
 
 	descPath := filepath.Join(env.modDir, "Brand New Mod", "descriptor.mod")
 	stubPath := filepath.Join(env.modDir, "Brand New Mod.mod")
+	thumbPath := filepath.Join(env.modDir, "Brand New Mod", "thumbnail.png")
 	if _, err := os.Stat(descPath); err != nil {
 		t.Errorf("descriptor.mod was not written: %v", err)
 	}
 	if _, err := os.Stat(stubPath); err != nil {
 		t.Errorf("stub was not written: %v", err)
+	}
+	if _, err := os.Stat(thumbPath); err != nil {
+		t.Errorf("placeholder thumbnail was not written: %v", err)
 	}
 	if !env.sawEvent("mods-changed") {
 		t.Error("mods-changed was not emitted")
@@ -99,15 +105,17 @@ func TestCreateModInTheGamesOwnFolderWritesADescriptorAndAStub(t *testing.T) {
 	}
 }
 
-func TestCreateModInAnExtraFolderWritesOnlyTheDescriptor(t *testing.T) {
+func TestCreateModInAnExtraFolderWritesNoStub(t *testing.T) {
 	env := newEditorEnv(t)
 	req := NewModRequest{Fields: modedit.Fields{Name: "Extra New Mod"}, Location: env.extra}
 	res, err := env.a.CreateMod(env.cfg.ID, req)
 	if err != nil {
 		t.Fatalf("CreateMod: %v", err)
 	}
-	if len(res.Files) != 1 {
-		t.Fatalf("wrote %v, want 1 file (no stub)", res.Files)
+	// descriptor.mod and the default template's placeholder thumbnail - never a stub outside
+	// the game's own mod folder.
+	if len(res.Files) != 2 {
+		t.Fatalf("wrote %v, want 2 files (no stub)", res.Files)
 	}
 	if _, err := os.Stat(filepath.Join(env.extra, "Extra New Mod.mod")); !os.IsNotExist(err) {
 		t.Error("a stub was written for an extra-folder mod, want none")
@@ -122,6 +130,107 @@ func TestCreateModInAnExtraFolderWritesOnlyTheDescriptor(t *testing.T) {
 	}
 	if !found {
 		t.Errorf("the extra-folder mod was not discovered by a real scan: %+v", byID)
+	}
+}
+
+func TestTemplatesForGameListsAllSixForStellaris(t *testing.T) {
+	env := newEditorEnv(t)
+	templates, err := env.a.TemplatesForGame(env.cfg.ID)
+	if err != nil {
+		t.Fatalf("TemplatesForGame: %v", err)
+	}
+	if len(templates) != 6 {
+		t.Fatalf("got %d templates, want 6: %+v", len(templates), templates)
+	}
+	if templates[0].ID != "blank" {
+		t.Errorf("first template = %+v, want Blank first", templates[0])
+	}
+}
+
+func TestTemplatesForGameRefusesAnUnknownGame(t *testing.T) {
+	env := newEditorEnv(t)
+	if _, err := env.a.TemplatesForGame("not-a-real-game-id"); err == nil {
+		t.Fatal("TemplatesForGame for an unknown game succeeded, want an error")
+	}
+}
+
+func TestCreateModWithATemplateWritesItsExtraFilesAndAThumbnail(t *testing.T) {
+	env := newEditorEnv(t)
+	req := NewModRequest{
+		Fields:   modedit.Fields{Name: "Precursor Tales", Version: "1.0", SupportedVersion: "v4.*"},
+		Location: env.modDir,
+		Template: "event_chain",
+	}
+	res, err := env.a.CreateMod(env.cfg.ID, req)
+	if err != nil {
+		t.Fatalf("CreateMod: %v", err)
+	}
+	// descriptor.mod, the stub, thumbnail.png, the event file, the on_actions file, and the
+	// localisation file.
+	if len(res.Files) != 6 {
+		t.Fatalf("wrote %v, want 6 files", res.Files)
+	}
+
+	modRoot := filepath.Join(env.modDir, "Precursor Tales")
+	for _, rel := range []string{
+		"thumbnail.png",
+		"events/precursor_tales_events.txt",
+		"common/on_actions/precursor_tales_on_actions.txt",
+		"localisation/english/precursor_tales_l_english.yml",
+	} {
+		if _, err := os.Stat(filepath.Join(modRoot, rel)); err != nil {
+			t.Errorf("%s was not written: %v", rel, err)
+		}
+	}
+}
+
+func TestPreviewNewModWithATemplateShowsItsExtraFilesAndThumbnail(t *testing.T) {
+	env := newEditorEnv(t)
+	req := NewModRequest{
+		Fields:   modedit.Fields{Name: "Precursor Tales"},
+		Location: env.modDir,
+		Template: "event_chain",
+	}
+	preview, err := env.a.PreviewNewMod(env.cfg.ID, req)
+	if err != nil {
+		t.Fatalf("PreviewNewMod: %v", err)
+	}
+	if preview.Thumbnail == nil {
+		t.Error("preview has no Thumbnail, want the template's placeholder")
+	}
+	if preview.Nothing {
+		t.Error("preview.Nothing is true, want false - a template always writes something")
+	}
+	wantSuffixes := []string{"events/precursor_tales_events.txt", "common/on_actions/precursor_tales_on_actions.txt", "localisation/english/precursor_tales_l_english.yml"}
+	for _, suffix := range wantSuffixes {
+		found := false
+		for _, f := range preview.Files {
+			if strings.HasSuffix(f.Path, suffix) {
+				found = true
+				if f.Kind != modedit.KindContent {
+					t.Errorf("file %s has Kind %q, want %q", suffix, f.Kind, modedit.KindContent)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("preview.Files has nothing ending in %s: %+v", suffix, preview.Files)
+		}
+	}
+	// Nothing was actually written - only PreviewNewMod ran.
+	if _, err := os.Stat(filepath.Join(env.modDir, "Precursor Tales")); !os.IsNotExist(err) {
+		t.Error("PreviewNewMod wrote real files, want none")
+	}
+}
+
+func TestCreateModWithAnUnknownTemplateFallsBackToBlank(t *testing.T) {
+	env := newEditorEnv(t)
+	req := NewModRequest{Fields: modedit.Fields{Name: "Whatever"}, Location: env.modDir, Template: "not-a-real-template"}
+	res, err := env.a.CreateMod(env.cfg.ID, req)
+	if err != nil {
+		t.Fatalf("CreateMod: %v", err)
+	}
+	if len(res.Files) != 3 {
+		t.Fatalf("wrote %v, want 3 files (descriptor, stub, thumbnail - the Blank fallback)", res.Files)
 	}
 }
 

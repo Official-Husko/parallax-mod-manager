@@ -7,6 +7,7 @@ import {
     NewModLocations,
     PreviewDuplicateMod,
     PreviewNewMod,
+    TemplatesForGame,
 } from '../../wailsjs/go/main/App';
 import type {app, library} from '../../wailsjs/go/models';
 import {EventsOn} from '../../wailsjs/runtime/runtime';
@@ -41,6 +42,8 @@ export function EditorNew({gameId, selected, onCreated}: {
     const [mode, setMode] = useState<Mode>('create');
     const [locations, setLocations] = useState<app.NewModLocation[]>([]);
     const [location, setLocation] = useState('');
+    const [templates, setTemplates] = useState<app.TemplateSummary[]>([]);
+    const [template, setTemplate] = useState('blank');
 
     const [name, setName] = useState('');
     const [version, setVersion] = useState('');
@@ -62,6 +65,7 @@ export function EditorNew({gameId, selected, onCreated}: {
         setVersion('');
         setSupportedVersion('');
         setTags([]);
+        setTemplate('blank');
         setDupName(selected ? `${selected.Name} Copy` : '');
     }, [gameId, selected?.ID]);
 
@@ -71,6 +75,12 @@ export function EditorNew({gameId, selected, onCreated}: {
                 setLocations(found);
                 const def = found.find((l) => l.Default) ?? found[0];
                 setLocation(def?.Path ?? '');
+            })
+            .catch((err) => notify('error', String(err)));
+        TemplatesForGame(gameId)
+            .then((found) => {
+                setTemplates(found);
+                if (!found.some((t) => t.ID === 'blank')) setTemplate(found[0]?.ID ?? 'blank');
             })
             .catch((err) => notify('error', String(err)));
     }, [gameId]);
@@ -88,12 +98,12 @@ export function EditorNew({gameId, selected, onCreated}: {
         }
         let cancelled = false;
         const timer = window.setTimeout(() => {
-            PreviewNewMod(gameId, {Fields: {Name: name, Version: version, SupportedVersion: supportedVersion, Tags: tags, Dependencies: [], ReplacePaths: []}, Location: location} as unknown as app.NewModRequest)
+            PreviewNewMod(gameId, {Fields: {Name: name, Version: version, SupportedVersion: supportedVersion, Tags: tags, Dependencies: [], ReplacePaths: []}, Location: location, Template: template} as unknown as app.NewModRequest)
                 .then((p) => { if (!cancelled) setPreview(p); })
                 .catch((err) => { if (!cancelled) setPreview({Files: [], Problems: [String(err)], Warnings: [], Nothing: true} as unknown as app.EditPreview); });
         }, 300);
         return () => { cancelled = true; window.clearTimeout(timer); };
-    }, [mode, gameId, location, name, version, supportedVersion, tags]);
+    }, [mode, gameId, location, name, version, supportedVersion, tags, template]);
 
     // Duplicate form's live preview.
     useEffect(() => {
@@ -113,7 +123,7 @@ export function EditorNew({gameId, selected, onCreated}: {
     async function create() {
         setBusy(true);
         try {
-            const result = await CreateMod(gameId, {Fields: {Name: name, Version: version, SupportedVersion: supportedVersion, Tags: tags, Dependencies: [], ReplacePaths: []}, Location: location} as unknown as app.NewModRequest);
+            const result = await CreateMod(gameId, {Fields: {Name: name, Version: version, SupportedVersion: supportedVersion, Tags: tags, Dependencies: [], ReplacePaths: []}, Location: location, Template: template} as unknown as app.NewModRequest);
             const names = (result.Files ?? []).map((p) => p.split(/[\\/]/).pop());
             notify('success', `Created '${name.trim()}': ${names.join(', ')}.`);
             onCreated(name.trim());
@@ -203,6 +213,30 @@ export function EditorNew({gameId, selected, onCreated}: {
                     </div>
                 </div>
 
+                {mode === 'create' && (
+                    <div className="editor-card">
+                        <div className="editor-card-title-row">
+                            <div className="editor-card-title">
+                                TEMPLATE <span className="editor-card-count">{templates.length}</span>
+                            </div>
+                            <span className="editor-card-title-spacer"/>
+                            <span className="editor-card-title-action" title="Not built yet - every template below is real, this just isn't.">Manage templates</span>
+                        </div>
+                        <div className="template-grid">
+                            {templates.map((t) => (
+                                <div key={t.ID} className={`template-tile ${template === t.ID ? 'active' : ''}`} onClick={() => setTemplate(t.ID)}>
+                                    <div className="template-tile-head">
+                                        <span className="template-tile-name">{t.Name}</span>
+                                        {template === t.ID && <i className="fa-solid fa-check template-tile-check"/>}
+                                    </div>
+                                    <span className="template-tile-desc">{t.Description}</span>
+                                    <span className="template-tile-count mono">{t.FileCount} file{t.FileCount === 1 ? '' : 's'}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {mode === 'create' ? (
                     <div className="editor-card">
                         <div className="editor-card-title">DESCRIPTOR</div>
@@ -259,6 +293,17 @@ export function EditorNew({gameId, selected, onCreated}: {
                                 </div>
                             ))}
                             {(preview?.Files ?? []).map((f) => <FileChange key={f.Path} file={f}/>)}
+                            {preview?.Thumbnail && (
+                                <div className="editor-file">
+                                    <div className="editor-file-head">
+                                        <span className="mono">thumbnail.png</span>
+                                        <span className="editor-file-tag">new file</span>
+                                    </div>
+                                    <div className="editor-file-note">
+                                        Placeholder {preview.Thumbnail.Width} x {preview.Thumbnail.Height}. Replace it on the Edit tab.
+                                    </div>
+                                </div>
+                            )}
                             <div className="editor-actions">
                                 <button type="button" className="btn-primary" disabled={!canCreate} onClick={create}>{busy ? 'Creating...' : 'Create mod'}</button>
                             </div>

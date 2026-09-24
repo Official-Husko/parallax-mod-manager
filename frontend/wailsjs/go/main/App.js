@@ -494,6 +494,10 @@ export function StopWatchingGameLog() {
   return window['go']['main']['App']['StopWatchingGameLog']();
 }
 
+export function TemplatesForGame(arg1) {
+  return window['go']['main']['App']['TemplatesForGame'](arg1);
+}
+
 export function TranslateEligibility(arg1, arg2) {
   return window['go']['main']['App']['TranslateEligibility'](arg1, arg2);
 }

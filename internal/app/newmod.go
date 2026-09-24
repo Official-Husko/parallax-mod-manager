@@ -110,11 +110,63 @@ func (a *App) resolveModLocation(gameID, location, name string) (contentDir, stu
 type NewModRequest struct {
 	Fields   modedit.Fields // Dependencies/ReplacePaths are left empty by the New form
 	Location string         // one of NewModLocations(gameID)'s Path values
+	// Template is one of TemplatesForGame(gameID)'s own IDs; "" (or an unrecognized id) falls
+	// back to Blank - see modedit.TemplateByID.
+	Template string
+}
+
+// TemplateSummary is one starter-content preset offered on the New tab - see modedit.Template,
+// trimmed to what the picker needs (Build is a Go func, not something to cross the Wails
+// boundary).
+type TemplateSummary struct {
+	ID          string
+	Name        string
+	Description string
+	FileCount   int
+}
+
+// TemplatesForGame lists the starter-content presets available when creating a new mod for
+// gameID - see modedit.Templates for which games get more than just Blank.
+func (a *App) TemplatesForGame(gameID string) ([]TemplateSummary, error) {
+	if _, ok := a.registry.Get(gameID); !ok {
+		return nil, fmt.Errorf("app: unknown game %q", gameID)
+	}
+	templates := modedit.Templates(gameID)
+	out := make([]TemplateSummary, 0, len(templates))
+	for _, t := range templates {
+		out = append(out, TemplateSummary{ID: t.ID, Name: t.Name, Description: t.Description, FileCount: t.FileCount})
+	}
+	return out, nil
+}
+
+// templateExtraWrites is one template's own extra content file, or the placeholder thumbnail,
+// resolved to an absolute path under contentDir - shared by PreviewNewMod (which never writes
+// them) and CreateMod (which does).
+type templateExtraWrite struct {
+	path string
+	data []byte
+}
+
+func templateExtras(tpl modedit.Template, contentDir string, fields modedit.Fields) []templateExtraWrite {
+	var extras []templateExtraWrite
+	if tpl.Build != nil {
+		for _, f := range tpl.Build(fields) {
+			extras = append(extras, templateExtraWrite{path: filepath.Join(contentDir, filepath.FromSlash(f.RelPath)), data: []byte(f.Content)})
+		}
+	}
+	if tpl.IncludeThumbnail {
+		extras = append(extras, templateExtraWrite{path: filepath.Join(contentDir, modedit.ThumbnailFile), data: modedit.PlaceholderThumbnail()})
+	}
+	return extras
 }
 
 // PreviewNewMod works out what CreateMod would write, without writing anything - reuses
 // EditPreview/EditPreviewFile exactly as PreviewModEdit already returns them, so the frontend's
-// existing diff renderer needs no new type.
+// existing diff renderer needs no new type. The chosen template's own extra files show up as
+// plain EditPreviewFile entries (Kind: modedit.KindContent, so FileChange.tsx renders them "in
+// the mod's folder" the same as any other non-stub file); its placeholder thumbnail, if any,
+// goes through the same Thumbnail field a real chosen picture already uses, rather than forcing
+// binary PNG bytes through the line-based text diff the Files list is built for.
 func (a *App) PreviewNewMod(gameID string, req NewModRequest) (EditPreview, error) {
 	contentDir, stubPath, problems, err := a.resolveModLocation(gameID, req.Location, req.Fields.Name)
 	if err != nil {
@@ -131,14 +183,25 @@ func (a *App) PreviewNewMod(gameID string, req NewModRequest) (EditPreview, erro
 	for _, e := range edits {
 		out.Files = append(out.Files, EditPreviewFile{Path: e.Path, Kind: e.Kind, Create: e.Create, Changed: e.Changed() || e.Create, Before: e.Before, After: e.After})
 	}
-	out.Nothing = len(out.Files) == 0
+
+	tpl := modedit.TemplateByID(gameID, req.Template)
+	for _, w := range templateExtras(tpl, contentDir, req.Fields.Normalized()) {
+		if filepath.Base(w.path) == modedit.ThumbnailFile {
+			out.Thumbnail = thumbnailPreview(modedit.Thumbnail{PNG: w.data, Width: 512, Height: 384})
+			continue
+		}
+		out.Files = append(out.Files, EditPreviewFile{Path: w.path, Kind: modedit.KindContent, Create: true, Changed: true, After: string(w.data)})
+	}
+	out.Nothing = len(out.Files) == 0 && out.Thumbnail == nil
 	return out, nil
 }
 
-// CreateMod creates a brand-new mod: its own descriptor.mod and, only when Location is the
-// game's own mod folder, the stub that registers it there - written content descriptor first,
-// stub last, so a failure never leaves a half-visible mod (the game only sees a mod once its
-// stub exists in its own mod folder). A failed write rolls back whatever it already wrote.
+// CreateMod creates a brand-new mod: its own descriptor.mod, the chosen template's own extra
+// content files and placeholder thumbnail (if any), and, only when Location is the game's own
+// mod folder, the stub that registers it there - written content descriptor first, template
+// extras next, stub last, so a failure never leaves a half-visible mod (the game only sees a mod
+// once its stub exists in its own mod folder). A failed write rolls back whatever it already
+// wrote.
 func (a *App) CreateMod(gameID string, req NewModRequest) (SaveResult, error) {
 	modEditMu.Lock()
 	defer modEditMu.Unlock()
@@ -155,21 +218,35 @@ func (a *App) CreateMod(gameID string, req NewModRequest) (SaveResult, error) {
 	if err != nil {
 		return SaveResult{}, err
 	}
+	tpl := modedit.TemplateByID(gameID, req.Template)
+	extras := templateExtras(tpl, contentDir, req.Fields.Normalized())
 
 	endMute := a.watchMute.Begin(modWatchMuteGrace)
 	defer endMute()
 
+	rollback := func() {
+		_ = os.RemoveAll(contentDir)
+		if stubPath != "" {
+			_ = os.Remove(stubPath)
+		}
+	}
+
 	var paths []string
 	for _, e := range edits {
 		if _, writeErr := atomicfile.Write(filepath.Dir(e.Path), filepath.Base(e.Path), []byte(e.After)); writeErr != nil {
-			_ = os.RemoveAll(contentDir)
-			if stubPath != "" {
-				_ = os.Remove(stubPath)
-			}
+			rollback()
 			log.Errorf("creating '%s' in '%s' failed: %v", req.Fields.Name, a.gameLabel(gameID), writeErr)
 			return SaveResult{}, writeErr
 		}
 		paths = append(paths, e.Path)
+	}
+	for _, w := range extras {
+		if _, writeErr := atomicfile.Write(filepath.Dir(w.path), filepath.Base(w.path), w.data); writeErr != nil {
+			rollback()
+			log.Errorf("creating '%s' in '%s' failed: %v", req.Fields.Name, a.gameLabel(gameID), writeErr)
+			return SaveResult{}, writeErr
+		}
+		paths = append(paths, w.path)
 	}
 
 	names := make([]string, len(paths))
