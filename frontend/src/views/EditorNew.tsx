@@ -40,7 +40,7 @@ function previewFolderName(name: string): string {
 }
 
 function timestamp(): string {
-    return new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', second: '2-digit'});
+    return new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false});
 }
 
 // formatBytesPair renders "1.8 / 4.2 GB" - one unit shown once, at the end, picked from the

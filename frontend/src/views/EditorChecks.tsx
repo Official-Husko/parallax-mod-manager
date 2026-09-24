@@ -341,7 +341,7 @@ export function EditorChecks({gameId, gameName, gameVersion, mod, installedNames
                         </button>
                         {result && result.RanAt > 0 && (
                             <span className="editor-hint mono">
-                                last run {new Date(result.RanAt * 1000).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
+                                last run {new Date(result.RanAt * 1000).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', hour12: false})}
                                 {' '}&middot; {(result.DurationMS / 1000).toFixed(1)} s
                             </span>
                         )}
