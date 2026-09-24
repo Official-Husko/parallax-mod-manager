@@ -156,7 +156,12 @@ export function EditorChecks({gameId, mod, installedNames, initialResult, onResu
                             Reading this mod's files, and the base game's own files the first time this game is checked.
                         </p>
                     )}
-                    {error && <div className="editor-problem bad"><i className="fa-solid fa-circle-xmark"/> {error}</div>}
+                    {error && (
+                        <div className="editor-alert bad">
+                            <i className="fa-solid fa-circle-xmark editor-alert-icon"/>
+                            <div className="editor-alert-body"><div className="editor-alert-text">{error}</div></div>
+                        </div>
+                    )}
                 </div>
             </div>
 

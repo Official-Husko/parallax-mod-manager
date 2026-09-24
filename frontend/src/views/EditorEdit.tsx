@@ -194,23 +194,25 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
         <div className="editor-columns">
             <div className="editor-column">
                 {!info.Editable && !forced && (
-                    <div className="editor-readonly">
-                        <i className="fa-solid fa-lock"/>
-                        <div>
-                            <div className="editor-readonly-title">This mod can't be edited here</div>
-                            <div>{info.Reason}</div>
+                    <div className="editor-alert warn">
+                        <i className="fa-solid fa-triangle-exclamation editor-alert-icon"/>
+                        <div className="editor-alert-body">
+                            <div className="editor-alert-title">This mod can't be edited here</div>
+                            <div className="editor-alert-text">{info.Reason}</div>
                             {info.Overridable && (
-                                <button type="button" className="btn-ghost" onClick={() => setForced(true)}>Continue anyway</button>
+                                <div className="editor-alert-actions">
+                                    <button type="button" className="btn-ghost" onClick={() => setForced(true)}>Continue anyway</button>
+                                </div>
                             )}
                         </div>
                     </div>
                 )}
                 {!info.Editable && forced && (
-                    <div className="editor-readonly warn">
-                        <i className="fa-solid fa-triangle-exclamation"/>
-                        <div>
-                            <div className="editor-readonly-title">Editing anyway</div>
-                            <div>{info.Reason}</div>
+                    <div className="editor-alert warn">
+                        <i className="fa-solid fa-triangle-exclamation editor-alert-icon"/>
+                        <div className="editor-alert-body">
+                            <div className="editor-alert-title">Editing anyway</div>
+                            <div className="editor-alert-text">{info.Reason}</div>
                         </div>
                     </div>
                 )}
@@ -319,8 +321,18 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
                     {readOnly && <p className="editor-muted">Nothing can be saved for this mod.</p>}
                     {!readOnly && !changed && <p className="editor-muted">No changes yet. Edit a field or choose a new thumbnail and the files it would write show up here.</p>}
 
-                    {problems.map((p) => <div key={p} className="editor-problem bad"><i className="fa-solid fa-circle-xmark"/> {p}</div>)}
-                    {(preview?.Warnings ?? []).map((w) => <div key={w} className="editor-problem warn"><i className="fa-solid fa-triangle-exclamation"/> {w}</div>)}
+                    {problems.map((p) => (
+                        <div key={p} className="editor-alert bad">
+                            <i className="fa-solid fa-circle-xmark editor-alert-icon"/>
+                            <div className="editor-alert-body"><div className="editor-alert-text">{p}</div></div>
+                        </div>
+                    ))}
+                    {(preview?.Warnings ?? []).map((w) => (
+                        <div key={w} className="editor-alert warn">
+                            <i className="fa-solid fa-triangle-exclamation editor-alert-icon"/>
+                            <div className="editor-alert-body"><div className="editor-alert-text">{w}</div></div>
+                        </div>
+                    ))}
 
                     {(preview?.Files ?? []).map((f) => <FileChange key={f.Path} file={f}/>)}
 

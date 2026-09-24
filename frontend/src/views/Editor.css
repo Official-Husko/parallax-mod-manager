@@ -248,6 +248,77 @@
     color: var(--amber);
 }
 
+/* --- Shared alert card: a bordered, colored-icon card with an optional title, body and
+   action(s) - one visual language for every inline notice across every Editor tab (the
+   read-only gate, a flagged dependency, a blocked check, an empty-source error), replacing the
+   narrower .editor-readonly/.editor-problem look wherever a fuller, self-contained card reads
+   better than a compact one-line message. .editor-problem stays as-is for Publish's own simple
+   one-line errors, which this redesign doesn't touch. */
+.editor-alert {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+}
+
+.editor-alert-icon {
+    width: 12px;
+    flex: none;
+    margin-top: 2px;
+    text-align: center;
+}
+
+.editor-alert-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.editor-alert-title {
+    font: 600 12.5px Barlow, sans-serif;
+    color: var(--text-bright);
+    margin-bottom: 2px;
+}
+
+.editor-alert-text {
+    font: 400 12px/1.5 Barlow, sans-serif;
+    color: var(--text-mid);
+}
+
+.editor-alert-actions {
+    margin-top: 8px;
+    display: flex;
+    gap: 8px;
+}
+
+.editor-alert.info {
+    border-color: var(--blue);
+    background: color-mix(in srgb, var(--blue) 8%, transparent);
+}
+
+.editor-alert.info .editor-alert-icon {
+    color: var(--blue);
+}
+
+.editor-alert.warn {
+    border-color: var(--amber);
+    background: color-mix(in srgb, var(--amber) 8%, transparent);
+}
+
+.editor-alert.warn .editor-alert-icon {
+    color: var(--amber);
+}
+
+.editor-alert.bad {
+    border-color: var(--red);
+    background: color-mix(in srgb, var(--red) 8%, transparent);
+}
+
+.editor-alert.bad .editor-alert-icon {
+    color: var(--red);
+}
+
 /* --- Thumbnail --- */
 
 .editor-thumb-row {
@@ -646,32 +717,7 @@
     color: var(--text-mid);
 }
 
-/* --- New tab: Create/Duplicate toggle, the big-mod warning and the duplicate progress overlay --- */
-
-.editor-pill-row {
-    display: flex;
-    gap: 6px;
-    margin-bottom: 4px;
-}
-
-.editor-pill {
-    padding: 6px 12px;
-    border-radius: 20px;
-    border: 1px solid var(--border);
-    font: 600 11.5px Barlow, sans-serif;
-    color: var(--text-muted);
-    cursor: pointer;
-}
-
-.editor-pill:hover {
-    color: var(--text);
-}
-
-.editor-pill.active {
-    border-color: var(--rust);
-    background: var(--bg-highlight);
-    color: var(--text-bright);
-}
+/* --- New tab: the big-mod warning and the duplicate progress overlay --- */
 
 .editor-warn-screen,
 .editor-progress-screen {

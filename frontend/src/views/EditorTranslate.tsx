@@ -232,9 +232,20 @@ export function EditorTranslate({gameId, mod}: { gameId: string; mod: library.Mo
                     </div>
                 </div>
 
-                {eligibilityError && <div className="editor-problem bad"><i className="fa-solid fa-circle-xmark"/> {eligibilityError}</div>}
+                {eligibilityError && (
+                    <div className="editor-alert bad">
+                        <i className="fa-solid fa-circle-xmark editor-alert-icon"/>
+                        <div className="editor-alert-body"><div className="editor-alert-text">{eligibilityError}</div></div>
+                    </div>
+                )}
                 {eligibility && !eligibility.HasEnglishContent && (
-                    <div className="editor-problem bad"><i className="fa-solid fa-circle-xmark"/> This mod has no English localisation text to translate from.</div>
+                    <div className="editor-alert bad">
+                        <i className="fa-solid fa-circle-xmark editor-alert-icon"/>
+                        <div className="editor-alert-body">
+                            <div className="editor-alert-title">No English text found</div>
+                            <div className="editor-alert-text">Searched localisation/english/. Translate needs English source strings.</div>
+                        </div>
+                    </div>
                 )}
 
                 <div className="editor-actions">
@@ -246,7 +257,12 @@ export function EditorTranslate({gameId, mod}: { gameId: string; mod: library.Mo
                         <button type="button" className="btn-ghost" onClick={cancel}>Cancel</button>
                     )}
                 </div>
-                {error && <div className="editor-problem bad"><i className="fa-solid fa-circle-xmark"/> {error}</div>}
+                {error && (
+                    <div className="editor-alert bad">
+                        <i className="fa-solid fa-circle-xmark editor-alert-icon"/>
+                        <div className="editor-alert-body"><div className="editor-alert-text">{error}</div></div>
+                    </div>
+                )}
             </div>
 
             <div className="editor-column">

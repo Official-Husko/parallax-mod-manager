@@ -170,12 +170,30 @@ export function EditorNew({gameId, selected, onCreated}: {
     return (
         <div className="editor-columns">
             <div className="editor-column">
-                {canDuplicate && (
-                    <div className="editor-pill-row">
-                        <span className={`editor-pill ${mode === 'create' ? 'active' : ''}`} onClick={() => setMode('create')}>Create new mod</span>
-                        <span className={`editor-pill ${mode === 'duplicate' ? 'active' : ''}`} onClick={() => setMode('duplicate')}>Duplicate '{selected!.Name}'</span>
+                <div className="editor-card">
+                    <div className="editor-card-title">MODE</div>
+                    <div className="mode-option-list">
+                        <div className={`mode-option ${mode === 'create' ? 'active' : ''}`} onClick={() => setMode('create')}>
+                            <i className={`fa-solid ${mode === 'create' ? 'fa-circle-dot' : 'fa-circle'} mode-option-radio ${mode === 'create' ? 'on' : 'off'}`}/>
+                            <div className="mode-option-main">
+                                <div className="mode-option-name">Create a new mod</div>
+                                <div className="mode-option-desc">Start from a template. Files are written to the folder you pick below.</div>
+                            </div>
+                        </div>
+                        <div
+                            className={`mode-option ${mode === 'duplicate' ? 'active' : ''} ${!canDuplicate ? 'disabled' : ''}`}
+                            onClick={() => canDuplicate && setMode('duplicate')}
+                        >
+                            <i className={`fa-solid ${mode === 'duplicate' ? 'fa-circle-dot' : 'fa-circle'} mode-option-radio ${mode === 'duplicate' ? 'on' : 'off'}`}/>
+                            <div className="mode-option-main">
+                                <div className="mode-option-name">Duplicate a mod</div>
+                                <div className="mode-option-desc">
+                                    {canDuplicate ? <>Copy '{selected!.Name}' under a new name.</> : 'Copy an existing mod under a new name. Select a mod in the list to enable this.'}
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                )}
+                </div>
 
                 <div className="editor-card">
                     <div className="editor-card-title">LOCATION</div>
@@ -228,8 +246,18 @@ export function EditorNew({gameId, selected, onCreated}: {
                     {mode === 'create' && (
                         <>
                             {!name.trim() && <p className="editor-muted">Give the mod a name to see what would be created.</p>}
-                            {createProblems.map((p) => <div key={p} className="editor-problem bad"><i className="fa-solid fa-circle-xmark"/> {p}</div>)}
-                            {(preview?.Warnings ?? []).map((w) => <div key={w} className="editor-problem warn"><i className="fa-solid fa-triangle-exclamation"/> {w}</div>)}
+                            {createProblems.map((p) => (
+                                <div key={p} className="editor-alert bad">
+                                    <i className="fa-solid fa-circle-xmark editor-alert-icon"/>
+                                    <div className="editor-alert-body"><div className="editor-alert-text">{p}</div></div>
+                                </div>
+                            ))}
+                            {(preview?.Warnings ?? []).map((w) => (
+                                <div key={w} className="editor-alert warn">
+                                    <i className="fa-solid fa-triangle-exclamation editor-alert-icon"/>
+                                    <div className="editor-alert-body"><div className="editor-alert-text">{w}</div></div>
+                                </div>
+                            ))}
                             {(preview?.Files ?? []).map((f) => <FileChange key={f.Path} file={f}/>)}
                             <div className="editor-actions">
                                 <button type="button" className="btn-primary" disabled={!canCreate} onClick={create}>{busy ? 'Creating...' : 'Create mod'}</button>
@@ -240,8 +268,18 @@ export function EditorNew({gameId, selected, onCreated}: {
                     {mode === 'duplicate' && selected && (
                         <>
                             {!dupName.trim() && <p className="editor-muted">Give the copy a name to see what would be created.</p>}
-                            {dupProblems.map((p) => <div key={p} className="editor-problem bad"><i className="fa-solid fa-circle-xmark"/> {p}</div>)}
-                            {(dupPreview?.Warnings ?? []).map((w) => <div key={w} className="editor-problem warn"><i className="fa-solid fa-triangle-exclamation"/> {w}</div>)}
+                            {dupProblems.map((p) => (
+                                <div key={p} className="editor-alert bad">
+                                    <i className="fa-solid fa-circle-xmark editor-alert-icon"/>
+                                    <div className="editor-alert-body"><div className="editor-alert-text">{p}</div></div>
+                                </div>
+                            ))}
+                            {(dupPreview?.Warnings ?? []).map((w) => (
+                                <div key={w} className="editor-alert warn">
+                                    <i className="fa-solid fa-triangle-exclamation editor-alert-icon"/>
+                                    <div className="editor-alert-body"><div className="editor-alert-text">{w}</div></div>
+                                </div>
+                            ))}
                             {(dupPreview?.Files ?? []).map((f) => <FileChange key={f.Path} file={f}/>)}
                             {dupPreview && dupPreview.SourceFiles > 0 && (
                                 <div className="editor-file-note">
