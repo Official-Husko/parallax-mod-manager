@@ -226,11 +226,15 @@ export function Editor({games, selectedGame, gameVersion}: {
                     </div>
                 )}
                 <div className="editor-tabs">
-                    {TABS.map((t) => (
-                        <span key={t.key} className={`editor-tab ${tab === t.key ? 'active' : ''}`} onClick={() => setTab(t.key)}>
-                            <i className={`fa-solid ${t.icon}`}/> {t.label}
-                        </span>
-                    ))}
+                    {TABS.map((t) => {
+                        const findingCount = t.key === 'checks' && selected ? checkResults.get(selected.ID)?.Findings.length ?? 0 : 0;
+                        return (
+                            <span key={t.key} className={`editor-tab ${tab === t.key ? 'active' : ''}`} onClick={() => setTab(t.key)}>
+                                <i className={`fa-solid ${t.icon}`}/> {t.label}
+                                {findingCount > 0 && <span className="editor-tab-badge">{findingCount}</span>}
+                            </span>
+                        );
+                    })}
                 </div>
                 <div className="editor-tab-body">
                     {tab === 'new' && (

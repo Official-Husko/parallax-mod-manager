@@ -203,6 +203,8 @@ export function PurgeMods(arg1:string,arg2:Array<string>):Promise<library.PurgeR
 
 export function ReadModFile(arg1:string,arg2:string,arg3:string):Promise<library.ModFileContent>;
 
+export function RebuildBaseGameIndex(arg1:string):Promise<void>;
+
 export function RemoveBackgroundPack(arg1:string):Promise<void>;
 
 export function RemoveExtraModFolder(arg1:string,arg2:string):Promise<void>;

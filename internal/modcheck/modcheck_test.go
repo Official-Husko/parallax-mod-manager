@@ -43,7 +43,7 @@ func TestCheckFindsSyntaxError(t *testing.T) {
 	m := mod.Mod{ID: "broken_mod", ContentPath: dir}
 	cfg := testGame("stellaris")
 
-	findings, err := Check(context.Background(), m, cfg, Options{Store: cache.FileStore{Dir: t.TempDir()}})
+	findings, _, err := Check(context.Background(), m, cfg, Options{Store: cache.FileStore{Dir: t.TempDir()}})
 	if err != nil {
 		t.Fatalf("Check: %v", err)
 	}
@@ -68,7 +68,7 @@ func TestCheckFindsSkippedLocalisationLine(t *testing.T) {
 	m := mod.Mod{ID: "loc_mod", ContentPath: dir}
 	cfg := testGame("stellaris")
 
-	findings, err := Check(context.Background(), m, cfg, Options{Store: cache.FileStore{Dir: t.TempDir()}})
+	findings, _, err := Check(context.Background(), m, cfg, Options{Store: cache.FileStore{Dir: t.TempDir()}})
 	if err != nil {
 		t.Fatalf("Check: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestCheckCleanModHasNoSyntaxFindings(t *testing.T) {
 	m := mod.Mod{ID: "clean_mod", ContentPath: dir}
 	cfg := testGame("stellaris")
 
-	findings, err := Check(context.Background(), m, cfg, Options{Store: cache.FileStore{Dir: t.TempDir()}})
+	findings, _, err := Check(context.Background(), m, cfg, Options{Store: cache.FileStore{Dir: t.TempDir()}})
 	if err != nil {
 		t.Fatalf("Check: %v", err)
 	}
@@ -106,7 +106,7 @@ func TestCheckBaseGameConflictOnDifferingContent(t *testing.T) {
 	m := mod.Mod{ID: "overwrite_mod", ContentPath: modDir}
 	cfg := testGame("stellaris")
 
-	findings, err := Check(context.Background(), m, cfg, Options{
+	findings, _, err := Check(context.Background(), m, cfg, Options{
 		Store:      cache.FileStore{Dir: t.TempDir()},
 		InstallDir: install,
 	})
@@ -132,7 +132,7 @@ func TestCheckNoBaseGameConflictOnIdenticalContent(t *testing.T) {
 	m := mod.Mod{ID: "same_mod", ContentPath: modDir}
 	cfg := testGame("stellaris")
 
-	findings, err := Check(context.Background(), m, cfg, Options{
+	findings, _, err := Check(context.Background(), m, cfg, Options{
 		Store:      cache.FileStore{Dir: t.TempDir()},
 		InstallDir: install,
 	})
@@ -154,7 +154,7 @@ func TestCheckNoBaseGameConflictOnNewContent(t *testing.T) {
 	m := mod.Mod{ID: "new_content_mod", ContentPath: modDir}
 	cfg := testGame("stellaris")
 
-	findings, err := Check(context.Background(), m, cfg, Options{
+	findings, _, err := Check(context.Background(), m, cfg, Options{
 		Store:      cache.FileStore{Dir: t.TempDir()},
 		InstallDir: install,
 	})
@@ -172,12 +172,38 @@ func TestCheckSkipsBaseGameWhenInstallDirEmpty(t *testing.T) {
 	m := mod.Mod{ID: "no_install_mod", ContentPath: modDir}
 	cfg := testGame("stellaris")
 
-	findings, err := Check(context.Background(), m, cfg, Options{Store: cache.FileStore{Dir: t.TempDir()}})
+	findings, _, err := Check(context.Background(), m, cfg, Options{Store: cache.FileStore{Dir: t.TempDir()}})
 	if err != nil {
 		t.Fatalf("Check: %v", err)
 	}
 	if baseGame := findingsOf(t, findings, CategoryBaseGame); len(baseGame) != 0 {
 		t.Errorf("expected no base-game findings when InstallDir is empty, got %+v", baseGame)
+	}
+}
+
+func TestCheckReturnsHowManyFilesItExamined(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "common/buildings/00_buildings.txt", `some_building = { cost = 100 }`)
+	writeFile(t, dir, "events/some_events.txt", `namespace = some`)
+	m := mod.Mod{ID: "two_file_mod", ContentPath: dir}
+	cfg := testGame("stellaris")
+	store := cache.FileStore{Dir: t.TempDir()}
+
+	_, filesRead, err := Check(context.Background(), m, cfg, Options{Store: store})
+	if err != nil {
+		t.Fatalf("Check: %v", err)
+	}
+	if filesRead != 2 {
+		t.Errorf("filesRead = %d, want 2", filesRead)
+	}
+
+	// A warm second run examines the same two files, even though nothing needed re-parsing.
+	_, filesRead, err = Check(context.Background(), m, cfg, Options{Store: store})
+	if err != nil {
+		t.Fatalf("Check (warm): %v", err)
+	}
+	if filesRead != 2 {
+		t.Errorf("filesRead on a warm run = %d, want 2", filesRead)
 	}
 }
 
@@ -264,7 +290,7 @@ func TestCheckCategoryOrder(t *testing.T) {
 	}
 	cfg := testGame("stellaris")
 
-	findings, err := Check(context.Background(), m, cfg, Options{
+	findings, _, err := Check(context.Background(), m, cfg, Options{
 		Store:          cache.FileStore{Dir: t.TempDir()},
 		InstallDir:     install,
 		InstalledNames: nil,
@@ -302,7 +328,7 @@ func TestCheckWritesAReusableCache(t *testing.T) {
 	cfg := testGame("stellaris")
 	storeDir := t.TempDir()
 
-	if _, err := Check(context.Background(), m, cfg, Options{Store: cache.FileStore{Dir: storeDir}}); err != nil {
+	if _, _, err := Check(context.Background(), m, cfg, Options{Store: cache.FileStore{Dir: storeDir}}); err != nil {
 		t.Fatalf("Check: %v", err)
 	}
 
@@ -331,7 +357,7 @@ func TestCheckReusesCacheOnSecondRun(t *testing.T) {
 	cfg := testGame("stellaris")
 	store := cache.FileStore{Dir: t.TempDir()}
 
-	if _, err := Check(context.Background(), m, cfg, Options{Store: store}); err != nil {
+	if _, _, err := Check(context.Background(), m, cfg, Options{Store: store}); err != nil {
 		t.Fatalf("first Check: %v", err)
 	}
 
@@ -340,7 +366,7 @@ func TestCheckReusesCacheOnSecondRun(t *testing.T) {
 	}
 	defer os.Chmod(filePath, 0o644)
 
-	if _, err := Check(context.Background(), m, cfg, Options{Store: store}); err != nil {
+	if _, _, err := Check(context.Background(), m, cfg, Options{Store: store}); err != nil {
 		t.Fatalf("second Check should have reused the cache without re-reading the file, got: %v", err)
 	}
 }

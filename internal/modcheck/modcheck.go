@@ -56,14 +56,16 @@ type Finding struct {
 	Message string
 }
 
-// vanillaModID is the reserved, synthetic mod ID this package uses to run
+// VanillaModID is the reserved, synthetic mod ID this package uses to run
 // the game's own install directory through the same cache-backed parsing
 // pipeline as a real mod (see pipeline.LoadMod) - the same trick
 // internal/library's own patchModID uses for the generated patch mod. No
 // real mod can ever have this ID: a real ID always comes from an actual
 // descriptor's filename stem or its own id field (see internal/scan), never
-// a hand-picked literal.
-const vanillaModID = "__parallax_vanilla_baseline__"
+// a hand-picked literal. Exported so internal/app can look up this same
+// entry's own cache.FileStore.Stat/Remove for the Checks tab's "Result
+// cache" card, without duplicating the literal here.
+const VanillaModID = "__parallax_vanilla_baseline__"
 
 // Options configures a Check run.
 type Options struct {
@@ -85,25 +87,27 @@ type Options struct {
 
 // Check runs every check for one mod and returns its findings, grouped in
 // the tab's own fixed category order (base game, syntax, descriptor,
-// dependencies) - within a category, by file and then line.
-func Check(ctx context.Context, m mod.Mod, cfg game.GameConfig, opts Options) ([]Finding, error) {
+// dependencies) - within a category, by file and then line - plus how many
+// of this mod's own files this run examined (cached ones included; see
+// pipeline.Stats.Files), for the Checks tab's own "Result cache" stats.
+func Check(ctx context.Context, m mod.Mod, cfg game.GameConfig, opts Options) ([]Finding, int, error) {
 	stats := &pipeline.Stats{}
 	defs, err := pipeline.LoadMod(ctx, m, cfg, pipeline.Options{Store: opts.Store, Stats: stats})
 	if err != nil {
-		return nil, fmt.Errorf("modcheck: reading %s's own files: %w", m.ID, err)
+		return nil, 0, fmt.Errorf("modcheck: reading %s's own files: %w", m.ID, err)
 	}
 	findings := syntaxFindings(m, stats)
 
 	baseGame, err := checkBaseGameConflicts(ctx, m.ID, defs, cfg, opts)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	sortFindings(findings)
 	all := append(baseGame, findings...)
 	all = append(all, checkDescriptor(m)...)
 	all = append(all, checkDependencies(m, opts.InstalledNames)...)
-	return all, nil
+	return all, int(stats.Files.Load()), nil
 }
 
 func sortFindings(findings []Finding) {
@@ -192,13 +196,13 @@ func checkBaseGameConflicts(ctx context.Context, modID string, modDefs []definit
 		return nil, nil
 	}
 
-	vanilla := mod.Mod{ID: vanillaModID, ContentPath: opts.InstallDir}
+	vanilla := mod.Mod{ID: VanillaModID, ContentPath: opts.InstallDir}
 	vanillaDefs, err := pipeline.LoadMod(ctx, vanilla, cfg, pipeline.Options{Store: opts.Store})
 	if err != nil {
 		return nil, fmt.Errorf("modcheck: reading the base game's own files: %w", err)
 	}
 
-	order := conflict.LoadOrder{vanillaModID, modID}
+	order := conflict.LoadOrder{VanillaModID, modID}
 	result := conflict.Resolve(order, []conflict.Input{
 		{Mod: vanilla, Defs: vanillaDefs},
 		{Mod: mod.Mod{ID: modID}, Defs: modDefs},

@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/gob"
+	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -166,5 +167,34 @@ func (s FileStore) Save(ctx context.Context, c *ModCache) error {
 	}
 	dir := filepath.Join(s.Dir, c.GameKey)
 	_, err := atomicfile.Write(dir, c.ModID+cacheFileExt, buf.Bytes())
+	return err
+}
+
+// Stat reports one mod's cache entry's on-disk size and file count, without the caller needing
+// to know FileStore's own path convention - used by the Editor's Checks tab to show the base
+// game's own cached index size (see modcheck.VanillaModID) alongside a real mod's own. ok is
+// false when no cache file exists yet for (gameKey, modID); a corrupt or unreadable one still
+// reports its real size with a zero file count, rather than looking like there is no cache at
+// all.
+func (s FileStore) Stat(gameKey, modID string) (files int, size int64, ok bool) {
+	info, err := os.Stat(s.path(gameKey, modID))
+	if err != nil {
+		return 0, 0, false
+	}
+	mc, loadErr := s.Load(context.Background(), gameKey, modID)
+	if loadErr != nil {
+		return 0, info.Size(), true
+	}
+	return len(mc.Files), info.Size(), true
+}
+
+// Remove deletes one mod's cache file, if it exists - forcing a full reparse the next time it is
+// needed. A missing file is not an error. Used to rebuild the base game's own cached index on
+// request (see modcheck.VanillaModID).
+func (s FileStore) Remove(gameKey, modID string) error {
+	err := os.Remove(s.path(gameKey, modID))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
 	return err
 }

@@ -374,6 +374,10 @@ export function ReadModFile(arg1, arg2, arg3) {
   return window['go']['main']['App']['ReadModFile'](arg1, arg2, arg3);
 }
 
+export function RebuildBaseGameIndex(arg1) {
+  return window['go']['main']['App']['RebuildBaseGameIndex'](arg1);
+}
+
 export function RemoveBackgroundPack(arg1) {
   return window['go']['main']['App']['RemoveBackgroundPack'](arg1);
 }

@@ -170,6 +170,15 @@
     border-bottom-color: var(--rust);
 }
 
+.editor-tab-badge {
+    font: 600 9.5px "Azeret Mono", monospace;
+    color: var(--bg-panel-solid);
+    background: var(--amber);
+    border-radius: 8px;
+    padding: 1px 6px;
+    margin-left: 2px;
+}
+
 .editor-tab-body {
     flex: 1;
     padding: 16px 18px 24px;
@@ -702,17 +711,22 @@
 
 /* The same plain-list idiom as Workspace's own PRE-FLIGHT (.preflight-mini-row): one row per
    check, an icon carrying the only color (status, not category), the count baked into the
-   row's own sentence rather than a badge - no per-row card or border. */
+   row's own sentence rather than a badge - no per-row card or border. A colored left bar (the
+   category's own color, matching FINDINGS' own grouping below) and a "Show" link that jumps to
+   that category's group are added on top of that same idiom, not a replacement for it. */
 .check-list {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 2px;
 }
 
 .check-row {
     display: flex;
     align-items: center;
     gap: 8px;
+    padding: 6px 0;
+    border-left: 3px solid transparent;
+    padding-left: 8px;
     font: 400 12px Barlow, sans-serif;
     color: var(--text-mid);
 }
@@ -721,6 +735,222 @@
     font-size: 11px;
     width: 14px;
     flex: none;
+}
+
+.check-row-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.check-row-show {
+    font: 600 10.5px Barlow, sans-serif;
+    color: var(--text-muted);
+    cursor: pointer;
+    flex: none;
+}
+
+/* --- Checks tab: RESULT CACHE card --- */
+
+.result-cache-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 16px;
+}
+
+.result-cache-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.result-cache-stat-label {
+    font: 500 10.5px Barlow, sans-serif;
+    color: var(--text-muted);
+}
+
+.result-cache-stat-value {
+    font: 700 15px "Azeret Mono", monospace;
+    color: var(--text-bright);
+}
+
+.result-cache-stat-sub {
+    font: 400 10.5px "Azeret Mono", monospace;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.result-cache-bar {
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, .05);
+    overflow: hidden;
+    display: flex;
+}
+
+.result-cache-legend {
+    display: flex;
+    gap: 12px;
+    font: 500 10.5px Barlow, sans-serif;
+    color: var(--text-muted);
+    align-items: center;
+}
+
+.result-cache-legend-dot {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.result-cache-legend-dot > span {
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    display: inline-block;
+}
+
+/* --- Checks tab: FINDINGS toolbar (group/view/filter/severity chips) --- */
+
+.findings-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.findings-toolbar-group {
+    display: flex;
+    border: 1px solid var(--border-light);
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+.findings-toolbar-group span {
+    font: 500 10.5px Barlow, sans-serif;
+    color: var(--text-muted);
+    background: transparent;
+    padding: 4px 9px;
+    cursor: pointer;
+    border-left: 1px solid var(--border-light);
+}
+
+.findings-toolbar-group span:first-child {
+    border-left: none;
+}
+
+.findings-toolbar-group span.active {
+    font-weight: 600;
+    color: var(--text-bright);
+    background: var(--bg-highlight);
+}
+
+.findings-filter-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.findings-filter-box {
+    flex: 1;
+    min-width: 160px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    background: rgba(255, 255, 255, .03);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 5px 9px;
+}
+
+.findings-filter-box input {
+    flex: 1;
+    min-width: 0;
+    background: transparent;
+    border: none;
+    outline: none;
+    font: 400 12px Barlow, sans-serif;
+    color: var(--text);
+}
+
+.findings-filter-box i {
+    color: var(--text-dim);
+    font-size: 11px;
+}
+
+.findings-collapse-all {
+    font: 600 10.5px Barlow, sans-serif;
+    color: var(--text-muted);
+    cursor: pointer;
+    flex: none;
+}
+
+.findings-list {
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    max-height: 540px;
+}
+
+.findings-group-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px 8px 10px;
+    background: var(--bg-highlight);
+    border-top: 1px solid var(--border);
+    cursor: pointer;
+    position: sticky;
+    top: 0;
+}
+
+.findings-list > .findings-group-head:first-child {
+    border-top: none;
+}
+
+.findings-group-head i.chevron {
+    font-size: 10px;
+    color: var(--text-muted);
+    width: 10px;
+    flex: none;
+}
+
+.findings-group-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    flex: none;
+}
+
+.findings-group-name {
+    flex: 1;
+    min-width: 0;
+    font: 600 11.5px Barlow, sans-serif;
+    color: var(--text-bright);
+}
+
+.findings-group-count {
+    font: 500 10.5px "Azeret Mono", monospace;
+    color: var(--text-mid);
+}
+
+.findings-group-more {
+    padding: 7px 12px 7px 30px;
+    border-top: 1px solid #1a212b;
+    font: 600 11px Barlow, sans-serif;
+    color: var(--amber);
+    cursor: pointer;
+}
+
+.findings-footer {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font: 400 10.5px "Azeret Mono", monospace;
+    color: var(--text-muted);
 }
 
 /* --- Publish: the file picker and the upload log --- */

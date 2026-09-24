@@ -263,6 +263,12 @@ export namespace app {
 	export class CheckResult {
 	    Findings: modcheck.Finding[];
 	    BaseGameChecked: boolean;
+	    FilesRead: number;
+	    ResultBytes: number;
+	    DurationMS: number;
+	    RanAt: number;
+	    BaseGameIndexFiles: number;
+	    BaseGameIndexBytes: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new CheckResult(source);
@@ -272,6 +278,12 @@ export namespace app {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.Findings = this.convertValues(source["Findings"], modcheck.Finding);
 	        this.BaseGameChecked = source["BaseGameChecked"];
+	        this.FilesRead = source["FilesRead"];
+	        this.ResultBytes = source["ResultBytes"];
+	        this.DurationMS = source["DurationMS"];
+	        this.RanAt = source["RanAt"];
+	        this.BaseGameIndexFiles = source["BaseGameIndexFiles"];
+	        this.BaseGameIndexBytes = source["BaseGameIndexBytes"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

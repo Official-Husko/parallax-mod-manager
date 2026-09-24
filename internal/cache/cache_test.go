@@ -240,3 +240,49 @@ func TestLoadDiscardsACacheWrittenByAnOlderParser(t *testing.T) {
 		t.Errorf("a cache written under the current parser was thrown away: %+v", back.Files)
 	}
 }
+
+func TestStatSaysNotOKWhenNoCacheExistsYet(t *testing.T) {
+	store := FileStore{Dir: t.TempDir()}
+	if _, _, ok := store.Stat("g", "never_saved"); ok {
+		t.Error("Stat found something for a mod that was never saved")
+	}
+}
+
+func TestStatReportsARealSavedEntrysFileCountAndSize(t *testing.T) {
+	store := FileStore{Dir: t.TempDir()}
+	c := &ModCache{
+		Version: FormatVersion, ParserVersion: ParserVersion, ModID: "m", GameKey: "g",
+		Files: map[string]FileRecord{"a.txt": {Path: "a.txt"}, "b.txt": {Path: "b.txt"}},
+	}
+	if err := store.Save(context.Background(), c); err != nil {
+		t.Fatal(err)
+	}
+	files, size, ok := store.Stat("g", "m")
+	if !ok {
+		t.Fatal("Stat found nothing for a mod that was just saved")
+	}
+	if files != 2 {
+		t.Errorf("files = %d, want 2", files)
+	}
+	if size <= 0 {
+		t.Errorf("size = %d, want a real positive size", size)
+	}
+}
+
+func TestRemoveDeletesTheCacheFileAndIsANoOpWhenAlreadyGone(t *testing.T) {
+	store := FileStore{Dir: t.TempDir()}
+	c := &ModCache{Version: FormatVersion, ParserVersion: ParserVersion, ModID: "m", GameKey: "g", Files: map[string]FileRecord{}}
+	if err := store.Save(context.Background(), c); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Remove("g", "m"); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	if _, _, ok := store.Stat("g", "m"); ok {
+		t.Error("Stat still finds the entry after Remove")
+	}
+	// Removing again (nothing there) is not an error.
+	if err := store.Remove("g", "m"); err != nil {
+		t.Errorf("Remove on an already-removed entry returned an error: %v", err)
+	}
+}

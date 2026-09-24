@@ -837,7 +837,18 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   check again; only a mod that has never been checked this session shows "not checked yet". A
   save, or any other change to the game's mods, clears every cached result at once, since it may
   no longer hold for files that just changed. A game that could not be found skips only the
-  base-game category, named as the reason instead of a false "clean".
+  base-game category, named as the reason instead of a false "clean" - the Editor's own tab strip
+  shows the finding count too. The findings list itself groups by **Category**, **File** or
+  **Severity**, toggles between that grouped view and a flat list, filters by message or path, and
+  toggles Errors/Warnings on or off - each of the four category rows above it gets a **Show** link
+  jumping straight to its own group. A **Result cache** card reports what checking actually costs:
+  this mod's own last result size and files read (`modcheck.Check`'s own file-examined count, not
+  guessed), a running total for the whole session (kept in a small standalone module, never
+  cleared by a mod switch the way the per-mod cache is), and the base game's own cached index size
+  and file count (`cache.FileStore.Stat`, reading the same `__parallax_vanilla_baseline__` cache
+  entry `modcheck` already writes) - with **Clear results** (this mod's own cached findings only)
+  and **Rebuild base index** (`cache.FileStore.Remove`, forcing a full reparse of the base game
+  next time) buttons.
 - **Creating and duplicating a mod** (the Editor's **New** tab, first of the four - `newmod.go`,
   `internal/modedit`'s `FolderName`/`NewFiles`/`NewStub`/`Templates`, `frontend/src/views/EditorNew.tsx`) - the
   mod list's first row is always a dashed "+ New mod" tile, and picking any existing mod always

@@ -293,7 +293,13 @@ for security, privacy, reliability or performance is called out (see the last tw
   exact file and line, a descriptor problem (no supported_version, a badly shaped one, a missing picture file),
   and a declared dependency that matches no installed mod. A mod's last result stays put while you look at
   something else and come back, until you save or something else changes the mods; a game that couldn't be
-  found only skips the base-game part, named as the reason.
+  found only skips the base-game part, named as the reason. The Editor tab strip itself shows the finding count.
+- **Group, filter and search a mod's findings** - the Checks tab's own findings list groups by Category, File or
+  Severity, toggles between grouped and a flat list, filters by message or path, and toggles Errors/Warnings on
+  or off - a "Show" link on each category jumps straight to its group.
+- **Real numbers for what checking a mod costs** - a Result cache card on the Checks tab: this mod's own last
+  result size and files read, a running total for the whole session, the base game's own cached index size and
+  file count, and the last run's real duration - with Clear results and Rebuild base index buttons.
 - **Publish a mod straight to the Steam Workshop** - the Publish tab: upload as a brand new item, or
   push an update to one the mod already has (decided automatically, not asked). Talks to this
   computer's own already-running Steam client the way the game itself would, through an isolated
