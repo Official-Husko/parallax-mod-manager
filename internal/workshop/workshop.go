@@ -30,6 +30,13 @@ type PublishRequest struct {
 	Description   string
 	ChangeNote    string
 	ContentFolder string
+	// ExcludePaths lists files or folders (forward-slashed, relative to
+	// ContentFolder - the same convention library.FileEntry.RelPath uses)
+	// to leave out of the upload entirely. Excluding a folder excludes
+	// everything under it. Empty means upload the whole content folder,
+	// unchanged - the common case, and the only one that skips staging a
+	// temporary copy at all (see HelperPublisher.Publish).
+	ExcludePaths []string
 	// PreviewFile is optional.
 	PreviewFile string
 	// Visibility is one of "private", "friendsOnly", "unlisted", "public" -
@@ -43,7 +50,9 @@ type PublishRequest struct {
 // PublishProgress is one step of an in-flight publish, reported as it
 // happens - see Publisher.Publish's onProgress.
 type PublishProgress struct {
-	// Stage is one of: "opening", "initialized", "creating", "created",
+	// Stage is one of: "staging" (only when ExcludePaths is non-empty -
+	// reported by HelperPublisher itself, before the companion process
+	// even starts), "opening", "initialized", "creating", "created",
 	// "updating", "uploading", "done", "error".
 	Stage string
 	// Message is set on "error" - a short, human-readable explanation.

@@ -1,8 +1,9 @@
 import {Fragment, h} from 'preact';
 import {useEffect, useState} from 'preact/hooks';
-import {PublishModToWorkshop} from '../../wailsjs/go/main/App';
+import {ListModFiles, PublishModToWorkshop} from '../../wailsjs/go/main/App';
 import type {app, library} from '../../wailsjs/go/models';
 import {EventsOn} from '../../wailsjs/runtime/runtime';
+import {FileTree} from '../components/FileTree';
 
 // The Publish tab: uploading a mod to the Steam Workshop as a new item, or pushing an update to
 // one already there, with a line-by-line log of what the app and Steam did - see
@@ -51,6 +52,8 @@ function formatBytes(n: number): string {
 // stage isn't worth its own log line.
 function describeStage(p: WorkshopPublishProgress): { tone: LogTone; text: string } | null {
     switch (p.Stage) {
+        case 'staging':
+            return {tone: 'info', text: p.Message ? `Preparing files to upload (${p.Message})...` : 'Preparing files to upload...'};
         case 'opening':
             return {tone: 'info', text: 'Connecting to Steam...'};
         case 'initialized':
@@ -82,14 +85,36 @@ export function EditorPublish({gameId, mod}: { gameId: string; mod: library.ModS
     const [publishing, setPublishing] = useState(false);
     const [log, setLog] = useState<LogLine[]>([]);
     const [error, setError] = useState('');
+    const [files, setFiles] = useState<library.ModFiles | null>(null);
+    const [filesError, setFilesError] = useState('');
+    // Which relative paths the person chose to leave out - see
+    // components/FileTree's own SelectionProps for exactly what excluding a
+    // folder does to everything under it.
+    const [excluded, setExcluded] = useState<Set<string>>(new Set());
 
-    // A different mod selected - this tab's own log/draft belongs to whichever mod was open
-    // when it was written, never carried over to a different one.
+    // A different mod selected - this tab's own log/draft/exclusions belong to
+    // whichever mod was open when they were set, never carried over to a
+    // different one.
     useEffect(() => {
         setLog([]);
         setError('');
         setChangeNote('');
+        setExcluded(new Set());
+        setFiles(null);
+        setFilesError('');
+        ListModFiles(gameId, mod.ID)
+            .then(setFiles)
+            .catch((err) => setFilesError(String(err)));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [mod.ID]);
+
+    function toggleExcluded(relPath: string) {
+        setExcluded((prev) => {
+            const next = new Set(prev);
+            if (next.has(relPath)) next.delete(relPath); else next.add(relPath);
+            return next;
+        });
+    }
 
     useEffect(() => {
         const off = EventsOn('workshop-publish-progress', (eventGameId: string, progress: WorkshopPublishProgress) => {
@@ -115,6 +140,7 @@ export function EditorPublish({gameId, mod}: { gameId: string; mod: library.ModS
             Description: mod.ShortDescription,
             ChangeNote: changeNote,
             Visibility: visibility,
+            ExcludePaths: Array.from(excluded),
         } as unknown as app.WorkshopPublishRequest)
             .catch((err) => {
                 const text = String(err);
@@ -203,6 +229,32 @@ export function EditorPublish({gameId, mod}: { gameId: string; mod: library.ModS
             </div>
 
             <div className="editor-column">
+                <div className="editor-card editor-changes">
+                    <div className="editor-card-title">
+                        FILES TO UPLOAD{excluded.size > 0 && <span className="editor-card-count mono"> · {excluded.size} excluded</span>}
+                    </div>
+                    {filesError && <div className="editor-problem bad"><i className="fa-solid fa-circle-xmark"/> {filesError}</div>}
+                    {!filesError && !files && <div className="editor-muted">Loading this mod's files...</div>}
+                    {!filesError && files && files.Entries.length === 0 && (
+                        <div className="editor-muted">This mod has no files of its own yet.</div>
+                    )}
+                    {!filesError && files && files.Entries.length > 0 && (
+                        <>
+                            <div className="editor-muted" style={{marginBottom: 6}}>
+                                Untick a file or folder to leave it out of the upload - it stays on your computer either way.
+                            </div>
+                            <div className="editor-file-picker">
+                                <FileTree entries={files.Entries} selection={{excluded, onToggle: (relPath) => toggleExcluded(relPath)}}/>
+                            </div>
+                            {files.Truncated && (
+                                <div className="editor-muted" style={{marginTop: 6}}>
+                                    Showing the first {files.Entries.length.toLocaleString()} files - this mod has more than that.
+                                </div>
+                            )}
+                        </>
+                    )}
+                </div>
+
                 <div className="editor-card editor-changes">
                     <div className="editor-card-title">UPLOAD LOG</div>
                     {log.length === 0 ? (

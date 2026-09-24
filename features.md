@@ -292,6 +292,11 @@ for security, privacy, reliability or performance is called out (see the last tw
   companion process - never Steam's own launcher or SteamCMD. Title, description and tags come from
   the mod's own metadata; you only type a change note and pick a visibility (private by default).
   Every real step streams into a live upload log as it happens.
+- **Leave specific files out of a Workshop upload** - the Publish tab's own file tree: untick a
+  file or a whole folder to keep it off Steam entirely (unticking a folder does the same to
+  everything inside it) - it stays on your computer either way, nothing is deleted or moved. A
+  temporary copy of the mod, minus whatever you excluded, is what actually gets uploaded; your own
+  real mod folder is never touched.
 
 ## Window
 
@@ -336,7 +341,8 @@ for security, privacy, reliability or performance is called out (see the last tw
 - **Publishing never signs you into anything, and never launches the real game** - it uses whichever
   Steam account is already logged into your own, already-running Steam client (the same one the
   game itself would use), so this app never sees or asks for a Steam password. A published item
-  defaults to **private** unless you choose otherwise.
+  defaults to **private** unless you choose otherwise, and a file you untick in the Publish tab's
+  file picker never leaves your computer at all - it is never included in what gets uploaded.
 - **Mod edits stay inside the mod's own folders** - the Editor only ever writes inside a mod's own folder and
   the game's mod folder; earlier versions it keeps for Undo live in the settings folder, and what you typed
   into a field is never written to the activity log. Duplicating a mod (including a Steam Workshop one) only

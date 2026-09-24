@@ -2,6 +2,7 @@ package workshop
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -104,6 +105,76 @@ func TestHelperPublisherEndToEndAgainstAFakeHelperProcess(t *testing.T) {
 	}
 	if len(stages) != 2 || stages[0] != "opening" || stages[1] != "done" {
 		t.Errorf("stages = %v, want [opening done]", stages)
+	}
+}
+
+// TestHelperPublisherStagesAContentFolderExcludingChosenFiles is
+// TestHelperPublisherEndToEndAgainstAFakeHelperProcess's own sibling, adding
+// ExcludePaths. Publish's own defer removes the staged folder the moment it
+// returns, so the fake helper inspects it itself - via `ls`, capturing that
+// listing to a file - while it still exists, before ever emitting "done".
+func TestHelperPublisherStagesAContentFolderExcludingChosenFiles(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fixture is a Unix shell script - see the test's own doc comment")
+	}
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir()) // workDirFor resolves under os.UserConfigDir()
+
+	contentFolder := t.TempDir()
+	if err := os.WriteFile(filepath.Join(contentFolder, "descriptor.mod"), []byte(`name="Test"`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(contentFolder, "notes.txt"), []byte("private dev notes"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	capturedRequest := filepath.Join(t.TempDir(), "captured-request.json")
+	capturedListing := filepath.Join(t.TempDir(), "captured-listing.txt")
+	script := "#!/bin/sh\n" +
+		"REQ=$(cat)\n" +
+		"echo \"$REQ\" > '" + capturedRequest + "'\n" +
+		"CONTENT=$(echo \"$REQ\" | sed -n 's/.*\"contentFolder\":\"\\([^\"]*\\)\".*/\\1/p')\n" +
+		"ls \"$CONTENT\" > '" + capturedListing + "'\n" +
+		"echo '{\"stage\":\"done\",\"publishedFileId\":1}'\n"
+	scriptPath := filepath.Join(t.TempDir(), "fake-helper.sh")
+	if err := os.WriteFile(scriptPath, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	pub := HelperPublisher{BinaryPath: scriptPath}
+	var stages []string
+	_, err := pub.Publish(context.Background(), PublishRequest{
+		AppID:         281990,
+		ContentFolder: contentFolder,
+		ExcludePaths:  []string{"notes.txt"},
+	}, func(p PublishProgress) { stages = append(stages, p.Stage) })
+	if err != nil {
+		t.Fatalf("Publish() error = %v", err)
+	}
+	if stages[0] != "staging" {
+		t.Errorf("stages = %v, want a leading \"staging\" event", stages)
+	}
+
+	reqData, err := os.ReadFile(capturedRequest)
+	if err != nil {
+		t.Fatalf("reading the fake helper's captured request: %v", err)
+	}
+	var got helperRequest
+	if err := json.Unmarshal(reqData, &got); err != nil {
+		t.Fatalf("decoding the captured request: %v", err)
+	}
+	if got.ContentFolder == contentFolder {
+		t.Fatalf("the helper was pointed at the real content folder %s directly, not a staged copy", contentFolder)
+	}
+
+	listing, err := os.ReadFile(capturedListing)
+	if err != nil {
+		t.Fatalf("reading the captured directory listing: %v", err)
+	}
+	if !strings.Contains(string(listing), "descriptor.mod") {
+		t.Errorf("staged folder listing = %q, want it to contain descriptor.mod", listing)
+	}
+	if strings.Contains(string(listing), "notes.txt") {
+		t.Errorf("staged folder listing = %q, want notes.txt excluded", listing)
 	}
 }
 

@@ -14,6 +14,8 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+
+	"github.com/Official-Husko/parallax-mod-manager/internal/fsutil"
 )
 
 // helperBinaryName names companions/parallax-steam-helper's own pre-built
@@ -51,6 +53,34 @@ func workDirFor(appID uint32) (string, error) {
 		return "", fmt.Errorf("workshop: finding the user config directory: %w", err)
 	}
 	return filepath.Join(configDir, "parallax-mod-manager", "steam_publish_work", strconv.FormatUint(uint64(appID), 10)), nil
+}
+
+// stageExcluding copies contentFolder into a fresh "staged-content" folder
+// under workDir, leaving out every path in excludePaths (see
+// PublishRequest.ExcludePaths), and returns that copy's path plus a cleanup
+// func that removes it - called unconditionally via defer once Publish is
+// done with it, whether the publish itself succeeded or not. The real
+// content folder is never modified or read destructively; this only ever
+// adds a temporary copy elsewhere.
+func stageExcluding(ctx context.Context, contentFolder, workDir string, excludePaths []string) (staged string, cleanup func(), err error) {
+	exclude := make(map[string]bool, len(excludePaths))
+	for _, p := range excludePaths {
+		exclude[strings.TrimRight(filepath.ToSlash(p), "/")] = true
+	}
+
+	staged = filepath.Join(workDir, "staged-content")
+	if err := os.RemoveAll(staged); err != nil {
+		return "", nil, fmt.Errorf("clearing an old staging folder at %s: %w", staged, err)
+	}
+	if err := os.MkdirAll(staged, 0o755); err != nil {
+		return "", nil, fmt.Errorf("creating a staging folder at %s: %w", staged, err)
+	}
+
+	if _, err := fsutil.CopyTreeExcluding(ctx, contentFolder, staged, exclude, 0, nil); err != nil {
+		_ = os.RemoveAll(staged)
+		return "", nil, fmt.Errorf("copying %s to %s without the excluded files: %w", contentFolder, staged, err)
+	}
+	return staged, func() { _ = os.RemoveAll(staged) }, nil
 }
 
 // helperRequest mirrors companions/parallax-steam-helper's own Request type
@@ -112,6 +142,19 @@ func (h HelperPublisher) Publish(ctx context.Context, req PublishRequest, onProg
 		return PublishResult{}, err
 	}
 
+	contentFolder := req.ContentFolder
+	if len(req.ExcludePaths) > 0 && contentFolder != "" {
+		if onProgress != nil {
+			onProgress(PublishProgress{Stage: "staging", Message: fmt.Sprintf("leaving out %d item(s) you chose to exclude", len(req.ExcludePaths))})
+		}
+		staged, cleanup, err := stageExcluding(ctx, contentFolder, workDir, req.ExcludePaths)
+		if err != nil {
+			return PublishResult{}, fmt.Errorf("workshop: preparing files to upload: %w", err)
+		}
+		defer cleanup()
+		contentFolder = staged
+	}
+
 	payload, err := json.Marshal(helperRequest{
 		LibraryPath:   req.LibraryPath,
 		WorkDir:       workDir,
@@ -120,7 +163,7 @@ func (h HelperPublisher) Publish(ctx context.Context, req PublishRequest, onProg
 		Title:         req.Title,
 		Description:   req.Description,
 		ChangeNote:    req.ChangeNote,
-		ContentFolder: req.ContentFolder,
+		ContentFolder: contentFolder,
 		PreviewFile:   req.PreviewFile,
 		Visibility:    req.Visibility,
 	})

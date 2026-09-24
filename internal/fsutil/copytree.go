@@ -39,6 +39,41 @@ const copyBufferSize = 1 << 20
 // fatal. totalBytes is only used to report progress (see Progress) - pass the result of a prior
 // DirStat call, or 0 if it is not known. Cancelling ctx stops the copy promptly, mid-file.
 func CopyTree(ctx context.Context, src, dst string, totalBytes int64, progress Progress) (Stats, error) {
+	return copyTree(ctx, src, dst, totalBytes, progress, nil)
+}
+
+// CopyTreeExcluding is CopyTree, skipping every path in exclude - each a
+// forward-slashed path relative to src, matching library.FileEntry.RelPath's
+// own convention (not imported here - see that package for why - but the
+// same shape). Excluding a folder skips everything under it too, without
+// this needing to walk that subtree at all. Built for
+// internal/workshop's own "leave these files out of the Workshop upload"
+// feature, but kept here rather than in that package since skipping some
+// paths while copying a tree is a generic filesystem operation, not a
+// Workshop-specific one.
+func CopyTreeExcluding(ctx context.Context, src, dst string, exclude map[string]bool, totalBytes int64, progress Progress) (Stats, error) {
+	return copyTree(ctx, src, dst, totalBytes, progress, exclude)
+}
+
+// isExcluded reports whether rel itself, or any of its ancestor directories,
+// is in exclude.
+func isExcluded(rel string, exclude map[string]bool) bool {
+	if exclude[rel] {
+		return true
+	}
+	for {
+		parent := filepath.ToSlash(filepath.Dir(rel))
+		if parent == "." || parent == rel {
+			return false
+		}
+		if exclude[parent] {
+			return true
+		}
+		rel = parent
+	}
+}
+
+func copyTree(ctx context.Context, src, dst string, totalBytes int64, progress Progress, exclude map[string]bool) (Stats, error) {
 	var stats Stats
 	buf := make([]byte, copyBufferSize)
 	var done int64
@@ -60,6 +95,18 @@ func CopyTree(ctx context.Context, src, dst string, totalBytes int64, progress P
 		if err != nil {
 			return err
 		}
+		rel = filepath.ToSlash(rel)
+		// rel is "." for the root itself (path == src) - never excluded (no
+		// real relative path is ever "."), so the root's own os.MkdirAll
+		// below still runs even for an empty src, exactly as CopyTree always
+		// has.
+		if len(exclude) > 0 && isExcluded(rel, exclude) {
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
 		target := filepath.Join(dst, rel)
 		switch {
 		case d.IsDir():

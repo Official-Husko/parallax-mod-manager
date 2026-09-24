@@ -909,6 +909,7 @@ export namespace app {
 	    Description: string;
 	    ChangeNote: string;
 	    Visibility: string;
+	    ExcludePaths: string[];
 	
 	    static createFrom(source: any = {}) {
 	        return new WorkshopPublishRequest(source);
@@ -921,6 +922,7 @@ export namespace app {
 	        this.Description = source["Description"];
 	        this.ChangeNote = source["ChangeNote"];
 	        this.Visibility = source["Visibility"];
+	        this.ExcludePaths = source["ExcludePaths"];
 	    }
 	}
 	export class WorkshopPublishResult {

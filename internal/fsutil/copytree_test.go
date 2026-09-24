@@ -169,3 +169,90 @@ func TestDirStatOnMissingPathIsAnError(t *testing.T) {
 		t.Fatal("DirStat: want an error for a missing path, got nil")
 	}
 }
+
+func TestCopyTreeExcludingSkipsAnExcludedFile(t *testing.T) {
+	src := t.TempDir()
+	dst := filepath.Join(t.TempDir(), "copy")
+	writeFile(t, filepath.Join(src, "descriptor.mod"), `name="Test"`)
+	writeFile(t, filepath.Join(src, "notes.txt"), "private dev notes")
+
+	stats, err := CopyTreeExcluding(context.Background(), src, dst, map[string]bool{"notes.txt": true}, 0, nil)
+	if err != nil {
+		t.Fatalf("CopyTreeExcluding: %v", err)
+	}
+	if stats.Files != 1 {
+		t.Errorf("Files = %d, want 1", stats.Files)
+	}
+	if _, err := os.Stat(filepath.Join(dst, "descriptor.mod")); err != nil {
+		t.Error("descriptor.mod should have been copied")
+	}
+	if _, err := os.Stat(filepath.Join(dst, "notes.txt")); !os.IsNotExist(err) {
+		t.Error("notes.txt should have been excluded, but exists in the copy")
+	}
+}
+
+func TestCopyTreeExcludingSkipsAWholeExcludedFolder(t *testing.T) {
+	src := t.TempDir()
+	dst := filepath.Join(t.TempDir(), "copy")
+	writeFile(t, filepath.Join(src, "common", "buildings", "a.txt"), "a")
+	writeFile(t, filepath.Join(src, "common", "buildings", "b.txt"), "b")
+	writeFile(t, filepath.Join(src, "events", "c.txt"), "c")
+
+	stats, err := CopyTreeExcluding(context.Background(), src, dst, map[string]bool{"common/buildings": true}, 0, nil)
+	if err != nil {
+		t.Fatalf("CopyTreeExcluding: %v", err)
+	}
+	if stats.Files != 1 {
+		t.Errorf("Files = %d, want 1 (only events/c.txt)", stats.Files)
+	}
+	if _, err := os.Stat(filepath.Join(dst, "events", "c.txt")); err != nil {
+		t.Error("events/c.txt should have been copied")
+	}
+	if _, err := os.Stat(filepath.Join(dst, "common", "buildings")); !os.IsNotExist(err) {
+		t.Error("common/buildings should not exist at all in the copy - excluding a folder excludes everything under it")
+	}
+}
+
+func TestCopyTreeExcludingWithNoExclusionsBehavesLikeCopyTree(t *testing.T) {
+	src := t.TempDir()
+	dst := filepath.Join(t.TempDir(), "copy")
+	writeFile(t, filepath.Join(src, "a.txt"), "a")
+
+	stats, err := CopyTreeExcluding(context.Background(), src, dst, nil, 0, nil)
+	if err != nil {
+		t.Fatalf("CopyTreeExcluding: %v", err)
+	}
+	if stats.Files != 1 {
+		t.Errorf("Files = %d, want 1", stats.Files)
+	}
+}
+
+func TestCopyTreeOnAnEmptySourceStillCreatesDst(t *testing.T) {
+	src := t.TempDir()
+	dst := filepath.Join(t.TempDir(), "copy")
+
+	if _, err := CopyTree(context.Background(), src, dst, 0, nil); err != nil {
+		t.Fatalf("CopyTree: %v", err)
+	}
+	if info, err := os.Stat(dst); err != nil || !info.IsDir() {
+		t.Error("dst should exist as a directory even when src was empty")
+	}
+}
+
+func TestIsExcludedMatchesTheExactPathOrAnAncestor(t *testing.T) {
+	exclude := map[string]bool{"common/buildings": true, "notes.txt": true}
+	cases := map[string]bool{
+		"notes.txt":                  true,
+		"common/buildings":           true,
+		"common/buildings/a.txt":     true,
+		"common/buildings/sub/b.txt": true,
+		"common/events/c.txt":        false,
+		"common":                     false,
+		".":                          false,
+	}
+	for rel, want := range cases {
+		if got := isExcluded(rel, exclude); got != want {
+			t.Errorf("isExcluded(%q) = %v, want %v", rel, got, want)
+		}
+	}
+}

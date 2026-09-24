@@ -32,6 +32,13 @@ type WorkshopPublishRequest struct {
 	// Visibility is one of "private", "friendsOnly", "unlisted", "public" -
 	// empty defaults to "private" (see workshop.PublishRequest.Visibility).
 	Visibility string
+	// ExcludePaths lists files or folders, relative to the mod's own
+	// content folder (forward-slashed, matching library.FileEntry.RelPath -
+	// see ListModFiles), to leave out of the upload entirely. Excluding a
+	// folder excludes everything under it. Never a filesystem path - the
+	// frontend picks these from the same file list ListModFiles already
+	// gives it, never anything it resolved on its own.
+	ExcludePaths []string
 }
 
 // WorkshopPublishResult is a successful publish's own outcome.
@@ -115,6 +122,7 @@ func (a *App) PublishModToWorkshop(gameID, modID string, req WorkshopPublishRequ
 		ChangeNote:    req.ChangeNote,
 		ContentFolder: contentFolder,
 		Visibility:    req.Visibility,
+		ExcludePaths:  req.ExcludePaths,
 	}
 
 	result, err := a.workshopPublisherOrDefault().Publish(a.baseContext(), pubReq, func(p workshop.PublishProgress) {

@@ -115,27 +115,45 @@ function visualFor(node: TreeNode): FileVisual {
     return EXTENSION_VISUALS[ext] ?? DEFAULT_FILE;
 }
 
-export function FileTree({entries}: { entries: library.FileEntry[] }) {
+// SelectionProps switches FileTree into checkbox mode - each row gets a
+// checkbox (checked = included, unchecked = excluded), and a row under an
+// excluded folder shows excluded too (its checkbox disabled, since
+// re-including one file inside an excluded folder isn't offered - only
+// re-including the whole folder is) without needing every descendant's own
+// path to be in excluded itself. Matches
+// workshop.PublishRequest.ExcludePaths' own "excluding a folder excludes
+// everything under it" semantics exactly, so what this shows is always
+// what publishing will actually do.
+export interface SelectionProps {
+    excluded: Set<string>;
+    onToggle: (relPath: string, isDir: boolean) => void;
+}
+
+export function FileTree({entries, selection}: { entries: library.FileEntry[]; selection?: SelectionProps }) {
     const tree = buildTree(entries);
-    return <div className="file-tree-rows">{renderNodes(tree, [])}</div>;
+    return <div className="file-tree-rows">{renderNodes(tree, [], selection, false)}</div>;
 }
 
 // renderNodes recurses depth-first, tracking (for each ancestor level)
 // whether that ancestor still has a later sibling - a continuing guide
 // line is only drawn where the answer is yes, matching VS Code's own tree
 // view rather than a flat "one line per depth level regardless" look.
+// ancestorExcluded carries whether some ancestor folder is already excluded,
+// so every one of its descendants renders as excluded too without needing
+// its own path in selection.excluded.
 //
 // Returns a flat array (each node's row followed immediately by its own
 // children's rows) rather than a nested JSX tree, so a directory's rows
 // interleave with its siblings' in one flat list - exactly the shape a
 // file tree's rows actually need, without reaching for a keyed Fragment
 // per node (which preact's JSX typing here doesn't accept).
-function renderNodes(nodes: TreeNode[], ancestorsContinue: boolean[]): JSX.Element[] {
+function renderNodes(nodes: TreeNode[], ancestorsContinue: boolean[], selection: SelectionProps | undefined, ancestorExcluded: boolean): JSX.Element[] {
     return nodes.flatMap((node, i) => {
         const isLast = i === nodes.length - 1;
         const visual = visualFor(node);
+        const excluded = ancestorExcluded || !!selection?.excluded.has(node.relPath);
         const row = (
-            <div key={node.relPath} className="file-row">
+            <div key={node.relPath} className={`file-row ${excluded ? 'excluded' : ''}`}>
                 {ancestorsContinue.length > 0 && (
                     <span className="tree-guides">
                         {ancestorsContinue.map((cont, idx) => (
@@ -147,13 +165,23 @@ function renderNodes(nodes: TreeNode[], ancestorsContinue: boolean[]): JSX.Eleme
                         </span>
                     </span>
                 )}
+                {selection && (
+                    <input
+                        type="checkbox"
+                        className="file-row-check"
+                        checked={!excluded}
+                        disabled={ancestorExcluded}
+                        title={ancestorExcluded ? 'Included or excluded together with its own folder above' : excluded ? 'Excluded from the upload' : 'Included in the upload'}
+                        onChange={() => selection.onToggle(node.relPath, node.isDir)}
+                    />
+                )}
                 <i className={`fa-solid ${visual.icon}`} style={{color: visual.color}}/>
                 <span className="mono name">{node.name}</span>
                 {!node.isDir && <span className="mono file-size">{formatBytes(node.size)}</span>}
             </div>
         );
         const childRows = node.isDir && node.children.length > 0
-            ? renderNodes(node.children, [...ancestorsContinue, !isLast])
+            ? renderNodes(node.children, [...ancestorsContinue, !isLast], selection, excluded)
             : [];
         return [row, ...childRows];
     });

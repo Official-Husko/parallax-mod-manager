@@ -212,6 +212,21 @@ func TestPublishModToWorkshopPassesTheResolvedAppIDLibraryAndContentPathToThePub
 	}
 }
 
+func TestPublishModToWorkshopPassesExcludePathsThroughUnchanged(t *testing.T) {
+	dir := newStellarisInstallDir(t, true)
+	a, modID := newWorkshopTestApp(t, dir)
+	fake := &fakePublisher{result: workshop.PublishResult{PublishedFileID: 1}}
+	a.workshopPublisher = fake
+
+	req := WorkshopPublishRequest{ExcludePaths: []string{"common/notes.txt", "screenshots"}}
+	if _, err := a.PublishModToWorkshop(game.Stellaris.ID, modID, req); err != nil {
+		t.Fatalf("PublishModToWorkshop() error = %v", err)
+	}
+	if len(fake.gotReq.ExcludePaths) != 2 || fake.gotReq.ExcludePaths[0] != "common/notes.txt" || fake.gotReq.ExcludePaths[1] != "screenshots" {
+		t.Errorf("Publisher got ExcludePaths %v, want [common/notes.txt screenshots]", fake.gotReq.ExcludePaths)
+	}
+}
+
 func TestPublishModToWorkshopParsesAnExistingItemIDFromTheRequest(t *testing.T) {
 	dir := newStellarisInstallDir(t, true)
 	a, modID := newWorkshopTestApp(t, dir)

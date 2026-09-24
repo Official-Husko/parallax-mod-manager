@@ -540,7 +540,19 @@
     flex: none;
 }
 
-/* --- Publish: the upload log --- */
+/* --- Publish: the file picker and the upload log --- */
+
+/* Caps how tall the tree gets before it scrolls - the same reason
+   .editor-findings does, just for a mod's file list instead of Checks'
+   findings. */
+.editor-file-picker {
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    max-height: 260px;
+    padding: 4px 8px;
+}
 
 .editor-upload-log {
     border: 1px solid var(--border);

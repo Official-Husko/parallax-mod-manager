@@ -766,7 +766,14 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   tags come straight from the mod's own existing metadata rather than asking you to retype them.
   A change note and visibility (**private by default**) are the only things you type. Every real
   step - connecting to Steam, creating the item, uploading, Steam's own numeric result on failure
-  - streams into a live upload log as it happens.
+  - streams into a live upload log as it happens. The same tab's own file tree (built from
+  `internal/library.ListModFiles`, the same one Workspace's file browser uses) lets you untick a
+  file, or a whole folder, to leave it out of the upload entirely - unticking a folder does the
+  same to everything inside it, shown dimmed and struck through rather than hidden, so what's
+  excluded stays a visible choice. Nothing excluded is ever deleted, moved, or even read
+  destructively: `internal/fsutil.CopyTreeExcluding` stages a temporary copy of the mod, missing
+  whatever was unticked, and that copy - never the real mod folder - is what Steam actually
+  receives.
 - **Checks for a mod's own problems** (the Editor's **Checks** tab, `internal/modcheck`,
   `checks.go`, `frontend/src/views/EditorChecks.tsx`) - four things worth knowing about a mod
   before you publish or share it: files and script keys it overwrites from the base game instead
