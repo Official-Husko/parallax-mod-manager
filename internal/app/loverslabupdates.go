@@ -32,6 +32,13 @@ func (a *App) CheckLoversLabUpdates(gameID string) ([]modupdates.Change, error) 
 		return nil, err
 	}
 
+	// Backfilled opportunistically below, from the very same detail fetch this
+	// function already does for its own reason (comparing DateModified) - never a
+	// fetch run just for this. Lets a mod installed before ThumbnailURL existed pick
+	// one up the next time this runs (on startup, and every few hours - see
+	// features.md), instead of needing to be reinstalled to get a real card image.
+	backfilled := false
+
 	changes := make([]modupdates.Change, 0, len(installs))
 	for modID, entry := range installs {
 		if entry.InstalledDateModified == "" {
@@ -45,6 +52,11 @@ func (a *App) CheckLoversLabUpdates(gameID string) ([]modupdates.Change, error) 
 			log.Warnf("checking '%s' for updates failed, skipped: %v", entry.Title, err)
 			continue
 		}
+		if entry.ThumbnailURL == "" && len(detail.Screenshots) > 0 && detail.Screenshots[0].ThumbnailURL != "" {
+			entry.ThumbnailURL = detail.Screenshots[0].ThumbnailURL
+			installs[modID] = entry
+			backfilled = true
+		}
 		if detail.DateModified == "" || detail.DateModified == entry.InstalledDateModified {
 			continue
 		}
@@ -55,6 +67,11 @@ func (a *App) CheckLoversLabUpdates(gameID string) ([]modupdates.Change, error) 
 			Kind:   modupdates.KindUpdated,
 			New:    true,
 		})
+	}
+	if backfilled {
+		if err := a.loverslabInstalls.Save(gameID, installs); err != nil {
+			log.Warnf("could not save backfilled thumbnails for '%s': %v", a.gameLabel(gameID), err)
+		}
 	}
 	return changes, nil
 }

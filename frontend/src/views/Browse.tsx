@@ -1009,7 +1009,7 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
         return mods.map((m) => ({
             id: m.FileID,
             title: m.Title,
-            thumbnailURL: '',
+            thumbnailURL: m.ThumbnailURL,
             tag: mockExtrasFor(m.FileID).tag,
             tagColor: mockExtrasFor(m.FileID).tagColor,
             stateIcon: m.ContentMissing ? 'missing' : updateAvailableIds.has(m.FileID) ? 'update' : 'installed',

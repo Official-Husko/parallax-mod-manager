@@ -756,6 +756,7 @@ export namespace app {
 	    FileID: number;
 	    Title: string;
 	    FileURL: string;
+	    ThumbnailURL: string;
 	    InstalledAt: number;
 	    InstalledDateModified: string;
 	    ContentMissing: boolean;
@@ -769,6 +770,7 @@ export namespace app {
 	        this.FileID = source["FileID"];
 	        this.Title = source["Title"];
 	        this.FileURL = source["FileURL"];
+	        this.ThumbnailURL = source["ThumbnailURL"];
 	        this.InstalledAt = source["InstalledAt"];
 	        this.InstalledDateModified = source["InstalledDateModified"];
 	        this.ContentMissing = source["ContentMissing"];

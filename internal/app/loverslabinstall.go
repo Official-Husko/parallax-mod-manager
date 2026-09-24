@@ -179,9 +179,12 @@ func (a *App) UninstallLoversLabMod(gameID string, fileID int) error {
 // LoversLab for a game - see internal/loverslabtracking.Entry, which is what this
 // is actually built from.
 type LoversLabInstalledMod struct {
-	FileID                int
-	Title                 string
-	FileURL               string
+	FileID  int
+	Title   string
+	FileURL string
+	// ThumbnailURL is "" for anything installed before this field existed - see
+	// loverslabtracking.Entry.ThumbnailURL, which this is read straight from.
+	ThumbnailURL          string
 	InstalledAt           int64
 	InstalledDateModified string
 	// ContentMissing is true when this entry's own stub descriptor and content
@@ -217,6 +220,7 @@ func (a *App) LoversLabInstalledMods(gameID string) ([]LoversLabInstalledMod, er
 			FileID:                e.FileID,
 			Title:                 e.Title,
 			FileURL:               e.FileURL,
+			ThumbnailURL:          e.ThumbnailURL,
 			InstalledAt:           e.InstalledAt,
 			InstalledDateModified: e.InstalledDateModified,
 			ContentMissing:        missing,
@@ -381,6 +385,7 @@ func (a *App) LoversLabInstall(gameID, requestID string, file loverslab.FileSumm
 			FileURL:               file.URL,
 			FileID:                file.ID,
 			Title:                 file.Title,
+			ThumbnailURL:          file.ThumbnailURL,
 			InstalledDateModified: dateModified,
 			InstalledAt:           time.Now().Unix(),
 		})

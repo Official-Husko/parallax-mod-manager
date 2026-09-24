@@ -105,6 +105,65 @@ func TestCheckLoversLabUpdatesSkipsAFailedFetchRatherThanErroring(t *testing.T) 
 	}
 }
 
+func TestCheckLoversLabUpdatesBackfillsAMissingThumbnailFromTheSameFetch(t *testing.T) {
+	env := newInstallEnv(t)
+	installs := map[string]loverslabtracking.Entry{
+		"loverslab_1": {FileURL: "https://www.loverslab.com/files/file/1-a/", FileID: 1, Title: "Mod A", InstalledDateModified: "2026-01-01T00:00:00+0000"},
+	}
+	if err := env.a.loverslabInstalls.Save(env.cfg.ID, installs); err != nil {
+		t.Fatal(err)
+	}
+	env.a.loverslab.getFileDetail = func(ctx context.Context, client *loverslab.Client, fileURL string) (loverslab.FileDetail, error) {
+		return loverslab.FileDetail{
+			DateModified: "2026-01-01T00:00:00+0000", // unchanged - no update, but the fetch itself still happened
+			Screenshots:  []loverslab.Screenshot{{URL: "https://static.loverslab.com/1/full.jpg", ThumbnailURL: "https://static.loverslab.com/1/thumb.jpg"}},
+		}, nil
+	}
+
+	if _, err := env.a.CheckLoversLabUpdates(env.cfg.ID); err != nil {
+		t.Fatalf("CheckLoversLabUpdates: %v", err)
+	}
+
+	got, err := env.a.loverslabInstalls.Load(env.cfg.ID)
+	if err != nil {
+		t.Fatalf("loading tracked installs: %v", err)
+	}
+	if got["loverslab_1"].ThumbnailURL != "https://static.loverslab.com/1/thumb.jpg" {
+		t.Errorf("ThumbnailURL = %q, want it backfilled from the detail fetch", got["loverslab_1"].ThumbnailURL)
+	}
+}
+
+func TestCheckLoversLabUpdatesNeverOverwritesAnAlreadyTrackedThumbnail(t *testing.T) {
+	env := newInstallEnv(t)
+	installs := map[string]loverslabtracking.Entry{
+		"loverslab_1": {
+			FileURL: "https://www.loverslab.com/files/file/1-a/", FileID: 1, Title: "Mod A",
+			InstalledDateModified: "2026-01-01T00:00:00+0000", ThumbnailURL: "https://static.loverslab.com/1/original.jpg",
+		},
+	}
+	if err := env.a.loverslabInstalls.Save(env.cfg.ID, installs); err != nil {
+		t.Fatal(err)
+	}
+	env.a.loverslab.getFileDetail = func(ctx context.Context, client *loverslab.Client, fileURL string) (loverslab.FileDetail, error) {
+		return loverslab.FileDetail{
+			DateModified: "2026-01-01T00:00:00+0000",
+			Screenshots:  []loverslab.Screenshot{{ThumbnailURL: "https://static.loverslab.com/1/different.jpg"}},
+		}, nil
+	}
+
+	if _, err := env.a.CheckLoversLabUpdates(env.cfg.ID); err != nil {
+		t.Fatalf("CheckLoversLabUpdates: %v", err)
+	}
+
+	got, err := env.a.loverslabInstalls.Load(env.cfg.ID)
+	if err != nil {
+		t.Fatalf("loading tracked installs: %v", err)
+	}
+	if got["loverslab_1"].ThumbnailURL != "https://static.loverslab.com/1/original.jpg" {
+		t.Errorf("ThumbnailURL = %q, want the original left untouched", got["loverslab_1"].ThumbnailURL)
+	}
+}
+
 func TestCheckLoversLabUpdatesWithNothingInstalledReportsNothing(t *testing.T) {
 	env := newInstallEnv(t)
 	changes, err := env.a.CheckLoversLabUpdates(env.cfg.ID)

@@ -34,6 +34,12 @@ type Entry struct {
 	// file (or a "here's what might have an update" list) can tell entries apart;
 	// the mod itself is found by its own ID (this entry's own map key).
 	Title string `json:"title"`
+	// ThumbnailURL is the file's own card image at install time (loverslab.FileSummary.
+	// ThumbnailURL - always real for a file the listing page ever showed, never a mock or
+	// a later re-fetch), so the Browse tab's own Installed section can show the same card
+	// image the browsing grid does instead of a bare placeholder. Empty for anything
+	// installed before this field existed, or for a file that had no screenshot at all.
+	ThumbnailURL string `json:"thumbnailUrl"`
 	// InstalledDateModified is the site's own "dateModified" ISO 8601 timestamp (see
 	// loverslab.FileDetail) at install time - the update check re-fetches the file's
 	// own page and compares this against its current value; a real timestamp, unlike
@@ -145,6 +151,7 @@ func render(installs map[string]Entry) []byte {
 			"\"fileUrl\": " + quote(e.FileURL) + ", " +
 			"\"fileId\": " + fmt.Sprint(e.FileID) + ", " +
 			"\"title\": " + quote(e.Title) + ", " +
+			"\"thumbnailUrl\": " + quote(e.ThumbnailURL) + ", " +
 			"\"installedDateModified\": " + quote(e.InstalledDateModified) + ", " +
 			"\"installedAt\": " + fmt.Sprint(e.InstalledAt) +
 			"}")

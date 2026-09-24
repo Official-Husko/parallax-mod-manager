@@ -221,7 +221,10 @@ func TestLoversLabInstallUpdatesInPlaceRatherThanDuplicating(t *testing.T) {
 func TestLoversLabInstallTracksTheInstallForUpdateChecking(t *testing.T) {
 	env := newInstallEnv(t)
 	srv := zipServer(t, buildTestZip(t, map[string]string{"descriptor.mod": "name=\"Tracked\"\n"}))
-	file := loverslab.FileSummary{ID: 42, Title: "Tracked Mod", URL: "https://www.loverslab.com/files/file/42-tracked-mod/", Updated: "yesterday"}
+	file := loverslab.FileSummary{
+		ID: 42, Title: "Tracked Mod", URL: "https://www.loverslab.com/files/file/42-tracked-mod/", Updated: "yesterday",
+		ThumbnailURL: "https://static.loverslab.com/files/42/thumb.jpg",
+	}
 
 	if _, err := env.a.LoversLabInstall(env.cfg.ID, "req-4", file, "2026-03-01T00:00:00+0000", []loverslab.FileDownload{{URL: srv.URL}}); err != nil {
 		t.Fatalf("LoversLabInstall: %v", err)
@@ -235,7 +238,7 @@ func TestLoversLabInstallTracksTheInstallForUpdateChecking(t *testing.T) {
 	if !ok {
 		t.Fatalf("no tracked entry for loverslab_42: %+v", installs)
 	}
-	if entry.FileURL != file.URL || entry.FileID != 42 || entry.Title != "Tracked Mod" || entry.InstalledDateModified != "2026-03-01T00:00:00+0000" {
+	if entry.FileURL != file.URL || entry.FileID != 42 || entry.Title != "Tracked Mod" || entry.InstalledDateModified != "2026-03-01T00:00:00+0000" || entry.ThumbnailURL != file.ThumbnailURL {
 		t.Errorf("tracked entry = %+v", entry)
 	}
 	if entry.InstalledAt == 0 {
@@ -440,6 +443,7 @@ func TestLoversLabInstalledModsReflectsTheTrackingStoreSortedNewestFirst(t *test
 	})
 	installs, _ = loverslabtracking.With(installs, "loverslab_2", loverslabtracking.Entry{
 		FileURL: "https://www.loverslab.com/files/file/2-newer/", FileID: 2, Title: "Newer", InstalledAt: 200,
+		ThumbnailURL: "https://static.loverslab.com/files/2/thumb.jpg",
 	})
 	if err := env.a.loverslabInstalls.Save(env.cfg.ID, installs); err != nil {
 		t.Fatalf("Save: %v", err)
@@ -454,6 +458,12 @@ func TestLoversLabInstalledModsReflectsTheTrackingStoreSortedNewestFirst(t *test
 	}
 	if got[0].Title != "Newer" || got[1].Title != "Older" {
 		t.Errorf("not sorted newest-first: %+v", got)
+	}
+	if got[0].ThumbnailURL != "https://static.loverslab.com/files/2/thumb.jpg" {
+		t.Errorf("ThumbnailURL = %q, want the tracked entry's own", got[0].ThumbnailURL)
+	}
+	if got[1].ThumbnailURL != "" {
+		t.Errorf("ThumbnailURL = %q, want empty for an entry tracked before this field existed", got[1].ThumbnailURL)
 	}
 	// Neither was actually extracted to disk in this test - both should read as
 	// missing rather than crash or silently claim they're present.
