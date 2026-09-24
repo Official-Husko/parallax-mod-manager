@@ -540,42 +540,9 @@
     flex: none;
 }
 
-/* --- Publish: "coming later" placeholder --- */
+/* --- Publish: the upload log --- */
 
-.editor-soon-banner {
-    display: flex;
-    gap: 11px;
-    align-items: flex-start;
-    border: 1px solid var(--border-light);
-    border-radius: 6px;
-    padding: 12px 14px;
-    background: var(--bg-inset);
-    font: 400 12px/1.5 Barlow, sans-serif;
-    color: var(--text-muted);
-}
-
-.editor-soon-banner > i {
-    color: var(--text-dim);
-    font-size: 16px;
-    margin-top: 2px;
-}
-
-.editor-soon-title {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    font: 700 14px Barlow, sans-serif;
-    color: var(--text-bright);
-    margin-bottom: 3px;
-}
-
-.editor-check-icon {
-    color: var(--text-dim);
-    font-size: 14px;
-    margin-top: 2px;
-}
-
-.editor-example-log {
+.editor-upload-log {
     border: 1px solid var(--border);
     border-radius: 5px;
     overflow: hidden;
@@ -608,12 +575,8 @@
     color: var(--amber);
 }
 
-.editor-example-tag {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    font: 500 10.5px Barlow, sans-serif;
-    color: var(--text-dim);
+.editor-log-line.error .editor-log-text {
+    color: var(--red);
 }
 
 .editor-findings {

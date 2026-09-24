@@ -748,8 +748,25 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   **Undo last save** can put them back - but only when a file still holds exactly what that save
   wrote, so an edit made by hand or another program afterwards is never silently thrown away.
   Unsaved edits for several mods are kept while the Editor stays open, so switching mods loses
-  nothing. One more tab, **Publish**, is laid out as it will look (uploading to the Workshop with a
-  line-by-line log) with clearly marked example content - not built yet, see "Not yet built" below.
+  nothing.
+- **Publishing to the Steam Workshop** (the Editor's **Publish** tab, `internal/workshop`,
+  `internal/app/workshop.go`, `companions/parallax-steam-helper`,
+  `frontend/src/views/EditorPublish.tsx`) - upload a mod as a brand new Workshop item, or push an
+  update to one it already has, from right inside the Editor. Talks to this computer's own,
+  already-running Steam client the same way the game itself does - Valve's own documented
+  `steam_appid.txt` development mechanism plus Steamworks' flat C API, never Steam's own launcher
+  or SteamCMD, and never `SteamAPI_RestartAppIfNecessary` (that launches the real game instead).
+  The interop itself lives in its own companion process (`companions/parallax-steam-helper`, a
+  separate Go module built for both Linux and Windows the same way `launcher-shim` is), using
+  `github.com/ebitengine/purego` rather than cgo specifically so it keeps cross-compiling for
+  Windows with no native toolchain on the build machine. Which interface version a game's own
+  bundled Steam library exports is probed at runtime rather than assumed - confirmed firsthand
+  that this genuinely varies by game. Destination (a new item, or an update to an existing one) is
+  decided automatically from whether the mod already has a Workshop id; title, description and
+  tags come straight from the mod's own existing metadata rather than asking you to retype them.
+  A change note and visibility (**private by default**) are the only things you type. Every real
+  step - connecting to Steam, creating the item, uploading, Steam's own numeric result on failure
+  - streams into a live upload log as it happens.
 - **Checks for a mod's own problems** (the Editor's **Checks** tab, `internal/modcheck`,
   `checks.go`, `frontend/src/views/EditorChecks.tsx`) - four things worth knowing about a mod
   before you publish or share it: files and script keys it overwrites from the base game instead
@@ -1544,9 +1561,6 @@ that legitimately does rewrite the file's `modsOrder`).
   computer details" option (CPU, GPU, OS, mod counts, whether a patch has been generated, and so on)
   to help with statistics and investigating bugs. Never uploads without a confirmation, never sends mod
   names or account IDs. No code behind the button yet; see [docs/log-sharing.md](docs/log-sharing.md).
-- **Publishing to the Steam Workshop** - the Editor's **Publish** tab is laid out (upload as a new
-  item or update one you own, a change note, visibility, tags, an upload log) but not connected to
-  Steam; every control is disabled and its example log line content is clearly marked as an example.
 - **Playset sharing via codes** - the Library screen's collections and bulk actions are now real
   (see [Progress](#progress) above); encoding/decoding a playset as a shareable local code
   ("Import code"/"Share"/"Join a friend's playset" in the Playsets modal) is still a static

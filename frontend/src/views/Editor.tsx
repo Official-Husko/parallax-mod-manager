@@ -252,7 +252,7 @@ export function Editor({games, selectedGame, gameVersion}: {
                             onResult={(result) => setCheckResultFor(selected.ID, result)}
                         />
                     )}
-                    {tab === 'publish' && selected && <EditorPublish mod={selected}/>}
+                    {tab === 'publish' && selected && <EditorPublish gameId={selectedGame} mod={selected}/>}
                 </div>
             </div>
         </div>

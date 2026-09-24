@@ -49,6 +49,7 @@ import (
 	"github.com/Official-Husko/parallax-mod-manager/internal/steamapi"
 	"github.com/Official-Husko/parallax-mod-manager/internal/versionignore"
 	"github.com/Official-Husko/parallax-mod-manager/internal/watch"
+	"github.com/Official-Husko/parallax-mod-manager/internal/workshop"
 )
 
 // modWatchDebounce absorbs a burst of filesystem events from one logical
@@ -167,6 +168,10 @@ type App struct {
 	// eventSink, when set, receives the events emit would send to the frontend -
 	// how tests see them. nil in the real app.
 	eventSink func(name string, data ...any)
+	// workshopPublisher, when set, replaces the real workshop.HelperPublisher
+	// PublishModToWorkshop drives - tests only, the same nil-defaults-to-real
+	// seam as eventSink above. nil in the real app.
+	workshopPublisher workshop.Publisher
 	// gameProcMu guards gameExes and gameRunning: what is known about each game's
 	// process (see gameplay.go). gameProcWarned remembers which games have had a
 	// "can't list processes" warning, so it is said once.

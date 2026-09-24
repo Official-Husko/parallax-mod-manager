@@ -903,6 +903,38 @@ export namespace app {
 	        this.BackupState = source["BackupState"];
 	    }
 	}
+	export class WorkshopPublishRequest {
+	    ItemID: string;
+	    Title: string;
+	    Description: string;
+	    ChangeNote: string;
+	    Visibility: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new WorkshopPublishRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ItemID = source["ItemID"];
+	        this.Title = source["Title"];
+	        this.Description = source["Description"];
+	        this.ChangeNote = source["ChangeNote"];
+	        this.Visibility = source["Visibility"];
+	    }
+	}
+	export class WorkshopPublishResult {
+	    PublishedFileID: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new WorkshopPublishResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.PublishedFileID = source["PublishedFileID"];
+	    }
+	}
 
 }
 

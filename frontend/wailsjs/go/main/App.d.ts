@@ -191,6 +191,8 @@ export function PreviewThumbnail(arg1:string):Promise<app.ThumbnailPreview>;
 
 export function PriorityRuleOverrides(arg1:string):Promise<Record<string, string>>;
 
+export function PublishModToWorkshop(arg1:string,arg2:string,arg3:app.WorkshopPublishRequest):Promise<app.WorkshopPublishResult>;
+
 export function PurgeMods(arg1:string,arg2:Array<string>):Promise<library.PurgeResult>;
 
 export function ReadModFile(arg1:string,arg2:string,arg3:string):Promise<library.ModFileContent>;

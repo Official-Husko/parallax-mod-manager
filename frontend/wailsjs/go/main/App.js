@@ -350,6 +350,10 @@ export function PriorityRuleOverrides(arg1) {
   return window['go']['main']['App']['PriorityRuleOverrides'](arg1);
 }
 
+export function PublishModToWorkshop(arg1, arg2, arg3) {
+  return window['go']['main']['App']['PublishModToWorkshop'](arg1, arg2, arg3);
+}
+
 export function PurgeMods(arg1, arg2) {
   return window['go']['main']['App']['PurgeMods'](arg1, arg2);
 }

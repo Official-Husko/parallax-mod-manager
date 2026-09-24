@@ -286,8 +286,12 @@ for security, privacy, reliability or performance is called out (see the last tw
   and a declared dependency that matches no installed mod. A mod's last result stays put while you look at
   something else and come back, until you save or something else changes the mods; a game that couldn't be
   found only skips the base-game part, named as the reason.
-- **Publish tab, coming later** - laid out with example content clearly marked as an example: Workshop
-  publishing with an upload log.
+- **Publish a mod straight to the Steam Workshop** - the Publish tab: upload as a brand new item, or
+  push an update to one the mod already has (decided automatically, not asked). Talks to this
+  computer's own already-running Steam client the way the game itself would, through an isolated
+  companion process - never Steam's own launcher or SteamCMD. Title, description and tags come from
+  the mod's own metadata; you only type a change note and pick a visibility (private by default).
+  Every real step streams into a live upload log as it happens.
 
 ## Window
 
@@ -325,10 +329,14 @@ for security, privacy, reliability or performance is called out (see the last tw
 
 ## Security and privacy
 
-- **No account, no telemetry** - the only outside services are Steam (Workshop and Store data) and
-  GitHub, for online backgrounds and for fetching the latest Steam Direct shim build before an
-  install or repair (falling back to the copy already bundled with the app if that fails). The
-  About page itself makes no network requests.
+- **No account, no telemetry** - the only outside services are Steam (Workshop and Store data, and
+  publishing your own mods there) and GitHub, for online backgrounds and for fetching the latest
+  Steam Direct shim build before an install or repair (falling back to the copy already bundled
+  with the app if that fails). The About page itself makes no network requests.
+- **Publishing never signs you into anything, and never launches the real game** - it uses whichever
+  Steam account is already logged into your own, already-running Steam client (the same one the
+  game itself would use), so this app never sees or asks for a Steam password. A published item
+  defaults to **private** unless you choose otherwise.
 - **Mod edits stay inside the mod's own folders** - the Editor only ever writes inside a mod's own folder and
   the game's mod folder; earlier versions it keeps for Undo live in the settings folder, and what you typed
   into a field is never written to the activity log. Duplicating a mod (including a Steam Workshop one) only
