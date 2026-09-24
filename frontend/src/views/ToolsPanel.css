@@ -1,0 +1,120 @@
+/* One line saying what the app is doing with the saved DeepL key right now. */
+.tools-status {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 9px 12px;
+    font: 500 12px/1.5 Barlow, sans-serif;
+    color: var(--text-mid);
+    background: rgba(255, 255, 255, .02);
+}
+
+.tools-status i {
+    margin-top: 2px;
+    flex: none;
+}
+
+.tools-status.good i {
+    color: var(--green);
+}
+
+.tools-status.warn i {
+    color: var(--amber);
+}
+
+.tools-status.bad i {
+    color: var(--red);
+}
+
+.tools-status.neutral i {
+    color: var(--text-dim);
+}
+
+.tools-key {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.tools-key-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font: 600 12px Barlow, sans-serif;
+    color: var(--text-bright);
+}
+
+.tools-key-label .link-btn {
+    margin-left: auto;
+}
+
+.tools-key-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.tools-key-input {
+    flex: 1;
+    min-width: 0;
+    font: 500 12px "Azeret Mono", monospace;
+    color: var(--text);
+    background: var(--bg-inset);
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    padding: 6px 10px;
+}
+
+.tools-key-input:disabled {
+    cursor: not-allowed;
+}
+
+.tools-key-row .btn-primary:disabled,
+.tools-key-row .btn-ghost:disabled {
+    opacity: .5;
+    cursor: not-allowed;
+}
+
+.tools-tier-select {
+    font: 500 12px Barlow, sans-serif;
+    color: var(--text);
+    background: var(--bg-inset);
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    padding: 6px 8px;
+}
+
+.tools-key-error {
+    font: 500 12px/1.5 Barlow, sans-serif;
+    color: var(--red);
+}
+
+.tools-key-note {
+    font: 400 11.5px/1.5 Barlow, sans-serif;
+    color: var(--text-muted);
+}
+
+.tools-key-note .mono {
+    font-family: "Azeret Mono", monospace;
+    color: var(--text-mid);
+}
+
+/* Shown after choosing to clear a saved key, since that deletes it. */
+.tools-confirm {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    border: 1px solid var(--amber);
+    border-radius: 5px;
+    padding: 10px 13px;
+    font: 400 12px/1.5 Barlow, sans-serif;
+    color: var(--text-mid);
+    background: rgba(224, 163, 64, .07);
+}
+
+.tools-confirm-actions {
+    display: flex;
+    gap: 8px;
+}

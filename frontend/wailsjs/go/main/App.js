@@ -62,6 +62,10 @@ export function CancelLoversLabInstall(arg1) {
   return window['go']['main']['App']['CancelLoversLabInstall'](arg1);
 }
 
+export function CancelTranslate(arg1) {
+  return window['go']['main']['App']['CancelTranslate'](arg1);
+}
+
 export function CheckGameUpdates() {
   return window['go']['main']['App']['CheckGameUpdates']();
 }
@@ -80,6 +84,10 @@ export function CheckModUpdates(arg1, arg2) {
 
 export function CheckSteamAPIKey() {
   return window['go']['main']['App']['CheckSteamAPIKey']();
+}
+
+export function ClearDeepLAPIKey() {
+  return window['go']['main']['App']['ClearDeepLAPIKey']();
 }
 
 export function ClearGamePath(arg1) {
@@ -104,6 +112,10 @@ export function CreateMod(arg1, arg2) {
 
 export function DLCStoreData(arg1) {
   return window['go']['main']['App']['DLCStoreData'](arg1);
+}
+
+export function DeepLStatus() {
+  return window['go']['main']['App']['DeepLStatus']();
 }
 
 export function DefaultThumbnail() {
@@ -386,6 +398,10 @@ export function SaveCollection(arg1) {
   return window['go']['main']['App']['SaveCollection'](arg1);
 }
 
+export function SaveDeepLAPIKey(arg1, arg2) {
+  return window['go']['main']['App']['SaveDeepLAPIKey'](arg1, arg2);
+}
+
 export function SaveLoversLabCredentials(arg1, arg2) {
   return window['go']['main']['App']['SaveLoversLabCredentials'](arg1, arg2);
 }
@@ -476,6 +492,18 @@ export function StopGame(arg1) {
 
 export function StopWatchingGameLog() {
   return window['go']['main']['App']['StopWatchingGameLog']();
+}
+
+export function TranslateEligibility(arg1, arg2) {
+  return window['go']['main']['App']['TranslateEligibility'](arg1, arg2);
+}
+
+export function TranslateLanguages() {
+  return window['go']['main']['App']['TranslateLanguages']();
+}
+
+export function TranslateMod(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['TranslateMod'](arg1, arg2, arg3, arg4);
 }
 
 export function UndoModEdit(arg1, arg2) {

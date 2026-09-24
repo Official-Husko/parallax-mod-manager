@@ -47,6 +47,8 @@ export function CancelDuplicate(arg1:string):Promise<void>;
 
 export function CancelLoversLabInstall(arg1:string):Promise<void>;
 
+export function CancelTranslate(arg1:string):Promise<void>;
+
 export function CheckGameUpdates():Promise<Array<library.GameUpdate>>;
 
 export function CheckLoversLabUpdates(arg1:string):Promise<Array<modupdates.Change>>;
@@ -56,6 +58,8 @@ export function CheckMod(arg1:string,arg2:string,arg3:Array<string>):Promise<app
 export function CheckModUpdates(arg1:string,arg2:boolean):Promise<modupdates.Report>;
 
 export function CheckSteamAPIKey():Promise<app.SteamAPIStatus>;
+
+export function ClearDeepLAPIKey():Promise<app.DeepLStatus>;
 
 export function ClearGamePath(arg1:string):Promise<library.DetectedGame>;
 
@@ -68,6 +72,8 @@ export function ClearPatchOverrides(arg1:string):Promise<void>;
 export function CreateMod(arg1:string,arg2:app.NewModRequest):Promise<app.SaveResult>;
 
 export function DLCStoreData(arg1:string):Promise<Array<dlcstore.StoreData>>;
+
+export function DeepLStatus():Promise<app.DeepLStatus>;
 
 export function DefaultThumbnail():Promise<string>;
 
@@ -209,6 +215,8 @@ export function ResolvedConflicts(arg1:string):Promise<Array<string>>;
 
 export function SaveCollection(arg1:collection.Collection):Promise<void>;
 
+export function SaveDeepLAPIKey(arg1:string,arg2:string):Promise<app.DeepLStatus>;
+
 export function SaveLoversLabCredentials(arg1:string,arg2:string):Promise<app.LoversLabStatus>;
 
 export function SaveModEdit(arg1:string,arg2:string,arg3:app.ModEdit):Promise<app.SaveResult>;
@@ -254,6 +262,12 @@ export function SteamAPIStatus():Promise<app.SteamAPIStatus>;
 export function StopGame(arg1:string):Promise<number>;
 
 export function StopWatchingGameLog():Promise<void>;
+
+export function TranslateEligibility(arg1:string,arg2:string):Promise<app.TranslateEligibility>;
+
+export function TranslateLanguages():Promise<Array<app.TranslateLanguage>>;
+
+export function TranslateMod(arg1:string,arg2:string,arg3:string,arg4:app.TranslateRequest):Promise<app.TranslateResult>;
 
 export function UndoModEdit(arg1:string,arg2:string):Promise<app.SaveResult>;
 

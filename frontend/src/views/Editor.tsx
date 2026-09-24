@@ -12,13 +12,15 @@ import {EditorEdit} from './EditorEdit';
 import {EditorNew} from './EditorNew';
 import {EditorPublish} from './EditorPublish';
 import {EditorChecks} from './EditorChecks';
+import {EditorTranslate} from './EditorTranslate';
 
-type EditorTab = 'new' | 'edit' | 'checks' | 'publish';
+type EditorTab = 'new' | 'edit' | 'checks' | 'translate' | 'publish';
 
 const TABS: { key: EditorTab; label: string; icon: string }[] = [
     {key: 'new', label: 'New', icon: 'fa-file-circle-plus'},
     {key: 'edit', label: 'Edit', icon: 'fa-pen'},
     {key: 'checks', label: 'Checks', icon: 'fa-shield-halved'},
+    {key: 'translate', label: 'Translate', icon: 'fa-language'},
     {key: 'publish', label: 'Publish', icon: 'fa-cloud-arrow-up'},
 ];
 
@@ -252,6 +254,7 @@ export function Editor({games, selectedGame, gameVersion}: {
                             onResult={(result) => setCheckResultFor(selected.ID, result)}
                         />
                     )}
+                    {tab === 'translate' && selected && <EditorTranslate gameId={selectedGame} mod={selected}/>}
                     {tab === 'publish' && selected && <EditorPublish gameId={selectedGame} mod={selected}/>}
                 </div>
             </div>

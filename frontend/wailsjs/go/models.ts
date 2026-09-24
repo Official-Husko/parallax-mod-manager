@@ -292,6 +292,26 @@ export namespace app {
 		    return a;
 		}
 	}
+	export class DeepLStatus {
+	    HasKey: boolean;
+	    Fingerprint: string;
+	    Tier: string;
+	    Unreadable: boolean;
+	    Protection: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DeepLStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.HasKey = source["HasKey"];
+	        this.Fingerprint = source["Fingerprint"];
+	        this.Tier = source["Tier"];
+	        this.Unreadable = source["Unreadable"];
+	        this.Protection = source["Protection"];
+	    }
+	}
 	export class DeveloperToolsStatus {
 	    Available: boolean;
 	    Enabled: boolean;
@@ -883,6 +903,76 @@ export namespace app {
 	    }
 	}
 	
+	export class TranslateEligibility {
+	    AuthorModeOffered: boolean;
+	    AuthorModeOverridable: boolean;
+	    AuthorModeReason: string;
+	    DeepLKeyReady: boolean;
+	    HasEnglishContent: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new TranslateEligibility(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.AuthorModeOffered = source["AuthorModeOffered"];
+	        this.AuthorModeOverridable = source["AuthorModeOverridable"];
+	        this.AuthorModeReason = source["AuthorModeReason"];
+	        this.DeepLKeyReady = source["DeepLKeyReady"];
+	        this.HasEnglishContent = source["HasEnglishContent"];
+	    }
+	}
+	export class TranslateLanguage {
+	    Code: string;
+	    Name: string;
+	    Confirmed: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new TranslateLanguage(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Code = source["Code"];
+	        this.Name = source["Name"];
+	        this.Confirmed = source["Confirmed"];
+	    }
+	}
+	export class TranslateRequest {
+	    Service: string;
+	    TargetCode: string;
+	    Mode: string;
+	    Force: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new TranslateRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Service = source["Service"];
+	        this.TargetCode = source["TargetCode"];
+	        this.Mode = source["Mode"];
+	        this.Force = source["Force"];
+	    }
+	}
+	export class TranslateResult {
+	    Translated: number;
+	    AlreadyCovered: number;
+	    CompanionModID: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TranslateResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Translated = source["Translated"];
+	        this.AlreadyCovered = source["AlreadyCovered"];
+	        this.CompanionModID = source["CompanionModID"];
+	    }
+	}
 	export class WorkshopAvailability {
 	    RemoteFileID: string;
 	    State: string;

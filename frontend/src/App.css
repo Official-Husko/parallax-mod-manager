@@ -453,6 +453,20 @@
     cursor: default;
 }
 
+/* Labels a service/option as free to use, or as needing an API key of the
+   person's own - the Translate tab's own service picker. */
+.chip-free {
+    color: var(--green);
+    background: color-mix(in srgb, var(--green) 12%, transparent);
+    border-color: var(--green);
+}
+
+.chip-key {
+    color: var(--amber);
+    background: color-mix(in srgb, var(--amber) 12%, transparent);
+    border-color: var(--amber);
+}
+
 .src-badge {
     font: 600 8.5px "Azeret Mono", monospace;
     color: var(--bg-panel-solid);

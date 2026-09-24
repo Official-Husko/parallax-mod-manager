@@ -19,6 +19,7 @@ export const settingsNav = [
     {label: 'Conflict rules', key: 'conflict'},
     {label: 'Updates', key: 'updates'},
     {label: 'Steam API', key: 'steam'},
+    {label: 'Tools', key: 'tools'},
     {label: 'Browse', key: 'browse'},
     {label: 'Backup', key: 'backup'},
     {label: 'Appearance', key: 'appearance'},

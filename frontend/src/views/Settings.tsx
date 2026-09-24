@@ -41,11 +41,12 @@ import {AboutPanel} from './About';
 import {GamePickerChips, type ManageGamesState, useManagedGamePicker} from './GamePicker';
 import {BackgroundDownloadModal} from './BackgroundDownloadModal';
 import {SteamApiPanel} from './SteamApiPanel';
+import {ToolsPanel} from './ToolsPanel';
 import {BackupPanel} from './BackupPanel';
 import {DebugPanel} from './DebugPanel';
 import {AccentSettings} from './AccentSettings';
 
-type Section = 'manage' | 'launch' | 'playsets' | 'sort' | 'conflict' | 'steam' | 'browse' | 'backup' | 'appearance' | 'advanced' | 'debug' | 'about';
+type Section = 'manage' | 'launch' | 'playsets' | 'sort' | 'conflict' | 'steam' | 'tools' | 'browse' | 'backup' | 'appearance' | 'advanced' | 'debug' | 'about';
 
 export function Settings({jumpToManageGames, jumpToBackup, onGamesChanged, onPreferencesChanged}: {
     // Incremented by app.tsx (the TopBar's own "Manage games" entry) to
@@ -87,7 +88,7 @@ export function Settings({jumpToManageGames, jumpToBackup, onGamesChanged, onPre
             <div className="settings-nav">
                 <div className="sidebar-label">SETTINGS</div>
                 {settingsNav.filter((s) => s.key !== 'debug' || debugAvailable).map((s) => {
-                    const clickable = s.key === 'manage' || s.key === 'launch' || s.key === 'playsets' || s.key === 'sort' || s.key === 'conflict' || s.key === 'steam' || s.key === 'browse' || s.key === 'backup' || s.key === 'appearance' || s.key === 'advanced' || s.key === 'debug' || s.key === 'about';
+                    const clickable = s.key === 'manage' || s.key === 'launch' || s.key === 'playsets' || s.key === 'sort' || s.key === 'conflict' || s.key === 'steam' || s.key === 'tools' || s.key === 'browse' || s.key === 'backup' || s.key === 'appearance' || s.key === 'advanced' || s.key === 'debug' || s.key === 'about';
                     const active = clickable && s.key === section;
                     return (
                         <div
@@ -108,6 +109,7 @@ export function Settings({jumpToManageGames, jumpToBackup, onGamesChanged, onPre
             {section === 'sort' && <SortRulesPanel/>}
             {section === 'conflict' && <ConflictRulesPanel/>}
             {section === 'steam' && <SteamApiPanel/>}
+            {section === 'tools' && <ToolsPanel/>}
             {section === 'browse' && <BrowseSettingsPanel/>}
             {section === 'backup' && <BackupPanel/>}
             {section === 'appearance' && <AppearancePanel onPreferencesChanged={onPreferencesChanged}/>}

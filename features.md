@@ -260,8 +260,8 @@ for security, privacy, reliability or performance is called out (see the last tw
 
 ## Editor
 
-- **Tabs read New, Edit, Checks, Publish** - the mod list's first row is always a dashed "+ New mod" tile, and
-  picking any existing mod always opens it on Edit, whatever tab was showing before.
+- **Tabs read New, Edit, Checks, Translate, Publish** - the mod list's first row is always a dashed "+ New mod"
+  tile, and picking any existing mod always opens it on Edit, whatever tab was showing before.
 - **Create a mod from scratch** - name, version, made-for-game-version and tags, placed in the game's own mod
   folder or a configured extra folder, previewed before anything is written.
 - **Duplicate a mod, including a Steam Workshop one** - copies its whole folder into a brand-new, independent
@@ -297,6 +297,18 @@ for security, privacy, reliability or performance is called out (see the last tw
   everything inside it) - it stays on your computer either way, nothing is deleted or moved. A
   temporary copy of the mod, minus whatever you excluded, is what actually gets uploaded; your own
   real mod folder is never touched.
+- **Auto-translate a mod's own English text** - the Translate tab: pick DeepL's own official API
+  (needs a key of your own - see Settings > Tools), or either of two free, unofficial DeepL-powered
+  services (Translanova, Vust), then a target language (or "All languages" for every one at once) and
+  translate one localisation key at a time. Two destinations: write the translated text straight into
+  this mod's own localisation folder (for a mod you can already edit here), or generate a separate
+  companion mod instead, leaving the original untouched - works for any mod, including one from Steam
+  Workshop, since the source is only ever read. A live progress bar tracks real progress
+  ("103/894 translated"), and re-running only pays for keys that are new or changed - already-translated
+  ones, and any translation you or someone else already had in place, are never redone.
+- **DeepL API key, under Settings > Tools** - official DeepL needs a key of your own; the Translate
+  tab's DeepL option is disabled and points here until one is saved. The two free services need nothing
+  here at all.
 
 ## Window
 
@@ -355,6 +367,9 @@ for security, privacy, reliability or performance is called out (see the last tw
   Steam before it is saved, encrypted with a key derived from your computer so the settings file is
   useless on any other machine, never shown again, never written to the activity log, and deleted from
   the file when you choose Free API use only.
+- **DeepL API key kept encrypted the same way** - checked with DeepL before it is saved, encrypted,
+  never shown again once saved. The auto-translation feature's two free services never ask for a key
+  at all.
 - **LoversLab sign-in kept encrypted the same way** - a saved username/email and password (Browse)
   are encrypted with the same per-computer key as the Steam API key above; your password is never
   shown again and never written to the activity log. The saved session is encrypted too, so

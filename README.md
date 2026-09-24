@@ -774,6 +774,42 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   destructively: `internal/fsutil.CopyTreeExcluding` stages a temporary copy of the mod, missing
   whatever was unticked, and that copy - never the real mod folder - is what Steam actually
   receives.
+- **Auto-translating a mod's own English text** (the Editor's **Translate** tab, `internal/translate`
+  and its `deepl`/`translanova`/`vust` subpackages, `internal/translatecache`, `internal/library`'s
+  `translate_plan.go`/`translate_companion.go`, `internal/app/translate.go`,
+  `frontend/src/views/EditorTranslate.tsx`) - machine-translate a mod's own English localisation text
+  into another language, one key at a time (never batched - each key's own success or failure stays
+  independently attributable). Three services, all DeepL-powered: DeepL's own official API (needs an
+  API key of your own, saved under **Settings > Tools** - see below), and two free, unofficial
+  wrappers, Translanova and Vust, both confirmed working against their own real request/response
+  shapes. Vust's own hard requirement - a fresh, random `vust_client_id` cookie on every single
+  request, never reused - is met by construction: a brand-new `http.Client` with no cookie jar at all
+  is built fresh for every call, so nothing could persist a cookie even by accident.
+  - Target language is chosen from a dropdown of every language DeepL itself supports, or **All
+    languages** (the default) to translate into every one of them in a single run. Only a handful
+    (English, French, German, Spanish, Russian, Polish, Portuguese, Chinese Simplified, Japanese)
+    are confirmed, against a real Stellaris install, to be languages the game will actually offer in
+    its own in-game language picker - every other language is still offered (writing an unconfirmed
+    one is harmless, the game just won't show it as selectable), clearly marked unconfirmed rather
+    than asserted as fact.
+  - Two destinations. **Update this mod directly** writes the translated `.yml` file straight into
+    the mod's own `localisation/<language>/` folder - offered only when the mod is editable here at
+    all, reusing the exact same read-only/"Continue anyway" signal the Edit tab already uses for a
+    Steam Workshop or Paradox Launcher mod. **Generate a separate mod for personal use** instead
+    creates its own small companion mod (one per source mod, named `parallax_translation_<mod id>`,
+    declaring the source mod as its own dependency) holding the translation - the source mod is only
+    ever read, never written to, so this works for any mod at all, including one you did not author
+    yourself. A freshly generated companion appears in Workspace's own Available list like any other
+    new mod - it is not added to your load order automatically.
+  - Re-running the translator never re-translates what it already has. An incremental cache (one
+    JSONC file per mod, under this app's own settings folder - never inside the mod itself, the same
+    "never inside the mod, which is what gets uploaded" rule the Editor's thumbnail history already
+    follows) remembers every key's translation and the exact English text it came from; only a key
+    that is new, or whose English text has since changed, is ever translated again. A translation
+    that already existed before this feature ever touched the mod (your own, or another tool's) is
+    recorded once and permanently left alone, even if the English text later changes - it is never
+    silently overwritten. A live progress bar tracks real progress across the whole run (for example
+    "103/894 translated").
 - **Checks for a mod's own problems** (the Editor's **Checks** tab, `internal/modcheck`,
   `checks.go`, `frontend/src/views/EditorChecks.tsx`) - four things worth knowing about a mod
   before you publish or share it: files and script keys it overwrites from the base game instead
@@ -1021,7 +1057,9 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   service, even from the same file. LoversLab's own username is shown again once saved (a username
   is not a secret the way a password is - Settings > Steam API's own fingerprint-only convention
   would tell the person nothing useful here), while the password never is, matching the Steam key's
-  own "never shown again" rule exactly.
+  own "never shown again" rule exactly. The prediction that a later service would just need "an API
+  key" and nothing more came true directly: the auto-translation feature's own DeepL key (Settings >
+  Tools) is a one-field `internal/credentials.Manager`, no new settings code of its own.
 - **A full, tabbed mod detail view for Browse**, opened by clicking a card: much bigger than a
   changelog-only popup, laid out Nexus-Mods-style - a stats rail on the left (author, version,
   file size, views/downloads, installed status, always visible) and a tabbed main area on the

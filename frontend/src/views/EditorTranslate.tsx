@@ -1,0 +1,283 @@
+import {Fragment, h} from 'preact';
+import {useEffect, useRef, useState} from 'preact/hooks';
+import {CancelTranslate, TranslateEligibility, TranslateLanguages, TranslateMod} from '../../wailsjs/go/main/App';
+import type {app, library} from '../../wailsjs/go/models';
+import {EventsOn} from '../../wailsjs/runtime/runtime';
+
+// The Translate tab: machine-translate a mod's own English localisation text,
+// one key at a time, via DeepL's official API (needs a key of your own - see
+// Settings > Tools) or either of two free, unofficial DeepL-powered wrappers
+// (Translanova, Vust). Always English -> a chosen target language, or every
+// real language at once ("All languages", the default). See
+// internal/app/translate.go and docs/ for the real mechanism - in short: an
+// incremental cache remembers what's already been translated, so re-running
+// this only pays for what's new or changed.
+//
+// Two destinations: "Author mode" writes straight into this mod's own
+// localisation/<lang>/ folder (only offered when the mod is editable here at
+// all - reuses the exact same Editable/Overridable/"Continue anyway" signal
+// the Edit tab already does). "Player mode" generates a separate companion
+// mod instead, leaving this mod untouched - always available, including for
+// a Steam Workshop or Paradox Launcher mod, since it only ever reads the
+// source.
+
+type Service = 'deepl' | 'translanova' | 'vust';
+
+const SERVICES: { service: Service; name: string; badge: 'free' | 'key' }[] = [
+    {service: 'translanova', name: 'Translanova', badge: 'free'},
+    {service: 'vust', name: 'Vust', badge: 'free'},
+    {service: 'deepl', name: 'DeepL API', badge: 'key'},
+];
+
+type LogTone = 'info' | 'success' | 'warn' | 'error';
+
+interface LogLine {
+    time: string;
+    tone: LogTone;
+    text: string;
+}
+
+function timestamp(): string {
+    return new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', second: '2-digit'});
+}
+
+// describeStage turns one raw progress event into the log line shown for it -
+// deliberately coarse (only real milestones, never one line per key): the
+// progress bar itself already shows the fine-grained "103/894" count.
+function describeStage(p: TranslateProgressEvent, languageName: string): { tone: LogTone; text: string } | null {
+    switch (p.Stage) {
+        case 'opening':
+            return {tone: 'info', text: 'Reading this mod\'s own English text...'};
+        case 'language':
+            return {tone: 'info', text: `Translating into ${languageName || p.Language}...`};
+        case 'writing':
+            return {tone: 'info', text: 'Writing the translated file(s)...'};
+        case 'done':
+            return {tone: 'success', text: 'Done.'};
+        case 'error':
+            return {tone: 'error', text: p.Message || 'Something went wrong.'};
+        default:
+            return null;
+    }
+}
+
+// TranslateProgressEvent mirrors app.TranslateProgress's own JSON shape - it
+// is only ever an event payload (see TranslateMod's own "translate-progress"
+// doc comment), never a bound method's return type, so Wails generates no
+// TypeScript type for it.
+interface TranslateProgressEvent {
+    RequestID: string;
+    Stage: string;
+    Language: string;
+    Key: string;
+    Message: string;
+    Done: number;
+    Total: number;
+}
+
+export function EditorTranslate({gameId, mod}: { gameId: string; mod: library.ModSummary }) {
+    const [languages, setLanguages] = useState<app.TranslateLanguage[]>([]);
+    const [eligibility, setEligibility] = useState<app.TranslateEligibility | null>(null);
+    const [eligibilityError, setEligibilityError] = useState('');
+    const [service, setService] = useState<Service>('translanova');
+    const [targetCode, setTargetCode] = useState('ALL');
+    const [mode, setMode] = useState<'author' | 'player'>('player');
+    const [forced, setForced] = useState(false);
+    const [running, setRunning] = useState(false);
+    const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+    const [log, setLog] = useState<LogLine[]>([]);
+    const [error, setError] = useState('');
+    const requestIdRef = useRef('');
+    // Mirrors `languages` for the progress-event handler below, so that
+    // handler's own subscribing effect only ever needs to depend on
+    // gameId - never resubscribing (and briefly running with no listener
+    // at all mid-swap) just because the language list finished loading.
+    const languagesRef = useRef<app.TranslateLanguage[]>([]);
+
+    useEffect(() => {
+        TranslateLanguages().then((l) => {
+            languagesRef.current = l;
+            setLanguages(l);
+        }).catch(() => undefined);
+    }, []);
+
+    useEffect(() => {
+        setEligibility(null);
+        setEligibilityError('');
+        setForced(false);
+        setLog([]);
+        setError('');
+        setProgress(null);
+        TranslateEligibility(gameId, mod.ID)
+            .then((e) => {
+                setEligibility(e);
+                setMode(e.AuthorModeOffered ? 'author' : 'player');
+            })
+            .catch((err) => setEligibilityError(String(err)));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [gameId, mod.ID]);
+
+    useEffect(() => {
+        const off = EventsOn('translate-progress', (eventGameId: string, p: TranslateProgressEvent) => {
+            if (eventGameId !== gameId || p.RequestID !== requestIdRef.current) return;
+            setProgress({done: p.Done, total: p.Total});
+            const name = languagesRef.current.find((l) => l.Code === p.Language)?.Name ?? '';
+            const line = describeStage(p, name);
+            if (line) setLog((prev) => [...prev, {time: timestamp(), tone: line.tone, text: line.text}]);
+        });
+        return () => off();
+    }, [gameId]);
+
+    const effectivelyOffered = !!eligibility && (mode === 'player' || eligibility.AuthorModeOffered || (eligibility.AuthorModeOverridable && forced));
+    const canRun = !!eligibility && eligibility.HasEnglishContent && effectivelyOffered && (service !== 'deepl' || eligibility.DeepLKeyReady) && !running;
+
+    function run() {
+        const requestId = `translate-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        requestIdRef.current = requestId;
+        setRunning(true);
+        setError('');
+        setProgress({done: 0, total: 0});
+        setLog([{time: timestamp(), tone: 'info', text: `Starting (${SERVICES.find((s) => s.service === service)?.name}, ${mode === 'author' ? 'writing into this mod' : 'generating a companion mod'})...`}]);
+
+        TranslateMod(gameId, mod.ID, requestId, {
+            Service: service,
+            TargetCode: targetCode,
+            Mode: mode,
+            Force: forced,
+        } as unknown as app.TranslateRequest)
+            .then((result) => {
+                const msg = mode === 'player' && result.CompanionModID
+                    ? `Translated ${result.Translated} key(s). Generated "${result.CompanionModID}" - open Workspace to add it to your load order.`
+                    : `Translated ${result.Translated} key(s).`;
+                setLog((prev) => [...prev, {time: timestamp(), tone: 'success', text: msg}]);
+            })
+            .catch((err) => {
+                const text = String(err);
+                setError(text);
+                setLog((prev) => [...prev, {time: timestamp(), tone: 'error', text}]);
+            })
+            .finally(() => setRunning(false));
+    }
+
+    function cancel() {
+        if (requestIdRef.current) CancelTranslate(requestIdRef.current);
+    }
+
+    return (
+        <div className="editor-columns">
+            <div className="editor-column">
+                <div className="editor-card">
+                    <div className="editor-card-title">SERVICE</div>
+                    <div className="mode-option-list">
+                        {SERVICES.map((s) => {
+                            const active = service === s.service;
+                            const disabled = running;
+                            return (
+                                <div
+                                    key={s.service}
+                                    className={`mode-option ${active ? 'active' : ''} ${disabled ? 'disabled' : ''}`}
+                                    onClick={() => !disabled && setService(s.service)}
+                                >
+                                    <i className={`fa-solid ${active ? 'fa-circle-dot' : 'fa-circle'} mode-option-radio ${active ? 'on' : 'off'}`}/>
+                                    <div className="mode-option-main">
+                                        <div className="mode-option-name">
+                                            {s.name}
+                                            <span className={`chip ${s.badge === 'free' ? 'chip-free' : 'chip-key'}`}>{s.badge === 'free' ? 'Free' : 'API Key'}</span>
+                                        </div>
+                                        {s.service === 'deepl' && eligibility && !eligibility.DeepLKeyReady && (
+                                            <div className="mode-option-desc">No DeepL key saved - add one in Settings &gt; Tools first.</div>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                <div className="editor-card">
+                    <div className="editor-card-title">TARGET LANGUAGE</div>
+                    <select className="editor-input" disabled={running} value={targetCode} onChange={(e) => setTargetCode((e.target as HTMLSelectElement).value)}>
+                        {languages.map((l) => (
+                            <option key={l.Code} value={l.Code}>{l.Name}{!l.Confirmed && l.Code !== 'ALL' ? ' (unconfirmed for this game)' : ''}</option>
+                        ))}
+                    </select>
+                </div>
+
+                <div className="editor-card">
+                    <div className="editor-card-title">DESTINATION</div>
+                    <div className={`mode-option ${mode === 'author' ? 'active' : ''} ${!eligibility?.AuthorModeOffered && !(eligibility?.AuthorModeOverridable && forced) ? 'disabled' : ''}`} onClick={() => !running && eligibility && (eligibility.AuthorModeOffered || (eligibility.AuthorModeOverridable && forced)) && setMode('author')}>
+                        <i className={`fa-solid ${mode === 'author' ? 'fa-circle-dot' : 'fa-circle'} mode-option-radio ${mode === 'author' ? 'on' : 'off'}`}/>
+                        <div className="mode-option-main">
+                            <div className="mode-option-name">Update this mod directly</div>
+                            <div className="mode-option-desc">
+                                {eligibility?.AuthorModeOffered
+                                    ? 'Writes the translated text straight into this mod\'s own localisation folder.'
+                                    : eligibility?.AuthorModeOverridable
+                                        ? eligibility.AuthorModeReason
+                                        : eligibility?.AuthorModeReason || 'Not available for this mod.'}
+                            </div>
+                            {!eligibility?.AuthorModeOffered && eligibility?.AuthorModeOverridable && !forced && (
+                                <button type="button" className="btn-ghost" onClick={(e) => { e.stopPropagation(); setForced(true); }}>Continue anyway</button>
+                            )}
+                        </div>
+                    </div>
+                    <div className={`mode-option ${mode === 'player' ? 'active' : ''}`} onClick={() => !running && setMode('player')}>
+                        <i className={`fa-solid ${mode === 'player' ? 'fa-circle-dot' : 'fa-circle'} mode-option-radio ${mode === 'player' ? 'on' : 'off'}`}/>
+                        <div className="mode-option-main">
+                            <div className="mode-option-name">Generate a separate mod for personal use</div>
+                            <div className="mode-option-desc">
+                                Leaves this mod untouched - works for any mod, including one from Steam Workshop.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {eligibilityError && <div className="editor-problem bad"><i className="fa-solid fa-circle-xmark"/> {eligibilityError}</div>}
+                {eligibility && !eligibility.HasEnglishContent && (
+                    <div className="editor-problem bad"><i className="fa-solid fa-circle-xmark"/> This mod has no English localisation text to translate from.</div>
+                )}
+
+                <div className="editor-actions">
+                    {!running ? (
+                        <button type="button" className="btn-primary" disabled={!canRun} onClick={run}>
+                            <i className="fa-solid fa-language"/> Translate
+                        </button>
+                    ) : (
+                        <button type="button" className="btn-ghost" onClick={cancel}>Cancel</button>
+                    )}
+                </div>
+                {error && <div className="editor-problem bad"><i className="fa-solid fa-circle-xmark"/> {error}</div>}
+            </div>
+
+            <div className="editor-column">
+                {progress && (
+                    <div className="editor-card">
+                        <div className="editor-card-title">PROGRESS</div>
+                        <div className="editor-progress-bar">
+                            <div className="editor-progress-fill" style={{width: `${progress.total > 0 ? Math.min(100, (progress.done / progress.total) * 100) : 0}%`}}/>
+                        </div>
+                        <div className="editor-progress-file mono">
+                            {progress.total > 0 ? `${progress.done}/${progress.total} translated` : running ? 'Starting...' : `${progress.done} translated`}
+                        </div>
+                    </div>
+                )}
+
+                <div className="editor-card editor-changes">
+                    <div className="editor-card-title">LOG</div>
+                    {log.length === 0 ? (
+                        <div className="editor-muted">Nothing translated yet. Each real step appears here as it happens.</div>
+                    ) : (
+                        <div className="editor-upload-log">
+                            {log.map((line, i) => (
+                                <div key={i} className={`editor-log-line ${line.tone}`}>
+                                    <span className="editor-log-time mono">{line.time}</span>
+                                    <span className="editor-log-text">{line.text}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}

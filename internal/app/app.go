@@ -47,6 +47,7 @@ import (
 	"github.com/Official-Husko/parallax-mod-manager/internal/scan"
 	"github.com/Official-Husko/parallax-mod-manager/internal/steam"
 	"github.com/Official-Husko/parallax-mod-manager/internal/steamapi"
+	"github.com/Official-Husko/parallax-mod-manager/internal/translate"
 	"github.com/Official-Husko/parallax-mod-manager/internal/versionignore"
 	"github.com/Official-Husko/parallax-mod-manager/internal/watch"
 	"github.com/Official-Husko/parallax-mod-manager/internal/workshop"
@@ -155,6 +156,18 @@ type App struct {
 	// is reached from a user-facing Cancel button while the copy is still running.
 	duplicateMu     sync.Mutex
 	duplicateCancel map[string]context.CancelFunc
+	// translateMu guards translateCancel: the auto-translation run in progress for each
+	// TranslateMod request, so an explicit CancelTranslate call (see translate.go) can reach
+	// and stop it - the same reason duplicateCancel exists.
+	translateMu     sync.Mutex
+	translateCancel map[string]context.CancelFunc
+	// translatorFor resolves a translate.Translator for one of the three
+	// services; resolveTranslator in production, replaced in tests with
+	// one that returns a fake Translator that never makes a real network
+	// call - the same swappable-function pattern steamAPIState.verify and
+	// loversLabState.login already use for the same reason. nil means
+	// "use the real one" (see TranslateMod).
+	translatorFor func(service, apiKey, tier string) (translate.Translator, error)
 	// checksumCache lets repeated PlaysetChecksum calls for the same game and mod set skip
 	// reading and hashing file content that has not changed since the last call - see
 	// checksum.ResultCache. The zero value is ready to use.
@@ -204,6 +217,10 @@ type App struct {
 	// loverslab is the optional saved LoversLab sign-in for the Browsing Extensions
 	// page - see loverslab_settings.go. Set up by initLoversLab in startup.
 	loverslab loversLabState
+	// deepl is the optional saved DeepL API key for the auto-translation
+	// feature's Settings > Tools panel - see translate_settings.go. Set up
+	// by initDeepL in startup.
+	deepl deeplState
 	// authorProfiles holds real Steam Community profiles for Workshop mod
 	// authors in memory for the app's runtime - see
 	// library.AuthorProfileCache. Zero-value usable.
@@ -305,6 +322,7 @@ func (a *App) startup(ctx context.Context) {
 	}
 	a.initSteamAPI(a.configAppDir)
 	a.initLoversLab(a.configAppDir)
+	a.initDeepL(a.configAppDir)
 	a.initBackups(a.configAppDir)
 
 	// The Steam Direct shim's own live, best-effort ping (see internal/launchershim

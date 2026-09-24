@@ -1,0 +1,320 @@
+package app
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/Official-Husko/parallax-mod-manager/internal/game"
+	"github.com/Official-Husko/parallax-mod-manager/internal/library"
+	"github.com/Official-Husko/parallax-mod-manager/internal/preferences"
+	"github.com/Official-Husko/parallax-mod-manager/internal/translate"
+)
+
+const translateTestModName = "My Translatable Mod"
+
+// fakeTranslator is a translate.Translator that never makes a real
+// network call - it records every call and returns a canned, deterministic
+// "translation" (or the scripted error) instead.
+type fakeTranslator struct {
+	name   string
+	err    error
+	calls  []string // "<key-text>/<target-code>" per call, in order
+	prefix string
+}
+
+func (f *fakeTranslator) Translate(_ context.Context, text string, target translate.Language) (string, error) {
+	f.calls = append(f.calls, text+"/"+target.Code)
+	if f.err != nil {
+		return "", f.err
+	}
+	p := f.prefix
+	if p == "" {
+		p = "TR"
+	}
+	return p + ":" + target.Code + ":" + text, nil
+}
+
+func (f *fakeTranslator) Name() string {
+	if f.name == "" {
+		return "fake"
+	}
+	return f.name
+}
+
+// newTranslateTestApp builds an App wired for Stellaris only, with a real,
+// scannable local mod (translateTestModName) carrying real English
+// localisation content, discovered via preferences.ExtraModFolders - the
+// same light-weight fixture approach newWorkshopTestApp already
+// established (see that function's own doc comment for why this doesn't
+// need the full launcher-mod-dir machinery), plus XDG_DATA_HOME isolation
+// (confirmed necessary this session: without it, a scan resolves this
+// machine's own real ~/.local/share/Paradox Interactive/Stellaris mod
+// list, not a test fixture).
+func newTranslateTestApp(t *testing.T, englishEntries map[string]string) (*App, string) {
+	t.Helper()
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+
+	extra := t.TempDir()
+	modPath := filepath.Join(extra, translateTestModName)
+	if err := os.MkdirAll(filepath.Join(modPath, "localisation", "english"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	descriptor := "name=\"" + translateTestModName + "\"\nversion=\"1.0\"\nsupported_version=\"v4.*\"\n"
+	if err := os.WriteFile(filepath.Join(modPath, "descriptor.mod"), []byte(descriptor), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var ymlBody string
+	ymlBody += "l_english:\n"
+	for key, value := range englishEntries {
+		ymlBody += " " + key + ":0 \"" + value + "\"\n"
+	}
+	if err := os.WriteFile(filepath.Join(modPath, "localisation", "english", "a.yml"), []byte(ymlBody), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	prefs := preferences.Defaults()
+	prefs.ExtraModFolders = map[string][]string{game.Stellaris.ID: {extra}}
+	a := &App{
+		ctx:          context.Background(),
+		registry:     game.NewRegistry([]game.GameConfig{game.Stellaris}),
+		preferences:  prefs,
+		configAppDir: t.TempDir(),
+		eventSink:    func(string, ...any) {},
+	}
+
+	summary, err := library.LoadGame(a.ctx, game.Stellaris, library.Options{ExtraFolders: a.extraModFolders(game.Stellaris.ID)})
+	if err != nil {
+		t.Fatalf("scanning the fixture mod: %v", err)
+	}
+	if len(summary.Mods) != 1 {
+		t.Fatalf("fixture produced %d mods, want exactly 1: %+v", len(summary.Mods), summary.Mods)
+	}
+	return a, summary.Mods[0].ID
+}
+
+func TestTranslateEligibilityReportsAuthorModeOfferedForALocalMod(t *testing.T) {
+	a, modID := newTranslateTestApp(t, map[string]string{"GREETING": "Hello"})
+	elig, err := a.TranslateEligibility(game.Stellaris.ID, modID)
+	if err != nil {
+		t.Fatalf("TranslateEligibility() error = %v", err)
+	}
+	if !elig.AuthorModeOffered {
+		t.Errorf("elig = %+v, want AuthorModeOffered for a local mod", elig)
+	}
+	if !elig.HasEnglishContent {
+		t.Errorf("elig = %+v, want HasEnglishContent", elig)
+	}
+	if elig.DeepLKeyReady {
+		t.Errorf("elig = %+v, want DeepLKeyReady false with no key saved", elig)
+	}
+}
+
+func TestTranslateEligibilityReportsNoEnglishContentForAModWithNone(t *testing.T) {
+	a, modID := newTranslateTestApp(t, map[string]string{})
+	elig, err := a.TranslateEligibility(game.Stellaris.ID, modID)
+	if err != nil {
+		t.Fatalf("TranslateEligibility() error = %v", err)
+	}
+	if elig.HasEnglishContent {
+		t.Error("want HasEnglishContent false for a mod with an empty English catalog")
+	}
+}
+
+func TestTranslateModAuthorModeWritesTheTranslatedFileIntoTheSourceMod(t *testing.T) {
+	a, modID := newTranslateTestApp(t, map[string]string{"GREETING": "Hello"})
+	fake := &fakeTranslator{}
+	a.translatorFor = func(string, string, string) (translate.Translator, error) { return fake, nil }
+
+	result, err := a.TranslateMod(game.Stellaris.ID, modID, "req-1", TranslateRequest{
+		Service: "translanova", TargetCode: "DE", Mode: "author",
+	})
+	if err != nil {
+		t.Fatalf("TranslateMod() error = %v", err)
+	}
+	if result.Translated != 1 {
+		t.Errorf("Translated = %d, want 1", result.Translated)
+	}
+
+	contentPath, err := library.ModFolderPath(a.ctx, game.Stellaris, library.Options{ExtraFolders: a.extraModFolders(game.Stellaris.ID)}, modID)
+	if err != nil {
+		t.Fatalf("ModFolderPath() error = %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(contentPath, "localisation", "german", authorModeFilePrefix+"german.yml"))
+	if err != nil {
+		t.Fatalf("translated file was not written: %v", err)
+	}
+	if !containsSubstring(string(data), "TR:DE:Hello") {
+		t.Errorf("translated file = %s, want it to contain the fake translation", data)
+	}
+}
+
+func TestTranslateModPlayerModeGeneratesACompanionModWithoutTouchingTheSource(t *testing.T) {
+	a, modID := newTranslateTestApp(t, map[string]string{"GREETING": "Hello"})
+	fake := &fakeTranslator{}
+	a.translatorFor = func(string, string, string) (translate.Translator, error) { return fake, nil }
+
+	result, err := a.TranslateMod(game.Stellaris.ID, modID, "req-2", TranslateRequest{
+		Service: "translanova", TargetCode: "DE", Mode: "player",
+	})
+	if err != nil {
+		t.Fatalf("TranslateMod() error = %v", err)
+	}
+	if result.CompanionModID == "" {
+		t.Fatal("CompanionModID was not set for player mode")
+	}
+	if result.CompanionModID != library.TranslationCompanionModID(modID) {
+		t.Errorf("CompanionModID = %q, want %q", result.CompanionModID, library.TranslationCompanionModID(modID))
+	}
+
+	contentPath, err := library.ModFolderPath(a.ctx, game.Stellaris, library.Options{ExtraFolders: a.extraModFolders(game.Stellaris.ID)}, modID)
+	if err != nil {
+		t.Fatalf("ModFolderPath() error = %v", err)
+	}
+	// Only the fixture's own pre-existing localisation/english should
+	// exist - player mode must never add a new language folder inside
+	// the source mod itself.
+	entries, err := os.ReadDir(filepath.Join(contentPath, "localisation"))
+	if err != nil {
+		t.Fatalf("reading the source mod's own localisation folder: %v", err)
+	}
+	for _, e := range entries {
+		if e.Name() != "english" {
+			t.Errorf("found %q under the source mod's own localisation folder - player mode must only ever read from it", e.Name())
+		}
+	}
+}
+
+func TestTranslateModSkipsAnAlreadyCachedKeyOnASecondRun(t *testing.T) {
+	a, modID := newTranslateTestApp(t, map[string]string{"GREETING": "Hello"})
+	fake := &fakeTranslator{}
+	a.translatorFor = func(string, string, string) (translate.Translator, error) { return fake, nil }
+
+	if _, err := a.TranslateMod(game.Stellaris.ID, modID, "req-3", TranslateRequest{Service: "translanova", TargetCode: "DE", Mode: "author"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(fake.calls) != 1 {
+		t.Fatalf("first run made %d calls, want 1", len(fake.calls))
+	}
+
+	result, err := a.TranslateMod(game.Stellaris.ID, modID, "req-4", TranslateRequest{Service: "translanova", TargetCode: "DE", Mode: "author"})
+	if err != nil {
+		t.Fatalf("second TranslateMod() error = %v", err)
+	}
+	if len(fake.calls) != 1 {
+		t.Errorf("second run made %d total calls, want still 1 (the cached key must not be re-translated)", len(fake.calls))
+	}
+	if result.Translated != 0 {
+		t.Errorf("second run Translated = %d, want 0", result.Translated)
+	}
+}
+
+func TestTranslateModRejectsDeepLWithNoSavedKey(t *testing.T) {
+	a, modID := newTranslateTestApp(t, map[string]string{"GREETING": "Hello"})
+	_, err := a.TranslateMod(game.Stellaris.ID, modID, "req-5", TranslateRequest{Service: "deepl", TargetCode: "DE", Mode: "author"})
+	if err == nil {
+		t.Fatal("want an error when no DeepL key is saved")
+	}
+}
+
+func TestTranslateModRejectsAnUnknownService(t *testing.T) {
+	a, modID := newTranslateTestApp(t, map[string]string{"GREETING": "Hello"})
+	_, err := a.TranslateMod(game.Stellaris.ID, modID, "req-6", TranslateRequest{Service: "bing-translate", TargetCode: "DE", Mode: "author"})
+	if err == nil {
+		t.Fatal("want an error for an unknown service")
+	}
+}
+
+func TestTranslateModRejectsAnUnknownLanguageCode(t *testing.T) {
+	a, modID := newTranslateTestApp(t, map[string]string{"GREETING": "Hello"})
+	a.translatorFor = func(string, string, string) (translate.Translator, error) { return &fakeTranslator{}, nil }
+	_, err := a.TranslateMod(game.Stellaris.ID, modID, "req-7", TranslateRequest{Service: "translanova", TargetCode: "XX", Mode: "author"})
+	if err == nil {
+		t.Fatal("want an error for an unknown target language code")
+	}
+}
+
+func TestTranslateModFailsWithNoEnglishContentToTranslate(t *testing.T) {
+	a, modID := newTranslateTestApp(t, map[string]string{})
+	a.translatorFor = func(string, string, string) (translate.Translator, error) { return &fakeTranslator{}, nil }
+	_, err := a.TranslateMod(game.Stellaris.ID, modID, "req-8", TranslateRequest{Service: "translanova", TargetCode: "DE", Mode: "author"})
+	if err == nil {
+		t.Fatal("want an error when the mod has no English content")
+	}
+}
+
+func TestTranslateModStopsCleanlyWhenTheTranslatorFails(t *testing.T) {
+	a, modID := newTranslateTestApp(t, map[string]string{"GREETING": "Hello"})
+	fake := &fakeTranslator{err: translate.QuotaExceededError{}}
+	a.translatorFor = func(string, string, string) (translate.Translator, error) { return fake, nil }
+
+	_, err := a.TranslateMod(game.Stellaris.ID, modID, "req-9", TranslateRequest{Service: "deepl", TargetCode: "DE", Mode: "author"})
+	if err == nil {
+		t.Fatal("want an error propagated from the translator")
+	}
+}
+
+func TestTranslateModEmitsProgressEvents(t *testing.T) {
+	a, modID := newTranslateTestApp(t, map[string]string{"GREETING": "Hello"})
+	fake := &fakeTranslator{}
+	a.translatorFor = func(string, string, string) (translate.Translator, error) { return fake, nil }
+
+	var stages []string
+	a.eventSink = func(name string, data ...any) {
+		if name != "translate-progress" {
+			return
+		}
+		if len(data) < 2 {
+			return
+		}
+		if p, ok := data[1].(TranslateProgress); ok {
+			stages = append(stages, p.Stage)
+		}
+	}
+
+	if _, err := a.TranslateMod(game.Stellaris.ID, modID, "req-10", TranslateRequest{Service: "translanova", TargetCode: "DE", Mode: "author"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(stages) == 0 {
+		t.Fatal("no progress events were emitted")
+	}
+	if stages[0] != "opening" {
+		t.Errorf("first stage = %q, want \"opening\"", stages[0])
+	}
+	if stages[len(stages)-1] != "done" {
+		t.Errorf("last stage = %q, want \"done\"", stages[len(stages)-1])
+	}
+}
+
+func TestTranslateModAllLanguagesTranslatesIntoEveryRealLanguage(t *testing.T) {
+	a, modID := newTranslateTestApp(t, map[string]string{"GREETING": "Hello"})
+	fake := &fakeTranslator{}
+	a.translatorFor = func(string, string, string) (translate.Translator, error) { return fake, nil }
+
+	result, err := a.TranslateMod(game.Stellaris.ID, modID, "req-11", TranslateRequest{
+		Service: "translanova", TargetCode: translate.AllLanguagesCode, Mode: "author",
+	})
+	if err != nil {
+		t.Fatalf("TranslateMod() error = %v", err)
+	}
+	wantCalls := len(translate.AllLanguages) - 2 // every real language except EN and the synthetic ALL entry
+	if result.Translated != wantCalls {
+		t.Errorf("Translated = %d, want %d (one call per real target language)", result.Translated, wantCalls)
+	}
+}
+
+func TestCancelTranslateIsANoOpForAnUnknownRequestID(t *testing.T) {
+	a, _ := newTranslateTestApp(t, map[string]string{"GREETING": "Hello"})
+	a.CancelTranslate("no-such-request") // must not panic
+}
+
+func containsSubstring(s, substr string) bool {
+	for i := 0; i+len(substr) <= len(s); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
