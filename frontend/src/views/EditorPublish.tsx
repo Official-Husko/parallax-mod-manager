@@ -30,6 +30,18 @@ function workshopURL(id: string): string {
     return `https://steamcommunity.com/sharedfiles/filedetails/?id=${id}`;
 }
 
+// isEffectivelyExcluded mirrors components/FileTree's own cascading rule: a file is excluded
+// either directly, or because some ancestor folder is - matching exactly what would actually be
+// left out of the upload.
+function isEffectivelyExcluded(relPath: string, excluded: Set<string>): boolean {
+    if (excluded.has(relPath)) return true;
+    const parts = relPath.split('/');
+    for (let i = 1; i < parts.length; i++) {
+        if (excluded.has(parts.slice(0, i).join('/'))) return true;
+    }
+    return false;
+}
+
 type LogTone = 'info' | 'success' | 'warn' | 'error';
 
 interface LogLine {
@@ -54,6 +66,21 @@ function formatBytes(n: number): string {
     return `${value.toFixed(unit === 0 || value >= 10 ? 0 : 1)} ${units[unit]}`;
 }
 
+// formatBytesPair renders "142.1 / 208.9 MB" - one unit shown once, at the end, picked from the
+// larger (total) value, rather than formatBytes called on each side separately (which would
+// print that unit twice, once per side, and could even pick a different one for each).
+function formatBytesPair(processed: number, total: number): string {
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let scale = 1;
+    let unit = 0;
+    while (total / scale >= 1024 && unit < units.length - 1) {
+        scale *= 1024;
+        unit++;
+    }
+    const fmt = (n: number) => (n / scale).toFixed(unit === 0 ? 0 : 1);
+    return `${fmt(processed)} / ${fmt(total)} ${units[unit]}`;
+}
+
 // describeStage turns one raw progress event into the log line shown for it, so the wording
 // lives in one place rather than scattered through the event handler below. null means the
 // stage isn't worth its own log line.
@@ -61,21 +88,24 @@ function describeStage(p: WorkshopPublishProgress): { tone: LogTone; text: strin
     switch (p.Stage) {
         case 'staging':
             return {tone: 'info', text: p.Message ? `Preparing files to upload (${p.Message})...` : 'Preparing files to upload...'};
+        case 'staged':
+            return {tone: 'info', text: `Staged ${p.Processed.toLocaleString()} file${p.Processed === 1 ? '' : 's'} to a temporary copy`};
         case 'opening':
             return {tone: 'info', text: 'Connecting to Steam...'};
         case 'initialized':
-            return {tone: 'info', text: 'Connected to Steam.'};
+            return {tone: 'info', text: 'Connected to Steam'};
         case 'creating':
             return {tone: 'info', text: 'Creating a new Workshop item...'};
         case 'created':
-            return {tone: 'info', text: `Workshop item created (id ${p.PublishedFileID}).`};
+            return {tone: 'info', text: `Workshop item created (id ${p.PublishedFileID})`};
         case 'updating':
-            return {tone: 'info', text: 'Preparing the update...'};
+            return {tone: 'info', text: `Updating item ${p.PublishedFileID}`};
         case 'uploading':
-            return {
-                tone: 'info',
-                text: p.Total > 0 ? `Uploading to Steam... (${formatBytes(p.Processed)} / ${formatBytes(p.Total)})` : 'Uploading to Steam...',
-            };
+            // Fires repeatedly as bytes stream, not once - live feedback belongs to the
+            // progress bar (already fed straight from Processed/Total in the event handler
+            // below), not a new log line every tick. loggedUploading gates this to the first
+            // one only.
+            return {tone: 'info', text: 'Uploading...'};
         case 'done':
             return {tone: 'success', text: `Published. View it at steamcommunity.com/sharedfiles/filedetails/?id=${p.PublishedFileID}`};
         case 'error':
@@ -105,6 +135,10 @@ export function EditorPublish({gameId, mod}: { gameId: string; mod: library.ModS
     const [account, setAccount] = useState<app.SteamAccountInfo | null>(null);
     const [accountError, setAccountError] = useState('');
     const requestIdRef = useRef('');
+    // 'uploading' fires repeatedly as bytes stream (it drives the live progress bar via
+    // setProgress below) - this gates its own log line to the first occurrence only, so the
+    // log doesn't fill with one "Uploading..." entry per tick.
+    const loggedUploadingRef = useRef(false);
 
     // A different mod selected - this tab's own log/draft/exclusions belong to
     // whichever mod was open when they were set, never carried over to a
@@ -149,7 +183,11 @@ export function EditorPublish({gameId, mod}: { gameId: string; mod: library.ModS
     useEffect(() => {
         const off = EventsOn('workshop-publish-progress', (eventGameId: string, p: WorkshopPublishProgress) => {
             if (eventGameId !== gameId) return;
-            if (p.Stage === 'uploading') setProgress({processed: p.Processed, total: p.Total});
+            if (p.Stage === 'uploading') {
+                setProgress({processed: p.Processed, total: p.Total});
+                if (loggedUploadingRef.current) return;
+                loggedUploadingRef.current = true;
+            }
             const line = describeStage(p);
             if (!line) return;
             setLog((prev) => [...prev, {time: timestamp(), tone: line.tone, text: line.text}]);
@@ -160,6 +198,7 @@ export function EditorPublish({gameId, mod}: { gameId: string; mod: library.ModS
     function publish() {
         const requestId = `publish-${Date.now()}-${Math.random().toString(36).slice(2)}`;
         requestIdRef.current = requestId;
+        loggedUploadingRef.current = false;
         setPublishing(true);
         setError('');
         setProgress(null);
@@ -217,30 +256,19 @@ export function EditorPublish({gameId, mod}: { gameId: string; mod: library.ModS
 
                 <div className="editor-card">
                     <div className="editor-card-title">DESTINATION</div>
-                    <div className="editor-muted" style={{marginBottom: 9}}>Decided automatically by whether this mod already has a Workshop item of its own.</div>
-                    <div className={`mode-option ${!hasRemote ? 'active' : 'disabled'}`} style={{cursor: 'default'}}>
-                        <i className={`fa-solid ${!hasRemote ? 'fa-circle-dot on' : 'fa-circle off'} mode-option-radio`}/>
-                        <div className="mode-option-main">
-                            <div className="mode-option-name">Upload as a new Workshop item</div>
-                            <div className="mode-option-desc">Creates a brand new Workshop page for this mod.</div>
-                        </div>
-                    </div>
-                    <div className={`mode-option ${hasRemote ? 'active' : 'disabled'}`} style={{cursor: hasRemote ? 'default' : 'default', justifyContent: 'space-between'}}>
-                        <i className={`fa-solid ${hasRemote ? 'fa-circle-dot on' : 'fa-circle off'} mode-option-radio`}/>
-                        <div className="mode-option-main">
-                            <div className="mode-option-name">Update the existing item</div>
-                            <div className="mode-option-desc">
-                                {hasRemote
-                                    ? <>Pushes changes to Workshop item <span className="mono">{mod.RemoteFileID}</span>, this mod's own.</>
-                                    : 'This mod has no Workshop item of its own yet - publishing creates one.'}
-                            </div>
+                    <div className="publish-destination-row">
+                        <span className="publish-destination-glyph">{hasRemote ? '↻' : '+'}</span>
+                        <div className="publish-destination-main">
+                            <div className="publish-destination-name">{hasRemote ? 'Update existing item' : 'Upload as a new item'}</div>
+                            {hasRemote && <div className="mono publish-destination-sub">remote_file_id {mod.RemoteFileID}</div>}
                         </div>
                         {hasRemote && (
-                            <a className="link-btn" href={workshopURL(mod.RemoteFileID)} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()}>
+                            <a className="link-btn" href={workshopURL(mod.RemoteFileID)} target="_blank" rel="noreferrer">
                                 Workshop page <i className="fa-solid fa-arrow-up-right-from-square"/>
                             </a>
                         )}
                     </div>
+                    <div className="editor-muted">Chosen automatically. A mod without a remote_file_id is published as a new item.</div>
                 </div>
 
                 <div className="editor-card">
@@ -270,41 +298,35 @@ export function EditorPublish({gameId, mod}: { gameId: string; mod: library.ModS
                                 <option value="unlisted">Unlisted</option>
                                 <option value="private">Private</option>
                             </select>
+                            <span className="editor-hint">Default. Switch to Public when you're ready.</span>
                         </label>
                         <label className="editor-field">
-                            <span className="editor-label">Tags</span>
-                            <input className="editor-input" disabled value={mod.Tags.join(', ') || 'None'}/>
+                            <span className="editor-label">Version</span>
+                            <input className="editor-input mono" disabled value={mod.Version || '-'}/>
+                            <span className="editor-hint">From descriptor</span>
                         </label>
                     </div>
-                    <div className="editor-actions">
-                        {publishing && (
-                            <button type="button" className="btn-ghost" onClick={() => setConfirmingCancel(true)}>Cancel</button>
-                        )}
-                        <button type="button" className="btn-primary" disabled={publishing} onClick={publish}>
-                            {publishing
-                                ? <><i className="fa-solid fa-spinner fa-spin"/> Publishing...</>
-                                : <><i className="fa-solid fa-cloud-arrow-up"/> Publish</>}
-                        </button>
-                    </div>
-                    {confirmingCancel && (
-                        <div className="editor-alert warn">
-                            <i className="fa-solid fa-triangle-exclamation editor-alert-icon"/>
-                            <div className="editor-alert-body">
-                                <div className="editor-alert-title">Cancel this upload?</div>
-                                <div className="editor-alert-text">
-                                    Steam has no clean way to stop mid-upload - cancelling may leave the Workshop item
-                                    partially updated. Check its Workshop page afterward if you're unsure.
-                                </div>
-                                <div className="editor-alert-actions">
-                                    <button type="button" className="btn-ghost" onClick={() => setConfirmingCancel(false)}>Keep going</button>
-                                    <button type="button" className="btn-primary" onClick={confirmCancel}>Cancel upload</button>
-                                </div>
+                    <div className="editor-field">
+                        <span className="editor-label">Tags</span>
+                        {mod.Tags.length > 0 ? (
+                            <div className="publish-tags">
+                                {mod.Tags.map((tag) => <span key={tag} className="chip">{tag}</span>)}
                             </div>
+                        ) : (
+                            <span className="editor-muted">None</span>
+                        )}
+                        <span className="editor-hint">Edit tags on the Edit tab.</span>
+                    </div>
+                    {!publishing && (
+                        <div className="editor-actions">
+                            <button type="button" className="btn-primary" onClick={publish}>
+                                <i className="fa-solid fa-cloud-arrow-up"/> Publish
+                            </button>
                         </div>
                     )}
                     {error && (
                         <div className="editor-alert bad">
-                            <i className="fa-solid fa-circle-xmark editor-alert-icon"/>
+                            <span className="editor-alert-icon"/>
                             <div className="editor-alert-body"><div className="editor-alert-text">{error}</div></div>
                         </div>
                     )}
@@ -314,11 +336,16 @@ export function EditorPublish({gameId, mod}: { gameId: string; mod: library.ModS
             <div className="editor-column">
                 <div className="editor-card editor-changes">
                     <div className="editor-card-title">
-                        FILES TO UPLOAD{excluded.size > 0 && <span className="editor-card-count mono"> &middot; {excluded.size} excluded</span>}
+                        FILES TO UPLOAD
+                        {files && (() => {
+                            const realFiles = files.Entries.filter((e) => !e.IsDir);
+                            const included = realFiles.filter((e) => !isEffectivelyExcluded(e.RelPath, excluded)).length;
+                            return <span className="editor-card-count mono">{included} of {realFiles.length}</span>;
+                        })()}
                     </div>
                     {filesError && (
                         <div className="editor-alert bad">
-                            <i className="fa-solid fa-circle-xmark editor-alert-icon"/>
+                            <span className="editor-alert-icon"/>
                             <div className="editor-alert-body"><div className="editor-alert-text">{filesError}</div></div>
                         </div>
                     )}
@@ -328,10 +355,6 @@ export function EditorPublish({gameId, mod}: { gameId: string; mod: library.ModS
                     )}
                     {!filesError && files && files.Entries.length > 0 && (
                         <>
-                            <div className="editor-muted" style={{marginBottom: 6}}>
-                                Untick a file or folder to leave it out of the upload - it stays on your computer either way.
-                                Click a file to preview it.
-                            </div>
                             <div className="publish-file-layout">
                                 <div className="editor-file-picker publish-file-picker">
                                     <FileTree
@@ -348,7 +371,10 @@ export function EditorPublish({gameId, mod}: { gameId: string; mod: library.ModS
                                         <>
                                             <img className="publish-file-preview-img" src={preview.DataURI} alt={selectedPath}/>
                                             <div className="mono editor-hint">{selectedPath.split('/').pop()}</div>
-                                            <div className="editor-hint">{preview.Width} x {preview.Height} &middot; {formatBytes(preview.Bytes)}</div>
+                                            <div className="editor-hint">
+                                                {preview.Width} x {preview.Height} &middot; {formatBytes(preview.Bytes)}
+                                                {selectedPath.split('/').pop() === 'thumbnail.png' ? '. Shown as the Workshop preview image.' : ''}
+                                            </div>
                                         </>
                                     )}
                                     {selectedPath && preview && preview.Kind === 'none' && (
@@ -359,8 +385,9 @@ export function EditorPublish({gameId, mod}: { gameId: string; mod: library.ModS
                                     )}
                                 </div>
                             </div>
+                            <div className="editor-muted">Unticked files are left out of the upload copy. Nothing is deleted.</div>
                             {files.Truncated && (
-                                <div className="editor-muted" style={{marginTop: 6}}>
+                                <div className="editor-muted">
                                     Showing the first {files.Entries.length.toLocaleString()} files - this mod has more than that.
                                 </div>
                             )}
@@ -373,7 +400,7 @@ export function EditorPublish({gameId, mod}: { gameId: string; mod: library.ModS
                     {progress && progress.total > 0 && (
                         <>
                             <div className="editor-progress-header-row">
-                                <span className="mono">{formatBytes(progress.processed)} / {formatBytes(progress.total)}</span>
+                                <span className="mono">{formatBytesPair(progress.processed, progress.total)}</span>
                                 <span className="mono">{Math.round((progress.processed / progress.total) * 100)}%</span>
                             </div>
                             <div className="editor-progress-bar">
@@ -391,6 +418,29 @@ export function EditorPublish({gameId, mod}: { gameId: string; mod: library.ModS
                                     <span className="editor-log-text">{line.text}</span>
                                 </div>
                             ))}
+                        </div>
+                    )}
+                    {publishing && (
+                        <div className="editor-actions">
+                            <button type="button" className="btn-ghost" onClick={() => setConfirmingCancel(true)}>Cancel</button>
+                            <span className="editor-actions-spacer"/>
+                            <button type="button" className="btn-primary inert" disabled>Publishing...</button>
+                        </div>
+                    )}
+                    {confirmingCancel && (
+                        <div className="editor-alert warn">
+                            <span className="editor-alert-icon"/>
+                            <div className="editor-alert-body">
+                                <div className="editor-alert-title">Cancel this upload?</div>
+                                <div className="editor-alert-text">
+                                    Steam has no clean way to stop mid-upload - cancelling may leave the Workshop item
+                                    partially updated. Check its Workshop page afterward if you're unsure.
+                                </div>
+                                <div className="editor-alert-actions">
+                                    <button type="button" className="btn-ghost" onClick={() => setConfirmingCancel(false)}>Keep going</button>
+                                    <button type="button" className="btn-primary" onClick={confirmCancel}>Cancel upload</button>
+                                </div>
+                            </div>
                         </div>
                     )}
                 </div>

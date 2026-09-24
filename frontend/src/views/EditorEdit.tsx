@@ -205,7 +205,7 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
             <div className="editor-column">
                 {!info.Editable && !forced && (
                     <div className="editor-alert warn">
-                        <i className="fa-solid fa-triangle-exclamation editor-alert-icon"/>
+                        <span className="editor-alert-icon"/>
                         <div className="editor-alert-body">
                             <div className="editor-alert-title">This mod can't be edited here</div>
                             <div className="editor-alert-text">{info.Reason}</div>
@@ -219,7 +219,7 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
                 )}
                 {!info.Editable && forced && (
                     <div className="editor-alert warn">
-                        <i className="fa-solid fa-triangle-exclamation editor-alert-icon"/>
+                        <span className="editor-alert-icon"/>
                         <div className="editor-alert-body">
                             <div className="editor-alert-title">Editing anyway</div>
                             <div className="editor-alert-text">{info.Reason}</div>
@@ -240,8 +240,12 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
                         <div className="editor-thumb-side">
                             {newThumb ? (
                                 <div className="editor-thumb-note">
-                                    New picture: {newThumb.Width} x {newThumb.Height}, {formatBytes(newThumb.Bytes)}
-                                    {newThumb.Resized && <> (scaled down from {newThumb.SourceWidth} x {newThumb.SourceHeight})</>}. Saved as thumbnail.png.
+                                    <span className="mono">{draft.thumbnailFrom.split(/[\\/]/).pop()}</span>
+                                    {' '}&middot;{' '}
+                                    {newThumb.Resized
+                                        ? <>{newThumb.SourceWidth} x {newThumb.SourceHeight}, scaled down to {newThumb.Width} x {newThumb.Height}</>
+                                        : <>{newThumb.Width} x {newThumb.Height}</>}
+                                    {' '}&middot; {formatBytes(newThumb.Bytes)}
                                 </div>
                             ) : (
                                 <div className="editor-thumb-note">
@@ -250,11 +254,9 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
                                 </div>
                             )}
                             <div className="editor-thumb-buttons">
-                                <button type="button" className="btn-ghost" disabled={readOnly || busy} onClick={chooseThumbnail}>
-                                    <i className="fa-solid fa-image"/> Change...
-                                </button>
+                                <button type="button" className="btn-ghost" disabled={readOnly || busy} onClick={chooseThumbnail}>Choose image...</button>
                                 {newThumb && (
-                                    <button type="button" className="btn-ghost" disabled={busy} onClick={() => change({thumbnailFrom: ''})}>Keep the current one</button>
+                                    <button type="button" className="btn-ghost" disabled={busy} onClick={() => change({thumbnailFrom: ''})}>Keep current</button>
                                 )}
                             </div>
                         </div>
@@ -296,7 +298,7 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
                                         <span
                                             key={kind}
                                             className={`chip ${selected ? 'chip-active' : suggested ? 'chip-suggested' : ''}`}
-                                            style={{cursor: readOnly ? 'default' : 'pointer'}}
+                                            style={{cursor: readOnly ? 'default' : 'pointer', fontWeight: selected ? 600 : undefined}}
                                             onClick={() => change({version: optionVersion})}
                                         >
                                             {BUMP_LABELS[kind]} &middot; {optionVersion}{selected ? ' ✓' : ''}
@@ -304,7 +306,7 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
                                     );
                                 })}
                             </div>
-                            <span className="editor-hint">{info.VersionBump.Reason}</span>
+                            <span className="editor-hint">Suggested {BUMP_LABELS[info.VersionBump.Suggested].toLowerCase()}: {info.VersionBump.Reason}</span>
                         </div>
                     )}
 
@@ -352,7 +354,10 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
 
             <div className="editor-column">
                 <div className="editor-card editor-changes">
-                    <div className="editor-card-title">WHAT WILL CHANGE</div>
+                    <div className="editor-card-title">
+                        WHAT WILL CHANGE
+                        {preview && !preview.Nothing && <span className="editor-card-count mono">{(preview.Files?.length ?? 0) + (draft.thumbnailFrom && newThumb ? 1 : 0)} files</span>}
+                    </div>
 
                     {!readOnly && info.CanCreateDescriptor && (
                         <label className="editor-check">
@@ -369,7 +374,7 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
 
                     {unknownDeps.size > 0 && (
                         <div className="editor-alert warn">
-                            <i className="fa-solid fa-triangle-exclamation editor-alert-icon"/>
+                            <span className="editor-alert-icon"/>
                             <div className="editor-alert-body">
                                 <div className="editor-alert-title">Dependency not installed</div>
                                 <div className="editor-alert-text">
@@ -381,13 +386,13 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
 
                     {problems.map((p) => (
                         <div key={p} className="editor-alert bad">
-                            <i className="fa-solid fa-circle-xmark editor-alert-icon"/>
+                            <span className="editor-alert-icon"/>
                             <div className="editor-alert-body"><div className="editor-alert-text">{p}</div></div>
                         </div>
                     ))}
                     {(preview?.Warnings ?? []).map((w) => (
                         <div key={w} className="editor-alert warn">
-                            <i className="fa-solid fa-triangle-exclamation editor-alert-icon"/>
+                            <span className="editor-alert-icon"/>
                             <div className="editor-alert-body"><div className="editor-alert-text">{w}</div></div>
                         </div>
                     ))}

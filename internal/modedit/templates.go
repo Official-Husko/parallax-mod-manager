@@ -39,9 +39,10 @@ type Template struct {
 	Name        string
 	Description string
 	// FileCount is a template-intrinsic estimate for the picker grid (descriptor + thumbnail,
-	// if any, + this template's own extra files) - it deliberately excludes the stub, since
-	// whether one applies depends on the location chosen after the template. The live "what
-	// will be created" preview always shows the real, complete list for the actual choice.
+	// if any, + the stub + this template's own extra files) - the picker's own badge number,
+	// matching the redesign's own reference figures exactly. The live "what will be created"
+	// preview is what's actually authoritative (it never shows a stub at all for a location
+	// outside the game's own mod folder, for instance) - this is a fixed estimate for the tile.
 	FileCount int
 	// IncludeThumbnail says whether CreateMod also writes a placeholder thumbnail.png -
 	// CreateMod otherwise writes no thumbnail at all, matching its behavior before templates
@@ -91,7 +92,7 @@ var eventChainTemplate = Template{
 	ID:               "event_chain",
 	Name:             "Event chain",
 	Description:      "An event file, on_actions hook and matching localisation.",
-	FileCount:        5,
+	FileCount:        6,
 	IncludeThumbnail: true,
 	Build:            buildEventChain,
 }
@@ -100,7 +101,7 @@ var localisationTemplate = Template{
 	ID:               "localisation",
 	Name:             "Localisation",
 	Description:      "Translation-only mod with the folder layout the game reads.",
-	FileCount:        2,
+	FileCount:        3,
 	IncludeThumbnail: false,
 	Build:            buildLocalisation,
 }
@@ -109,7 +110,7 @@ var portraitSetTemplate = Template{
 	ID:               "portrait_set",
 	Name:             "Portrait set",
 	Description:      "Species class, portrait group and asset selector stubs.",
-	FileCount:        5,
+	FileCount:        7,
 	IncludeThumbnail: true,
 	Build:            buildPortraitSet,
 }
@@ -118,7 +119,7 @@ var shipsetTemplate = Template{
 	ID:               "shipset",
 	Name:             "Shipset",
 	Description:      "Graphical culture entry and entity stubs for one shipset.",
-	FileCount:        4,
+	FileCount:        9,
 	IncludeThumbnail: true,
 	Build:            buildShipset,
 }

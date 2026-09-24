@@ -62,7 +62,7 @@ func workDirFor(appID uint32) (string, error) {
 // done with it, whether the publish itself succeeded or not. The real
 // content folder is never modified or read destructively; this only ever
 // adds a temporary copy elsewhere.
-func stageExcluding(ctx context.Context, contentFolder, workDir string, excludePaths []string) (staged string, cleanup func(), err error) {
+func stageExcluding(ctx context.Context, contentFolder, workDir string, excludePaths []string) (staged string, stats fsutil.Stats, cleanup func(), err error) {
 	exclude := make(map[string]bool, len(excludePaths))
 	for _, p := range excludePaths {
 		exclude[strings.TrimRight(filepath.ToSlash(p), "/")] = true
@@ -70,17 +70,18 @@ func stageExcluding(ctx context.Context, contentFolder, workDir string, excludeP
 
 	staged = filepath.Join(workDir, "staged-content")
 	if err := os.RemoveAll(staged); err != nil {
-		return "", nil, fmt.Errorf("clearing an old staging folder at %s: %w", staged, err)
+		return "", fsutil.Stats{}, nil, fmt.Errorf("clearing an old staging folder at %s: %w", staged, err)
 	}
 	if err := os.MkdirAll(staged, 0o755); err != nil {
-		return "", nil, fmt.Errorf("creating a staging folder at %s: %w", staged, err)
+		return "", fsutil.Stats{}, nil, fmt.Errorf("creating a staging folder at %s: %w", staged, err)
 	}
 
-	if _, err := fsutil.CopyTreeExcluding(ctx, contentFolder, staged, exclude, 0, nil); err != nil {
+	stats, err = fsutil.CopyTreeExcluding(ctx, contentFolder, staged, exclude, 0, nil)
+	if err != nil {
 		_ = os.RemoveAll(staged)
-		return "", nil, fmt.Errorf("copying %s to %s without the excluded files: %w", contentFolder, staged, err)
+		return "", fsutil.Stats{}, nil, fmt.Errorf("copying %s to %s without the excluded files: %w", contentFolder, staged, err)
 	}
-	return staged, func() { _ = os.RemoveAll(staged) }, nil
+	return staged, stats, func() { _ = os.RemoveAll(staged) }, nil
 }
 
 // helperRequest mirrors companions/parallax-steam-helper's own Request type
@@ -149,12 +150,15 @@ func (h HelperPublisher) Publish(ctx context.Context, req PublishRequest, onProg
 		if onProgress != nil {
 			onProgress(PublishProgress{Stage: "staging", Message: fmt.Sprintf("leaving out %d item(s) you chose to exclude", len(req.ExcludePaths))})
 		}
-		staged, cleanup, err := stageExcluding(ctx, contentFolder, workDir, req.ExcludePaths)
+		staged, stats, cleanup, err := stageExcluding(ctx, contentFolder, workDir, req.ExcludePaths)
 		if err != nil {
 			return PublishResult{}, fmt.Errorf("workshop: preparing files to upload: %w", err)
 		}
 		defer cleanup()
 		contentFolder = staged
+		if onProgress != nil {
+			onProgress(PublishProgress{Stage: "staged", Processed: uint64(stats.Files)})
+		}
 	}
 
 	payload, err := json.Marshal(helperRequest{

@@ -32,6 +32,12 @@ type CheckResult struct {
 	// was never checked, or its index could not be read.
 	BaseGameIndexFiles int
 	BaseGameIndexBytes int64
+	// IndexBuilt is true when this run is the one that built the base game's
+	// index from scratch (it did not exist on disk before this call) - so
+	// DurationMS includes that one-time indexing cost, not just this mod's
+	// own files. The Result cache card's "Last run" stat uses this to tell
+	// a slow first run apart from every fast one after it.
+	IndexBuilt bool
 }
 
 // CheckMod runs every check the Editor's Checks tab shows for one mod:
@@ -48,6 +54,13 @@ func (a *App) CheckMod(gameID, modID string, installedNames []string) (CheckResu
 
 	installDir, _ := a.resolveInstallDir(t.cfg)
 	store := cache.FileStore{Dir: a.cacheDir}
+
+	indexedBefore := false
+	if installDir != "" {
+		if _, _, ok := store.Stat(t.cfg.ID, modcheck.VanillaModID); ok {
+			indexedBefore = true
+		}
+	}
 
 	start := time.Now()
 	findings, filesRead, err := modcheck.Check(a.baseContext(), t.m, t.cfg, modcheck.Options{
@@ -74,6 +87,7 @@ func (a *App) CheckMod(gameID, modID string, installedNames []string) (CheckResu
 	if installDir != "" {
 		if files, size, ok := store.Stat(t.cfg.ID, modcheck.VanillaModID); ok {
 			result.BaseGameIndexFiles, result.BaseGameIndexBytes = files, size
+			result.IndexBuilt = !indexedBefore
 		}
 	}
 	return result, nil

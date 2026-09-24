@@ -269,6 +269,7 @@ export namespace app {
 	    RanAt: number;
 	    BaseGameIndexFiles: number;
 	    BaseGameIndexBytes: number;
+	    IndexBuilt: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new CheckResult(source);
@@ -284,6 +285,7 @@ export namespace app {
 	        this.RanAt = source["RanAt"];
 	        this.BaseGameIndexFiles = source["BaseGameIndexFiles"];
 	        this.BaseGameIndexBytes = source["BaseGameIndexBytes"];
+	        this.IndexBuilt = source["IndexBuilt"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

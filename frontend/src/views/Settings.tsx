@@ -48,7 +48,7 @@ import {AccentSettings} from './AccentSettings';
 
 type Section = 'manage' | 'launch' | 'playsets' | 'sort' | 'conflict' | 'steam' | 'tools' | 'browse' | 'backup' | 'appearance' | 'advanced' | 'debug' | 'about';
 
-export function Settings({jumpToManageGames, jumpToBackup, onGamesChanged, onPreferencesChanged}: {
+export function Settings({jumpToManageGames, jumpToBackup, jumpToTools, onGamesChanged, onPreferencesChanged}: {
     // Incremented by app.tsx (the TopBar's own "Manage games" entry) to
     // ask this view to switch to the "Manage games" panel - 0 (the
     // default, falsy) means no pending request, so this never fights the
@@ -56,6 +56,9 @@ export function Settings({jumpToManageGames, jumpToBackup, onGamesChanged, onPre
     jumpToManageGames?: number;
     // The same, for the Backup panel (0 means no request).
     jumpToBackup?: number;
+    // The same, for the Tools panel - the Editor's own Translate tab links here when no
+    // DeepL key is saved yet.
+    jumpToTools?: number;
     // Called after a change here (toggling a game managed, or browsing to
     // a new install path) might have changed which games app.tsx should
     // show - lets the game switcher, Library, DLC, and Workspace pick up
@@ -82,6 +85,10 @@ export function Settings({jumpToManageGames, jumpToBackup, onGamesChanged, onPre
     useEffect(() => {
         if (jumpToBackup) setSection('backup');
     }, [jumpToBackup]);
+
+    useEffect(() => {
+        if (jumpToTools) setSection('tools');
+    }, [jumpToTools]);
 
     return (
         <div className="settings">

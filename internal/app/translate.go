@@ -123,11 +123,13 @@ type TranslateRequest struct {
 // this session.
 type TranslateProgress struct {
 	RequestID string
-	// Stage is one of: "opening", "language", "translating", "language_done", "writing",
-	// "done", "error". "language_done" fires once per language, right after its own output file
-	// is written (Count is that file's own real key count); "writing" only ever fires once, for
-	// player mode's own companion-mod manifest step, which happens after every language's file
-	// is already on disk.
+	// Stage is one of: "opening", "opened", "language", "translating", "language_done",
+	// "writing", "done", "error". "opened" fires once, right after this mod's own English
+	// source is actually read (Count is how many localisation/english/*.yml files that was);
+	// "language_done" fires once per language, right after its own output file is written
+	// (Count is that file's own real key count); "writing" only ever fires once, for player
+	// mode's own companion-mod manifest step, which happens after every language's file is
+	// already on disk.
 	Stage    string
 	Language string
 	Key      string
@@ -252,6 +254,9 @@ func (a *App) TranslateMod(gameID, modID, requestID string, req TranslateRequest
 		err := errors.New("this mod has no English localisation to translate")
 		emit(TranslateProgress{Stage: "error", Message: err.Error()})
 		return TranslateResult{}, err
+	}
+	if fileCount, ferr := library.EnglishFileCount(t.cfg, t.m.ContentPath); ferr == nil {
+		emit(TranslateProgress{Stage: "opened", Count: fileCount})
 	}
 
 	cache, _ := translatecache.Load(a.configAppDir, gameID, modID)

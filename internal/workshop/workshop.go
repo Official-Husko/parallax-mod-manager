@@ -50,15 +50,15 @@ type PublishRequest struct {
 // PublishProgress is one step of an in-flight publish, reported as it
 // happens - see Publisher.Publish's onProgress.
 type PublishProgress struct {
-	// Stage is one of: "staging" (only when ExcludePaths is non-empty -
-	// reported by HelperPublisher itself, before the companion process
-	// even starts), "opening", "initialized", "creating", "created",
-	// "updating", "uploading", "done", "error".
+	// Stage is one of: "staging" (only when ExcludePaths is non-empty - reported by
+	// HelperPublisher itself, before the companion process even starts), "staged" (right after
+	// that copy finishes, Processed is how many real files it copied), "opening", "initialized",
+	// "creating", "created", "updating", "uploading", "done", "error".
 	Stage string
 	// Message is set on "error" - a short, human-readable explanation.
 	Message string
-	// Processed/Total mirror Steam's own live upload byte counts during
-	// "uploading" - both 0 on every other stage.
+	// Processed/Total mirror Steam's own live upload byte counts during "uploading" (0 on every
+	// other stage except "staged", which reuses Processed for its own real file count instead).
 	Processed uint64
 	Total     uint64
 	// PublishedFileID is set from "created" onward.

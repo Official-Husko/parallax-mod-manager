@@ -29,6 +29,41 @@ interface DuplicateProgressEvent {
 
 type Mode = 'create' | 'duplicate';
 
+// previewFolderName mirrors modedit.FolderName's own character-class rules (in Go) just closely
+// enough for a live, informational "Folder name" preview - display only, never what CreateMod
+// itself actually uses to decide the real folder name (that stays server-side, in Go, the only
+// place it needs to be authoritative).
+function previewFolderName(name: string): string {
+    const safe = name.replace(/[/\\:*?"<>|]/g, '_').trim();
+    return safe === '' ? '_' : safe;
+}
+
+function timestamp(): string {
+    return new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', second: '2-digit'});
+}
+
+// formatBytesPair renders "1.8 / 4.2 GB" - one unit shown once, at the end, picked from the
+// larger (total) value, rather than data/format's own formatBytes called on each side
+// separately (which would print that unit twice, once per side).
+function formatBytesPair(done: number, total: number): string {
+    if (total < 1024) return `${done} / ${total} B`;
+    const units = ['KB', 'MB', 'GB', 'TB'];
+    let scale = 1024;
+    let unit = 0;
+    while (total / scale >= 1024 && unit < units.length - 1) {
+        scale *= 1024;
+        unit++;
+    }
+    const fmt = (n: number) => { const v = n / scale; return v.toFixed(v < 10 ? 2 : 1); };
+    return `${fmt(done)} / ${fmt(total)} ${units[unit]}`;
+}
+
+// How often a running duplicate copy gets a new log line - "duplicate-progress" fires once per
+// file, which for a big mod is thousands of times a second; a running file count is kept every
+// time regardless (see dupFileCountRef below), but only turned into a new log entry this often,
+// so the log reads as milestones rather than a line-per-file flood.
+const DUP_LOG_INTERVAL_MS = 1500;
+
 // The New tab: create a brand-new mod from scratch, or - when a mod is already selected -
 // duplicate it into a brand-new, independent one instead (a safe way to "edit" a Steam Workshop
 // mod without ever touching Steam's own copy). Neither ever feeds the Edit tab's own "Undo last
@@ -57,7 +92,10 @@ export function EditorNew({gameId, selected, onCreated}: {
     const [busy, setBusy] = useState(false);
     const [confirmingBig, setConfirmingBig] = useState(false);
     const [progress, setProgress] = useState<DuplicateProgressEvent | null>(null);
+    const [dupLog, setDupLog] = useState<{time: string; text: string}[]>([]);
     const requestRef = useRef<string | null>(null);
+    const dupFileCountRef = useRef(0);
+    const dupLastLogAtRef = useRef(0);
 
     useEffect(() => {
         setMode('create');
@@ -148,9 +186,21 @@ export function EditorNew({gameId, selected, onCreated}: {
         const requestId = `dup-${Date.now()}-${Math.random().toString(36).slice(2)}`;
         requestRef.current = requestId;
         setProgress({RequestID: requestId, File: '', Done: 0, Total: dupPreview?.SourceBytes ?? 0});
+        dupFileCountRef.current = 0;
+        dupLastLogAtRef.current = 0;
+        setDupLog([{time: timestamp(), text: `Copying to ${previewFolderName(dupName)}/`}]);
         setBusy(true);
+        const totalFiles = dupPreview?.SourceFiles ?? 0;
         const off = EventsOn('duplicate-progress', (p: DuplicateProgressEvent) => {
-            if (p.RequestID === requestId) setProgress(p);
+            if (p.RequestID !== requestId) return;
+            setProgress(p);
+            dupFileCountRef.current++;
+            const now = Date.now();
+            if (now - dupLastLogAtRef.current >= DUP_LOG_INTERVAL_MS) {
+                dupLastLogAtRef.current = now;
+                const count = dupFileCountRef.current;
+                setDupLog((prev) => [...prev, {time: timestamp(), text: `${count.toLocaleString()} of ${totalFiles.toLocaleString()} files`}]);
+            }
         });
         try {
             const result = await DuplicateMod(gameId, selected.ID, requestId, {Name: dupName, Location: location});
@@ -205,19 +255,11 @@ export function EditorNew({gameId, selected, onCreated}: {
                     </div>
                 </div>
 
-                <div className="editor-card">
-                    <div className="editor-card-title">LOCATION</div>
-                    <div className="editor-field">
-                        <span className="editor-label">Where the mod's own folder goes</span>
-                        <Select value={location} options={locationOptions} onChange={setLocation} placeholder="Choose a location..."/>
-                    </div>
-                </div>
-
                 {mode === 'create' && (
                     <div className="editor-card">
                         <div className="editor-card-title-row">
                             <div className="editor-card-title">
-                                TEMPLATE <span className="editor-card-count">{templates.length}</span>
+                                TEMPLATE<span className="editor-card-count">{templates.length}</span>
                             </div>
                             <span className="editor-card-title-spacer"/>
                             <span className="editor-card-title-action" title="Not built yet - every template below is real, this just isn't.">Manage templates</span>
@@ -237,58 +279,78 @@ export function EditorNew({gameId, selected, onCreated}: {
                     </div>
                 )}
 
-                {mode === 'create' ? (
-                    <div className="editor-card">
-                        <div className="editor-card-title">DESCRIPTOR</div>
-                        <label className="editor-field">
-                            <span className="editor-label">Name</span>
-                            <input className={`editor-input ${name.trim() === '' ? 'invalid' : ''}`} value={name} onInput={(e) => setName((e.target as HTMLInputElement).value)}/>
-                            {name.trim() === '' && <span className="editor-hint bad">A mod needs a name.</span>}
-                        </label>
-                        <div className="editor-field-row">
-                            <label className="editor-field">
-                                <span className="editor-label">Version</span>
-                                <input className="editor-input mono" value={version} placeholder="1.0" onInput={(e) => setVersion((e.target as HTMLInputElement).value)}/>
-                            </label>
-                            <label className="editor-field">
-                                <span className="editor-label">Made for game version</span>
-                                <input className="editor-input mono" value={supportedVersion} placeholder="v4.*" onInput={(e) => setSupportedVersion((e.target as HTMLInputElement).value)}/>
-                            </label>
-                        </div>
-                        <div className="editor-field">
-                            <span className="editor-label">Tags</span>
-                            <ChipList id="new-mod-tags" items={tags} onChange={setTags} placeholder="Gameplay, Graphics, Fixes..."/>
-                        </div>
+                <div className="editor-card">
+                    <div className="editor-card-title">DETAILS</div>
+                    <div className="editor-field">
+                        <span className="editor-label">Location</span>
+                        <Select value={location} options={locationOptions} onChange={setLocation} placeholder="Choose a location..."/>
                     </div>
-                ) : (
-                    <div className="editor-card">
-                        <div className="editor-card-title">DESCRIPTOR</div>
-                        <label className="editor-field">
-                            <span className="editor-label">Name</span>
-                            <input className={`editor-input ${dupName.trim() === '' ? 'invalid' : ''}`} value={dupName} onInput={(e) => setDupName((e.target as HTMLInputElement).value)}/>
-                            {dupName.trim() === '' && <span className="editor-hint bad">A mod needs a name.</span>}
-                        </label>
-                        <p className="editor-muted">Version, tags, dependencies and replace paths are kept exactly as they are on {selected?.Name}.</p>
-                    </div>
-                )}
+                    {mode === 'create' ? (
+                        <>
+                            <div className="editor-field-row">
+                                <label className="editor-field">
+                                    <span className="editor-label">Name</span>
+                                    <input className={`editor-input ${name.trim() === '' ? 'invalid' : ''}`} value={name} onInput={(e) => setName((e.target as HTMLInputElement).value)}/>
+                                    {name.trim() === '' && <span className="editor-hint bad">A mod needs a name.</span>}
+                                </label>
+                                <label className="editor-field">
+                                    <span className="editor-label">Version</span>
+                                    <input className="editor-input mono" value={version} placeholder="1.0" onInput={(e) => setVersion((e.target as HTMLInputElement).value)}/>
+                                </label>
+                            </div>
+                            <div className="editor-field-row">
+                                <label className="editor-field">
+                                    <span className="editor-label">Made for game version</span>
+                                    <input className="editor-input mono" value={supportedVersion} placeholder="v4.*" onInput={(e) => setSupportedVersion((e.target as HTMLInputElement).value)}/>
+                                </label>
+                                <label className="editor-field">
+                                    <span className="editor-label">Folder name</span>
+                                    <input className="editor-input mono" value={name.trim() ? previewFolderName(name) : ''} disabled/>
+                                    <span className="editor-hint">Taken from the name</span>
+                                </label>
+                            </div>
+                            <div className="editor-field">
+                                <span className="editor-label">Tags</span>
+                                <ChipList id="new-mod-tags" items={tags} onChange={setTags} placeholder="Gameplay, Graphics, Fixes..."/>
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <label className="editor-field">
+                                <span className="editor-label">Name</span>
+                                <input className={`editor-input ${dupName.trim() === '' ? 'invalid' : ''}`} value={dupName} onInput={(e) => setDupName((e.target as HTMLInputElement).value)}/>
+                                {dupName.trim() === '' && <span className="editor-hint bad">A mod needs a name.</span>}
+                            </label>
+                            <p className="editor-muted">Version, tags, dependencies and replace paths are kept exactly as they are on {selected?.Name}.</p>
+                        </>
+                    )}
+                </div>
             </div>
 
             <div className="editor-column">
                 <div className="editor-card editor-changes">
-                    <div className="editor-card-title">WHAT WILL BE CREATED</div>
+                    <div className="editor-card-title">
+                        WHAT WILL BE CREATED
+                        {mode === 'create' && preview && !preview.Nothing && (
+                            <span className="editor-card-count mono">{(preview.Files?.length ?? 0) + (preview.Thumbnail ? 1 : 0)} files</span>
+                        )}
+                        {mode === 'duplicate' && dupPreview && !dupPreview.Nothing && (
+                            <span className="editor-card-count mono">{dupPreview.Files?.length ?? 0} files</span>
+                        )}
+                    </div>
 
                     {mode === 'create' && (
                         <>
                             {!name.trim() && <p className="editor-muted">Give the mod a name to see what would be created.</p>}
                             {createProblems.map((p) => (
                                 <div key={p} className="editor-alert bad">
-                                    <i className="fa-solid fa-circle-xmark editor-alert-icon"/>
+                                    <span className="editor-alert-icon"/>
                                     <div className="editor-alert-body"><div className="editor-alert-text">{p}</div></div>
                                 </div>
                             ))}
                             {(preview?.Warnings ?? []).map((w) => (
                                 <div key={w} className="editor-alert warn">
-                                    <i className="fa-solid fa-triangle-exclamation editor-alert-icon"/>
+                                    <span className="editor-alert-icon"/>
                                     <div className="editor-alert-body"><div className="editor-alert-text">{w}</div></div>
                                 </div>
                             ))}
@@ -305,6 +367,8 @@ export function EditorNew({gameId, selected, onCreated}: {
                                 </div>
                             )}
                             <div className="editor-actions">
+                                {canCreate && <span className="editor-hint">Opens on the Edit tab when done.</span>}
+                                <span className="editor-actions-spacer"/>
                                 <button type="button" className="btn-primary" disabled={!canCreate} onClick={create}>{busy ? 'Creating...' : 'Create mod'}</button>
                             </div>
                         </>
@@ -315,13 +379,13 @@ export function EditorNew({gameId, selected, onCreated}: {
                             {!dupName.trim() && <p className="editor-muted">Give the copy a name to see what would be created.</p>}
                             {dupProblems.map((p) => (
                                 <div key={p} className="editor-alert bad">
-                                    <i className="fa-solid fa-circle-xmark editor-alert-icon"/>
+                                    <span className="editor-alert-icon"/>
                                     <div className="editor-alert-body"><div className="editor-alert-text">{p}</div></div>
                                 </div>
                             ))}
                             {(dupPreview?.Warnings ?? []).map((w) => (
                                 <div key={w} className="editor-alert warn">
-                                    <i className="fa-solid fa-triangle-exclamation editor-alert-icon"/>
+                                    <span className="editor-alert-icon"/>
                                     <div className="editor-alert-body"><div className="editor-alert-text">{w}</div></div>
                                 </div>
                             ))}
@@ -335,7 +399,7 @@ export function EditorNew({gameId, selected, onCreated}: {
 
                             {confirmingBig && dupPreview && (
                                 <div className="editor-alert info">
-                                    <i className="fa-solid fa-circle-info editor-alert-icon"/>
+                                    <span className="editor-alert-icon"/>
                                     <div className="editor-alert-body">
                                         <div className="editor-alert-title">This is a large copy</div>
                                         <div className="editor-alert-text">
@@ -353,13 +417,23 @@ export function EditorNew({gameId, selected, onCreated}: {
                             {progress && (
                                 <div className="editor-card">
                                     <div className="editor-progress-header-row">
-                                        <span className="mono">{formatBytes(progress.Done)} / {formatBytes(progress.Total)}</span>
+                                        <span className="mono">{formatBytesPair(progress.Done, progress.Total)}</span>
                                         <span className="mono">{progress.Total > 0 ? Math.round((progress.Done / progress.Total) * 100) : 0}%</span>
                                     </div>
                                     <div className="editor-progress-bar">
                                         <div className="editor-progress-fill" style={{width: `${progress.Total > 0 ? Math.min(100, (progress.Done / progress.Total) * 100) : 0}%`}}/>
                                     </div>
                                     <div className="editor-progress-file mono">{progress.File || 'Starting...'}</div>
+                                    {dupLog.length > 0 && (
+                                        <div className="editor-upload-log">
+                                            {dupLog.map((line, i) => (
+                                                <div key={i} className="editor-log-line">
+                                                    <span className="editor-log-time mono">{line.time}</span>
+                                                    <span className="editor-log-text">{line.text}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                     <div className="editor-actions">
                                         <button type="button" className="btn-ghost" onClick={cancelDuplicate}>Cancel</button>
                                     </div>
@@ -368,6 +442,8 @@ export function EditorNew({gameId, selected, onCreated}: {
 
                             {!confirmingBig && !progress && (
                                 <div className="editor-actions">
+                                    {canStartDuplicate && <span className="editor-hint">Opens on the Edit tab when done.</span>}
+                                    <span className="editor-actions-spacer"/>
                                     <button type="button" className="btn-primary" disabled={!canStartDuplicate} onClick={startDuplicate}>Duplicate</button>
                                 </div>
                             )}

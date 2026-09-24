@@ -23,10 +23,10 @@ import {EventsOn} from '../../wailsjs/runtime/runtime';
 
 type Service = 'deepl' | 'translanova' | 'vust';
 
-const SERVICES: { service: Service; name: string; badge: 'free' | 'key' }[] = [
-    {service: 'translanova', name: 'Translanova', badge: 'free'},
-    {service: 'vust', name: 'Vust', badge: 'free'},
-    {service: 'deepl', name: 'DeepL API', badge: 'key'},
+const SERVICES: { service: Service; name: string; badge: 'free' | 'key'; desc: string }[] = [
+    {service: 'translanova', name: 'Translanova', badge: 'free', desc: 'General-purpose, no account needed.'},
+    {service: 'vust', name: 'Vust', badge: 'free', desc: 'Faster for short strings, weaker on long event text.'},
+    {service: 'deepl', name: 'DeepL API', badge: 'key', desc: 'Best quality. Needs your own API key.'},
 ];
 
 type LogTone = 'info' | 'success' | 'warn' | 'error';
@@ -50,16 +50,18 @@ function describeStage(p: TranslateProgressEvent, languageName: string): { tone:
     switch (p.Stage) {
         case 'opening':
             return {tone: 'info', text: 'Reading this mod\'s own English text...'};
+        case 'opened':
+            return {tone: 'info', text: `Opened ${p.Count.toLocaleString()} English source file${p.Count === 1 ? '' : 's'}`};
         case 'language':
             return p.Message
                 ? {tone: 'warn', text: `${languageName || p.Language}: ${p.Message}`}
-                : {tone: 'info', text: `Translating into ${languageName || p.Language}...`};
+                : {tone: 'info', text: `${languageName || p.Language}: translating...`};
         case 'language_done':
             return {tone: 'success', text: `${languageName || p.Language}: ${p.Count.toLocaleString()} key${p.Count === 1 ? '' : 's'} written`};
         case 'writing':
             return {tone: 'info', text: 'Writing the translated file(s)...'};
         case 'done':
-            return {tone: 'success', text: 'Done.'};
+            return {tone: 'success', text: 'Done'};
         case 'error':
             return {tone: 'error', text: p.Message || 'Something went wrong.'};
         default:
@@ -85,7 +87,15 @@ interface TranslateProgressEvent {
     OutputFile: string;
 }
 
-export function EditorTranslate({gameId, mod}: { gameId: string; mod: library.ModSummary }) {
+export function EditorTranslate({gameId, gameName, mod, onOpenToolsSettings}: {
+    gameId: string;
+    // The game's own display name - "Stellaris", say - for TARGET LANGUAGE's own confirmed-
+    // folder-name note.
+    gameName: string;
+    mod: library.ModSummary;
+    // Jumps to Settings > Tools - the DeepL row's own "no key saved" link.
+    onOpenToolsSettings: () => void;
+}) {
     const [languages, setLanguages] = useState<app.TranslateLanguage[]>([]);
     const [eligibility, setEligibility] = useState<app.TranslateEligibility | null>(null);
     const [eligibilityError, setEligibilityError] = useState('');
@@ -143,6 +153,12 @@ export function EditorTranslate({gameId, mod}: { gameId: string; mod: library.Mo
         return () => off();
     }, [gameId]);
 
+    // Excludes the "All languages" pseudo-entry - it's not a real target folder, so it has no
+    // confirmed/unconfirmed status of its own to count.
+    const realLanguages = languages.filter((l) => l.Code !== 'ALL');
+    const confirmedCount = realLanguages.filter((l) => l.Confirmed).length;
+    const unconfirmedCount = realLanguages.length - confirmedCount;
+
     const effectivelyOffered = !!eligibility && (mode === 'player' || eligibility.AuthorModeOffered || (eligibility.AuthorModeOverridable && forced));
     const canRun = !!eligibility && eligibility.HasEnglishContent && effectivelyOffered && (service !== 'deepl' || eligibility.DeepLKeyReady) && !running;
 
@@ -197,10 +213,16 @@ export function EditorTranslate({gameId, mod}: { gameId: string; mod: library.Mo
                                     <div className="mode-option-main">
                                         <div className="mode-option-name">
                                             {s.name}
-                                            <span className={`chip ${s.badge === 'free' ? 'chip-free' : 'chip-key'}`}>{s.badge === 'free' ? 'Free' : 'API Key'}</span>
+                                            <span className={`chip ${s.badge === 'free' ? 'chip-free' : 'chip-key'}`}>{s.badge === 'free' ? 'FREE' : 'API KEY'}</span>
                                         </div>
+                                        <div className="mode-option-desc">{s.desc}</div>
                                         {s.service === 'deepl' && eligibility && !eligibility.DeepLKeyReady && (
-                                            <div className="mode-option-desc">No DeepL key saved - add one in Settings &gt; Tools first.</div>
+                                            <div className="mode-option-warn">
+                                                No key saved &middot;{' '}
+                                                <span className="mode-option-warn-link" onClick={(e) => { e.stopPropagation(); onOpenToolsSettings(); }}>
+                                                    Settings &rsaquo; Tools
+                                                </span>
+                                            </div>
                                         )}
                                     </div>
                                 </div>
@@ -211,11 +233,20 @@ export function EditorTranslate({gameId, mod}: { gameId: string; mod: library.Mo
 
                 <div className="editor-card">
                     <div className="editor-card-title">TARGET LANGUAGE</div>
-                    <select className="editor-input" disabled={running} value={targetCode} onChange={(e) => setTargetCode((e.target as HTMLSelectElement).value)}>
-                        {languages.map((l) => (
-                            <option key={l.Code} value={l.Code}>{l.Name}{!l.Confirmed && l.Code !== 'ALL' ? ' (unconfirmed for this game)' : ''}</option>
-                        ))}
-                    </select>
+                    <div className="editor-field">
+                        <span className="editor-label">Translate into</span>
+                        <select className="editor-input" disabled={running} value={targetCode} onChange={(e) => setTargetCode((e.target as HTMLSelectElement).value)}>
+                            {languages.map((l) => (
+                                <option key={l.Code} value={l.Code}>{l.Name}{!l.Confirmed && l.Code !== 'ALL' ? ' (unconfirmed for this game)' : ''}</option>
+                            ))}
+                        </select>
+                        {realLanguages.length > 0 && (
+                            <p className="editor-muted">
+                                {confirmedCount} {confirmedCount === 1 ? 'is' : 'are'} confirmed for {gameName || 'this game'}.
+                                {unconfirmedCount > 0 && ` The other ${unconfirmedCount} ${unconfirmedCount === 1 ? 'is' : 'are'} listed as "(unconfirmed for this game)" and use a best-guess folder name.`}
+                            </p>
+                        )}
+                    </div>
                 </div>
 
                 <div className="editor-card">
@@ -226,7 +257,7 @@ export function EditorTranslate({gameId, mod}: { gameId: string; mod: library.Mo
                             <div className="mode-option-name">Update this mod directly</div>
                             <div className="mode-option-desc">
                                 {eligibility?.AuthorModeOffered
-                                    ? 'Writes the translated text straight into this mod\'s own localisation folder.'
+                                    ? `Adds the translated files to ${mod.Name}. For the mod's author.`
                                     : eligibility?.AuthorModeOverridable
                                         ? eligibility.AuthorModeReason
                                         : eligibility?.AuthorModeReason || 'Not available for this mod.'}
@@ -241,7 +272,8 @@ export function EditorTranslate({gameId, mod}: { gameId: string; mod: library.Mo
                         <div className="mode-option-main">
                             <div className="mode-option-name">Generate a separate mod for personal use</div>
                             <div className="mode-option-desc">
-                                Leaves this mod untouched - works for any mod, including one from Steam Workshop.
+                                Creates "Parallax Auto-Translations: {mod.Name}". Works for Workshop mods too. You add
+                                it to your load order in Workspace yourself.
                             </div>
                         </div>
                     </div>
@@ -249,13 +281,13 @@ export function EditorTranslate({gameId, mod}: { gameId: string; mod: library.Mo
 
                 {eligibilityError && (
                     <div className="editor-alert bad">
-                        <i className="fa-solid fa-circle-xmark editor-alert-icon"/>
+                        <span className="editor-alert-icon"/>
                         <div className="editor-alert-body"><div className="editor-alert-text">{eligibilityError}</div></div>
                     </div>
                 )}
                 {eligibility && !eligibility.HasEnglishContent && (
                     <div className="editor-alert bad">
-                        <i className="fa-solid fa-circle-xmark editor-alert-icon"/>
+                        <span className="editor-alert-icon"/>
                         <div className="editor-alert-body">
                             <div className="editor-alert-title">No English text found</div>
                             <div className="editor-alert-text">Searched localisation/english/ and localization/english/. Translate needs English source strings.</div>
@@ -263,18 +295,16 @@ export function EditorTranslate({gameId, mod}: { gameId: string; mod: library.Mo
                     </div>
                 )}
 
-                <div className="editor-actions">
-                    {!running ? (
+                {!running && (
+                    <div className="editor-actions">
                         <button type="button" className="btn-primary" disabled={!canRun} onClick={run}>
                             <i className="fa-solid fa-language"/> Translate
                         </button>
-                    ) : (
-                        <button type="button" className="btn-ghost" onClick={cancel}>Cancel</button>
-                    )}
-                </div>
+                    </div>
+                )}
                 {error && (
                     <div className="editor-alert bad">
-                        <i className="fa-solid fa-circle-xmark editor-alert-icon"/>
+                        <span className="editor-alert-icon"/>
                         <div className="editor-alert-body"><div className="editor-alert-text">{error}</div></div>
                     </div>
                 )}
@@ -302,31 +332,29 @@ export function EditorTranslate({gameId, mod}: { gameId: string; mod: library.Mo
                     </div>
                 )}
 
-                {progress && (
-                    <div className="editor-card">
-                        <div className="editor-card-title">
-                            PROGRESS
-                            {progress.languageTotal > 0 && (
-                                <span className="editor-card-count mono">
-                                    {' '}&middot; {languages.find((l) => l.Code === progress.language)?.Name || progress.language} &middot; {progress.languageIndex} of {progress.languageTotal}
-                                </span>
-                            )}
-                        </div>
-                        <div className="editor-progress-header-row">
-                            <span className="mono">{progress.done.toLocaleString()} / {progress.total.toLocaleString()} keys</span>
-                            <span className="mono">{progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0}%</span>
-                        </div>
-                        <div className="editor-progress-bar">
-                            <div className="editor-progress-fill" style={{width: `${progress.total > 0 ? Math.min(100, (progress.done / progress.total) * 100) : 0}%`}}/>
-                        </div>
-                        <div className="editor-progress-file mono">
-                            {progress.outputFile || (running ? 'Starting...' : `${progress.done} translated`)}
-                        </div>
-                    </div>
-                )}
-
                 <div className="editor-card editor-changes">
-                    <div className="editor-card-title">LOG</div>
+                    <div className="editor-card-title">
+                        PROGRESS
+                        {progress && progress.languageTotal > 0 && (
+                            <span className="editor-card-count mono">
+                                {languages.find((l) => l.Code === progress.language)?.Name || progress.language} &middot; {progress.languageIndex} of {progress.languageTotal}
+                            </span>
+                        )}
+                    </div>
+                    {progress && (
+                        <>
+                            <div className="editor-progress-header-row">
+                                <span className="mono">{progress.done.toLocaleString()} / {progress.total.toLocaleString()} keys</span>
+                                <span className="mono">{progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0}%</span>
+                            </div>
+                            <div className="editor-progress-bar">
+                                <div className="editor-progress-fill" style={{width: `${progress.total > 0 ? Math.min(100, (progress.done / progress.total) * 100) : 0}%`}}/>
+                            </div>
+                            <div className="editor-progress-file mono">
+                                {progress.outputFile || (running ? 'Starting...' : `${progress.done} translated`)}
+                            </div>
+                        </>
+                    )}
                     {log.length === 0 ? (
                         <div className="editor-muted">Nothing translated yet. Each real step appears here as it happens.</div>
                     ) : (
@@ -337,6 +365,13 @@ export function EditorTranslate({gameId, mod}: { gameId: string; mod: library.Mo
                                     <span className="editor-log-text">{line.text}</span>
                                 </div>
                             ))}
+                        </div>
+                    )}
+                    {running && (
+                        <div className="editor-actions">
+                            <button type="button" className="btn-ghost" onClick={cancel}>Cancel</button>
+                            <span className="editor-actions-spacer"/>
+                            <button type="button" className="btn-primary inert" disabled>Translating...</button>
                         </div>
                     )}
                 </div>

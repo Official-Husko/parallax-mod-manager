@@ -170,13 +170,21 @@
     border-bottom-color: var(--rust);
 }
 
+.editor-tab-glyph {
+    font: 600 11px "Azeret Mono", monospace;
+    color: inherit;
+}
+
+.editor-tab.active .editor-tab-glyph {
+    color: var(--rust);
+}
+
 .editor-tab-badge {
     font: 600 9.5px "Azeret Mono", monospace;
     color: var(--bg-panel-solid);
     background: var(--amber);
     border-radius: 8px;
     padding: 1px 6px;
-    margin-left: 2px;
 }
 
 .editor-tab-body {
@@ -298,8 +306,9 @@
 
 .editor-card-count {
     font: 600 9.5px "Azeret Mono", monospace;
-    color: var(--text-muted);
+    color: var(--text-mid);
     letter-spacing: normal;
+    margin-left: 8px;
 }
 
 .editor-muted {
@@ -357,11 +366,15 @@
     padding: 10px 12px;
 }
 
+/* A plain character, not an icon font - "i"/"!"/"x", picked by the alert's own severity
+   modifier below, matching every other status glyph this redesign uses (see checkGlyph in
+   EditorChecks.tsx for the same idiom). */
 .editor-alert-icon {
     width: 12px;
     flex: none;
     margin-top: 2px;
     text-align: center;
+    font: 700 12px Barlow, sans-serif;
 }
 
 .editor-alert-body {
@@ -395,6 +408,10 @@
     color: var(--blue);
 }
 
+.editor-alert.info .editor-alert-icon::before {
+    content: "i";
+}
+
 .editor-alert.warn {
     border-color: var(--amber);
     background: color-mix(in srgb, var(--amber) 8%, transparent);
@@ -404,6 +421,10 @@
     color: var(--amber);
 }
 
+.editor-alert.warn .editor-alert-icon::before {
+    content: "!";
+}
+
 .editor-alert.bad {
     border-color: var(--red);
     background: color-mix(in srgb, var(--red) 8%, transparent);
@@ -411,6 +432,10 @@
 
 .editor-alert.bad .editor-alert-icon {
     color: var(--red);
+}
+
+.editor-alert.bad .editor-alert-icon::before {
+    content: "\2715";
 }
 
 /* --- Thumbnail --- */
@@ -709,37 +734,54 @@
 
 /* --- Checks tab --- */
 
-/* The same plain-list idiom as Workspace's own PRE-FLIGHT (.preflight-mini-row): one row per
-   check, an icon carrying the only color (status, not category), the count baked into the
-   row's own sentence rather than a badge - no per-row card or border. A colored left bar (the
-   category's own color, matching FINDINGS' own grouping below) and a "Show" link that jumps to
-   that category's group are added on top of that same idiom, not a replacement for it. */
+/* Two lines per category row: a small vertical bar carrying that category's own fixed identity
+   color, a plain severity glyph ("!"/"x"/a check, never the category's color - see checkGlyph
+   in EditorChecks.tsx) next to it, a bold name over a lighter status detail, and a "Show" link
+   that jumps to that category's group in FINDINGS below. */
 .check-list {
     display: flex;
     flex-direction: column;
-    gap: 2px;
 }
 
 .check-row {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 6px 0;
-    border-left: 3px solid transparent;
-    padding-left: 8px;
-    font: 400 12px Barlow, sans-serif;
-    color: var(--text-mid);
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
 }
 
-.check-row i {
-    font-size: 11px;
-    width: 14px;
+.check-list .check-row:last-child {
+    border-bottom: none;
+}
+
+.check-row-bar {
+    width: 3px;
+    height: 22px;
+    border-radius: 2px;
     flex: none;
 }
 
-.check-row-text {
+.check-row-glyph {
+    font: 700 12px Barlow, sans-serif;
+    width: 14px;
+    text-align: center;
+    flex: none;
+}
+
+.check-row-body {
     flex: 1;
     min-width: 0;
+}
+
+.check-row-name {
+    font: 600 12.5px Barlow, sans-serif;
+    color: var(--text-bright);
+}
+
+.check-row-detail {
+    font: 400 11.5px Barlow, sans-serif;
+    color: var(--text-muted);
 }
 
 .check-row-show {
@@ -895,6 +937,25 @@
     max-height: 540px;
 }
 
+.findings-list:focus {
+    outline: none;
+    box-shadow: inset 0 0 0 1px var(--border-light);
+}
+
+/* The keyboard focus cursor (up/down/right/Enter - see EditorChecks.tsx's handleNavKeyDown) -
+   same "currently selected row" treatment Workspace's own mod list uses (.mod-row.selected).
+   Group headers already sit on that same background at rest, so their own focused state gets
+   an inset outline instead - still that one shared selected-row color, just applied where it
+   is visible against the row's own default. */
+.findings-group-more.focused,
+.editor-finding-row.focused {
+    background: var(--bg-highlight);
+}
+
+.findings-group-head.focused {
+    box-shadow: inset 0 0 0 1px var(--border-light);
+}
+
 .findings-group-head {
     display: flex;
     align-items: center;
@@ -911,10 +972,11 @@
     border-top: none;
 }
 
-.findings-group-head i.chevron {
-    font-size: 10px;
+.findings-group-head .chevron {
+    font: 500 10px Barlow, sans-serif;
     color: var(--text-muted);
     width: 10px;
+    text-align: center;
     flex: none;
 }
 
@@ -964,6 +1026,50 @@
 .publish-account-name {
     font: 600 13px Barlow, sans-serif;
     color: var(--text-bright);
+}
+
+/* A single informational row for whichever destination this mod's own RemoteFileID already
+   decided (see hasRemote in EditorPublish.tsx) - never a choice between two, since there is
+   only ever one real answer for a given mod. */
+.publish-destination-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+}
+
+.publish-destination-glyph {
+    font: 700 13px Barlow, sans-serif;
+    color: var(--blue);
+}
+
+.publish-destination-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.publish-destination-name {
+    font: 600 12.5px Barlow, sans-serif;
+    color: var(--text-bright);
+}
+
+.publish-destination-sub {
+    font: 400 10.5px "Azeret Mono", monospace;
+    color: var(--text-muted);
+}
+
+.publish-tags {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.publish-tags .chip {
+    color: var(--text-mid);
+    font-family: "Azeret Mono", monospace;
+    font-size: 10.5px;
 }
 
 .publish-file-layout {
@@ -1073,16 +1179,13 @@
     display: flex;
     align-items: flex-start;
     gap: 10px;
-    padding: 8px 10px 8px 8px;
-    font: 400 11.5px/1.4 Barlow, sans-serif;
-    color: var(--text-mid);
+    padding: 7px 12px 7px 8px;
     border-top: 1px solid #1a212b;
-    /* Same idiom as the Conflict Resolver's own file rows (border-left-color set by
-       status, no separate icon needed there) - here it doubles up with the severity
-       icon rather than replacing it, since a row's icon alone is easy to miss in a
-       narrow first column. Both the border and the icon get their color inline, from
-       EditorChecks.tsx's own SEVERITY_STYLE - the single place that vocabulary is
-       defined, rather than a parallel set of CSS modifier classes to keep in sync with it. */
+    /* The border-left carries the finding's category (its fixed identity color, from
+       categoryOf) - a different signal than the glyph below, which is the finding's own
+       severity. Both come in inline, from EditorChecks.tsx's own vocabulary (CATEGORIES'
+       color, SEVERITY_GLYPH) rather than a parallel set of CSS modifier classes to keep
+       in sync with it. */
     border-left: 2px solid transparent;
 }
 
@@ -1090,27 +1193,51 @@
     border-top: none;
 }
 
-.editor-finding-row > i {
+.editor-finding-glyph {
     flex: none;
     width: 12px;
-    margin-top: 2px;
     text-align: center;
+    font: 700 11px Barlow, sans-serif;
 }
 
 .editor-finding-body {
+    flex: 1;
     display: flex;
     flex-direction: column;
     gap: 2px;
     min-width: 0;
 }
 
+.editor-finding-open {
+    font: 600 10.5px Barlow, sans-serif;
+    color: var(--text-muted);
+    cursor: pointer;
+    flex: none;
+}
+
 .editor-finding-file {
-    color: var(--text-dim);
-    font-size: 10.5px;
+    font: 400 10.5px "Azeret Mono", monospace;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .editor-finding-message {
-    color: var(--text-mid);
+    font: 400 12px/1.4 Barlow, sans-serif;
+    color: var(--text);
+}
+
+/* --- Translate tab: SERVICE's own "no key saved" link --- */
+
+.mode-option-warn {
+    font: 500 11px Barlow, sans-serif;
+    color: var(--amber);
+}
+
+.mode-option-warn-link {
+    text-decoration: underline;
+    cursor: pointer;
 }
 
 /* --- Translate tab: SOURCE card and PROGRESS's own header row --- */
@@ -1150,7 +1277,6 @@
 .editor-progress-file {
     font-size: 11px;
     color: var(--text-dim);
-    margin-bottom: 16px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

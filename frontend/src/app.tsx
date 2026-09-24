@@ -106,6 +106,9 @@ export function App() {
     // The same kind of request for Settings > Backup (the "Review" on the notification
     // that says backups have stopped at a limit).
     const [settingsBackupRequest, setSettingsBackupRequest] = useState(0);
+    // The same kind of request for Settings > Tools - the Editor's own Translate tab links
+    // there when no DeepL key is saved yet.
+    const [settingsToolsRequest, setSettingsToolsRequest] = useState(0);
     // Every view this session has actually navigated to at least once -
     // 'workspace' up front since it's the default. Once a view is in
     // here it's mounted for good (see the render below); this set only
@@ -347,6 +350,11 @@ export function App() {
         setSettingsBackupRequest((n) => n + 1);
     }
 
+    function openToolsSettings() {
+        setView('settings');
+        setSettingsToolsRequest((n) => n + 1);
+    }
+
     const gamePicker = view === 'workspace'
         ? {
             gameLabel: gameName,
@@ -441,7 +449,7 @@ export function App() {
             )}
             {!gamesUnavailable && visitedViews.has('editor') && (
                 <div style={{display: view === 'editor' ? 'contents' : 'none'}}>
-                    <Editor games={games} selectedGame={selectedGame} gameVersion={gameVersion}/>
+                    <Editor games={games} selectedGame={selectedGame} gameVersion={gameVersion} onOpenToolsSettings={openToolsSettings}/>
                 </div>
             )}
             {!gamesUnavailable && visitedViews.has('browse') && (
@@ -464,6 +472,7 @@ export function App() {
                     <Settings
                         jumpToManageGames={settingsManageGamesRequest}
                         jumpToBackup={settingsBackupRequest}
+                        jumpToTools={settingsToolsRequest}
                         onGamesChanged={loadGames}
                         // loadGames also refetches preferences (see its own
                         // comment) - the same function as onGamesChanged

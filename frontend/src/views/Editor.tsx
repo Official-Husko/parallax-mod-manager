@@ -16,12 +16,14 @@ import {EditorTranslate} from './EditorTranslate';
 
 type EditorTab = 'new' | 'edit' | 'checks' | 'translate' | 'publish';
 
-const TABS: { key: EditorTab; label: string; icon: string }[] = [
-    {key: 'new', label: 'New', icon: 'fa-file-circle-plus'},
-    {key: 'edit', label: 'Edit', icon: 'fa-pen'},
-    {key: 'checks', label: 'Checks', icon: 'fa-shield-halved'},
-    {key: 'translate', label: 'Translate', icon: 'fa-language'},
-    {key: 'publish', label: 'Publish', icon: 'fa-cloud-arrow-up'},
+// A plain character per tab, not an icon font - "+"/pen/check/"Aa"/up-arrow, each colored to
+// match its own tab's active/inactive state (see .editor-tab-glyph in Editor.css).
+const TABS: { key: EditorTab; label: string; glyph: string }[] = [
+    {key: 'new', label: 'New', glyph: '+'},
+    {key: 'edit', label: 'Edit', glyph: '✎'},
+    {key: 'checks', label: 'Checks', glyph: '✓'},
+    {key: 'translate', label: 'Translate', glyph: 'Aa'},
+    {key: 'publish', label: 'Publish', glyph: '↑'},
 ];
 
 // The Editor: change a mod's own name, versions, tags, dependencies and thumbnail, with a
@@ -29,10 +31,12 @@ const TABS: { key: EditorTab; label: string; icon: string }[] = [
 // (not Steam Workshop content, not the Paradox Launcher's own, not this app's generated patch)
 // can be changed here - see modedit.go's editTarget for exactly what that means. The New tab
 // creates a brand-new mod, or duplicates the one currently selected - see EditorNew.
-export function Editor({games, selectedGame, gameVersion}: {
+export function Editor({games, selectedGame, gameVersion, onOpenToolsSettings}: {
     games: library.GameInfo[];
     selectedGame: string;
     gameVersion: string;
+    // Jumps to Settings > Tools - the Translate tab's own "no DeepL key saved" link.
+    onOpenToolsSettings: () => void;
 }) {
     const [mods, setMods] = useState<library.ModSummary[]>([]);
     const [loading, setLoading] = useState(true);
@@ -238,7 +242,8 @@ export function Editor({games, selectedGame, gameVersion}: {
                         const findingCount = t.key === 'checks' && selected ? checkResults.get(selected.ID)?.Findings.length ?? 0 : 0;
                         return (
                             <span key={t.key} className={`editor-tab ${tab === t.key ? 'active' : ''}`} onClick={() => setTab(t.key)}>
-                                <i className={`fa-solid ${t.icon}`}/> {t.label}
+                                <span className="editor-tab-glyph">{t.glyph}</span>
+                                {t.label}
                                 {findingCount > 0 && <span className="editor-tab-badge">{findingCount}</span>}
                             </span>
                         );
@@ -267,13 +272,22 @@ export function Editor({games, selectedGame, gameVersion}: {
                         <EditorChecks
                             key={selected.ID}
                             gameId={selectedGame}
+                            gameName={games.find((g) => g.ID === selectedGame)?.DisplayName ?? ''}
+                            gameVersion={gameVersion}
                             mod={selected}
                             installedNames={mods.map((m) => m.Name)}
                             initialResult={checkResults.get(selected.ID) ?? null}
                             onResult={(result) => setCheckResultFor(selected.ID, result)}
                         />
                     )}
-                    {tab === 'translate' && selected && <EditorTranslate gameId={selectedGame} mod={selected}/>}
+                    {tab === 'translate' && selected && (
+                        <EditorTranslate
+                            gameId={selectedGame}
+                            gameName={games.find((g) => g.ID === selectedGame)?.DisplayName ?? ''}
+                            mod={selected}
+                            onOpenToolsSettings={onOpenToolsSettings}
+                        />
+                    )}
                     {tab === 'publish' && selected && <EditorPublish gameId={selectedGame} mod={selected}/>}
                 </div>
             </div>
