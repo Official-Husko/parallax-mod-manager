@@ -1,5 +1,5 @@
 import {Fragment, h} from 'preact';
-import {useEffect, useRef, useState} from 'preact/hooks';
+import {useCallback, useEffect, useMemo, useRef, useState} from 'preact/hooks';
 import {CancelPublish, ListModFiles, PreviewModFile, PublishModToWorkshop, SteamAccountInfo} from '../../wailsjs/go/main/App';
 import type {app, library} from '../../wailsjs/go/models';
 import {EventsOn} from '../../wailsjs/runtime/runtime';
@@ -166,19 +166,37 @@ export function EditorPublish({gameId, mod}: { gameId: string; mod: library.ModS
             .catch((err) => setAccountError(String(err)));
     }, [gameId]);
 
-    function toggleExcluded(relPath: string) {
+    // Stable across renders (see the empty/narrow deps below) specifically so FileTree - wrapped
+    // in memo() for exactly this - can skip its own expensive re-render (tens of thousands of
+    // rows for a big mod) on a render this component does for an unrelated reason, e.g. a
+    // running publish's own progress ticking.
+    const toggleExcluded = useCallback((relPath: string) => {
         setExcluded((prev) => {
             const next = new Set(prev);
             if (next.has(relPath)) next.delete(relPath); else next.add(relPath);
             return next;
         });
-    }
+    }, []);
 
-    function selectFile(relPath: string) {
+    const selectFile = useCallback((relPath: string) => {
         setSelectedPath(relPath);
         setPreview(null);
         PreviewModFile(gameId, mod.ID, relPath).then(setPreview).catch(() => setPreview(null));
-    }
+    }, [gameId, mod.ID]);
+
+    const fileSelection = useMemo(() => ({excluded, onToggle: toggleExcluded}), [excluded, toggleExcluded]);
+
+    // FILES TO UPLOAD's own "N of Total" badge - walking every entry against isEffectivelyExcluded
+    // is real work for a big mod (tens of thousands of files), so this only redoes it when the
+    // file list or the exclusion set actually changes, not on every render (selecting a file to
+    // preview, or a running publish's own progress ticking, re-renders this component far more
+    // often than either of those two actually change).
+    const uploadCounts = useMemo(() => {
+        if (!files) return null;
+        const realFiles = files.Entries.filter((e) => !e.IsDir);
+        const included = realFiles.filter((e) => !isEffectivelyExcluded(e.RelPath, excluded)).length;
+        return {included, total: realFiles.length};
+    }, [files, excluded]);
 
     useEffect(() => {
         const off = EventsOn('workshop-publish-progress', (eventGameId: string, p: WorkshopPublishProgress) => {
@@ -335,11 +353,7 @@ export function EditorPublish({gameId, mod}: { gameId: string; mod: library.ModS
                 <div className="editor-card editor-changes">
                     <div className="editor-card-title">
                         FILES TO UPLOAD
-                        {files && (() => {
-                            const realFiles = files.Entries.filter((e) => !e.IsDir);
-                            const included = realFiles.filter((e) => !isEffectivelyExcluded(e.RelPath, excluded)).length;
-                            return <span className="editor-card-count mono">{included} of {realFiles.length}</span>;
-                        })()}
+                        {uploadCounts && <span className="editor-card-count mono">{uploadCounts.included} of {uploadCounts.total}</span>}
                     </div>
                     {filesError && (
                         <div className="editor-alert bad">
@@ -357,7 +371,7 @@ export function EditorPublish({gameId, mod}: { gameId: string; mod: library.ModS
                                 <div className="editor-file-picker publish-file-picker">
                                     <FileTree
                                         entries={files.Entries}
-                                        selection={{excluded, onToggle: (relPath) => toggleExcluded(relPath)}}
+                                        selection={fileSelection}
                                         onSelectFile={selectFile}
                                         selectedPath={selectedPath}
                                     />

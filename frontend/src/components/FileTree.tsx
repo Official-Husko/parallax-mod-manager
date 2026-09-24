@@ -1,6 +1,8 @@
 import './FileTree.css';
 import {h} from 'preact';
 import type {JSX} from 'preact';
+import {memo} from 'preact/compat';
+import {useMemo} from 'preact/hooks';
 import type {library} from '../../wailsjs/go/models';
 import {Checkbox} from './Checkbox';
 import {formatBytes} from '../data/format';
@@ -144,7 +146,16 @@ export interface SelectionProps {
     onToggle: (relPath: string, isDir: boolean) => void;
 }
 
-export function FileTree({entries, selection, onSelectFile, selectedPath}: {
+// Wrapped in memo(): a mod's file list can run into the tens of thousands of entries (see
+// docs/performance-strategy.md), and buildTree's own sort and directory-size rollup, plus
+// renderNodes' own recursive walk building one JSX row per entry, both redo that full amount of
+// work on every render otherwise - including a render this component's own parent does for a
+// reason that has nothing to do with the file list at all (Publish's own upload progress
+// ticking is exactly this: it re-renders EditorPublish many times a second while running, and
+// without this, every one of those would rebuild the entire tree along with it). This only pays
+// off because EditorPublish itself passes stable props (useCallback/useMemo) - a fresh object or
+// closure every render would make every one of these comparisons fail anyway.
+export const FileTree = memo(function FileTree({entries, selection, onSelectFile, selectedPath}: {
     entries: library.FileEntry[];
     selection?: SelectionProps;
     // onSelectFile, when given, makes each file row clickable (a folder row's own
@@ -154,9 +165,9 @@ export function FileTree({entries, selection, onSelectFile, selectedPath}: {
     onSelectFile?: (relPath: string) => void;
     selectedPath?: string;
 }) {
-    const tree = buildTree(entries);
+    const tree = useMemo(() => buildTree(entries), [entries]);
     return <div className="file-tree-rows">{renderNodes(tree, [], selection, false, onSelectFile, selectedPath)}</div>;
-}
+});
 
 // renderNodes recurses depth-first, tracking (for each ancestor level)
 // whether that ancestor still has a later sibling - a continuing guide
