@@ -64,10 +64,21 @@
     flex: none;
 }
 
-.editor-list-pin {
-    color: var(--text-dim);
-    font-size: 10px;
+/* A hover-reveal quick action - PIN/UNPIN, matching the mockup's own text label rather than an
+   icon - always visible once a row is pinned, invisible on an unpinned row until hovered. The
+   right-click context menu's own Pin/Unpin entry (see Editor.tsx) still works either way; this
+   is the one-click shortcut the mockup shows for the same action. */
+.editor-list-pin-action {
+    font: 600 9px "Azeret Mono", monospace;
+    color: var(--text-muted);
+    cursor: pointer;
     flex: none;
+    opacity: 0;
+}
+
+.editor-list-row:hover .editor-list-pin-action,
+.editor-list-pin-action.pinned {
+    opacity: 1;
 }
 
 .editor-list-new {
@@ -87,6 +98,11 @@
 .editor-list-new:hover {
     border-color: var(--rust);
     color: var(--text-bright);
+}
+
+.editor-list-new-glyph {
+    font: 600 13px Barlow, sans-serif;
+    color: var(--rust);
 }
 
 .editor-list-new.active {
@@ -231,7 +247,7 @@
 
 .editor-card-title {
     font: 600 9.5px "Azeret Mono", monospace;
-    color: var(--text-dim);
+    color: var(--text-muted);
     letter-spacing: .12em;
 }
 
@@ -316,47 +332,11 @@
     color: var(--text-muted);
 }
 
-.editor-readonly {
-    display: flex;
-    gap: 10px;
-    align-items: flex-start;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 11px 13px;
-    font: 400 12.5px/1.5 Barlow, sans-serif;
-    color: var(--text-mid);
-}
-
-.editor-readonly i {
-    color: var(--text-dim);
-    margin-top: 2px;
-}
-
-.editor-readonly-title {
-    font: 600 12.5px Barlow, sans-serif;
-    color: var(--text-bright);
-    margin-bottom: 2px;
-}
-
-.editor-readonly button {
-    margin-top: 8px;
-}
-
-.editor-readonly.warn {
-    border-color: var(--amber);
-    background: color-mix(in srgb, var(--amber) 8%, transparent);
-}
-
-.editor-readonly.warn i {
-    color: var(--amber);
-}
-
 /* --- Shared alert card: a bordered, colored-icon card with an optional title, body and
    action(s) - one visual language for every inline notice across every Editor tab (the
    read-only gate, a flagged dependency, a blocked check, an empty-source error), replacing the
-   narrower .editor-readonly/.editor-problem look wherever a fuller, self-contained card reads
-   better than a compact one-line message. .editor-problem stays as-is for Publish's own simple
-   one-line errors, which this redesign doesn't touch. */
+   narrower .editor-readonly/.editor-problem look everywhere, including Publish's own one-line
+   errors. */
 .editor-alert {
     display: flex;
     gap: 10px;
@@ -580,7 +560,7 @@
 
 .editor-hint {
     font: 400 11px Barlow, sans-serif;
-    color: var(--text-dim);
+    color: var(--text-muted);
 }
 
 .editor-hint.bad {
@@ -612,28 +592,6 @@
 .editor-changes {
     position: sticky;
     top: 0;
-}
-
-.editor-problem {
-    display: flex;
-    gap: 8px;
-    align-items: flex-start;
-    font: 400 12px/1.5 Barlow, sans-serif;
-    padding: 8px 10px;
-    border-radius: 5px;
-    border: 1px solid var(--border);
-}
-
-.editor-problem.bad {
-    color: var(--red);
-    border-color: var(--red);
-    background: color-mix(in srgb, var(--red) 8%, transparent);
-}
-
-.editor-problem.warn {
-    color: var(--amber);
-    border-color: var(--amber);
-    background: color-mix(in srgb, var(--amber) 8%, transparent);
 }
 
 .editor-file {
@@ -710,6 +668,7 @@
     display: flex;
     gap: 6px;
     padding: 0 10px;
+    color: var(--text-muted);
 }
 
 .editor-diff-row.add {
@@ -723,7 +682,6 @@
 }
 
 .editor-diff-row.gap {
-    color: var(--text-dim);
     justify-content: center;
 }
 
@@ -744,13 +702,22 @@
     margin-top: 4px;
 }
 
+/* A divider above the action row - Edit's own Save/Revert/Undo row, set apart from what can be
+   a long list of file changes above it. Not the default: New's own single "Create mod" row
+   never follows a list long enough to need this. */
+.editor-actions.divided {
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+    margin-top: 8px;
+}
+
 .editor-actions-spacer {
     flex: 1;
 }
 
 .editor-files-note {
     font: 400 11px/1.5 Barlow, sans-serif;
-    color: var(--text-dim);
+    color: var(--text-muted);
 }
 
 /* --- Checks tab --- */
@@ -939,7 +906,7 @@
 }
 
 .findings-filter-box i {
-    color: var(--text-dim);
+    color: var(--text-muted);
     font-size: 11px;
 }
 
@@ -1130,7 +1097,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--text-dim);
+    color: var(--text-muted);
     font-size: 22px;
 }
 
@@ -1169,7 +1136,7 @@
 
 .editor-log-time {
     flex: none;
-    color: var(--text-dim);
+    color: var(--text-muted);
     font-size: 10.5px;
 }
 
@@ -1296,8 +1263,8 @@
 }
 
 .editor-progress-file {
-    font-size: 11px;
-    color: var(--text-dim);
+    font-size: 10.5px;
+    color: var(--text-muted);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

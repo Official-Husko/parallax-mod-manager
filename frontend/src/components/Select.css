@@ -64,7 +64,7 @@
     flex: none;
     width: auto;
     font-size: 8px;
-    color: var(--text-dim);
+    color: var(--text-muted);
     transition: transform .12s ease;
 }
 

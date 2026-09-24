@@ -175,7 +175,8 @@ export function Editor({games, selectedGame, gameVersion, onOpenToolsSettings}: 
                 </div>
                 <div className="editor-list-rows">
                     <div className={`editor-list-new ${tab === 'new' ? 'active' : ''}`} onClick={() => setTab('new')}>
-                        <i className="fa-solid fa-plus"/> New mod
+                        <span className="editor-list-new-glyph">+</span>
+                        New mod
                     </div>
                     {loading && mods.length === 0 && (
                         <EmptyState icon="fa-spinner fa-spin" title="Scanning mods..."/>
@@ -204,7 +205,12 @@ export function Editor({games, selectedGame, gameVersion, onOpenToolsSettings}: 
                         >
                             <SourceBadge source={m.Source} name={m.Name}/>
                             <span className="editor-list-name">{m.Name}</span>
-                            {pinned.has(m.ID) && <i className="fa-solid fa-thumbtack editor-list-pin" title="Pinned"/>}
+                            <span
+                                className={`editor-list-pin-action ${pinned.has(m.ID) ? 'pinned' : ''}`}
+                                onClick={(e) => { e.stopPropagation(); togglePin(m.ID); }}
+                            >
+                                {pinned.has(m.ID) ? 'UNPIN' : 'PIN'}
+                            </span>
                             {drafts.has(m.ID) && <span className="editor-list-dot" title="Unsaved changes"/>}
                         </div>
                     ))}

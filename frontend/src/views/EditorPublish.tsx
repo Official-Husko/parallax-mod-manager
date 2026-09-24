@@ -319,9 +319,7 @@ export function EditorPublish({gameId, mod}: { gameId: string; mod: library.ModS
                     </div>
                     {!publishing && (
                         <div className="editor-actions">
-                            <button type="button" className="btn-primary" onClick={publish}>
-                                <i className="fa-solid fa-cloud-arrow-up"/> Publish
-                            </button>
+                            <button type="button" className="btn-primary" onClick={publish}>Publish</button>
                         </div>
                     )}
                     {error && (

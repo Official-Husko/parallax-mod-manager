@@ -434,10 +434,8 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
                     )}
 
                     {!readOnly && (
-                        <div className="editor-actions">
-                            <button type="button" className="btn-primary" disabled={!canSave} onClick={save}>{busy ? 'Saving...' : 'Save changes'}</button>
+                        <div className="editor-actions divided">
                             <button type="button" className="btn-ghost" disabled={!changed || busy} onClick={revert}>Revert</button>
-                            <span className="editor-actions-spacer"/>
                             <button
                                 type="button"
                                 className="btn-ghost"
@@ -445,8 +443,10 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
                                 title={info.HistoryCount > 0 ? `Put the files back as they were before the last save (${timeAgo(info.LastSavedAt)}). ${info.HistoryCount} saves are kept.` : 'Nothing has been saved for this mod yet.'}
                                 onClick={undo}
                             >
-                                <i className="fa-solid fa-rotate-left"/> Undo last save
+                                &#8630; Undo last save
                             </button>
+                            <span className="editor-actions-spacer"/>
+                            <button type="button" className="btn-primary" disabled={!canSave} onClick={save}>{busy ? 'Saving...' : 'Save'}</button>
                         </div>
                     )}
                     {info.HistoryCount > 0 && (

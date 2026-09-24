@@ -297,9 +297,7 @@ export function EditorTranslate({gameId, gameName, mod, onOpenToolsSettings}: {
 
                 {!running && (
                     <div className="editor-actions">
-                        <button type="button" className="btn-primary" disabled={!canRun} onClick={run}>
-                            <i className="fa-solid fa-language"/> Translate
-                        </button>
+                        <button type="button" className="btn-primary" disabled={!canRun} onClick={run}>Translate</button>
                     </div>
                 )}
                 {error && (
