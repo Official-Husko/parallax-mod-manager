@@ -748,7 +748,16 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   **Undo last save** can put them back - but only when a file still holds exactly what that save
   wrote, so an edit made by hand or another program afterwards is never silently thrown away.
   Unsaved edits for several mods are kept while the Editor stays open, so switching mods loses
-  nothing.
+  nothing. A dependency that matches no installed mod is flagged in the What will change panel too
+  (saving is still allowed - players without it simply see it flagged in their own load order).
+  **Version-bump suggestions** (`modedit.SuggestBump`/`Version`, a small sidecar snapshot kept
+  next to each save's own Undo history, never mixed into it) compare the mod's descriptor fields
+  and real file count against what they were as of its last save through this app: a changed
+  `replace_path` list or a changed made-for-game major version suggests **Major**; a changed file
+  count, tags or dependencies suggests **Minor**; anything smaller suggests **Patch** - shown as
+  three pills (each showing the version it would produce) with the suggested one marked and one
+  sentence saying why, picking a pill just fills in the Version field, still freely hand-editable
+  afterward. This is this app's own heuristic, not a confirmed rule from anywhere else.
 - **Publishing to the Steam Workshop** (the Editor's **Publish** tab, `internal/workshop`,
   `internal/app/workshop.go`, `companions/parallax-steam-helper`,
   `frontend/src/views/EditorPublish.tsx`) - upload a mod as a brand new Workshop item, or push an

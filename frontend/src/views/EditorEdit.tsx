@@ -9,7 +9,7 @@ import {
     SaveModEdit,
     UndoModEdit,
 } from '../../wailsjs/go/main/App';
-import type {app, library} from '../../wailsjs/go/models';
+import type {app, library, modedit} from '../../wailsjs/go/models';
 import {ChipList} from '../components/ChipList';
 import {Checkbox} from '../components/Checkbox';
 import {diffText} from '../data/editorDiff';
@@ -18,6 +18,16 @@ import type {Draft} from '../data/editorDraft';
 import {formatBytes, timeAgo} from '../data/format';
 import {notify} from '../data/notifications';
 import {checkVersionCompatibility, displayVersion} from '../data/versionCompat';
+
+// versionString renders one of VersionBumpSuggestion's Options the same way modedit.Version's
+// own String() does in Go - Major.Minor, or Major.Minor.Patch once the mod's version has ever
+// had a third number.
+function versionString(v: modedit.Version): string {
+    return v.HadPatch ? `${v.Major}.${v.Minor}.${v.Patch}` : `${v.Major}.${v.Minor}`;
+}
+
+const BUMP_KINDS = ['patch', 'minor', 'major'] as const;
+const BUMP_LABELS: Record<string, string> = {patch: 'Patch', minor: 'Minor', major: 'Major'};
 
 // The Edit tab: one mod's name, versions, tags, dependencies, replace paths and thumbnail. Every
 // change is previewed - the files it would write, line by line - before anything is saved.
@@ -253,21 +263,52 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
 
                 <div className="editor-card">
                     <div className="editor-card-title">DESCRIPTOR</div>
-                    <label className="editor-field">
-                        <span className="editor-label">Name</span>
-                        <input
-                            className={`editor-input ${draft.name.trim() === '' ? 'invalid' : ''}`}
-                            value={draft.name}
-                            disabled={readOnly}
-                            onInput={(e) => change({name: (e.target as HTMLInputElement).value})}
-                        />
-                        {draft.name.trim() === '' && <span className="editor-hint bad">A mod needs a name.</span>}
-                    </label>
                     <div className="editor-field-row">
+                        <label className="editor-field">
+                            <span className="editor-label">Name</span>
+                            <input
+                                className={`editor-input ${draft.name.trim() === '' ? 'invalid' : ''}`}
+                                value={draft.name}
+                                disabled={readOnly}
+                                onInput={(e) => change({name: (e.target as HTMLInputElement).value})}
+                            />
+                            {draft.name.trim() === '' && <span className="editor-hint bad">A mod needs a name.</span>}
+                        </label>
                         <label className="editor-field">
                             <span className="editor-label">Version</span>
                             <input className="editor-input mono" value={draft.version} disabled={readOnly} placeholder="1.0" onInput={(e) => change({version: (e.target as HTMLInputElement).value})}/>
+                            {draft.version !== info.Fields.Version && <span className="editor-hint">Was {info.Fields.Version || '(none)'}</span>}
                         </label>
+                    </div>
+
+                    {info.VersionBump && (
+                        <div className="editor-version-bump">
+                            <div className="editor-version-bump-head">
+                                <span className="editor-version-bump-title">Version bump</span>
+                                <span className="chip chip-new">NEW</span>
+                            </div>
+                            <div className="editor-version-bump-pills">
+                                {BUMP_KINDS.map((kind) => {
+                                    const optionVersion = versionString(info.VersionBump!.Options[kind]);
+                                    const selected = draft.version === optionVersion;
+                                    const suggested = info.VersionBump!.Suggested === kind;
+                                    return (
+                                        <span
+                                            key={kind}
+                                            className={`chip ${selected ? 'chip-active' : suggested ? 'chip-suggested' : ''}`}
+                                            style={{cursor: readOnly ? 'default' : 'pointer'}}
+                                            onClick={() => change({version: optionVersion})}
+                                        >
+                                            {BUMP_LABELS[kind]} &middot; {optionVersion}{selected ? ' ✓' : ''}
+                                        </span>
+                                    );
+                                })}
+                            </div>
+                            <span className="editor-hint">{info.VersionBump.Reason}</span>
+                        </div>
+                    )}
+
+                    <div className="editor-field-row">
                         <label className="editor-field">
                             <span className="editor-label">Made for game version</span>
                             <input className="editor-input mono" value={draft.supportedVersion} disabled={readOnly} placeholder="v4.*" onInput={(e) => change({supportedVersion: (e.target as HTMLInputElement).value})}/>
@@ -278,6 +319,11 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
                                         : `Built for another version than the installed ${displayVersion(gameVersion)}.`}
                                 </span>
                             )}
+                        </label>
+                        <label className="editor-field">
+                            <span className="editor-label">Folder</span>
+                            <input className="editor-input mono" value={info.FolderName} disabled title="Rename by duplicating - see the New tab."/>
+                            <span className="editor-hint">Rename by duplicating</span>
                         </label>
                     </div>
                     <div className="editor-field">
@@ -321,6 +367,18 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
                     {readOnly && <p className="editor-muted">Nothing can be saved for this mod.</p>}
                     {!readOnly && !changed && <p className="editor-muted">No changes yet. Edit a field or choose a new thumbnail and the files it would write show up here.</p>}
 
+                    {unknownDeps.size > 0 && (
+                        <div className="editor-alert warn">
+                            <i className="fa-solid fa-triangle-exclamation editor-alert-icon"/>
+                            <div className="editor-alert-body">
+                                <div className="editor-alert-title">Dependency not installed</div>
+                                <div className="editor-alert-text">
+                                    Saving is allowed. Players without {Array.from(unknownDeps).join(', ')} will see {unknownDeps.size === 1 ? 'it' : 'them'} flagged in their load order.
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {problems.map((p) => (
                         <div key={p} className="editor-alert bad">
                             <i className="fa-solid fa-circle-xmark editor-alert-icon"/>
@@ -360,14 +418,13 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
                                 title={info.HistoryCount > 0 ? `Put the files back as they were before the last save (${timeAgo(info.LastSavedAt)}). ${info.HistoryCount} saves are kept.` : 'Nothing has been saved for this mod yet.'}
                                 onClick={undo}
                             >
-                                <i className="fa-solid fa-rotate-left"/> Undo last save{info.HistoryCount > 0 ? ` (${info.HistoryCount})` : ''}
+                                <i className="fa-solid fa-rotate-left"/> Undo last save
                             </button>
                         </div>
                     )}
-                    {info.Files.length > 0 && (
+                    {info.HistoryCount > 0 && (
                         <div className="editor-files-note">
-                            A save changes {info.Files.map((f) => f.Path.split(/[\\/]/).pop()).join(' and ')}
-                            {' '}and keeps the earlier {info.Files.length === 1 ? 'version' : 'versions'} in the app's settings folder, never in the mod's own folder.
+                            Undo keeps the last {info.MaxHistoryCount} saves. Last saved {timeAgo(info.LastSavedAt)}.
                         </div>
                     )}
                 </div>

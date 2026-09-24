@@ -274,7 +274,11 @@ for security, privacy, reliability or performance is called out (see the last tw
   currently being copied.
 - **Edit a mod's own descriptor and thumbnail** - change its name, version, made-for-game-version, tags,
   dependencies and replace paths, and choose a new thumbnail (resized to fit, never enlarged), for mods you
-  made yourself. A live preview shows exactly which files change and how before you save.
+  made yourself. A live preview shows exactly which files change and how before you save. A dependency that
+  matches no installed mod is flagged right there, without stopping the save.
+- **Version-bump suggestions** - once a mod's file count or tags/dependencies/replace paths have changed since
+  it was last saved here, a Patch/Minor/Major pill picker suggests which to bump to and why (e.g. "38 files
+  added and tags changed since 3.2 was saved") - pick one to fill in the Version field, or type your own.
 - **Previous versions kept, with Undo** - every save keeps what it replaced, so **Undo last save** can put it
   back - unless a file changed since, which it refuses rather than overwrite silently. Creating or duplicating
   a mod does not feed this history; removing an unwanted one is Open folder and delete, like any other mod.

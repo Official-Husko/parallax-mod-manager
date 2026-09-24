@@ -204,6 +204,48 @@ func TestEditingALocalModChangesItsDescriptorAndItsStubAndKeepsTheRest(t *testin
 	}
 }
 
+func TestModEditInfoSuggestsAVersionBumpOnceFilesChangeSinceTheLastSave(t *testing.T) {
+	env := newEditorEnv(t)
+
+	info := env.info(t, "local_a")
+	if info.FolderName != "Local A" {
+		t.Errorf("FolderName = %q, want %q", info.FolderName, "Local A")
+	}
+
+	edit := ModEdit{Fields: info.Fields}
+	edit.Fields.Version = "3.2"
+	if _, err := env.a.SaveModEdit(env.cfg.ID, "local_a", edit); err != nil {
+		t.Fatalf("SaveModEdit: %v", err)
+	}
+	if got := env.info(t, "local_a"); got.VersionBump != nil {
+		t.Fatalf("VersionBump = %+v right after the save that made the snapshot, want nil", got.VersionBump)
+	}
+
+	// Someone adds a real file to the mod's own folder by hand, outside this app entirely.
+	writeText(t, filepath.Join(env.lib, "Local A", "common", "new_thing.txt"), "z = 1")
+
+	got := env.info(t, "local_a")
+	if got.VersionBump == nil {
+		t.Fatal("VersionBump is nil after a file was added since the last save, want a Minor suggestion")
+	}
+	if got.VersionBump.Suggested != modedit.BumpMinor {
+		t.Errorf("Suggested = %q, want %q", got.VersionBump.Suggested, modedit.BumpMinor)
+	}
+	if want := "3.3"; got.VersionBump.Options[modedit.BumpMinor].String() != want {
+		t.Errorf("Options[minor] = %q, want %q", got.VersionBump.Options[modedit.BumpMinor].String(), want)
+	}
+
+	// Saving again writes a fresh snapshot, so the very next read has nothing left to suggest.
+	edit2 := ModEdit{Fields: got.Fields}
+	edit2.Fields.Version = "3.3"
+	if _, err := env.a.SaveModEdit(env.cfg.ID, "local_a", edit2); err != nil {
+		t.Fatalf("SaveModEdit: %v", err)
+	}
+	if got := env.info(t, "local_a"); got.VersionBump != nil {
+		t.Errorf("VersionBump = %+v right after bumping to match, want nil", got.VersionBump)
+	}
+}
+
 func TestUndoPutsBothFilesBackAndRefusesWhatChangedSince(t *testing.T) {
 	env := newEditorEnv(t)
 	descPath := filepath.Join(env.lib, "Local A", "descriptor.mod")

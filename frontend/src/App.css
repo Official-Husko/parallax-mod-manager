@@ -467,6 +467,19 @@
     border-color: var(--amber);
 }
 
+/* Marks a just-added feature (the Edit tab's own "Version bump" card). */
+.chip-new {
+    color: var(--blue);
+    background: color-mix(in srgb, var(--blue) 12%, transparent);
+    border-color: var(--blue);
+}
+
+/* A chip this app recommends without forcing it (the Edit tab's own version-bump pills) - a
+   colored ring, never filled, so it never reads as already chosen the way .chip-active does. */
+.chip-suggested {
+    border-color: var(--rust);
+}
+
 .src-badge {
     font: 600 8.5px "Azeret Mono", monospace;
     color: var(--bg-panel-solid);

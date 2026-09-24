@@ -14,6 +14,7 @@ import (
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 
 	"github.com/Official-Husko/parallax-mod-manager/internal/applog"
+	"github.com/Official-Husko/parallax-mod-manager/internal/fsutil"
 	"github.com/Official-Husko/parallax-mod-manager/internal/game"
 	"github.com/Official-Husko/parallax-mod-manager/internal/library"
 	"github.com/Official-Husko/parallax-mod-manager/internal/mod"
@@ -58,6 +59,17 @@ type EditInfo struct {
 	// HistoryCount and LastSavedAt (unix seconds, 0 for none) describe the saves that can be undone.
 	HistoryCount int
 	LastSavedAt  int64
+	// MaxHistoryCount is modedit.KeptSaves, surfaced so the frontend's own "Undo keeps the last
+	// N saves" note never has to duplicate that number by hand.
+	MaxHistoryCount int
+	// FolderName is the mod's own content folder's name, read-only here - renaming it means
+	// duplicating under a new name, not an in-place field edit.
+	FolderName string
+	// VersionBump is set when this mod's descriptor fields or file count have changed since its
+	// last save through this app, and its current version parses as a plain number - see
+	// modedit.SuggestBump. nil otherwise (nothing to suggest, or the version isn't a plain
+	// number to bump from).
+	VersionBump *modedit.VersionBumpSuggestion
 }
 
 // ModEdit is a change the person wants to make.
@@ -267,6 +279,10 @@ func (a *App) ModEditInfo(gameID, modID string) (EditInfo, error) {
 		},
 		Picture:             t.m.Descriptor.Picture,
 		CanCreateDescriptor: t.editable && !t.hasDesc && t.descNew != "",
+		MaxHistoryCount:     modedit.KeptSaves,
+	}
+	if t.m.ContentPath != "" {
+		info.FolderName = filepath.Base(t.m.ContentPath)
 	}
 	for _, f := range t.files {
 		info.Files = append(info.Files, EditFile{Path: f.Path, Kind: f.Kind, Exists: f.Exists})
@@ -276,6 +292,13 @@ func (a *App) ModEditInfo(gameID, modID string) (EditInfo, error) {
 		info.HistoryCount = n
 		if !at.IsZero() {
 			info.LastSavedAt = at.Unix()
+		}
+		if snap, ok := store.LatestVersionSnapshot(); ok && t.m.ContentPath != "" {
+			if files, _, statErr := fsutil.DirStat(t.m.ContentPath); statErr == nil {
+				if suggestion, ok := modedit.SuggestBump(snap, info.Fields, files, info.Fields.Version); ok {
+					info.VersionBump = &suggestion
+				}
+			}
 		}
 	}
 	return info, nil
@@ -414,6 +437,17 @@ func (a *App) SaveModEdit(gameID, modID string, edit ModEdit) (SaveResult, error
 	if err != nil {
 		log.Errorf("saving '%s' failed: %v", editLabel(t), err)
 		return SaveResult{}, err
+	}
+	if t.m.ContentPath != "" {
+		if files, _, statErr := fsutil.DirStat(t.m.ContentPath); statErr == nil {
+			snap := modedit.VersionSnapshot{Fields: edit.Fields.Normalized(), ContentFileCount: files, SavedAt: at}
+			if snapErr := modedit.WriteVersionSnapshot(store.SaveDir(at), snap); snapErr != nil {
+				// Never fails the save itself - the version-bump feature simply has nothing to
+				// compare against next time, the same as for a mod saved before this feature
+				// existed at all.
+				log.Warnf("keeping a version-bump snapshot for '%s' failed: %v", editLabel(t), snapErr)
+			}
+		}
 	}
 
 	names := make([]string, 0, len(writes))

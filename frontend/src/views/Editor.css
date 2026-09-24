@@ -112,9 +112,25 @@
 .editor-detail-header {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: 12px;
     padding: 13px 18px;
     border-bottom: 1px solid var(--border);
+    flex: none;
+}
+
+.editor-unsaved-pill {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font: 500 11.5px Barlow, sans-serif;
+    color: var(--text-mid);
+}
+
+.editor-unsaved-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--rust);
     flex: none;
 }
 
@@ -440,6 +456,33 @@
 .editor-thumb-buttons {
     display: flex;
     gap: 8px;
+}
+
+/* --- Edit tab: the version-bump card nested inside DESCRIPTOR --- */
+
+.editor-version-bump {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    border: 1px dashed var(--border-light);
+    border-radius: 6px;
+    padding: 9px 11px;
+}
+
+.editor-version-bump-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.editor-version-bump-title {
+    font: 600 11.5px Barlow, sans-serif;
+    color: var(--text-bright);
+}
+
+.editor-version-bump-pills {
+    display: flex;
+    gap: 6px;
 }
 
 /* --- Fields --- */

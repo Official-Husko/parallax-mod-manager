@@ -209,6 +209,13 @@ export function Editor({games, selectedGame, gameVersion}: {
                         <span className="link-btn" onClick={() => OpenModFolder(selectedGame, selected.ID)}>
                             <i className="fa-solid fa-folder-open"/> Open folder
                         </span>
+                        <span className="editor-actions-spacer"/>
+                        {drafts.has(selected.ID) && (
+                            <span className="editor-unsaved-pill">
+                                <span className="editor-unsaved-dot"/>
+                                Unsaved changes
+                            </span>
+                        )}
                     </div>
                 ) : (
                     <div className="editor-detail-header">
