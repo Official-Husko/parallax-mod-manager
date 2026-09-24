@@ -25,7 +25,7 @@ type Status = 'idle' | 'skipped' | 'warn' | 'good';
 type GroupBy = 'category' | 'file' | 'severity';
 type ViewMode = 'grouped' | 'list';
 
-const CATEGORIES: { key: CategoryKey; label: string; icon: string; color: string; detail: string; text: (status: Status, n: number) => string }[] = [
+const CATEGORIES: { key: CategoryKey; label: string; icon: string; color: string; detail: string; text: (status: Status, findings: modcheck.Finding[]) => string }[] = [
     {
         key: 'base_game',
         label: 'Base game conflicts',
@@ -33,11 +33,12 @@ const CATEGORIES: { key: CategoryKey; label: string; icon: string; color: string
         // Blue - the category's own fixed identity color (shown on CHECKS' left bar and
         // FINDINGS' group dot regardless of status), distinct from the amber/red severity
         // glyph next to it. Not var(--amber): that's a status color, this is an identity one.
-        color: '#5b8fc9',
+        color: 'var(--blue)',
         detail: 'Files and script keys this mod overwrites that belong to the game itself, not another mod - the base-game half of what the Conflict Resolver finds between mods.',
-        text: (status, n) => {
+        text: (status, findings) => {
             if (status === 'idle') return 'Not checked yet';
             if (status === 'skipped') return "Couldn't check - the game wasn't found";
+            const n = findings.length;
             if (status === 'warn') return `Overwrites ${n} file${n === 1 ? '' : 's'} from the game itself`;
             return 'No conflicts with the base game';
         },
@@ -45,12 +46,16 @@ const CATEGORIES: { key: CategoryKey; label: string; icon: string; color: string
     {
         key: 'syntax',
         label: 'Syntax',
-        color: '#d4574e',
+        color: 'var(--red)',
         icon: 'fa-code',
         detail: "This mod's own Clausewitz script files that fail to parse: which file, which line, and what looked wrong.",
-        text: (status, n) => {
+        text: (status, findings) => {
             if (status === 'idle') return 'Not checked yet';
-            if (status === 'warn') return `${n} parse error${n === 1 ? '' : 's'} found`;
+            if (status === 'warn') {
+                const n = findings.length;
+                const fileCount = new Set(findings.map((f) => f.File)).size;
+                return `${n} parse error${n === 1 ? '' : 's'} in ${fileCount} file${fileCount === 1 ? '' : 's'}`;
+            }
             return 'No syntax errors';
         },
     },
@@ -58,10 +63,11 @@ const CATEGORIES: { key: CategoryKey; label: string; icon: string; color: string
         key: 'descriptor',
         label: 'Descriptor',
         icon: 'fa-file-circle-exclamation',
-        color: '#e0a340',
+        color: 'var(--amber)',
         detail: 'Things wrong with the descriptor itself: no supported_version, a version that is not shaped like the game expects, a picture= that points at a file that does not exist.',
-        text: (status, n) => {
+        text: (status, findings) => {
             if (status === 'idle') return 'Not checked yet';
+            const n = findings.length;
             if (status === 'warn') return `${n} problem${n === 1 ? '' : 's'} in descriptor.mod`;
             return 'Descriptor looks fine';
         },
@@ -69,11 +75,12 @@ const CATEGORIES: { key: CategoryKey; label: string; icon: string; color: string
     {
         key: 'dependency',
         label: 'Dependencies',
-        color: '#a98bdc',
+        color: 'var(--flag-dependency)',
         icon: 'fa-link-slash',
         detail: "A dependency this mod declares that matches no mod you have installed - the same matching the Editor's own dependency field already flags as you type.",
-        text: (status, n) => {
+        text: (status, findings) => {
             if (status === 'idle') return 'Not checked yet';
+            const n = findings.length;
             if (status === 'warn') return `${n} declared dependenc${n === 1 ? 'y' : 'ies'} not installed`;
             return 'Every dependency is installed';
         },
@@ -210,7 +217,8 @@ export function EditorChecks({gameId, gameName, gameVersion, mod, installedNames
     }
 
     const allFindings = result?.Findings ?? [];
-    const countFor = (key: CategoryKey) => allFindings.filter((f) => f.Category === key).length;
+    const findingsFor = (key: CategoryKey) => allFindings.filter((f) => f.Category === key);
+    const countFor = (key: CategoryKey) => findingsFor(key).length;
     const errorCount = allFindings.filter((f) => f.Severity === 'error').length;
     const warnCount = allFindings.filter((f) => f.Severity === 'warn').length;
 
@@ -360,7 +368,7 @@ export function EditorChecks({gameId, gameName, gameVersion, mod, installedNames
                                     <span className="check-row-glyph" style={{color: g.color}}>{g.glyph}</span>
                                     <div className="check-row-body">
                                         <div className="check-row-name">{c.label}</div>
-                                        <div className="check-row-detail">{c.text(status, countFor(c.key))}</div>
+                                        <div className="check-row-detail">{c.text(status, findingsFor(c.key))}</div>
                                     </div>
                                     {status === 'warn' && <span className="check-row-show" onClick={() => showCategory(c.key)}>Show</span>}
                                 </div>
