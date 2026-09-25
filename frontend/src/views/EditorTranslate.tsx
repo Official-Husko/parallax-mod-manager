@@ -3,6 +3,8 @@ import {useEffect, useRef, useState} from 'preact/hooks';
 import {CancelTranslate, TranslateEligibility, TranslateLanguages, TranslateMod} from '../../wailsjs/go/main/App';
 import type {app, library} from '../../wailsjs/go/models';
 import {EventsOn} from '../../wailsjs/runtime/runtime';
+import {Select} from '../components/Select';
+import type {SelectOption} from '../components/Select';
 
 // The Translate tab: machine-translate a mod's own English localisation text,
 // one key at a time, via DeepL's official API (needs a key of your own - see
@@ -166,6 +168,15 @@ export function EditorTranslate({gameId, gameName, mod, onOpenToolsSettings}: {
     const realLanguages = languages.filter((l) => l.Code !== 'ALL');
     const confirmedCount = realLanguages.filter((l) => l.Confirmed).length;
     const unconfirmedCount = realLanguages.length - confirmedCount;
+    // "All languages" own label gets the real count appended (e.g. "All languages (12)") -
+    // computed here rather than sent by the backend, since it's a pure display concern over a
+    // count the frontend already has.
+    const languageOptions: SelectOption[] = languages.map((l) => ({
+        value: l.Code,
+        label: l.Code === 'ALL'
+            ? `${l.Name} (${realLanguages.length})`
+            : `${l.Name}${!l.Confirmed ? ' (unconfirmed for this game)' : ''}`,
+    }));
 
     const effectivelyOffered = !!eligibility && (mode === 'player' || eligibility.AuthorModeOffered || (eligibility.AuthorModeOverridable && forced));
     const canRun = !!eligibility && eligibility.HasEnglishContent && effectivelyOffered && (service !== 'deepl' || eligibility.DeepLKeyReady) && !running;
@@ -243,11 +254,13 @@ export function EditorTranslate({gameId, gameName, mod, onOpenToolsSettings}: {
                     <div className="editor-card-title">TARGET LANGUAGE</div>
                     <div className="editor-field">
                         <span className="editor-label">Translate into</span>
-                        <select className="editor-input" disabled={running} value={targetCode} onChange={(e) => setTargetCode((e.target as HTMLSelectElement).value)}>
-                            {languages.map((l) => (
-                                <option key={l.Code} value={l.Code}>{l.Name}{!l.Confirmed && l.Code !== 'ALL' ? ' (unconfirmed for this game)' : ''}</option>
-                            ))}
-                        </select>
+                        <Select
+                            className="editor-translate-target-select"
+                            disabled={running}
+                            value={targetCode}
+                            options={languageOptions}
+                            onChange={setTargetCode}
+                        />
                         {realLanguages.length > 0 && (
                             <p className="editor-muted">
                                 {confirmedCount} {confirmedCount === 1 ? 'is' : 'are'} confirmed for {gameName || 'this game'}.

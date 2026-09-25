@@ -544,6 +544,13 @@
     border-color: var(--rust);
 }
 
+/* The Translate tab's own target-language picker (Select, components/Select.tsx) - full width
+   in its .editor-field, matching the plain .editor-input it replaced (a native <select>, which
+   the webview draws with the system theme - a white box on this dark UI - and can't be styled). */
+.editor-translate-target-select {
+    width: 100%;
+}
+
 .editor-input:disabled {
     opacity: .55;
     cursor: not-allowed;
