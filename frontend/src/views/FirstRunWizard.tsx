@@ -355,7 +355,7 @@ function PreferencesStep() {
         GetPreferences().then(setPrefs).catch(() => undefined);
     }, []);
 
-    function togglePref(key: 'scanForNewMods' | 'closeAfterLaunch' | 'warnOnPatchMismatch') {
+    function togglePref(key: 'scanForNewMods' | 'closeAfterLaunch' | 'warnOnPatchMismatch' | 'featureBrowseEnabled' | 'featureEditorEnabled' | 'featureLibraryEnabled') {
         if (!prefs) return;
         const next = {...prefs, [key]: !prefs[key]};
         setPrefs(next);
@@ -382,6 +382,26 @@ function PreferencesStep() {
                     <div className="wizard-toggle-row">
                         <span>Close manager after launch</span>
                         <Toggle on={prefs.closeAfterLaunch} onClick={() => togglePref('closeAfterLaunch')}/>
+                    </div>
+                </div>
+            )}
+            <div className="wizard-subheading wizard-subheading-second">
+                Which parts of the app you want - each of these can be turned back on any time from
+                Settings › Features.
+            </div>
+            {prefs && (
+                <div className="wizard-toggles">
+                    <div className="wizard-toggle-row">
+                        <span>Library</span>
+                        <Toggle on={prefs.featureLibraryEnabled} onClick={() => togglePref('featureLibraryEnabled')}/>
+                    </div>
+                    <div className="wizard-toggle-row">
+                        <span>Editor</span>
+                        <Toggle on={prefs.featureEditorEnabled} onClick={() => togglePref('featureEditorEnabled')}/>
+                    </div>
+                    <div className="wizard-toggle-row">
+                        <span>Browse</span>
+                        <Toggle on={prefs.featureBrowseEnabled} onClick={() => togglePref('featureBrowseEnabled')}/>
                     </div>
                 </div>
             )}

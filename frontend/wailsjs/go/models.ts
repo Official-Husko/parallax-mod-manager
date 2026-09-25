@@ -2466,6 +2466,9 @@ export namespace preferences {
 	    loversLabNotificationIntervalMinutes: number;
 	    shareToolMark: boolean;
 	    toolMarkPromptShown: boolean;
+	    featureBrowseEnabled: boolean;
+	    featureEditorEnabled: boolean;
+	    featureLibraryEnabled: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Preferences(source);
@@ -2504,6 +2507,9 @@ export namespace preferences {
 	        this.loversLabNotificationIntervalMinutes = source["loversLabNotificationIntervalMinutes"];
 	        this.shareToolMark = source["shareToolMark"];
 	        this.toolMarkPromptShown = source["toolMarkPromptShown"];
+	        this.featureBrowseEnabled = source["featureBrowseEnabled"];
+	        this.featureEditorEnabled = source["featureEditorEnabled"];
+	        this.featureLibraryEnabled = source["featureLibraryEnabled"];
 	    }
 	}
 

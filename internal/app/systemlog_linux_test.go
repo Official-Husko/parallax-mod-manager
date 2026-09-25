@@ -75,6 +75,7 @@ func TestEnvironmentReportSaysWhatMattersForDebugging(t *testing.T) {
 		"Backups: atrisk, folder '" + filepath.Join(config, "Parallax Mod Backups") + "'",
 		"size limit off, keeps 1.0 GiB free",
 		"Settings: watch for new mods",
+		"Features: Browse on, Editor on, Library on",
 		"Games: 2 registered, 1 managed, 1 installed",
 		"Game 'Test Game': v4.4.6, installed at '" + install + "' (path chosen by hand), launch mode steam, mod folder '" + modDir + "' (present)",
 	} {

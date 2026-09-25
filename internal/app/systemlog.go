@@ -169,6 +169,11 @@ func (a *App) environmentReportLines() []string {
 		settings += ", developer tools " + onOffText(p.DeveloperTools)
 	}
 	lines = append(lines, settings)
+	// Its own line, not folded into Settings above (already dense enough) - the state of
+	// Settings > Features at the moment this run started, so a disabled area is visible
+	// from the very top of the log even if nothing was toggled live this session.
+	lines = append(lines, fmt.Sprintf("Features: Browse %s, Editor %s, Library %s",
+		onOffText(p.FeatureBrowseEnabled), onOffText(p.FeatureEditorEnabled), onOffText(p.FeatureLibraryEnabled)))
 
 	if a.registry == nil {
 		return lines

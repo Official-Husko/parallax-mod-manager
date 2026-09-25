@@ -46,7 +46,7 @@ import {BackupPanel} from './BackupPanel';
 import {DebugPanel} from './DebugPanel';
 import {AccentSettings} from './AccentSettings';
 
-type Section = 'manage' | 'launch' | 'playsets' | 'sort' | 'conflict' | 'steam' | 'tools' | 'browse' | 'backup' | 'appearance' | 'advanced' | 'debug' | 'about';
+type Section = 'manage' | 'features' | 'launch' | 'playsets' | 'sort' | 'conflict' | 'steam' | 'tools' | 'browse' | 'backup' | 'appearance' | 'advanced' | 'debug' | 'about';
 
 export function Settings({jumpToManageGames, jumpToBackup, jumpToTools, onGamesChanged, onPreferencesChanged}: {
     // Incremented by app.tsx (the TopBar's own "Manage games" entry) to
@@ -95,7 +95,7 @@ export function Settings({jumpToManageGames, jumpToBackup, jumpToTools, onGamesC
             <div className="settings-nav">
                 <div className="sidebar-label">SETTINGS</div>
                 {settingsNav.filter((s) => s.key !== 'debug' || debugAvailable).map((s) => {
-                    const clickable = s.key === 'manage' || s.key === 'launch' || s.key === 'playsets' || s.key === 'sort' || s.key === 'conflict' || s.key === 'steam' || s.key === 'tools' || s.key === 'browse' || s.key === 'backup' || s.key === 'appearance' || s.key === 'advanced' || s.key === 'debug' || s.key === 'about';
+                    const clickable = s.key === 'manage' || s.key === 'features' || s.key === 'launch' || s.key === 'playsets' || s.key === 'sort' || s.key === 'conflict' || s.key === 'steam' || s.key === 'tools' || s.key === 'browse' || s.key === 'backup' || s.key === 'appearance' || s.key === 'advanced' || s.key === 'debug' || s.key === 'about';
                     const active = clickable && s.key === section;
                     return (
                         <div
@@ -111,6 +111,7 @@ export function Settings({jumpToManageGames, jumpToBackup, jumpToTools, onGamesC
             </div>
 
             {section === 'manage' && <ManageGamesPanel onGamesChanged={onGamesChanged}/>}
+            {section === 'features' && <FeaturesPanel/>}
             {section === 'launch' && <LaunchOptionsPanel/>}
             {section === 'playsets' && <PlaysetsSettingsPanel/>}
             {section === 'sort' && <SortRulesPanel/>}
@@ -990,6 +991,76 @@ function ConflictRulesPanel() {
 
 // Settings that change how the app treats its own generated files, rather than
 // anything about how it looks or which games it manages.
+// FeaturesPanel is Settings' own "turn a whole area of the app off" panel - Browse,
+// Editor and Library each get a top-nav tab of their own; turning one off here removes
+// that tab entirely (the same choice the first-run wizard's own Preferences step
+// already offers on a fresh install - this is just where to come back and change it
+// later). Browse is the only one of the three with a real background task - its
+// periodic LoversLab update/notification checks (Settings > Browse) stop the moment
+// it's off here too, not just while its own tab happens to be closed. Every toggle here
+// is logged to the activity log the moment it changes, on top of the app's usual
+// "preferences saved" line.
+function FeaturesPanel() {
+    const [prefs, setPrefs] = useState<preferences.Preferences | null>(null);
+
+    useEffect(() => {
+        GetPreferences().then(setPrefs).catch(() => undefined);
+    }, []);
+
+    function togglePref(key: 'featureBrowseEnabled' | 'featureEditorEnabled' | 'featureLibraryEnabled') {
+        if (!prefs) return;
+        const next = {...prefs, [key]: !prefs[key]};
+        setPrefs(next);
+        SetPreferences(next).catch(() => setPrefs(prefs));
+    }
+
+    return (
+        <div className="settings-content single">
+            <div>
+                <div className="settings-title">Features</div>
+                <div className="settings-subtitle">
+                    Turn off a whole area of the app you don't use - its own tab disappears
+                    entirely, and any background task it runs stops too. On by default; changing
+                    one here is logged to the activity log.
+                </div>
+            </div>
+            {prefs && (
+                <div className="sort-rules-list">
+                    <div className="sort-rule-row">
+                        <div className="sort-rule-main">
+                            <div className="sort-rule-name">Library</div>
+                            <div className="sort-rule-desc">
+                                The mod list you review and manage day to day - conflicts, tags, sources.
+                            </div>
+                        </div>
+                        <Toggle on={prefs.featureLibraryEnabled} onClick={() => togglePref('featureLibraryEnabled')}/>
+                    </div>
+                    <div className="sort-rule-row">
+                        <div className="sort-rule-main">
+                            <div className="sort-rule-name">Editor</div>
+                            <div className="sort-rule-desc">
+                                Creating, editing, checking, translating and publishing your own mods.
+                            </div>
+                        </div>
+                        <Toggle on={prefs.featureEditorEnabled} onClick={() => togglePref('featureEditorEnabled')}/>
+                    </div>
+                    <div className="sort-rule-row">
+                        <div className="sort-rule-main">
+                            <div className="sort-rule-name">Browse</div>
+                            <div className="sort-rule-desc">
+                                Finding, downloading and installing mods from LoversLab. Turning this off
+                                also stops its own periodic update and notification checks (Settings &rsaquo;
+                                Browse) - not just while its tab happens to be closed.
+                            </div>
+                        </div>
+                        <Toggle on={prefs.featureBrowseEnabled} onClick={() => togglePref('featureBrowseEnabled')}/>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
 function AdvancedPanel() {
     const [prefs, setPrefs] = useState<preferences.Preferences | null>(null);
 

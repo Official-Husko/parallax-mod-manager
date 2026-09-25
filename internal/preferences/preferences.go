@@ -201,6 +201,19 @@ type Preferences struct {
 	// one-time prompt offering ShareToolMark, on their first-ever Workshop
 	// publish - it is never shown again after that, whichever way they answered.
 	ToolMarkPromptShown bool `json:"toolMarkPromptShown"`
+	// FeatureBrowseEnabled/FeatureEditorEnabled/FeatureLibraryEnabled gate a whole
+	// area of the app off entirely - Settings > Features (and the first-run
+	// wizard's own Preferences step) let a person turn off ones they don't use,
+	// hiding that area's own top-nav tab. Browse is the only one of these three
+	// with a real background task of its own (its periodic LoversLab update and
+	// notification checks - see app.tsx), stopped the same way turning either of
+	// those off in Settings > Browse already stops it, just gated on this too. On
+	// by default - see Defaults, and Load's own doc comment for why an existing
+	// settings file saved before these existed still reads them as on rather
+	// than silently defaulting to off the moment this shipped.
+	FeatureBrowseEnabled  bool `json:"featureBrowseEnabled"`
+	FeatureEditorEnabled  bool `json:"featureEditorEnabled"`
+	FeatureLibraryEnabled bool `json:"featureLibraryEnabled"`
 }
 
 // DefaultLoversLabCheckIntervalHours is what the app shipped with - see
@@ -337,6 +350,9 @@ func Defaults() Preferences {
 		LoversLabCheckIntervalHours:          DefaultLoversLabCheckIntervalHours,
 		LoversLabNotifications:               true,
 		LoversLabNotificationIntervalMinutes: DefaultLoversLabNotificationIntervalMinutes,
+		FeatureBrowseEnabled:                 true,
+		FeatureEditorEnabled:                 true,
+		FeatureLibraryEnabled:                true,
 	}
 }
 

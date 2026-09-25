@@ -1,6 +1,6 @@
 import './App.css'
 import {h} from 'preact';
-import {useEffect, useRef, useState} from 'preact/hooks';
+import {useEffect, useMemo, useRef, useState} from 'preact/hooks';
 import {CheckGameUpdates, DeveloperToolsStatus, GameVersion, GetPreferences, ListGames, SetPreferences, StartupNotice} from '../wailsjs/go/main/App';
 import type {library, preferences} from '../wailsjs/go/models';
 import {TopBar} from './components/TopBar';
@@ -311,21 +311,42 @@ export function App() {
     // so a mod installed from it is only ever checked when this app itself looks - on
     // startup, then every Settings > Browse's own interval (default 4 hours) while the
     // app stays open, not gated on the Browse tab being open. Results merge into the
-    // exact same report/sidebar card ensureModUpdates already populates.
+    // exact same report/sidebar card ensureModUpdates already populates. Also gated on
+    // Settings > Features' own Browse toggle - turning that off stops this the same way
+    // turning off the check itself already does (ensureLoversLabUpdates's own "enabled"
+    // param tears down any running timer either way), on top of hiding the tab itself.
     useEffect(() => {
         if (onboarded && selectedGame && prefs) {
-            ensureLoversLabUpdates(selectedGame, prefs.loversLabCheckUpdates, prefs.loversLabCheckIntervalHours || 4);
+            ensureLoversLabUpdates(selectedGame, prefs.featureBrowseEnabled && prefs.loversLabCheckUpdates, prefs.loversLabCheckIntervalHours || 4);
         }
-    }, [onboarded, selectedGame, prefs?.loversLabCheckUpdates, prefs?.loversLabCheckIntervalHours]);
+    }, [onboarded, selectedGame, prefs?.featureBrowseEnabled, prefs?.loversLabCheckUpdates, prefs?.loversLabCheckIntervalHours]);
 
     // The signed-in LoversLab account's own real notifications - account-wide, not
     // per-game, so this isn't gated on a selected game the way the mod-update checks
-    // above are, just on having finished onboarding.
+    // above are, just on having finished onboarding (and, the same as above, on Browse
+    // still being enabled at all).
     useEffect(() => {
         if (onboarded && prefs) {
-            ensureLoversLabNotifications(prefs.loversLabNotifications, prefs.loversLabNotificationIntervalMinutes || 10);
+            ensureLoversLabNotifications(prefs.featureBrowseEnabled && prefs.loversLabNotifications, prefs.loversLabNotificationIntervalMinutes || 10);
         }
-    }, [onboarded, prefs?.loversLabNotifications, prefs?.loversLabNotificationIntervalMinutes]);
+    }, [onboarded, prefs?.featureBrowseEnabled, prefs?.loversLabNotifications, prefs?.loversLabNotificationIntervalMinutes]);
+
+    // Settings > Features' own toggles - a disabled area's top-nav tab just isn't there
+    // (TopBar's own hiddenViews prop below), and if that area happens to be the one
+    // currently open (turned off from Settings while already looking at Browse, say,
+    // or Settings itself was reached from a tab that's now gone), this leaves for
+    // Workspace rather than stranding the person on a tab with no way back to it.
+    const hiddenViews = useMemo(() => {
+        const s = new Set<ViewKey>();
+        if (prefs && !prefs.featureLibraryEnabled) s.add('library');
+        if (prefs && !prefs.featureEditorEnabled) s.add('editor');
+        if (prefs && !prefs.featureBrowseEnabled) s.add('browse');
+        return s;
+    }, [prefs?.featureLibraryEnabled, prefs?.featureEditorEnabled, prefs?.featureBrowseEnabled]);
+
+    useEffect(() => {
+        if (hiddenViews.has(view)) setView('workspace');
+    }, [hiddenViews, view]);
 
     if (!onboarded) {
         return (
@@ -399,7 +420,7 @@ export function App() {
                 staticImage={prefs?.backgroundStaticImages?.[selectedGame] ?? ''}
                 onStaticSaved={loadGames}
             />
-            <TopBar view={view} onNavigate={setView} gamePicker={gamePicker}/>
+            <TopBar view={view} onNavigate={setView} hiddenViews={hiddenViews} gamePicker={gamePicker}/>
             <NotificationStack/>
 
             {/* Every view stays mounted once shown, switching only via

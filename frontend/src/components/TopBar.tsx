@@ -15,9 +15,13 @@ const NAV_ITEMS: { key: ViewKey; label: string; icon: string }[] = [
     {key: 'settings', label: 'Settings', icon: 'fa-gear'},
 ];
 
-export function TopBar({view, onNavigate, gamePicker}: {
+export function TopBar({view, onNavigate, hiddenViews, gamePicker}: {
     view: ViewKey;
     onNavigate: (v: ViewKey) => void;
+    // Settings > Features' own toggles (app.tsx) - a view whose whole area is turned off
+    // there just never shows up here at all, the same as if it didn't exist. Never
+    // includes 'settings' itself - there'd be no way back on if it could hide itself.
+    hiddenViews?: Set<ViewKey>;
     gamePicker?: {
         gameLabel: string;
         // The real, currently-installed game version (e.g. "v4.4.6") -
@@ -149,7 +153,7 @@ export function TopBar({view, onNavigate, gamePicker}: {
             )}
             <div className="topbar-spacer"/>
             <nav className="topbar-nav">
-                {NAV_ITEMS.map((item) => (
+                {NAV_ITEMS.filter((item) => !hiddenViews?.has(item.key)).map((item) => (
                     <span
                         key={item.key}
                         className={`topbar-nav-item ${view === item.key ? 'active' : ''}`}

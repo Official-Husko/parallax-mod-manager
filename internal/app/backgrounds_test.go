@@ -203,6 +203,53 @@ func TestBackgroundSourcePreferenceDefaultsToOnlineAndIsNormalized(t *testing.T)
 	}
 }
 
+// TestTogglingAFeatureLogsItClearlyAndOnlyOncePerRealChange is Settings > Features' own
+// "we log disabled features" guarantee: flipping one toggle logs a clear, dedicated line
+// for that one - not a generic diff, not one for the other two toggles that never moved,
+// and not a repeat if the save is asked for again with nothing actually different.
+func TestTogglingAFeatureLogsItClearlyAndOnlyOncePerRealChange(t *testing.T) {
+	a := &App{}
+	if err := a.SetPreferences(preferences.Defaults()); err != nil { // baseline: all three on
+		t.Fatal(err)
+	}
+	applog.Default().Clear()
+
+	next := a.GetPreferences()
+	next.FeatureBrowseEnabled = false
+	if err := a.SetPreferences(next); err != nil {
+		t.Fatal(err)
+	}
+
+	featureLines := func() []applog.Entry {
+		var out []applog.Entry
+		for _, e := range applog.Default().Entries() {
+			// The dedicated line reads "<Name> feature on/off" - distinct from the plain
+			// settings diff line above it, which also happens to contain "feature" as
+			// part of the JSON key name ("preferences saved (featureBrowseEnabled)").
+			if e.Component == "Settings" && (strings.HasSuffix(e.Message, "feature on") || strings.HasSuffix(e.Message, "feature off")) {
+				out = append(out, e)
+			}
+		}
+		return out
+	}
+
+	lines := featureLines()
+	if len(lines) != 1 {
+		t.Fatalf("got %d feature-toggle lines, want exactly 1: %+v", len(lines), lines)
+	}
+	if lines[0].Message != "Browse feature off" {
+		t.Errorf("message = %q, want %q", lines[0].Message, "Browse feature off")
+	}
+
+	// Saving again with nothing else changed must not repeat it.
+	if err := a.SetPreferences(next); err != nil {
+		t.Fatal(err)
+	}
+	if got := len(featureLines()); got != 1 {
+		t.Errorf("re-saving the same preferences logged the feature toggle again: %d lines total", got)
+	}
+}
+
 func TestBackgroundCatalogShowsSizesAndWhatIsAlreadyOnDisk(t *testing.T) {
 	fake := newGithubFake(t, map[string]string{"g1/a.png": strings.Repeat("A", 1000), "g1/b.jpg": strings.Repeat("B", 3000), "g2/c.webp": "CCCC"})
 	a, _ := backgroundsApp(t, fake, t.TempDir(), t.TempDir())

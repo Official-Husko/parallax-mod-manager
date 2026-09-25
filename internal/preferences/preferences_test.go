@@ -326,6 +326,35 @@ func TestLoversLabUpdateCheckDefaultsOnWithA4HourIntervalAndSurvivesASave(t *tes
 	}
 }
 
+func TestFeatureTogglesDefaultOnAndSurviveASave(t *testing.T) {
+	d := Defaults()
+	if !d.FeatureBrowseEnabled || !d.FeatureEditorEnabled || !d.FeatureLibraryEnabled {
+		t.Errorf("feature toggles must all default to on: %+v", d)
+	}
+
+	path := filepath.Join(t.TempDir(), "preferences.jsonc")
+	if err := os.WriteFile(path, []byte(`{"scanForNewMods": false}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	loaded := Load(path)
+	if !loaded.FeatureBrowseEnabled || !loaded.FeatureEditorEnabled || !loaded.FeatureLibraryEnabled {
+		t.Error("a file from before these settings existed must keep them on, not read as off")
+	}
+
+	p := Defaults()
+	p.FeatureBrowseEnabled = false
+	if err := Save(path, p); err != nil {
+		t.Fatal(err)
+	}
+	got := Load(path)
+	if got.FeatureBrowseEnabled {
+		t.Error("FeatureBrowseEnabled = true after a save/load, want false")
+	}
+	if !got.FeatureEditorEnabled || !got.FeatureLibraryEnabled {
+		t.Error("the other two feature toggles should not have been touched")
+	}
+}
+
 func TestLoversLabNotificationsDefaultOnWithA10MinuteIntervalAndSurviveASave(t *testing.T) {
 	d := Defaults()
 	if !d.LoversLabNotifications {

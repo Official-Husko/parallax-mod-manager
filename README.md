@@ -441,7 +441,23 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   pick which ones Parallax Mod Manager should manage, shows real saved playsets per game, opens
   a native folder picker (verified against the game's real signature files, never trusted on
   say-so) when auto-detection misses a game or finds the wrong copy, and its last step sets the
-  same real preferences described below (not a static preview of them).
+  same real preferences described below (not a static preview of them), including which of
+  Library, Editor and Browse to turn on (see the feature toggles right below).
+- **Turning a whole area of the app off** (`preferences.FeatureBrowseEnabled`/
+  `FeatureEditorEnabled`/`FeatureLibraryEnabled`, Settings' own **Features** panel, the first-run
+  wizard's own Preferences step, `TopBar.tsx`'s `hiddenViews`) - Library, Editor and Browse each
+  have their own on/off switch, on by default. Off removes that area's top-nav tab outright
+  (`TopBar`'s own nav list is filtered by it, not just disabled) - reached via a leftover deep
+  link or turned off while already open, `app.tsx` leaves for Workspace rather than stranding you
+  on a tab with no way back to it. Browse is the only one of the three with a real background
+  task of its own: its periodic LoversLab update and notification checks (`ensureLoversLabUpdates`/
+  `ensureLoversLabNotifications`) are ANDed with this same toggle, on top of their own existing
+  Settings > Browse switches, so turning Browse off here stops them for real, not just while its
+  tab happens to be closed - reusing the exact teardown either of those own switches already
+  triggers, no separate stop/start logic needed. Every toggle is logged to the activity log the
+  moment it changes (`"Browse feature off"`, distinct from the routine "preferences saved (...)"
+  line every save gets), and the log's own start-of-run report says the current state of all
+  three regardless of whether anything was toggled live this session.
 - **Live mod-folder watching and real preferences** (`internal/watch`, `internal/preferences`,
   `Workspace.tsx`, `Settings.tsx`) - the Workspace's mod list watches the current game's mod
   folder in the background (`fsnotify`, debounced so a bulk copy or archive extract collapses

@@ -570,10 +570,17 @@ func (a *App) savePreferences(p preferences.Preferences, keepBackendOwned bool) 
 	}
 	changed := preferences.ChangedKeys(a.preferences, p)
 	watchingChanged := a.preferences.ScanForNewMods != p.ScanForNewMods
+	featureChanges := changedFeatureToggles(a.preferences, p)
 	a.preferences = clonePreferences(p)
 	a.preferencesMu.Unlock()
 	if len(changed) > 0 {
 		applog.For("Settings").Infof("preferences saved (%s)", strings.Join(changed, ", "))
+	}
+	// Called out on its own, not just folded into the generic line above - turning off a
+	// whole area of the app is a much more notable event than an ordinary settings tweak,
+	// and this is the "we log disabled features" behaviour Settings > Features promises.
+	for _, f := range featureChanges {
+		applog.For("Settings").Infof("%s feature %s", f.name, onOffText(f.enabled))
 	}
 
 	// Only turning "scan for new mods" on or off changes what the watcher
@@ -583,6 +590,35 @@ func (a *App) savePreferences(p preferences.Preferences, keepBackendOwned bool) 
 		return a.WatchMods(a.watchedGameID)
 	}
 	return nil
+}
+
+// featureToggleChange is one of Settings > Features' own three toggles actually flipping,
+// for savePreferences' own log line - see changedFeatureToggles.
+type featureToggleChange struct {
+	name    string
+	enabled bool
+}
+
+// changedFeatureToggles reports which of before's own FeatureBrowseEnabled/
+// FeatureEditorEnabled/FeatureLibraryEnabled differ in after, in a fixed, readable order -
+// never more than the ones that actually changed, the same "only what's notable" restraint
+// preferences.ChangedKeys already applies to the rest of a save.
+func changedFeatureToggles(before, after preferences.Preferences) []featureToggleChange {
+	pairs := []struct {
+		name       string
+		was, isNow bool
+	}{
+		{"Browse", before.FeatureBrowseEnabled, after.FeatureBrowseEnabled},
+		{"Editor", before.FeatureEditorEnabled, after.FeatureEditorEnabled},
+		{"Library", before.FeatureLibraryEnabled, after.FeatureLibraryEnabled},
+	}
+	var out []featureToggleChange
+	for _, p := range pairs {
+		if p.was != p.isNow {
+			out = append(out, featureToggleChange{name: p.name, enabled: p.isNow})
+		}
+	}
+	return out
 }
 
 // WatchMods starts watching gameID's mod folder for changes, replacing any

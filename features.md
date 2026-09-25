@@ -16,6 +16,11 @@ for security, privacy, reliability or performance is called out (see the last tw
   has, lets you pick the ones to manage, and lets you point it at an install it missed.
 - **Manage games and paths** - per-game install folder (change, reset to auto-detect, open in the
   file manager), extra mod folders searched recursively, and a per-game "managed by Parallax" switch.
+- **Turn a whole area of the app off** (Settings > Features, and the first-run wizard's own
+  Preferences step) - Library, Editor and Browse each get their own switch; turning one off removes
+  its top-nav tab entirely and, for Browse specifically, stops its own periodic LoversLab update and
+  notification checks too, not just while its tab happens to be closed. On by default. Toggling one
+  is logged to the activity log.
 - **Installed game version** - shown next to the game name, and used to flag mods built for another
   version.
 - **Game update notice** - notices when a game updated (at startup and when the window regains focus)

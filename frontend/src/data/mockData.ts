@@ -13,6 +13,7 @@ export const APP_NAME = 'Parallax Mod Manager';
 
 export const settingsNav = [
     {label: 'Manage games', key: 'manage'},
+    {label: 'Features', key: 'features'},
     {label: 'Launch options', key: 'launch'},
     {label: 'Playsets', key: 'playsets'},
     {label: 'Sort rules', key: 'sort'},
