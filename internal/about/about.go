@@ -30,8 +30,11 @@ type Link struct {
 // Author is the name shown in the "made by" line.
 const Author = "Official-Husko"
 
-// repoURL is the project's home. The other links hang off it.
-const repoURL = "https://github.com/Official-Husko/parallax-mod-manager"
+// RepoURL is the project's home. The other links hang off it, and anything
+// elsewhere in this app that needs to point back at the project itself
+// (internal/toolmark's own marker file, for one) uses this instead of
+// spelling the URL out a second time.
+const RepoURL = "https://github.com/Official-Husko/parallax-mod-manager"
 
 // links returns the About page's buttons, in the order they're shown. To add
 // one, add a line here (icon is Font Awesome class names: brand logos are
@@ -39,9 +42,9 @@ const repoURL = "https://github.com/Official-Husko/parallax-mod-manager"
 // every entry is well-formed.
 func links() []Link {
 	return []Link{
-		{Icon: "fa-brands fa-github", Label: "GitHub", URL: repoURL},
-		{Icon: "fa-solid fa-bug", Label: "Report an issue", URL: repoURL + "/issues"},
-		{Icon: "fa-solid fa-tag", Label: "Releases", URL: repoURL + "/releases"},
+		{Icon: "fa-brands fa-github", Label: "GitHub", URL: RepoURL},
+		{Icon: "fa-solid fa-bug", Label: "Report an issue", URL: RepoURL + "/issues"},
+		{Icon: "fa-solid fa-tag", Label: "Releases", URL: RepoURL + "/releases"},
 	}
 }
 

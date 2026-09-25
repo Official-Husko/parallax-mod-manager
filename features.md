@@ -327,6 +327,11 @@ for security, privacy, reliability or performance is called out (see the last tw
 - **Cancel a running Workshop upload** - Steam has no clean way to stop mid-upload, so this kills the
   publish outright; a warning before it happens says a cancelled item may be left partially updated,
   so you can check its Workshop page afterward if you're unsure.
+- **Optionally note Parallax in a mod you publish** - off by default; your first-ever Workshop publish
+  asks once ("Allow" / "No thanks"), and Settings > Advanced has the same toggle for anytime after.
+  When on, a small PARALLAX_TOOLS.md is written into the mod right before each future upload, noting
+  it was made with Parallax Mod Manager (with a link back to the project) and listing what was done,
+  newest first.
 - **Auto-translate a mod's own English text** - the Translate tab: pick DeepL's own official API
   (needs a key of your own - see Settings > Tools), or either of two free, unofficial DeepL-powered
   services (Translanova, Vust), then a target language (or "All languages" for every one at once) and
@@ -442,6 +447,10 @@ for security, privacy, reliability or performance is called out (see the last tw
   credential.
 - **The start-up report is anonymous** - it never includes your computer or user name, serial numbers, addresses, a Steam
   key or account id, or mod names, and it stays in your local log.
+- **Noting Parallax in a published mod is opt-in, off by default, and asked for exactly once** - see
+  Publishing above; the file it writes is a plain, visible note in the mod's own folder (never
+  hidden, never something this app reads back), and turning it off in Settings > Advanced at any
+  time stops future publishes from writing it - nothing already written is changed.
 - **Nothing is uploaded** - the activity log stays on your computer.
 - **Your data is written safely** - settings, playsets and caches are written to a temporary file and
   renamed into place, so a crash never leaves a half-written file; a playset that fails to load is an

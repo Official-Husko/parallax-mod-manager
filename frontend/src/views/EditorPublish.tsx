@@ -1,7 +1,7 @@
 import {Fragment, h} from 'preact';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'preact/hooks';
-import {CancelPublish, ListModFiles, PreviewModFile, PublishModToWorkshop, SteamAccountInfo} from '../../wailsjs/go/main/App';
-import type {app, library} from '../../wailsjs/go/models';
+import {CancelPublish, GetPreferences, ListModFiles, PreviewModFile, PublishModToWorkshop, SetPreferences, SteamAccountInfo} from '../../wailsjs/go/main/App';
+import type {app, library, preferences} from '../../wailsjs/go/models';
 import {EventsOn} from '../../wailsjs/runtime/runtime';
 import {Avatar} from '../components/Avatar';
 import {FILE_ROW_HEIGHT, FileTreeRows, buildFileTreeRows} from '../components/FileTree';
@@ -135,6 +135,11 @@ export function EditorPublish({gameId, mod}: { gameId: string; mod: library.ModS
     const [preview, setPreview] = useState<app.FilePreview | null>(null);
     const [account, setAccount] = useState<app.SteamAccountInfo | null>(null);
     const [accountError, setAccountError] = useState('');
+    // Only for the one-time "Allow / No thanks" prompt below, on this person's first-ever
+    // publish - see toolMarkPrompt and internal/toolmark's own doc comment for the feature
+    // itself. Fetched once, not per-mod - it's an app-wide setting, not this tab's own draft.
+    const [prefs, setPrefs] = useState<preferences.Preferences | null>(null);
+    const [toolMarkPrompt, setToolMarkPrompt] = useState(false);
     const requestIdRef = useRef('');
     // 'uploading' fires repeatedly as bytes stream (it drives the live progress bar via
     // setProgress below) - this gates its own log line to the first occurrence only, so the
@@ -175,6 +180,10 @@ export function EditorPublish({gameId, mod}: { gameId: string; mod: library.ModS
             .then(setAccount)
             .catch((err) => setAccountError(String(err)));
     }, [gameId]);
+
+    useEffect(() => {
+        GetPreferences().then(setPrefs).catch(() => undefined);
+    }, []);
 
     // Stable across renders (see the empty/narrow deps below) specifically so FileTree - wrapped
     // in memo() for exactly this - can skip its own expensive re-render (tens of thousands of
@@ -232,6 +241,26 @@ export function EditorPublish({gameId, mod}: { gameId: string; mod: library.ModS
     }, [gameId]);
 
     function publish() {
+        // First-ever publish (prefs loaded and never yet asked): hold off starting the real
+        // upload and ask instead - answerToolMarkPrompt below calls doPublish() itself once
+        // answered, so nothing is lost, this click just takes one extra step the first time.
+        if (prefs && !prefs.toolMarkPromptShown) {
+            setToolMarkPrompt(true);
+            return;
+        }
+        doPublish();
+    }
+
+    function answerToolMarkPrompt(allow: boolean) {
+        setToolMarkPrompt(false);
+        if (!prefs) return;
+        const next = {...prefs, shareToolMark: allow, toolMarkPromptShown: true};
+        setPrefs(next);
+        SetPreferences(next).catch(() => undefined); // never blocks the publish the person just asked for
+        doPublish();
+    }
+
+    function doPublish() {
         const requestId = `publish-${Date.now()}-${Math.random().toString(36).slice(2)}`;
         requestIdRef.current = requestId;
         loggedUploadingRef.current = false;
@@ -356,6 +385,24 @@ export function EditorPublish({gameId, mod}: { gameId: string; mod: library.ModS
                     {!publishing && (
                         <div className="editor-actions">
                             <button type="button" className="btn-primary" onClick={publish}>Publish</button>
+                        </div>
+                    )}
+                    {toolMarkPrompt && (
+                        <div className="editor-alert info">
+                            <span className="editor-alert-icon"/>
+                            <div className="editor-alert-body">
+                                <div className="editor-alert-title">Note Parallax in this mod?</div>
+                                <div className="editor-alert-text">
+                                    Add a small PARALLAX_TOOLS.md saying this mod was made with Parallax Mod
+                                    Manager, with a link back to the project - it's how other modders find
+                                    out about it. Off unless you say yes, and you can change your mind anytime
+                                    in Settings &rsaquo; Advanced. This only asks once.
+                                </div>
+                                <div className="editor-alert-actions">
+                                    <button type="button" className="btn-ghost" onClick={() => answerToolMarkPrompt(false)}>No thanks</button>
+                                    <button type="button" className="btn-primary" onClick={() => answerToolMarkPrompt(true)}>Allow</button>
+                                </div>
+                            </div>
                         </div>
                     )}
                     {error && (

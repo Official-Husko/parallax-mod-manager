@@ -997,7 +997,7 @@ function AdvancedPanel() {
         GetPreferences().then(setPrefs).catch(() => undefined);
     }, []);
 
-    function togglePref(key: 'autosortPatchLast') {
+    function togglePref(key: 'autosortPatchLast' | 'shareToolMark') {
         if (!prefs) return;
         const next = {...prefs, [key]: !prefs[key]};
         setPrefs(next);
@@ -1025,6 +1025,18 @@ function AdvancedPanel() {
                             </div>
                         </div>
                         <Toggle on={prefs.autosortPatchLast} onClick={() => togglePref('autosortPatchLast')}/>
+                    </div>
+                    <div className="sort-rule-row">
+                        <div className="sort-rule-main">
+                            <div className="sort-rule-name">Note Parallax in mods you publish</div>
+                            <div className="sort-rule-desc">
+                                When you publish to Steam Workshop, write a small PARALLAX_TOOLS.md into
+                                the mod first, saying it was made with Parallax Mod Manager and linking
+                                back to the project - purely to help other modders find the tool. Off by
+                                default; you're also asked this the first time you publish anything.
+                            </div>
+                        </div>
+                        <Toggle on={prefs.shareToolMark} onClick={() => togglePref('shareToolMark')}/>
                     </div>
                 </div>
             )}

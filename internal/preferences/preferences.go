@@ -188,6 +188,19 @@ type Preferences struct {
 	// app is open. DefaultLoversLabNotificationIntervalMinutes is what the app
 	// shipped with.
 	LoversLabNotificationIntervalMinutes int `json:"loversLabNotificationIntervalMinutes"`
+	// ShareToolMark gates internal/toolmark: when true, publishing a mod to Steam
+	// Workshop writes a small PARALLAX_TOOLS.md into it first, noting it was made
+	// with this app and linking back to the project - purely to help the project
+	// itself be found by anyone who downloads the mod. Off by default (Go's own
+	// zero value for a bool already means "off", so an existing settings file
+	// saved before this setting existed reads as off, never silently on) - see
+	// ToolMarkPromptShown for the one-time "Allow / No thanks" prompt that offers
+	// to turn it on.
+	ShareToolMark bool `json:"shareToolMark"`
+	// ToolMarkPromptShown is true once the user has answered (or dismissed) the
+	// one-time prompt offering ShareToolMark, on their first-ever Workshop
+	// publish - it is never shown again after that, whichever way they answered.
+	ToolMarkPromptShown bool `json:"toolMarkPromptShown"`
 }
 
 // DefaultLoversLabCheckIntervalHours is what the app shipped with - see

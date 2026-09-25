@@ -11,6 +11,7 @@ import (
 	"github.com/Official-Husko/parallax-mod-manager/internal/game"
 	"github.com/Official-Husko/parallax-mod-manager/internal/library"
 	"github.com/Official-Husko/parallax-mod-manager/internal/preferences"
+	"github.com/Official-Husko/parallax-mod-manager/internal/toolmark"
 	"github.com/Official-Husko/parallax-mod-manager/internal/workshop"
 )
 
@@ -235,6 +236,43 @@ func TestPublishModToWorkshopPassesExcludePathsThroughUnchanged(t *testing.T) {
 	if len(fake.gotReq.ExcludePaths) != 2 || fake.gotReq.ExcludePaths[0] != "common/notes.txt" || fake.gotReq.ExcludePaths[1] != "screenshots" {
 		t.Errorf("Publisher got ExcludePaths %v, want [common/notes.txt screenshots]", fake.gotReq.ExcludePaths)
 	}
+}
+
+func TestPublishModToWorkshopNeverWritesAToolMarkByDefault(t *testing.T) {
+	dir := newStellarisInstallDir(t, true)
+	a, modID := newWorkshopTestApp(t, dir) // preferences.Defaults() - ShareToolMark is off
+	fake := &fakePublisher{result: workshop.PublishResult{PublishedFileID: 1}}
+	a.workshopPublisher = fake
+
+	if _, err := a.PublishModToWorkshop(game.Stellaris.ID, modID, "req-test", WorkshopPublishRequest{Title: testModName}); err != nil {
+		t.Fatalf("PublishModToWorkshop() error = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(fake.gotReq.ContentFolder, toolmark.FileName)); !os.IsNotExist(err) {
+		t.Errorf("a %s was written despite ShareToolMark being off by default", toolmark.FileName)
+	}
+}
+
+func TestPublishModToWorkshopWritesAToolMarkBeforeUploadingWhenThePreferenceIsOn(t *testing.T) {
+	dir := newStellarisInstallDir(t, true)
+	a, modID := newWorkshopTestApp(t, dir)
+	a.preferences.ShareToolMark = true
+	fake := &fakePublisher{result: workshop.PublishResult{PublishedFileID: 1}}
+	a.workshopPublisher = fake
+
+	if _, err := a.PublishModToWorkshop(game.Stellaris.ID, modID, "req-test", WorkshopPublishRequest{Title: testModName}); err != nil {
+		t.Fatalf("PublishModToWorkshop() error = %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(fake.gotReq.ContentFolder, toolmark.FileName))
+	if err != nil {
+		t.Fatalf("reading %s: %v (ShareToolMark was on, want it written)", toolmark.FileName, err)
+	}
+	if !strings.Contains(string(data), "Published to Steam Workshop") {
+		t.Errorf("content = %q, want it to note the publish", data)
+	}
+	// Written before Publish was actually called (fake.gotReq is only ever set inside
+	// Publish itself), so it's confirmed present at fake.gotReq.ContentFolder above - the
+	// same real folder path Publish received - rather than written afterward somewhere
+	// the upload never saw.
 }
 
 func TestPublishModToWorkshopParsesAnExistingItemIDFromTheRequest(t *testing.T) {

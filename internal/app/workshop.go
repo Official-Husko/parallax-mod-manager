@@ -10,8 +10,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Official-Husko/parallax-mod-manager/internal/applog"
 	"github.com/Official-Husko/parallax-mod-manager/internal/library"
 	"github.com/Official-Husko/parallax-mod-manager/internal/modedit"
+	"github.com/Official-Husko/parallax-mod-manager/internal/toolmark"
 	"github.com/Official-Husko/parallax-mod-manager/internal/workshop"
 )
 
@@ -129,6 +131,19 @@ func (a *App) PublishModToWorkshop(gameID, modID, requestID string, req Workshop
 		ContentFolder: contentFolder,
 		Visibility:    req.Visibility,
 		ExcludePaths:  req.ExcludePaths,
+	}
+
+	// Written before the real upload, deliberately - see internal/toolmark's own doc
+	// comment - so it's included in what actually gets published, not added after the
+	// fact. Opt-in (Settings > Advanced, offered once on a person's first-ever
+	// publish - see the Publish tab) and never the reason a publish itself fails.
+	a.preferencesMu.Lock()
+	shareToolMark := a.preferences.ShareToolMark
+	a.preferencesMu.Unlock()
+	if shareToolMark {
+		if err := toolmark.Record(contentFolder, "Published to Steam Workshop"); err != nil {
+			applog.For("Workshop").Warnf("noting Parallax Mod Manager in '%s' failed: %v", modID, err)
+		}
 	}
 
 	ctx, cancel := context.WithCancel(a.baseContext())

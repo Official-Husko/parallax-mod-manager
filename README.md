@@ -806,6 +806,20 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   Nothing excluded is ever deleted, moved, or even read destructively:
   `internal/fsutil.CopyTreeExcluding` stages a temporary copy of the mod, missing whatever was
   unticked, and that copy - never the real mod folder - is what Steam actually receives.
+- **Optionally noting Parallax Mod Manager in a mod you publish** (`internal/toolmark`,
+  `internal/preferences.Preferences.ShareToolMark`/`ToolMarkPromptShown`,
+  `internal/app/workshop.go`'s own `PublishModToWorkshop`, `frontend/src/views/EditorPublish.tsx`,
+  Settings' **Advanced** panel) - off by default. The first time you ever publish anything, the
+  Publish tab asks once, plainly, "Allow" or "No thanks" - purely to help other modders discover the
+  project; whichever you pick is remembered and the prompt never shows again, and the same choice
+  has its own toggle in Settings > Advanced for changing your mind later. When it's on, right before
+  each future upload (so it's included in what actually gets published, not added after the fact) a
+  small `PARALLAX_TOOLS.md` is written at the mod's own root, next to its `descriptor.mod` - a plain,
+  visible note (never hidden, never read back by this app itself) saying the mod was made with
+  Parallax Mod Manager, linking back to the project, and listing what was actually done to it, newest
+  first ("2026-09-25: Published to Steam Workshop"). Recording the same thing again the same day is a
+  no-op rather than a repeated line, so a burst of re-publishes in one sitting never spams the file;
+  the real history across different days is kept, never overwritten.
 - **Auto-translating a mod's own English text** (the Editor's **Translate** tab, `internal/translate`
   and its `deepl`/`translanova`/`vust` subpackages, `internal/translatecache`, `internal/library`'s
   `translate_plan.go`/`translate_companion.go`, `internal/app/translate.go`,

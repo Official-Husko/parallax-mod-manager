@@ -2456,6 +2456,8 @@ export namespace preferences {
 	    loversLabCheckIntervalHours: number;
 	    loversLabNotifications: boolean;
 	    loversLabNotificationIntervalMinutes: number;
+	    shareToolMark: boolean;
+	    toolMarkPromptShown: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Preferences(source);
@@ -2492,6 +2494,8 @@ export namespace preferences {
 	        this.loversLabCheckIntervalHours = source["loversLabCheckIntervalHours"];
 	        this.loversLabNotifications = source["loversLabNotifications"];
 	        this.loversLabNotificationIntervalMinutes = source["loversLabNotificationIntervalMinutes"];
+	        this.shareToolMark = source["shareToolMark"];
+	        this.toolMarkPromptShown = source["toolMarkPromptShown"];
 	    }
 	}
 
