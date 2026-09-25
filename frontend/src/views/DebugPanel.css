@@ -26,3 +26,64 @@
     flex: 1;
     min-width: 0;
 }
+
+/* --- Profiling: a ranked list of data/profiling.ts's own measurements. Same visual
+   language as Editor.css's .check-row/.result-cache-bar (bordered row, a colored left
+   bar, a name/detail pair, a proportional bar underneath) but its own rules, since
+   Editor.css is only ever loaded once the Editor view itself has been visited, and this
+   panel needs to look right on its own. --- */
+
+.profiling-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.profiling-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.profiling-list .profiling-row:last-of-type {
+    border-bottom: none;
+}
+
+.profiling-row-bar {
+    width: 3px;
+    height: 22px;
+    border-radius: 2px;
+    flex: none;
+    background: var(--blue);
+}
+
+.profiling-row-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.profiling-row-name {
+    font: 600 12.5px "Azeret Mono", monospace;
+    color: var(--text-bright);
+}
+
+.profiling-row-detail {
+    font: 400 11.5px Barlow, sans-serif;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+}
+
+.profiling-row-bar-track {
+    height: 6px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, .05);
+    overflow: hidden;
+}
+
+.profiling-row-bar-fill {
+    height: 100%;
+    background: var(--blue);
+    border-radius: 3px;
+}

@@ -32,6 +32,7 @@ import {checkLoversLabNotifications, loversLabNotificationsURL, useLoversLabUnre
 import {colorFromName} from '../data/nameColor';
 import {checkLoversLabUpdates, useModUpdates} from '../data/modUpdates';
 import {notify} from '../data/notifications';
+import {time, timeAsync} from '../data/profiling';
 
 // A "loverslab-install-progress" event's shape - not a Wails-bound method's own
 // parameter or return type, so it never gets a generated model (see
@@ -561,7 +562,7 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
     const installRequestRef = useRef<string | null>(null);
 
     useEffect(() => {
-        LoversLabStatus().then(setStatus).catch(() => undefined);
+        timeAsync('browse:status', LoversLabStatus).then(setStatus).catch(() => undefined);
     }, []);
 
     // The account's own real display name/profile/avatar - fetched once per
@@ -589,7 +590,7 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
         }
         let cancelled = false;
         setCategoryState({kind: 'loading'});
-        LoversLabCategories()
+        timeAsync('browse:categories', LoversLabCategories)
             .then((categories) => {
                 if (cancelled) return;
                 const list = categories ?? [];
@@ -608,7 +609,7 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
         if (!status?.SignedIn || !selectedGame) return;
         setInstalledState((prev) => (prev.kind === 'ready' ? prev : {kind: 'loading'}));
         try {
-            const mods = await LoversLabInstalledMods(selectedGame);
+            const mods = await timeAsync('browse:installedMods', () => LoversLabInstalledMods(selectedGame));
             const list = mods ?? [];
             setInstalledState({kind: 'ready', mods: list});
             setInstalledIds(new Set(list.map((m) => m.FileID)));
@@ -633,7 +634,7 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
         }
         let cancelled = false;
         setFilesState({kind: 'loading'});
-        LoversLabFiles(selectedCategory.URL, page)
+        timeAsync('browse:files', () => LoversLabFiles(selectedCategory.URL, page))
             .then((result) => { if (!cancelled) setFilesState({kind: 'ready', files: result.Files ?? [], totalPages: result.TotalPages || 1}); })
             .catch((err) => { if (!cancelled) setFilesState({kind: 'error', message: errorText(err)}); });
         return () => { cancelled = true; };
@@ -974,7 +975,7 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
     // Normalizing into BrowseListItem is what lets the browsing grid and the
     // Installed section below share one rendering (BrowseItemsView) instead of
     // each having its own card-grid and row-list markup.
-    const browsingItems = useMemo<BrowseListItem[]>(() => visibleFiles.map((f) => {
+    const browsingItems = useMemo<BrowseListItem[]>(() => time('browse:browsingItems', () => visibleFiles.map((f) => {
         const extras = mockExtrasFor(f.ID);
         // RealUpdated/Views/AuthorAvatarURL are this app's own opportunistic
         // cache (internal/loverslabmeta) - real, but only ever present for a
@@ -1000,9 +1001,9 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
             lineTwo: [dateText, viewsText].filter(Boolean).join(' · '),
             onClick: () => openDetail(f),
         };
-    }), [visibleFiles, installedIds, updateAvailableIds]);
+    })), [visibleFiles, installedIds, updateAvailableIds]);
 
-    const installedItems = useMemo<BrowseListItem[]>(() => {
+    const installedItems = useMemo<BrowseListItem[]>(() => time('browse:installedItems', () => {
         if (installedState.kind !== 'ready') return [];
         const mods = [...installedState.mods].sort((a, b) =>
             installedNewestFirst ? b.InstalledAt - a.InstalledAt : a.InstalledAt - b.InstalledAt);
@@ -1031,7 +1032,7 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                 </div>
             ) : undefined,
         }));
-    }, [installedState, confirmUninstallId, updateAvailableIds, installedNewestFirst]);
+    }), [installedState, confirmUninstallId, updateAvailableIds, installedNewestFirst]);
 
     const visibleBrowsingItems = useMemo(
         () => selectedTagFilter ? browsingItems.filter((it) => it.tag === selectedTagFilter) : browsingItems,
@@ -1045,13 +1046,13 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
     }, [installedItems, selectedTagFilter, installedSearch]);
     // Categories' own counts reflect whichever list is actually on screen right
     // now, not a fixed site-wide total this app has no way to know.
-    const categoryCounts = useMemo(() => {
+    const categoryCounts = useMemo(() => time('browse:categoryCounts', () => {
         const counts = new Map<string, number>();
         for (const it of viewingInstalled ? installedItems : browsingItems) {
             if (it.tag) counts.set(it.tag, (counts.get(it.tag) ?? 0) + 1);
         }
         return counts;
-    }, [viewingInstalled, installedItems, browsingItems]);
+    }), [viewingInstalled, installedItems, browsingItems]);
 
     return (
         <div className="browse">

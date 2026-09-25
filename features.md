@@ -351,6 +351,10 @@ for security, privacy, reliability or performance is called out (see the last tw
 - **Debug tab, development builds only** - Settings > Debug (a Developer tools switch for the browser's
   Inspect Element, plus the inspector shortcut and an Open button) exists only when running `wails dev`
   (F5 in VS Code). Release builds are made without the inspector and without the tab.
+- **Frontend profiling panel** - Settings > Debug's Profiling section times Browse's own mount-time
+  fetches and its slowest computations with the browser's real performance.mark/measure, then ranks
+  them by total cost so a real slowdown shows up without needing an outside profiler. Off by default,
+  a near-free passthrough when off, and development builds only, same as the rest of this tab.
 
 ## Performance
 
