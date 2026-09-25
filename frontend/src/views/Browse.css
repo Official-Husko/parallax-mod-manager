@@ -641,7 +641,7 @@
 }
 
 /* The saved LoversLab sign-in - real, on the right, the same rhythm as DLC's own right-side
-   sidebar. Deliberately styled close to Settings' own .steam-key-* (SteamApiPanel.css): same
+   sidebar. Deliberately styled close to the shared .api-key-* family (App.css): same
    concept (a secret, saved encrypted, never shown again once it is a password), so it should
    feel like the same feature used a second time, not a different one. */
 .browse-account {

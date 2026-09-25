@@ -663,6 +663,73 @@
     background: rgba(212, 87, 78, .07);
 }
 
+/* The "enter your own API key" card (see components/ApiKeyField.tsx) - was .tools-key/
+   .steam-key, defined identically under both names. locked dims the whole field for a key
+   that cannot be used right now. */
+.api-key-field {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.api-key-field.locked {
+    opacity: .55;
+}
+
+.api-key-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font: 600 12px Barlow, sans-serif;
+    color: var(--text-bright);
+}
+
+.api-key-label .link-btn {
+    margin-left: auto;
+}
+
+.api-key-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.api-key-input {
+    flex: 1;
+    min-width: 0;
+    font: 500 12px "Azeret Mono", monospace;
+    color: var(--text);
+    background: var(--bg-inset);
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    padding: 6px 10px;
+}
+
+.api-key-input:disabled {
+    cursor: not-allowed;
+}
+
+.api-key-row .btn-primary:disabled,
+.api-key-row .btn-ghost:disabled {
+    opacity: .5;
+    cursor: not-allowed;
+}
+
+.api-key-error {
+    font: 500 12px/1.5 Barlow, sans-serif;
+    color: var(--red);
+}
+
+.api-key-note {
+    font: 400 11.5px/1.5 Barlow, sans-serif;
+    color: var(--text-muted);
+}
+
+.api-key-note .mono {
+    font-family: "Azeret Mono", monospace;
+    color: var(--text-mid);
+}
+
 /* The header bar shared by every modal and the Conflict Resolver's own overlay panel (see
    components/ModalHeader.tsx): a title, whatever badges/buttons a specific one needs, a
    spacer pushing anything after it to the far right, and usually a close button. Was

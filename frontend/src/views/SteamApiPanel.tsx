@@ -3,7 +3,8 @@ import {Fragment, h} from 'preact';
 import {useEffect, useRef, useState} from 'preact/hooks';
 import {CheckSteamAPIKey, SaveSteamAPIKey, SetSteamAPIMode, SteamAPIStatus} from '../../wailsjs/go/main/App';
 import type {app} from '../../wailsjs/go/models';
-import {BrowserOpenURL, EventsOn} from '../../wailsjs/runtime/runtime';
+import {EventsOn} from '../../wailsjs/runtime/runtime';
+import {ApiKeyField} from '../components/ApiKeyField';
 import {StatusLine} from '../components/StatusLine';
 import {notify} from '../data/notifications';
 
@@ -200,42 +201,32 @@ export function SteamApiPanel() {
                     )}
                 </div>
                 <div className="settings-column">
-                    <div className={`steam-key ${locked ? 'locked' : ''}`}>
-                        <label className="steam-key-label" htmlFor="steam-api-key">
-                            <i className="fa-solid fa-key"/> Steam Web API key
-                            <span className="link-btn" onClick={() => BrowserOpenURL(KEY_PAGE)}>Get a key</span>
-                        </label>
-                        <div className="steam-key-row">
-                            <input
-                                id="steam-api-key"
-                                className="steam-key-input"
-                                type="password"
-                                autocomplete="off"
-                                spellcheck={false}
-                                value={key}
-                                disabled={locked || busy !== null}
-                                placeholder={locked ? 'Locked while Free API use only is chosen' : status.HasKey ? 'A key is saved - enter a new one to replace it' : '32 letters and numbers'}
-                                onInput={(e) => setKey((e.target as HTMLInputElement).value)}
-                                onKeyDown={(e) => e.key === 'Enter' && canSave && save()}
-                            />
-                            <button className="btn-primary" disabled={!canSave} onClick={save}>
-                                {busy === 'save' ? 'Checking...' : 'Save key'}
-                            </button>
-                            {status.HasKey && !locked && (
-                                <button className="btn-ghost" disabled={busy !== null || !keyUsable} onClick={check}>
-                                    {busy === 'check' ? 'Checking...' : 'Check key'}
-                                </button>
-                            )}
-                        </div>
-                        {error && <div className="steam-key-error"><i className="fa-solid fa-circle-exclamation"/> {error}</div>}
-                        <div className="steam-key-note">
+                    <ApiKeyField
+                        id="steam-api-key"
+                        label="Steam Web API key"
+                        keyPageURL={KEY_PAGE}
+                        value={key}
+                        locked={locked}
+                        disabled={locked || busy !== null}
+                        placeholder={locked ? 'Locked while Free API use only is chosen' : status.HasKey ? 'A key is saved - enter a new one to replace it' : '32 letters and numbers'}
+                        onInput={setKey}
+                        onEnter={() => canSave && save()}
+                        error={error}
+                        protection={status.Protection}
+                        note={<>
                             The key is checked with Steam before it is saved, so a wrong one is never stored.
                             {status.HasKey && <> Saved key: <span className="mono">{status.Fingerprint}</span> (a short fingerprint, not the key).</>}
-                        </div>
-                        <div className="steam-key-note">
-                            <i className="fa-solid fa-lock"/> {status.Protection}
-                        </div>
-                    </div>
+                        </>}
+                    >
+                        <button className="btn-primary" disabled={!canSave} onClick={save}>
+                            {busy === 'save' ? 'Checking...' : 'Save key'}
+                        </button>
+                        {status.HasKey && !locked && (
+                            <button className="btn-ghost" disabled={busy !== null || !keyUsable} onClick={check}>
+                                {busy === 'check' ? 'Checking...' : 'Check key'}
+                            </button>
+                        )}
+                    </ApiKeyField>
 
                     {(status.ItemsFromKey > 0 || status.ItemsFromFree > 0) && (
                         <div className="steam-counts">

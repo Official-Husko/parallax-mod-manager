@@ -3,7 +3,7 @@ import {Fragment, h} from 'preact';
 import {useEffect, useRef, useState} from 'preact/hooks';
 import {ClearDeepLAPIKey, DeepLStatus, SaveDeepLAPIKey} from '../../wailsjs/go/main/App';
 import type {app} from '../../wailsjs/go/models';
-import {BrowserOpenURL} from '../../wailsjs/runtime/runtime';
+import {ApiKeyField} from '../components/ApiKeyField';
 import {StatusLine} from '../components/StatusLine';
 import {notify} from '../data/notifications';
 
@@ -119,42 +119,31 @@ export function ToolsPanel() {
                 </div>
 
                 <div className="settings-column">
-                    <div className="tools-key">
-                        <label className="tools-key-label" htmlFor="deepl-api-key">
-                            <i className="fa-solid fa-key"/> DeepL API key
-                            <span className="link-btn" onClick={() => BrowserOpenURL(KEY_PAGE)}>Get a key</span>
-                        </label>
-                        <div className="tools-key-row">
-                            <input
-                                id="deepl-api-key"
-                                className="tools-key-input"
-                                type="password"
-                                autocomplete="off"
-                                spellcheck={false}
-                                value={key}
-                                disabled={busy !== null}
-                                placeholder={status.HasKey ? 'A key is saved - enter a new one to replace it' : 'Paste your DeepL API key'}
-                                onInput={(e) => setKey((e.target as HTMLInputElement).value)}
-                                onKeyDown={(e) => e.key === 'Enter' && canSave && save()}
-                            />
-                            <select className="tools-tier-select" value={tier} disabled={busy !== null} onChange={(e) => setTier((e.target as HTMLSelectElement).value as Tier)}>
-                                <option value="free">Free tier</option>
-                                <option value="pro">Pro tier</option>
-                            </select>
-                            <button type="button" className="btn-primary" disabled={!canSave} onClick={save}>
-                                {busy === 'save' ? 'Checking...' : 'Save key'}
-                            </button>
-                        </div>
-                        {error && <div className="tools-key-error"><i className="fa-solid fa-circle-exclamation"/> {error}</div>}
-                        <div className="tools-key-note">
+                    <ApiKeyField
+                        id="deepl-api-key"
+                        label="DeepL API key"
+                        keyPageURL={KEY_PAGE}
+                        value={key}
+                        disabled={busy !== null}
+                        placeholder={status.HasKey ? 'A key is saved - enter a new one to replace it' : 'Paste your DeepL API key'}
+                        onInput={setKey}
+                        onEnter={() => canSave && save()}
+                        error={error}
+                        protection={status.Protection}
+                        note={<>
                             The key is checked with DeepL before it is saved, so a wrong one (or the wrong tier for
                             a real key) is never stored.
                             {status.HasKey && <> Saved key: <span className="mono">{status.Fingerprint}</span> (a short fingerprint, not the key).</>}
-                        </div>
-                        <div className="tools-key-note">
-                            <i className="fa-solid fa-lock"/> {status.Protection}
-                        </div>
-                    </div>
+                        </>}
+                    >
+                        <select className="tools-tier-select" value={tier} disabled={busy !== null} onChange={(e) => setTier((e.target as HTMLSelectElement).value as Tier)}>
+                            <option value="free">Free tier</option>
+                            <option value="pro">Pro tier</option>
+                        </select>
+                        <button type="button" className="btn-primary" disabled={!canSave} onClick={save}>
+                            {busy === 'save' ? 'Checking...' : 'Save key'}
+                        </button>
+                    </ApiKeyField>
                 </div>
             </div>
         </div>
