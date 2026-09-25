@@ -116,14 +116,17 @@ export function ConflictResolver({gameId, conflicts, patch, order, onClose, onPa
         }
     }
 
-    const filtered = conflicts.filter((c) => {
+    const filtered = useMemo(() => conflicts.filter((c) => {
         const q = search.trim().toLowerCase();
         if (!q) return true;
         return c.ID.toLowerCase().includes(q) || c.Type.toLowerCase().includes(q)
             || c.Candidates.some((cand) => cand.ModName.toLowerCase().includes(q));
-    });
-    const selected = conflicts.find((c) => conflictKey(c) === selectedKey) ?? filtered[0] ?? null;
-    const manualCount = conflicts.filter((c) => c.Overridden).length;
+    }), [conflicts, search]);
+    const selected = useMemo(
+        () => conflicts.find((c) => conflictKey(c) === selectedKey) ?? filtered[0] ?? null,
+        [conflicts, selectedKey, filtered],
+    );
+    const manualCount = useMemo(() => conflicts.filter((c) => c.Overridden).length, [conflicts]);
 
     // Runs task behind the applying overlay (`what` is its explanation line),
     // and rethrows whatever task throws once the overlay is down so the

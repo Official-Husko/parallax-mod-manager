@@ -841,14 +841,29 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
         () => availableOrder.map((id) => modsById.get(id)).filter((m): m is library.ModSummary => !!m),
         [availableOrder, modsById],
     );
-    const active = order.map((id) => modsById.get(id)).filter((m): m is library.ModSummary => !!m);
+    // Both of these must be real useMemo, not a plain derived value recomputed every
+    // render (the way active itself briefly was) - positionById/dependencyIssues/
+    // preflightItems below all list active in their own deps expecting it to be
+    // referentially stable across an unrelated render (typing in either search box,
+    // a drag's own hover state, anything), and activeIds/activeDrag expect the same
+    // of visibleActive. A fresh array reference every render would silently defeat
+    // every one of those memos - each would recompute every render regardless of
+    // whether order/modsById/activeSearch actually changed, for a list that can
+    // realistically run into the hundreds of mods.
+    const active = useMemo(
+        () => order.map((id) => modsById.get(id)).filter((m): m is library.ModSummary => !!m),
+        [order, modsById],
+    );
     // Active's own row list, search-filtered for display only - Autosort,
     // Save, and the legend/footer all still operate on the full, real
     // active list above, matching Available's own filtered-list-is-
     // display-only precedent (reordering/removal act on a mod id
     // directly, never a filtered index, so this never risks moving or
     // dropping the wrong mod).
-    const visibleActive = active.filter((m) => matchesSearch(m, activeSearch, notes));
+    const visibleActive = useMemo(
+        () => active.filter((m) => matchesSearch(m, activeSearch, notes)),
+        [active, activeSearch, notes],
+    );
     // Real load-order position (1-based), independent of activeSearch
     // filtering - a filtered row must still show where it actually sits
     // in the real load order, not its index within the filtered results.
@@ -1893,7 +1908,14 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, gameVersion, allM
         }
     }
 
-    const myConflicts = mod ? conflicts.filter((c) => c.Candidates.some((cand) => cand.ModID === mod.ID)) : [];
+    // A real useMemo, not a plain derived value - this component re-renders on
+    // every Workspace state change that has nothing to do with it (typing in
+    // either search box, a drag's own hover state), and conflicts can run into
+    // the hundreds of entries for a large load order.
+    const myConflicts = useMemo(
+        () => mod ? conflicts.filter((c) => c.Candidates.some((cand) => cand.ModID === mod.ID)) : [],
+        [mod, conflicts],
+    );
 
     return (
         <div className="detail-panel">
