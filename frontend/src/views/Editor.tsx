@@ -288,13 +288,14 @@ export function Editor({games, selectedGame, gameVersion, onOpenToolsSettings}: 
                     )}
                     {tab === 'translate' && selected && (
                         <EditorTranslate
+                            key={selected.ID}
                             gameId={selectedGame}
                             gameName={games.find((g) => g.ID === selectedGame)?.DisplayName ?? ''}
                             mod={selected}
                             onOpenToolsSettings={onOpenToolsSettings}
                         />
                     )}
-                    {tab === 'publish' && selected && <EditorPublish gameId={selectedGame} mod={selected}/>}
+                    {tab === 'publish' && selected && <EditorPublish key={selected.ID} gameId={selectedGame} mod={selected}/>}
                 </div>
             </div>
         </div>
