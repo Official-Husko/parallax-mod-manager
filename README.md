@@ -844,11 +844,14 @@ This list grows as features land - see [Progress](#progress) below, which is kep
     many target languages exist; a live progress bar tracks real progress across the whole run (for
     example "103/894 translated"), names which language is currently running and where it's out of
     the run's own target list ("German - 4 of 27" for an "All languages" run), and shows that
-    language's own real output file path. Each language's own file is now written the moment its own
-    translating finishes (not batched to the very end), so a cancelled run still leaves every
-    language done so far actually on disk, and the log reports each one's own real key count
-    ("French: 3,120 keys written") plus a note when a language's own folder name isn't confirmed for
-    the game (`unconfirmed for this game, used "polish"`).
+    language's own real output file path. Each language found this run gets its own tag the moment it
+    starts, tracking that one language's own live "done of needed" count while it runs and switching
+    to its real final key count once finished - so an "All languages" run shows every language's own
+    progress at a glance, not only whichever one happens to be active. Each language's own file is now
+    written the moment its own translating finishes (not batched to the very end), so a cancelled run
+    still leaves every language done so far actually on disk, and the log reports each one's own real
+    key count ("French: 3,120 keys written") plus a note when a language's own folder name isn't
+    confirmed for the game (`unconfirmed for this game, used "polish"`).
 - **Checks for a mod's own problems** (the Editor's **Checks** tab, `internal/modcheck`,
   `checks.go`, `frontend/src/views/EditorChecks.tsx`) - four things worth knowing about a mod
   before you publish or share it: files and script keys it overwrites from the base game instead

@@ -140,6 +140,13 @@ type TranslateProgress struct {
 	// run - "German - 4 of 27" for an "All languages" run, "German - 1 of 1" for a single one.
 	LanguageIndex int
 	LanguageTotal int
+	// LanguageDone/LanguageKeysNeeded are Done/Total's own per-language equivalent - how many of
+	// THIS language's own new translations (real API calls, not already-covered/seeded keys) are
+	// done so far, out of how many it needs this run. Set from the "language" stage onward (0/N
+	// the moment a language starts, N/N by "language_done"); this is what drives a per-language
+	// progress tag, next to the single running Done/Total bar covering the whole run.
+	LanguageDone       int
+	LanguageKeysNeeded int
 	// Count is the real number of keys just written for Language, on a "language_done" stage.
 	Count int
 	// OutputFile is Language's own output file, relative to the mod's (or companion's) own
@@ -320,18 +327,20 @@ func (a *App) TranslateMod(gameID, modID, requestID string, req TranslateRequest
 			filename = companion.ModID + "_l_" + p.lang.ParadoxFolder + ".yml"
 		}
 		outputFile := filepath.ToSlash(filepath.Join("localisation", p.lang.ParadoxFolder, filename))
+		langDone := 0
+		langNeeded := len(p.needs)
 
-		emit(TranslateProgress{Stage: "language", Language: p.lang.Code, Message: langMsg, OutputFile: outputFile, Done: done, Total: total, LanguageIndex: i + 1, LanguageTotal: languageTotal})
+		emit(TranslateProgress{Stage: "language", Language: p.lang.Code, Message: langMsg, OutputFile: outputFile, Done: done, Total: total, LanguageIndex: i + 1, LanguageTotal: languageTotal, LanguageDone: langDone, LanguageKeysNeeded: langNeeded})
 
 		for _, need := range p.needs {
 			if ctx.Err() != nil {
 				return result, errors.New("translation was cancelled")
 			}
-			emit(TranslateProgress{Stage: "translating", Language: p.lang.Code, Key: need.Key, OutputFile: outputFile, Done: done, Total: total, LanguageIndex: i + 1, LanguageTotal: languageTotal})
+			emit(TranslateProgress{Stage: "translating", Language: p.lang.Code, Key: need.Key, OutputFile: outputFile, Done: done, Total: total, LanguageIndex: i + 1, LanguageTotal: languageTotal, LanguageDone: langDone, LanguageKeysNeeded: langNeeded})
 
 			translated, err := translator.Translate(ctx, need.EnglishText, p.lang)
 			if err != nil {
-				emit(TranslateProgress{Stage: "error", Language: p.lang.Code, Key: need.Key, Message: err.Error(), Done: done, Total: total, LanguageIndex: i + 1, LanguageTotal: languageTotal})
+				emit(TranslateProgress{Stage: "error", Language: p.lang.Code, Key: need.Key, Message: err.Error(), Done: done, Total: total, LanguageIndex: i + 1, LanguageTotal: languageTotal, LanguageDone: langDone, LanguageKeysNeeded: langNeeded})
 				return result, fmt.Errorf("translating %q into %s: %w", need.Key, p.lang.Name, err)
 			}
 
@@ -346,8 +355,9 @@ func (a *App) TranslateMod(gameID, modID, requestID string, req TranslateRequest
 				log.Warnf("saving the translation cache for %s failed: %v", modID, err)
 			}
 			done++
+			langDone++
 			result.Translated++
-			emit(TranslateProgress{Stage: "translating", Language: p.lang.Code, Key: need.Key, OutputFile: outputFile, Done: done, Total: total, LanguageIndex: i + 1, LanguageTotal: languageTotal})
+			emit(TranslateProgress{Stage: "translating", Language: p.lang.Code, Key: need.Key, OutputFile: outputFile, Done: done, Total: total, LanguageIndex: i + 1, LanguageTotal: languageTotal, LanguageDone: langDone, LanguageKeysNeeded: langNeeded})
 		}
 		result.AlreadyCovered += len(p.rewrite)
 
@@ -364,11 +374,11 @@ func (a *App) TranslateMod(gameID, modID, requestID string, req TranslateRequest
 			rendered := locale.RenderFile(p.lang.ParadoxFolder, projected)
 			dir := filepath.Join(outputRoot, "localisation", p.lang.ParadoxFolder)
 			if _, err := atomicfile.Write(dir, filename, rendered); err != nil {
-				emit(TranslateProgress{Stage: "error", Language: p.lang.Code, Message: err.Error(), LanguageIndex: i + 1, LanguageTotal: languageTotal})
+				emit(TranslateProgress{Stage: "error", Language: p.lang.Code, Message: err.Error(), LanguageIndex: i + 1, LanguageTotal: languageTotal, LanguageDone: langDone, LanguageKeysNeeded: langNeeded})
 				return result, fmt.Errorf("writing %s: %w", filename, err)
 			}
 		}
-		emit(TranslateProgress{Stage: "language_done", Language: p.lang.Code, Count: len(projected), OutputFile: outputFile, Done: done, Total: total, LanguageIndex: i + 1, LanguageTotal: languageTotal})
+		emit(TranslateProgress{Stage: "language_done", Language: p.lang.Code, Count: len(projected), OutputFile: outputFile, Done: done, Total: total, LanguageIndex: i + 1, LanguageTotal: languageTotal, LanguageDone: langDone, LanguageKeysNeeded: langNeeded})
 	}
 
 	if req.Mode == "player" {

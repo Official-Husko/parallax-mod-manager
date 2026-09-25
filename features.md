@@ -336,9 +336,11 @@ for security, privacy, reliability or performance is called out (see the last tw
   Workshop, since the source is only ever read. A Source card shows the real English key/file counts
   and how many target languages exist; a live progress bar tracks real progress ("103/894 translated"),
   which language is running ("German - 4 of 27" for an "All languages" run) and its own output file, and
-  each language's log line reports its own real key count once written. Re-running only pays for keys
-  that are new or changed - already-translated ones, and any translation you or someone else already
-  had in place, are never redone.
+  each language's log line reports its own real key count once written. Every language found this run
+  gets its own tag as it starts, showing that language's own live progress while it runs and its real
+  final key count once done, so an "All languages" run shows the whole set at a glance instead of only
+  whichever one is currently active. Re-running only pays for keys that are new or changed - already-
+  translated ones, and any translation you or someone else already had in place, are never redone.
 - **DeepL API key, under Settings > Tools** - official DeepL needs a key of your own; the Translate
   tab's DeepL option is disabled and points here until one is saved. The two free services need nothing
   here at all.

@@ -85,8 +85,24 @@ interface TranslateProgressEvent {
     Total: number;
     LanguageIndex: number;
     LanguageTotal: number;
+    LanguageDone: number;
+    LanguageKeysNeeded: number;
     Count: number;
     OutputFile: string;
+}
+
+// LangTag is one target language found so far this run, for the PROGRESS card's own row of
+// per-language tags - accumulated client-side as "language"/"translating"/"language_done" events
+// come in, since the backend only ever streams one moment at a time.
+interface LangTag {
+    code: string;
+    name: string;
+    // done/needed are this language's own new-translation progress (LanguageDone/LanguageKeysNeeded);
+    // meaningless once done is true, where finalCount (a "language_done" stage's own Count - every
+    // key the file ends up with, not just new ones) is shown instead.
+    done: number;
+    needed: number;
+    finalCount: number | null;
 }
 
 export function EditorTranslate({gameId, gameName, mod, onOpenToolsSettings}: {
@@ -110,6 +126,7 @@ export function EditorTranslate({gameId, gameName, mod, onOpenToolsSettings}: {
         done: number; total: number; language: string; languageIndex: number; languageTotal: number; outputFile: string;
     } | null>(null);
     const [log, setLog] = useState<LogLine[]>([]);
+    const [langTags, setLangTags] = useState<LangTag[]>([]);
     const [error, setError] = useState('');
     const requestIdRef = useRef('');
     const logBoxRef = useRef<HTMLDivElement>(null);
@@ -140,6 +157,7 @@ export function EditorTranslate({gameId, gameName, mod, onOpenToolsSettings}: {
         setLog([]);
         setError('');
         setProgress(null);
+        setLangTags([]);
         TranslateEligibility(gameId, mod.ID)
             .then((e) => {
                 setEligibility(e);
@@ -157,6 +175,22 @@ export function EditorTranslate({gameId, gameName, mod, onOpenToolsSettings}: {
                 languageIndex: p.LanguageIndex, languageTotal: p.LanguageTotal, outputFile: p.OutputFile,
             });
             const name = languagesRef.current.find((l) => l.Code === p.Language)?.Name ?? '';
+            if (p.Stage === 'language' || p.Stage === 'translating' || p.Stage === 'language_done') {
+                setLangTags((prev) => {
+                    const i = prev.findIndex((l) => l.code === p.Language);
+                    const tag: LangTag = {
+                        code: p.Language,
+                        name: name || p.Language,
+                        done: p.LanguageDone,
+                        needed: p.LanguageKeysNeeded,
+                        finalCount: p.Stage === 'language_done' ? p.Count : (i >= 0 ? prev[i].finalCount : null),
+                    };
+                    if (i < 0) return [...prev, tag];
+                    const next = [...prev];
+                    next[i] = tag;
+                    return next;
+                });
+            }
             const line = describeStage(p, name);
             if (line) setLog((prev) => [...prev, {time: timestamp(), tone: line.tone, text: line.text}]);
         });
@@ -187,6 +221,7 @@ export function EditorTranslate({gameId, gameName, mod, onOpenToolsSettings}: {
         setRunning(true);
         setError('');
         setProgress({done: 0, total: 0, language: '', languageIndex: 0, languageTotal: 0, outputFile: ''});
+        setLangTags([]);
         setLog([{time: timestamp(), tone: 'info', text: `Starting (${SERVICES.find((s) => s.service === service)?.name}, ${mode === 'author' ? 'writing into this mod' : 'generating a companion mod'})...`}]);
 
         TranslateMod(gameId, mod.ID, requestId, {
@@ -360,6 +395,20 @@ export function EditorTranslate({gameId, gameName, mod, onOpenToolsSettings}: {
                             </span>
                         )}
                     </div>
+                    {langTags.length > 0 && (
+                        <div className="translate-lang-tags">
+                            {langTags.map((l) => (
+                                <span key={l.code} className={`chip translate-lang-tag ${l.finalCount !== null ? 'done' : 'active'}`}>
+                                    {l.name}
+                                    <span className="mono">
+                                        {l.finalCount !== null
+                                            ? `${l.finalCount.toLocaleString()} key${l.finalCount === 1 ? '' : 's'}`
+                                            : `${l.done.toLocaleString()} / ${l.needed.toLocaleString()}`}
+                                    </span>
+                                </span>
+                            ))}
+                        </div>
+                    )}
                     {progress && (
                         <>
                             <div className="editor-progress-header-row">

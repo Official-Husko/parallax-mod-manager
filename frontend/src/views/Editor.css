@@ -1255,6 +1255,34 @@
     color: var(--text-bright);
 }
 
+/* Row of per-language tags on the PROGRESS card - one per target language found so far this
+   run, each showing its own new-translation progress while running and its real final key
+   count once "language_done" fires (see EditorTranslate's own LangTag). */
+.translate-lang-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.translate-lang-tag {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.translate-lang-tag.active {
+    color: var(--amber);
+    background: color-mix(in srgb, var(--amber) 12%, transparent);
+    border-color: var(--amber);
+}
+
+.translate-lang-tag.done {
+    color: var(--green);
+    background: color-mix(in srgb, var(--green) 12%, transparent);
+    border-color: var(--green);
+}
+
 .editor-progress-header-row {
     display: flex;
     justify-content: space-between;
