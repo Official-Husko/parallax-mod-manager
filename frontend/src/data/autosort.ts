@@ -230,7 +230,13 @@ function putBack(sorted: string[], original: string[], idsToRestore: Set<string>
 // promise every other rule keeps resolving perfectly around it (see the Known limit noted where
 // this is called from Workspace.tsx).
 export function autosort(order: string[], modsById: Map<string, library.ModSummary>, opts: AutosortOptions, locked: Set<string>): AutosortResult {
-    const knownNames = new Set([...modsById.values()].map((m) => m.Name));
+    // Active mods only, by name - the same set moveAfterDependencies' own idByName resolves
+    // against below. Built from modsById.values() instead (every mod this project knows
+    // about, Available included) would let a still-inactive dependency show up in a move's
+    // own "Depends on X" reason text even though it has no active mod to resolve to and so
+    // never actually became an edge in the topological sort - claiming the sort respected a
+    // dependency that, in truth, it never saw.
+    const activeNames = new Set(order.map((id) => modsById.get(id)?.Name).filter((n): n is string => !!n));
 
     // The generated patch sits out the sorting below entirely - see the
     // generated-patch rule at the top of this file.
@@ -276,7 +282,7 @@ export function autosort(order: string[], modsById: Map<string, library.ModSumma
             if (opts.dependencies && cycleMods.includes(id)) {
                 reasons.push("Part of a circular dependency - couldn't be fully ordered");
             } else if (opts.dependencies && mod) {
-                const resolvedDeps = mod.Dependencies.filter((name) => knownNames.has(name));
+                const resolvedDeps = mod.Dependencies.filter((name) => activeNames.has(name));
                 if (resolvedDeps.length > 0) {
                     reasons.push(`Depends on ${resolvedDeps.join(', ')}`);
                 }
