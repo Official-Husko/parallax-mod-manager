@@ -30,23 +30,6 @@ export const settingsNav = [
 
 export const domains = ['C', 'E', 'G', 'I', 'L', 'M'];
 
-// --- Playsets (3a) ---
-
-const playsetsRaw: [string, string, string, string, string][] = [
-    ['Kaiserreich MP', 'ACTIVE', '#c4623a', '62 mods · 4 conflicts · shared with 3 friends', 'Open'],
-    ['Vanilla+ Historical', 'READY', '#5fae7e', '14 mods · clean · last played 2 days ago', 'Activate'],
-    ['Millennium Dawn', 'NEEDS 2', '#e0a340', '9 mods · 2 missing dependencies', 'Activate'],
-    ['Old World Blues', 'READY', '#5fae7e', '7 mods · clean', 'Activate'],
-    ['Testing sandbox', 'STALE', '#6a7484', '31 mods · built for 1.15', 'Activate'],
-];
-
-export const mockPlaysets = playsetsRaw.map((p, ix) => ({
-    name: p[0], state: p[1], stateC: p[2], meta: p[3], action: p[4],
-    border: ix === 0 ? '#4a3826' : '#27313f',
-    bg: ix === 0 ? '#191510' : '#131923',
-    actionC: ix === 0 ? '#e0a340' : '#8d99a9',
-}));
-
 // --- First-run wizard (3f) ---
 
 export const wizardSteps = [
