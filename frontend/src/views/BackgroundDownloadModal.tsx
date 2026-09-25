@@ -324,7 +324,7 @@ export function BackgroundDownloadModal({mode, onClose}: {
                     </p>
                 )}
                 <div className="bgdl-body">{body}</div>
-                <div className="bgdl-footer">{footer}</div>
+                <div className="modal-footer bgdl-footer">{footer}</div>
             </div>
         </div>
     );

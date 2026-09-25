@@ -85,7 +85,7 @@ export function PurgeEmptyModal({gameId, onClose, onPurged}: {
                     ))}
                 </div>
                 {candidates !== null && candidates.length > 0 && (
-                    <div className="purge-modal-footer">
+                    <div className="modal-footer purge-modal-footer">
                         <span className="note">{selectedIds.length} of {candidates.length} selected</span>
                         <span className="btn-ghost" onClick={onClose}>Cancel</span>
                         <button className="btn-danger" disabled={selectedIds.length === 0 || busy} onClick={handleDelete}>

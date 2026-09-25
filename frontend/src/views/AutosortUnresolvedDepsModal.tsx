@@ -35,7 +35,7 @@ export function AutosortUnresolvedDepsModal({names, onClose}: {
                         </div>
                     ))}
                 </div>
-                <div className="autosort-modal-footer">
+                <div className="modal-footer">
                     <button className="btn-primary" onClick={onClose}>Got it</button>
                 </div>
             </div>

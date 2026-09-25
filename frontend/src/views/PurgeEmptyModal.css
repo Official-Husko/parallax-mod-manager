@@ -64,16 +64,6 @@
     margin-top: 2px;
 }
 
-.purge-modal-footer {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 10px;
-    padding: 12px 16px;
-    border-top: 1px solid var(--border);
-    flex: none;
-}
-
 .purge-modal-footer .note {
     font-size: 11px;
     color: var(--text-dim);

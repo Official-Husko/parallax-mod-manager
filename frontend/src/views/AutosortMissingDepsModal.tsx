@@ -38,7 +38,7 @@ export function AutosortMissingDepsModal({missing, onClose, onLoadAndSort, onSor
                         </div>
                     ))}
                 </div>
-                <div className="autosort-modal-footer">
+                <div className="modal-footer">
                     <span className="btn-ghost" onClick={onSortAnyway}>Autosort without {them}</span>
                     <button className="btn-primary" onClick={onLoadAndSort}>Load {them} & Autosort</button>
                 </div>

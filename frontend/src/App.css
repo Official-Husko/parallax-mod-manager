@@ -730,6 +730,20 @@
     color: var(--text-mid);
 }
 
+/* A modal's own button row, right-aligned along its bottom edge - was .autosort-modal-footer/
+   .bgdl-footer/.purge-modal-footer, defined identically under all three names. A file with
+   its own residual addition (Purge's own left-pushed selection-count note) keeps a small
+   extra class alongside this one rather than repeating the whole block. */
+.modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    flex: none;
+}
+
 /* The header bar shared by every modal and the Conflict Resolver's own overlay panel (see
    components/ModalHeader.tsx): a title, whatever badges/buttons a specific one needs, a
    spacer pushing anything after it to the far right, and usually a close button. Was

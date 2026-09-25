@@ -29,16 +29,6 @@
     padding: 12px 16px;
 }
 
-.bgdl-footer {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 10px;
-    padding: 12px 16px;
-    border-top: 1px solid var(--border);
-    flex: none;
-}
-
 .bgdl-footer .bgdl-total {
     flex: 1;
     font-size: 11px;
