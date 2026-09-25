@@ -1075,6 +1075,7 @@ export namespace app {
 	    TargetCode: string;
 	    Mode: string;
 	    Force: boolean;
+	    Workers: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new TranslateRequest(source);
@@ -1086,6 +1087,7 @@ export namespace app {
 	        this.TargetCode = source["TargetCode"];
 	        this.Mode = source["Mode"];
 	        this.Force = source["Force"];
+	        this.Workers = source["Workers"];
 	    }
 	}
 	export class TranslateResult {

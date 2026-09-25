@@ -13,6 +13,7 @@ package translate
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -64,36 +65,59 @@ func (e InvalidRequestError) Error() string {
 	return "translate: invalid request"
 }
 
-// delayed wraps a Translator with a fixed pause before every call after the
-// first - see WithDelay. Not safe for concurrent use, matching this whole
-// feature's own "one key at a time, never in parallel" design - there is
-// never a reason to call one Translator from more than one goroutine.
+// delayed wraps a Translator with a fixed minimum spacing between the START
+// of any two calls - see WithDelay. Safe for concurrent use, deliberately:
+// the auto-translation feature's own concurrency slider (internal/app's
+// TranslateMod, TranslateRequest.Workers) can call one shared Translator
+// from several goroutines at once, and the whole reason this wrapper exists
+// - staying polite to a free, undocumented-rate-limit service - has to hold
+// regardless of how many workers are configured. mu/next together make it a
+// simple reservation-based limiter: each call claims the next free slot
+// under the lock (advancing next by delay) before it ever waits, so N
+// concurrent callers queue up spaced delay apart instead of all sleeping the
+// same duration and firing together.
 type delayed struct {
 	inner Translator
 	delay time.Duration
-	first bool
+	mu    sync.Mutex
+	next  time.Time // zero value = no call has claimed a slot yet
 }
 
-// WithDelay adds a fixed politeness delay before every call after the
-// first one - for the two unofficial services, which document no rate
-// limit at all, so nothing better is confirmed to pace against (see
-// docs/workshop-upload.md's own "confirm, don't guess" standard, applied
-// here: this is a conservative default, not a discovered real limit).
+// WithDelay adds a fixed politeness delay between calls - for the two
+// unofficial services, which document no rate limit at all, so nothing
+// better is confirmed to pace against (see docs/workshop-upload.md's own
+// "confirm, don't guess" standard, applied here: this is a conservative
+// default, not a discovered real limit). This spacing is enforced across
+// every caller of the returned Translator combined, not per-goroutine - so
+// turning the concurrency slider up for one of these services queues more
+// workers behind the same gate rather than actually translating faster;
 // DeepL's own official client needs no such wrapping - its real, documented
-// 429/Retry-After handling lives in internal/translate/deepl instead.
+// 429/Retry-After handling lives in internal/translate/deepl instead, and
+// gets the concurrency slider's full real speedup.
 func WithDelay(t Translator, delay time.Duration) Translator {
 	return &delayed{inner: t, delay: delay}
 }
 
 func (d *delayed) Translate(ctx context.Context, text string, target Language) (string, error) {
-	if d.first {
+	d.mu.Lock()
+	now := time.Now()
+	wait := time.Duration(0)
+	if d.next.After(now) {
+		wait = d.next.Sub(now)
+	}
+	if d.next.Before(now) {
+		d.next = now
+	}
+	d.next = d.next.Add(d.delay)
+	d.mu.Unlock()
+
+	if wait > 0 {
 		select {
-		case <-time.After(d.delay):
+		case <-time.After(wait):
 		case <-ctx.Done():
 			return "", ctx.Err()
 		}
 	}
-	d.first = true
 	return d.inner.Translate(ctx, text, target)
 }
 

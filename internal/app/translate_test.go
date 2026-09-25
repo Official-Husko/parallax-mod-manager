@@ -2,9 +2,12 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/Official-Husko/parallax-mod-manager/internal/game"
 	"github.com/Official-Husko/parallax-mod-manager/internal/library"
@@ -373,6 +376,202 @@ func TestTranslateModAllLanguagesTranslatesIntoEveryRealLanguage(t *testing.T) {
 	wantCalls := len(translate.AllLanguages) - 2 // every real language except EN and the synthetic ALL entry
 	if result.Translated != wantCalls {
 		t.Errorf("Translated = %d, want %d (one call per real target language)", result.Translated, wantCalls)
+	}
+}
+
+// concurrentFakeTranslator is fakeTranslator's own thread-safe twin -
+// fakeTranslator's plain slice append is fine everywhere else in this file
+// (Workers unset there, so TranslateMod's own worker pool never exceeds one
+// in flight), but the concurrency slider tests below deliberately drive
+// several goroutines through the same Translator at once, tracking the real
+// high-water mark of simultaneously in-flight calls.
+type concurrentFakeTranslator struct {
+	mu           sync.Mutex
+	calls        int
+	inFlight     int
+	maxInFlight  int
+	perCallDelay time.Duration
+}
+
+func (f *concurrentFakeTranslator) Translate(ctx context.Context, text string, target translate.Language) (string, error) {
+	f.mu.Lock()
+	f.calls++
+	f.inFlight++
+	if f.inFlight > f.maxInFlight {
+		f.maxInFlight = f.inFlight
+	}
+	f.mu.Unlock()
+
+	if f.perCallDelay > 0 {
+		select {
+		case <-time.After(f.perCallDelay):
+		case <-ctx.Done():
+			f.mu.Lock()
+			f.inFlight--
+			f.mu.Unlock()
+			return "", ctx.Err()
+		}
+	}
+
+	f.mu.Lock()
+	f.inFlight--
+	f.mu.Unlock()
+	return "TR:" + target.Code + ":" + text, nil
+}
+
+func (f *concurrentFakeTranslator) Name() string { return "fake-concurrent" }
+
+// manyEnglishEntries builds n distinct localisation keys - enough real work
+// for a worker pool to actually have something to spread across goroutines.
+func manyEnglishEntries(n int) map[string]string {
+	out := make(map[string]string, n)
+	for i := 0; i < n; i++ {
+		out[fmt.Sprintf("KEY_%02d", i)] = fmt.Sprintf("English text %d", i)
+	}
+	return out
+}
+
+// TestTranslateModWithoutWorkersSetStaysFullySequential is the concurrency
+// slider's own default-off guarantee: every other test in this file omits
+// Workers entirely (the zero value), and none of them may observe more than
+// one call in flight at a time - a silent behavior change for existing
+// callers would be exactly the kind of regression -race is meant to catch.
+func TestTranslateModWithoutWorkersSetStaysFullySequential(t *testing.T) {
+	a, modID := newTranslateTestApp(t, manyEnglishEntries(8))
+	fake := &concurrentFakeTranslator{}
+	a.translatorFor = func(string, string, string) (translate.Translator, error) { return fake, nil }
+
+	result, err := a.TranslateMod(game.Stellaris.ID, modID, "req-workers-0", TranslateRequest{
+		Service: "translanova", TargetCode: "DE", Mode: "author",
+	})
+	if err != nil {
+		t.Fatalf("TranslateMod() error = %v", err)
+	}
+	if result.Translated != 8 {
+		t.Errorf("Translated = %d, want 8", result.Translated)
+	}
+	if fake.maxInFlight != 1 {
+		t.Errorf("maxInFlight = %d, want 1 (Workers unset must never run more than one call at a time)", fake.maxInFlight)
+	}
+}
+
+// TestTranslateModRunsUpToWorkersKeysConcurrently is the slider's own
+// positive case: with Workers set above 1 and a translator slow enough that
+// overlap is only possible under real concurrency, several calls must
+// actually be in flight together - not just requested with more workers and
+// still run one at a time.
+func TestTranslateModRunsUpToWorkersKeysConcurrently(t *testing.T) {
+	a, modID := newTranslateTestApp(t, manyEnglishEntries(12))
+	fake := &concurrentFakeTranslator{perCallDelay: 40 * time.Millisecond}
+	a.translatorFor = func(string, string, string) (translate.Translator, error) { return fake, nil }
+
+	start := time.Now()
+	result, err := a.TranslateMod(game.Stellaris.ID, modID, "req-workers-4", TranslateRequest{
+		Service: "translanova", TargetCode: "DE", Mode: "author", Workers: 4,
+	})
+	elapsed := time.Since(start)
+	if err != nil {
+		t.Fatalf("TranslateMod() error = %v", err)
+	}
+	if result.Translated != 12 {
+		t.Errorf("Translated = %d, want 12", result.Translated)
+	}
+	if fake.calls != 12 {
+		t.Errorf("calls = %d, want exactly 12 (no dropped or duplicated key)", fake.calls)
+	}
+	if fake.maxInFlight < 2 {
+		t.Errorf("maxInFlight = %d, want at least 2 - Workers: 4 should let calls overlap", fake.maxInFlight)
+	}
+	if fake.maxInFlight > 4 {
+		t.Errorf("maxInFlight = %d, want at most 4 (Workers: 4)", fake.maxInFlight)
+	}
+	// Fully sequential would take 12*40ms=480ms; four-wide concurrency should
+	// finish in roughly a third of that. A generous ceiling keeps this from
+	// flaking under a loaded CI machine while still catching "not actually
+	// concurrent" regressions.
+	if elapsed > 350*time.Millisecond {
+		t.Errorf("took %s, want well under the ~480ms a fully sequential run would take", elapsed)
+	}
+}
+
+// TestTranslateModClampsWorkersAboveTheDocumentedMaximum is the slider's own
+// upper-bound guarantee - a caller asking for far more than 16 (a stale
+// frontend, a hand-crafted request) must never actually run more than 16
+// calls at once.
+func TestTranslateModClampsWorkersAboveTheDocumentedMaximum(t *testing.T) {
+	a, modID := newTranslateTestApp(t, manyEnglishEntries(24))
+	fake := &concurrentFakeTranslator{perCallDelay: 10 * time.Millisecond}
+	a.translatorFor = func(string, string, string) (translate.Translator, error) { return fake, nil }
+
+	result, err := a.TranslateMod(game.Stellaris.ID, modID, "req-workers-999", TranslateRequest{
+		Service: "translanova", TargetCode: "DE", Mode: "author", Workers: 999,
+	})
+	if err != nil {
+		t.Fatalf("TranslateMod() error = %v", err)
+	}
+	if result.Translated != 24 {
+		t.Errorf("Translated = %d, want 24", result.Translated)
+	}
+	if fake.maxInFlight > maxTranslateWorkers {
+		t.Errorf("maxInFlight = %d, want at most the documented maximum of %d", fake.maxInFlight, maxTranslateWorkers)
+	}
+}
+
+// TestTranslateModClampsNegativeWorkersToOne is the same clamp's own lower
+// bound - a negative value must never reach errgroup.Group.SetLimit, where
+// 0 would deadlock every worker forever and a negative number means
+// "unlimited" instead of "invalid".
+func TestTranslateModClampsNegativeWorkersToOne(t *testing.T) {
+	a, modID := newTranslateTestApp(t, manyEnglishEntries(4))
+	fake := &concurrentFakeTranslator{}
+	a.translatorFor = func(string, string, string) (translate.Translator, error) { return fake, nil }
+
+	result, err := a.TranslateMod(game.Stellaris.ID, modID, "req-workers-neg", TranslateRequest{
+		Service: "translanova", TargetCode: "DE", Mode: "author", Workers: -5,
+	})
+	if err != nil {
+		t.Fatalf("TranslateMod() error = %v", err)
+	}
+	if result.Translated != 4 {
+		t.Errorf("Translated = %d, want 4", result.Translated)
+	}
+	if fake.maxInFlight != 1 {
+		t.Errorf("maxInFlight = %d, want 1 (a negative Workers must clamp to 1, not be treated as unlimited)", fake.maxInFlight)
+	}
+}
+
+// TestTranslateModStopsPromptlyWhenCancelledMidRunWithSeveralWorkersInFlight
+// is the worker pool's own cancellation guarantee: CancelTranslate has to
+// still stop a run promptly when several goroutines are genuinely in flight
+// together, not just when there was ever only one call outstanding at a
+// time. perCallDelay is deliberately far longer than this test's own
+// timeout, so a broken cancellation path (for example the per-language
+// errgroup not actually deriving from the cancellable context) would make
+// this test time out rather than quietly pass late.
+func TestTranslateModStopsPromptlyWhenCancelledMidRunWithSeveralWorkersInFlight(t *testing.T) {
+	a, modID := newTranslateTestApp(t, manyEnglishEntries(20))
+	fake := &concurrentFakeTranslator{perCallDelay: 3 * time.Second}
+	a.translatorFor = func(string, string, string) (translate.Translator, error) { return fake, nil }
+
+	const requestID = "req-cancel-concurrent"
+	errCh := make(chan error, 1)
+	go func() {
+		_, err := a.TranslateMod(game.Stellaris.ID, modID, requestID, TranslateRequest{
+			Service: "translanova", TargetCode: "DE", Mode: "author", Workers: 4,
+		})
+		errCh <- err
+	}()
+
+	time.Sleep(100 * time.Millisecond) // let the run actually start and register its cancel func
+	a.CancelTranslate(requestID)
+
+	select {
+	case err := <-errCh:
+		if err == nil {
+			t.Fatal("want an error from a cancelled run")
+		}
+	case <-time.After(1 * time.Second):
+		t.Fatal("TranslateMod did not stop promptly after CancelTranslate - a worker may have kept running past cancellation")
 	}
 }
 

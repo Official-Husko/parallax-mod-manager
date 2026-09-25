@@ -5,7 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"sync"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 
 	"github.com/Official-Husko/parallax-mod-manager/internal/applog"
 	"github.com/Official-Husko/parallax-mod-manager/internal/atomicfile"
@@ -17,6 +20,10 @@ import (
 	"github.com/Official-Husko/parallax-mod-manager/internal/translate/vust"
 	"github.com/Official-Husko/parallax-mod-manager/internal/translatecache"
 )
+
+// maxTranslateWorkers is the concurrency slider's own upper bound (1 to 16)
+// - see TranslateRequest.Workers.
+const maxTranslateWorkers = 16
 
 // unofficialServiceDelay is the fixed politeness pause between calls to
 // Translanova/Vust - neither documents a real rate limit, so this is a
@@ -115,6 +122,16 @@ type TranslateRequest struct {
 	// Force mirrors ModEdit.Force exactly: author mode on an overridable
 	// (Workshop/Launcher) mod needs this set, after "Continue anyway".
 	Force bool
+	// Workers is how many keys may be in flight to the translator at once,
+	// 1-16 (the Translate tab's own concurrency slider) - clamped server-side
+	// too (see TranslateMod), never trusted blindly from the frontend. Real
+	// concurrency only for DeepL, whose own documented rate limiting already
+	// handles the rest (see internal/translate/deepl); the two unofficial
+	// services stay paced to the same fixed rate regardless of this value
+	// (see internal/translate.WithDelay's own doc comment) - turning this up
+	// for them queues more workers behind that same gate, it does not
+	// actually translate faster.
+	Workers int
 }
 
 // TranslateProgress is one moment of a running TranslateMod call, streamed
@@ -231,6 +248,13 @@ func (a *App) TranslateMod(gameID, modID, requestID string, req TranslateRequest
 	if err != nil {
 		return TranslateResult{}, err
 	}
+	workers := req.Workers
+	if workers < 1 {
+		workers = 1
+	}
+	if workers > maxTranslateWorkers {
+		workers = maxTranslateWorkers
+	}
 
 	ctx, cancel := context.WithCancel(a.baseContext())
 	a.translateMu.Lock()
@@ -314,6 +338,12 @@ func (a *App) TranslateMod(gameID, modID, requestID string, req TranslateRequest
 	result := TranslateResult{}
 	done := 0
 	languageTotal := len(plans)
+	// stateMu guards everything the worker pool below touches that isn't
+	// itself already safe for concurrent use: the shared done/langDone/
+	// result.Translated counters, cache's own map writes, and each save of
+	// it - never the real translator.Translate call itself, which is what
+	// actually needs to run in parallel; that stays outside the lock.
+	var stateMu sync.Mutex
 	for i, p := range plans {
 		if ctx.Err() != nil {
 			return result, errors.New("translation was cancelled")
@@ -332,32 +362,55 @@ func (a *App) TranslateMod(gameID, modID, requestID string, req TranslateRequest
 
 		emit(TranslateProgress{Stage: "language", Language: p.lang.Code, Message: langMsg, OutputFile: outputFile, Done: done, Total: total, LanguageIndex: i + 1, LanguageTotal: languageTotal, LanguageDone: langDone, LanguageKeysNeeded: langNeeded})
 
+		// Up to `workers` of this language's own needs translate at once - never across
+		// languages (each language's file is still written the moment its own needs are
+		// done, right below, exactly as before). g.SetLimit bounds real concurrent calls
+		// into translator.Translate; everything these goroutines share (the running
+		// counters, cache's own map, saving it) is protected by stateMu instead, since Go
+		// maps and plain ints are not themselves safe for concurrent access.
+		g, gctx := errgroup.WithContext(ctx)
+		g.SetLimit(workers)
 		for _, need := range p.needs {
+			g.Go(func() error {
+				if gctx.Err() != nil {
+					return gctx.Err()
+				}
+				stateMu.Lock()
+				emit(TranslateProgress{Stage: "translating", Language: p.lang.Code, Key: need.Key, OutputFile: outputFile, Done: done, Total: total, LanguageIndex: i + 1, LanguageTotal: languageTotal, LanguageDone: langDone, LanguageKeysNeeded: langNeeded})
+				stateMu.Unlock()
+
+				translated, err := translator.Translate(gctx, need.EnglishText, p.lang)
+				if err != nil {
+					stateMu.Lock()
+					emit(TranslateProgress{Stage: "error", Language: p.lang.Code, Key: need.Key, Message: err.Error(), Done: done, Total: total, LanguageIndex: i + 1, LanguageTotal: languageTotal, LanguageDone: langDone, LanguageKeysNeeded: langNeeded})
+					stateMu.Unlock()
+					return fmt.Errorf("translating %q into %s: %w", need.Key, p.lang.Name, err)
+				}
+
+				stateMu.Lock()
+				defer stateMu.Unlock()
+				if cache.Entries[p.lang.Code] == nil {
+					cache.Entries[p.lang.Code] = map[string]translatecache.Entry{}
+				}
+				cache.Entries[p.lang.Code][need.Key] = translatecache.Entry{
+					SourceHash: need.EnglishHash, TranslatedText: translated,
+					Service: req.Service, TranslatedAt: time.Now().Unix(),
+				}
+				if err := translatecache.Save(a.configAppDir, gameID, modID, cache); err != nil {
+					log.Warnf("saving the translation cache for %s failed: %v", modID, err)
+				}
+				done++
+				langDone++
+				result.Translated++
+				emit(TranslateProgress{Stage: "translating", Language: p.lang.Code, Key: need.Key, OutputFile: outputFile, Done: done, Total: total, LanguageIndex: i + 1, LanguageTotal: languageTotal, LanguageDone: langDone, LanguageKeysNeeded: langNeeded})
+				return nil
+			})
+		}
+		if err := g.Wait(); err != nil {
 			if ctx.Err() != nil {
 				return result, errors.New("translation was cancelled")
 			}
-			emit(TranslateProgress{Stage: "translating", Language: p.lang.Code, Key: need.Key, OutputFile: outputFile, Done: done, Total: total, LanguageIndex: i + 1, LanguageTotal: languageTotal, LanguageDone: langDone, LanguageKeysNeeded: langNeeded})
-
-			translated, err := translator.Translate(ctx, need.EnglishText, p.lang)
-			if err != nil {
-				emit(TranslateProgress{Stage: "error", Language: p.lang.Code, Key: need.Key, Message: err.Error(), Done: done, Total: total, LanguageIndex: i + 1, LanguageTotal: languageTotal, LanguageDone: langDone, LanguageKeysNeeded: langNeeded})
-				return result, fmt.Errorf("translating %q into %s: %w", need.Key, p.lang.Name, err)
-			}
-
-			if cache.Entries[p.lang.Code] == nil {
-				cache.Entries[p.lang.Code] = map[string]translatecache.Entry{}
-			}
-			cache.Entries[p.lang.Code][need.Key] = translatecache.Entry{
-				SourceHash: need.EnglishHash, TranslatedText: translated,
-				Service: req.Service, TranslatedAt: time.Now().Unix(),
-			}
-			if err := translatecache.Save(a.configAppDir, gameID, modID, cache); err != nil {
-				log.Warnf("saving the translation cache for %s failed: %v", modID, err)
-			}
-			done++
-			langDone++
-			result.Translated++
-			emit(TranslateProgress{Stage: "translating", Language: p.lang.Code, Key: need.Key, OutputFile: outputFile, Done: done, Total: total, LanguageIndex: i + 1, LanguageTotal: languageTotal, LanguageDone: langDone, LanguageKeysNeeded: langNeeded})
+			return result, err
 		}
 		result.AlreadyCovered += len(p.rewrite)
 

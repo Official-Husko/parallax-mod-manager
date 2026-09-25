@@ -1243,6 +1243,69 @@
     cursor: pointer;
 }
 
+/* --- Translate tab: concurrency slider (SERVICE card's own last row) --- */
+
+.editor-worker-field {
+    margin-top: 12px;
+}
+
+.editor-worker-slider {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.editor-worker-slider input[type=range] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 190px;
+    height: 18px;
+    background: transparent;
+    cursor: pointer;
+    margin: 0;
+}
+
+.editor-worker-slider input[type=range]:disabled {
+    cursor: not-allowed;
+    opacity: .5;
+}
+
+.editor-worker-slider input[type=range]::-webkit-slider-runnable-track {
+    height: 4px;
+    border-radius: 2px;
+    background: #27313f;
+}
+
+.editor-worker-slider input[type=range]::-moz-range-track {
+    height: 4px;
+    border-radius: 2px;
+    background: #27313f;
+}
+
+.editor-worker-slider input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    margin-top: -5px;
+    border-radius: 50%;
+    border: 2px solid var(--rust);
+    background: #161d27;
+}
+
+.editor-worker-slider input[type=range]::-moz-range-thumb {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 2px solid var(--rust);
+    background: #161d27;
+}
+
+.editor-worker-slider .unit {
+    width: 20px;
+    text-align: right;
+}
+
 /* --- Translate tab: SOURCE card and PROGRESS's own header row --- */
 
 .translate-source-stats {

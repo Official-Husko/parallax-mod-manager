@@ -1,7 +1,16 @@
 // Package translanova talks to Translanova (https://translanova.com), an
-// unofficial, free, DeepL-powered wrapper - no API key, no cookie. Request
-// and response shapes are both confirmed real (the user's own working
-// request, and a real response they captured):
+// unofficial, free, DeepL-powered wrapper - no API key, no cookie, and none
+// is ever allowed to appear: httpClient below deliberately carries no
+// CookieJar (nothing here can persist one even by accident), and Translate
+// actively strips any Set-Cookie a response tries to send before anything
+// else can act on it - "refuse and delete", not just "don't ask for one".
+// This holds regardless of the auto-translation feature's own concurrency
+// slider (internal/app.TranslateRequest.Workers) calling Translate from
+// several goroutines against this same shared client at once: httpClient is
+// safe for concurrent use (net/http's own guarantee) and, with no Jar, has
+// no shared cookie state a concurrent caller could ever leak into another's
+// request. Request and response shapes are both confirmed real (the user's
+// own working request, and a real response they captured):
 //
 //	POST https://translanova.com/api/translate
 //	{"text":"Hello Sister","source_lang":"EN","target_lang":"ES"}
@@ -85,6 +94,11 @@ func (c *Client) Translate(ctx context.Context, text string, target translate.La
 		return "", fmt.Errorf("translanova: request failed: %w", err)
 	}
 	defer resp.Body.Close()
+	// httpClient has no Jar, so nothing here would ever be stored anyway - this is the
+	// package's own "refuse and delete" guarantee made literal: any Set-Cookie this response
+	// carries is discarded outright, before any other code path (including a future change
+	// elsewhere in this file) could ever read or act on it.
+	resp.Header.Del("Set-Cookie")
 
 	if resp.StatusCode == http.StatusTooManyRequests {
 		return "", &translate.RateLimitedError{}

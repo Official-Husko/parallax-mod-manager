@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/Official-Husko/parallax-mod-manager/internal/translate"
@@ -90,6 +91,63 @@ func TestTranslateNeverReusesTheSameCookieAcrossRequests(t *testing.T) {
 			t.Errorf("cookie on request %d (%q) repeats an earlier request's cookie - the hard \"never reuse\" requirement was violated", i, c)
 		}
 		seen[c] = true
+	}
+}
+
+// TestTranslateNeverReusesTheSameCookieAcrossConcurrentRequestsEither is the
+// same "never reuse" requirement under the auto-translation feature's own
+// concurrency slider (internal/app.TranslateRequest.Workers): several
+// goroutines calling Translate on the same *Client at once must still each
+// get their own unique cookie, and none of them may ever see a Set-Cookie
+// the server tries to hand back. Run with -race.
+func TestTranslateNeverReusesTheSameCookieAcrossConcurrentRequestsEither(t *testing.T) {
+	var mu sync.Mutex
+	var cookies []string
+	sawCookieRoundTrip := false
+	withTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		cookies = append(cookies, r.Header.Get("cookie"))
+		mu.Unlock()
+		if strings.Contains(r.Header.Get("cookie"), "sneaky") {
+			mu.Lock()
+			sawCookieRoundTrip = true
+			mu.Unlock()
+		}
+		http.SetCookie(w, &http.Cookie{Name: "sneaky", Value: "1"})
+		_ = json.NewEncoder(w).Encode(translateResponse{Output: "ok", Quota: Quota{Remaining: 9, MaxBucket: 10}})
+	})
+
+	c := New()
+	var wg sync.WaitGroup
+	const n = 6
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := c.Translate(context.Background(), "hi", translate.Language{Code: "DE"}); err != nil {
+				t.Errorf("Translate() error = %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(cookies) != n {
+		t.Fatalf("server saw %d requests, want %d", len(cookies), n)
+	}
+	if sawCookieRoundTrip {
+		t.Error("a later request sent back the server's own Set-Cookie - it should have been refused and deleted, never resent")
+	}
+	seen := map[string]bool{}
+	for i, cookie := range cookies {
+		if cookie == "" {
+			t.Errorf("request %d had no cookie at all", i)
+		}
+		if seen[cookie] {
+			t.Errorf("request %d's cookie (%q) repeats another concurrent request's cookie", i, cookie)
+		}
+		seen[cookie] = true
 	}
 }
 

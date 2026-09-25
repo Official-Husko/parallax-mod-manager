@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 
 	"github.com/Official-Husko/parallax-mod-manager/internal/translate"
@@ -68,6 +69,47 @@ func TestTranslateReturnsInvalidRequestOnUnexpectedStatus(t *testing.T) {
 	_, err := c.Translate(context.Background(), "hi", translate.Language{Code: "DE"})
 	if _, ok := err.(translate.InvalidRequestError); !ok {
 		t.Fatalf("err = %v (%T), want translate.InvalidRequestError", err, err)
+	}
+}
+
+// TestTranslateNeverSendsACookieEvenAfterTheServerTriesToSetOne is the
+// package's own "refuse and delete" guarantee, driven end to end: a server
+// that tries to plant a cookie on the very first response must never see it
+// come back on a later call through the same client - concurrent, matching
+// how internal/app.TranslateMod's own worker pool shares one Client across
+// several goroutines when the concurrency slider is above 1.
+func TestTranslateNeverSendsACookieEvenAfterTheServerTriesToSetOne(t *testing.T) {
+	var mu sync.Mutex
+	sawCookie := false
+	withTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		if r.Header.Get("Cookie") != "" {
+			sawCookie = true
+		}
+		mu.Unlock()
+		http.SetCookie(w, &http.Cookie{Name: "sneaky", Value: "1"})
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"translations": []map[string]string{{"text": "ok"}},
+		})
+	})
+
+	c := New()
+	var wg sync.WaitGroup
+	for i := 0; i < 5; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := c.Translate(context.Background(), "hi", translate.Language{Code: "DE"}); err != nil {
+				t.Errorf("Translate() error = %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+
+	mu.Lock()
+	defer mu.Unlock()
+	if sawCookie {
+		t.Error("a later request sent a Cookie header - the server's Set-Cookie should never have been kept, let alone shared across concurrent calls")
 	}
 }
 

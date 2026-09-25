@@ -21,6 +21,13 @@
 // (9, per the confirmed example) every time, never decreasing - see
 // LastQuota and the package's own test for the automated version of this
 // check.
+//
+// This construction is what makes Client already safe for the
+// auto-translation feature's own concurrency slider
+// (internal/app.TranslateRequest.Workers) calling Translate from several
+// goroutines at once: each call builds its own fresh http.Client and its
+// own fresh random cookie, so concurrent callers share nothing at all with
+// each other to leak between - not a shared client, not a shared cookie.
 package vust
 
 import (
@@ -116,6 +123,11 @@ func (c *Client) Translate(ctx context.Context, text string, target translate.La
 		return "", fmt.Errorf("vust: request failed: %w", err)
 	}
 	defer resp.Body.Close()
+	// fresh is thrown away right after this call anyway (no Jar, never reused), but any
+	// Set-Cookie the response carries is refused outright here too - the same explicit
+	// "refuse and delete", not just "don't ask for one", internal/translate/translanova
+	// applies for its own response.
+	resp.Header.Del("Set-Cookie")
 
 	if resp.StatusCode == http.StatusTooManyRequests {
 		return "", &translate.RateLimitedError{}

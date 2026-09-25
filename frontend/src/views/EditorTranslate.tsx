@@ -118,6 +118,9 @@ export function EditorTranslate({gameId, gameName, mod, onOpenToolsSettings}: {
     const [eligibility, setEligibility] = useState<app.TranslateEligibility | null>(null);
     const [eligibilityError, setEligibilityError] = useState('');
     const [service, setService] = useState<Service>('translanova');
+    // Off by default (1 = sequential, exactly today's behavior) - concurrency is an opt-in
+    // speedup, not a silent behavior change for anyone who never touches the slider.
+    const [workers, setWorkers] = useState(1);
     const [targetCode, setTargetCode] = useState('ALL');
     const [mode, setMode] = useState<'author' | 'player'>('player');
     const [forced, setForced] = useState(false);
@@ -229,6 +232,7 @@ export function EditorTranslate({gameId, gameName, mod, onOpenToolsSettings}: {
             TargetCode: targetCode,
             Mode: mode,
             Force: forced,
+            Workers: workers,
         } as unknown as app.TranslateRequest)
             .then((result) => {
                 const msg = mode === 'player' && result.CompanionModID
@@ -282,6 +286,30 @@ export function EditorTranslate({gameId, gameName, mod, onOpenToolsSettings}: {
                                 </div>
                             );
                         })}
+                    </div>
+                    <div className="editor-field editor-worker-field">
+                        <span className="editor-label">Concurrent workers</span>
+                        <span className="editor-worker-slider">
+                            <input
+                                type="range"
+                                min={1}
+                                max={16}
+                                step={1}
+                                value={workers}
+                                disabled={running}
+                                aria-label="Concurrent translation workers"
+                                onInput={(e) => setWorkers(Number((e.target as HTMLInputElement).value))}
+                            />
+                            <span className="mono unit">{workers}</span>
+                        </span>
+                        <p className="editor-hint">
+                            {workers === 1
+                                ? 'One key translates at a time, same as always.'
+                                : `Up to ${workers} keys translate at once.`}{' '}
+                            {service === 'deepl'
+                                ? 'DeepL runs them for real in parallel.'
+                                : "Translanova and Vust stay paced to the same fixed rate either way, out of politeness to a free service with no documented limit - raising this only speeds up DeepL."}
+                        </p>
                     </div>
                 </div>
 

@@ -339,8 +339,12 @@ for security, privacy, reliability or performance is called out (see the last tw
   each language's log line reports its own real key count once written. Every language found this run
   gets its own tag as it starts, showing that language's own live progress while it runs and its real
   final key count once done, so an "All languages" run shows the whole set at a glance instead of only
-  whichever one is currently active. Re-running only pays for keys that are new or changed - already-
-  translated ones, and any translation you or someone else already had in place, are never redone.
+  whichever one is currently active. A concurrent-workers slider (1-16, off by default) controls how many
+  keys translate at once - DeepL runs them genuinely in parallel, while the two free services stay paced
+  to the same fixed, conservative rate no matter how high it's set, out of politeness to a service with no
+  documented rate limit; raising it only actually speeds up DeepL. Re-running only pays for keys that are
+  new or changed - already-translated ones, and any translation you or someone else already had in place,
+  are never redone.
 - **DeepL API key, under Settings > Tools** - official DeepL needs a key of your own; the Translate
   tab's DeepL option is disabled and points here until one is saved. The two free services need nothing
   here at all.
@@ -425,6 +429,12 @@ for security, privacy, reliability or performance is called out (see the last tw
 - **DeepL API key kept encrypted the same way** - checked with DeepL before it is saved, encrypted,
   never shown again once saved. The auto-translation feature's two free services never ask for a key
   at all.
+- **Translanova and Vust never get a cookie to keep** - both of the auto-translation feature's free
+  services are called with no shared session state at all: Vust generates a brand-new random client
+  id and a brand-new HTTP connection for every single request, and Translanova's own client carries no
+  cookie storage in the first place - both also actively discard any cookie a response tries to set,
+  rather than just not asking for one. This holds under the concurrent-workers slider too: several
+  requests in flight at once still never share so much as one cookie between them.
 - **LoversLab sign-in kept encrypted the same way** - a saved username/email and password (Browse)
   are encrypted with the same per-computer key as the Steam API key above; your password is never
   shown again and never written to the activity log. The saved session is encrypted too, so

@@ -810,13 +810,27 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   and its `deepl`/`translanova`/`vust` subpackages, `internal/translatecache`, `internal/library`'s
   `translate_plan.go`/`translate_companion.go`, `internal/app/translate.go`,
   `frontend/src/views/EditorTranslate.tsx`) - machine-translate a mod's own English localisation text
-  into another language, one key at a time (never batched - each key's own success or failure stays
-  independently attributable). Three services, all DeepL-powered: DeepL's own official API (needs an
+  into another language, one key per request (never batched into one call - each key's own success or
+  failure stays independently attributable, whether requests run one at a time or several at once, see
+  the concurrency slider below). Three services, all DeepL-powered: DeepL's own official API (needs an
   API key of your own, saved under **Settings > Tools** - see below), and two free, unofficial
   wrappers, Translanova and Vust, both confirmed working against their own real request/response
   shapes. Vust's own hard requirement - a fresh, random `vust_client_id` cookie on every single
   request, never reused - is met by construction: a brand-new `http.Client` with no cookie jar at all
-  is built fresh for every call, so nothing could persist a cookie even by accident.
+  is built fresh for every call, so nothing could persist a cookie even by accident; Translanova's own
+  shared client carries no cookie jar either. Both also actively strip any `Set-Cookie` a response
+  tries to send rather than merely not asking for one - "refuse and delete", not just "don't collect" -
+  and this holds under concurrency too: several requests sharing one client at once still share no
+  cookie state with each other, by construction, not by discipline.
+  - A **concurrent workers** slider (1-16, off by default at 1) controls how many keys translate at
+    once. DeepL's own real, documented rate limiting (an HTTP 429 stops the run cleanly) means it gets
+    genuine parallel requests, scaling real throughput with the slider. Translanova and Vust document
+    no rate limit at all, so this app already paces them conservatively out of politeness
+    (`internal/translate.WithDelay`) - that pacing is enforced across every worker combined, not per
+    worker, so turning the slider up for either of them queues more workers behind the same fixed gate
+    rather than actually going faster. That pacing is itself safe under concurrency: a reservation-based
+    limiter (a mutex plus a "next free slot" timestamp) spaces out concurrent callers correctly instead
+    of letting them all wait the same duration and then fire together.
   - Target language is chosen from a dropdown of every language DeepL itself supports, or **All
     languages** (the default) to translate into every one of them in a single run. Only a handful
     (English, French, German, Spanish, Russian, Polish, Portuguese, Chinese Simplified, Japanese)
