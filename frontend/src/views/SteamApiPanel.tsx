@@ -194,7 +194,7 @@ export function SteamApiPanel() {
                     {confirmFree && (
                         <div className="steam-confirm">
                             <span>Free API use only deletes your saved key ({status.Fingerprint}) from the settings file. You would have to enter it again to use it later.</span>
-                            <span className="steam-confirm-actions">
+                            <span className="confirm-actions">
                                 <button className="btn-primary" onClick={deleteKeyAndUseFree}>Delete key and use free</button>
                                 <button className="btn-ghost" onClick={() => setConfirmFree(false)}>Cancel</button>
                             </span>

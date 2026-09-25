@@ -1024,7 +1024,7 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
             overrideContent: confirmUninstallId === m.FileID ? (
                 <div className="browse-item-confirm">
                     <span>Uninstall this mod? This deletes its files from your mod folder.</span>
-                    <div className="browse-item-confirm-actions">
+                    <div className="confirm-actions">
                         <span className="btn-ghost danger" onClick={(e: MouseEvent) => { e.stopPropagation(); void uninstallFromList(m.FileID, m.Title); }}>Uninstall</span>
                         <span className="btn-ghost" onClick={(e: MouseEvent) => { e.stopPropagation(); setConfirmUninstallId(null); }}>Keep</span>
                     </div>

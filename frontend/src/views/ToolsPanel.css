@@ -113,8 +113,3 @@
     color: var(--text-mid);
     background: rgba(224, 163, 64, .07);
 }
-
-.tools-confirm-actions {
-    display: flex;
-    gap: 8px;
-}

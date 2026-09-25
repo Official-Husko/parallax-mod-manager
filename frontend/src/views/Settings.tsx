@@ -615,7 +615,7 @@ function LaunchOptionsPanel() {
                                     every time - Parallax Direct above skips it, and so can Steam Direct,
                                     once set up. Switch anyway?
                                 </span>
-                                <span className="steam-confirm-actions">
+                                <span className="confirm-actions">
                                     <button className="btn-primary" onClick={confirmPickSteam}>Switch anyway</button>
                                     <button className="btn-ghost" onClick={() => setConfirmSteam(false)}>Cancel</button>
                                 </span>
@@ -628,7 +628,7 @@ function LaunchOptionsPanel() {
                                     {shimAction === 'repair' && `Steam's own "Verify integrity of game files" restored the original launcher. Reinstall the Steam Direct shim for ${selectedGame.DisplayName}?`}
                                     {shimAction === 'remove' && `Remove Steam Direct for ${selectedGame.DisplayName}? This restores the original launcher and switches back to Steam / Paradox Launcher.`}
                                 </span>
-                                <span className="steam-confirm-actions">
+                                <span className="confirm-actions">
                                     <button
                                         className="btn-primary"
                                         disabled={shimBusy}

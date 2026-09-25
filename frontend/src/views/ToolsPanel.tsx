@@ -112,7 +112,7 @@ export function ToolsPanel() {
                     {confirmClear && (
                         <div className="tools-confirm">
                             <span>Remove the saved DeepL key ({status.Fingerprint})? The DeepL option in the Translate tab becomes unavailable until you enter one again.</span>
-                            <span className="tools-confirm-actions">
+                            <span className="confirm-actions">
                                 <button type="button" className="btn-primary" onClick={clear}>Remove key</button>
                                 <button type="button" className="btn-ghost" onClick={() => setConfirmClear(false)}>Cancel</button>
                             </span>

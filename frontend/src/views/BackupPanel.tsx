@@ -310,7 +310,7 @@ export function BackupPanel() {
                                 Other games add their own. {status.FreeBytes > 0 && <>{formatBytes(status.FreeBytes)} is free in the backup folder.</>}
                                 {notEnoughRoom && <strong className="backup-warn"> That is more than the free space: choose another folder first.</strong>}
                             </span>
-                            <span className="backup-confirm-actions">
+                            <span className="confirm-actions">
                                 <button className="btn-primary" disabled={busy} onClick={() => { setConfirmAll(false); run(() => SetBackupMode('all')); }}>Back up every Workshop mod</button>
                                 <button className="btn-ghost" onClick={() => setConfirmAll(false)}>Cancel</button>
                             </span>
@@ -451,7 +451,7 @@ export function BackupPanel() {
                                                     {plan.entries.slice(0, 6).map((e) => e.Name || e.RemoteFileID).join(', ')}
                                                     {plan.entries.length > 6 && ` and ${plan.entries.length - 6} more`}
                                                 </span>
-                                                <span className="backup-confirm-actions">
+                                                <span className="confirm-actions">
                                                     <button
                                                         className={plan.kind === 'unavailable' ? 'btn-danger' : 'btn-primary'}
                                                         onClick={() => deleteBackups(plan.kind, plan.entries.map((e) => e.RemoteFileID))}
@@ -462,7 +462,7 @@ export function BackupPanel() {
                                                 </span>
                                             </>
                                         )}
-                                        {plan.entries.length === 0 && <span className="backup-confirm-actions"><button className="btn-ghost" onClick={() => setPlan(null)}>OK</button></span>}
+                                        {plan.entries.length === 0 && <span className="confirm-actions"><button className="btn-ghost" onClick={() => setPlan(null)}>OK</button></span>}
                                     </div>
                                 )}
                                 {cleanupError && <div className="backup-error"><i className="fa-solid fa-circle-exclamation"/> {cleanupError}</div>}

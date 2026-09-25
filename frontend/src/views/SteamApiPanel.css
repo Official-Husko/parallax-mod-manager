@@ -45,11 +45,6 @@
     background: rgba(224, 163, 64, .07);
 }
 
-.steam-confirm-actions {
-    display: flex;
-    gap: 8px;
-}
-
 .steam-key {
     display: flex;
     flex-direction: column;

@@ -599,6 +599,15 @@
     color: var(--red);
 }
 
+/* A row of ghost buttons for an inline "are you sure?" confirm (Cancel/Delete, Keep/Uninstall,
+   a lone OK, ...) - was defined identically under half a dozen view-specific names
+   (.tools-confirm-actions, .steam-confirm-actions, .backup-confirm-actions,
+   .browse-item-confirm-actions) before being unified here. */
+.confirm-actions {
+    display: flex;
+    gap: 8px;
+}
+
 .sidebar-label {
     font: 600 9.5px "Azeret Mono", monospace;
     color: var(--text-dim);

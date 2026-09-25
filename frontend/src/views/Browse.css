@@ -497,11 +497,6 @@
     color: var(--text-mid);
 }
 
-.browse-item-confirm-actions {
-    display: flex;
-    gap: 8px;
-}
-
 .browse-item-confirm .btn-ghost.danger {
     color: var(--red);
     border-color: var(--red);
