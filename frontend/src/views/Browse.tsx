@@ -670,6 +670,14 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
 
     const [installState, setInstallState] = useState<InstallState>({kind: 'idle'});
     const installRequestRef = useRef<string | null>(null);
+    // Bumped by openDetail on every card opened, and checked by each of its own three fetches'
+    // own .then()/.catch() before applying a result - opening file B before file A's own detail/
+    // changelog/downloads fetch has resolved must not let file A's stale response land in state
+    // once it does resolve (a real bug found live: the Files tab's own download list could end
+    // up belonging to whichever file's fetch happened to finish last, not the one actually open,
+    // so installing "the currently open file" could silently download and extract a completely
+    // different file's own archive into a folder named after the one on screen).
+    const detailRequestRef = useRef(0);
 
     useEffect(() => {
         timeAsync('browse:status', LoversLabStatus).then(setStatus).catch(() => undefined);
@@ -818,6 +826,9 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
     // changelog, or no support topic at all) never blocks the others from
     // showing up, and each tab's own label can show a real count immediately.
     function openDetail(file: loverslab.FileSummary) {
+        const requestId = ++detailRequestRef.current;
+        const stale = () => detailRequestRef.current !== requestId;
+
         setDetailFor(file);
         setDetailTab('overview');
         setScreenshotIndex(0);
@@ -826,18 +837,18 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
 
         setDetailState({kind: 'loading'});
         LoversLabFileDetail(file.URL)
-            .then((detail) => setDetailState({kind: 'ready', detail}))
-            .catch((err) => setDetailState({kind: 'error', message: errorText(err)}));
+            .then((detail) => { if (!stale()) setDetailState({kind: 'ready', detail}); })
+            .catch((err) => { if (!stale()) setDetailState({kind: 'error', message: errorText(err)}); });
 
         setChangelogState({kind: 'loading'});
         LoversLabChangelog(file.URL)
-            .then((entries) => setChangelogState({kind: 'ready', entries: entries ?? []}))
-            .catch((err) => setChangelogState({kind: 'error', message: errorText(err)}));
+            .then((entries) => { if (!stale()) setChangelogState({kind: 'ready', entries: entries ?? []}); })
+            .catch((err) => { if (!stale()) setChangelogState({kind: 'error', message: errorText(err)}); });
 
         setFilesTabState({kind: 'loading'});
         LoversLabDownloadDialog(file.URL)
-            .then((downloads) => setFilesTabState({kind: 'ready', downloads: downloads ?? []}))
-            .catch((err) => setFilesTabState({kind: 'error', message: errorText(err)}));
+            .then((downloads) => { if (!stale()) setFilesTabState({kind: 'ready', downloads: downloads ?? []}); })
+            .catch((err) => { if (!stale()) setFilesTabState({kind: 'error', message: errorText(err)}); });
     }
 
     useEffect(() => {
@@ -933,6 +944,9 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
         // through would leave no way to see it finish, cancel it, or find out whether
         // it succeeded.
         if (installState.kind === 'installing' || installState.kind === 'uninstalling') return;
+        // No open detail's own fetch (see openDetail) is still "current" once closed - a late
+        // response arriving after this must not resurrect state for a file no longer being viewed.
+        detailRequestRef.current++;
         setDetailFor(null);
         setDetailState(null);
         setChangelogState(null);
