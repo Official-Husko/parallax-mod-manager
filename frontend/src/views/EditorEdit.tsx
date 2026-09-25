@@ -324,6 +324,20 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
                             <span className="editor-hint">Suggested {BUMP_LABELS[info.VersionBump.Suggested].toLowerCase()}: {info.VersionBump.Reason}</span>
                         </div>
                     )}
+                    {/* No suggestion yet has two real causes (nothing changed since the last save is
+                        the common, unremarkable one, not worth a permanent note for) - but a mod that
+                        has literally never been saved through this app before has nothing to compare
+                        against at all, and without any explanation that just looks like this feature
+                        doesn't exist. Same info.HistoryCount === 0 signal the Undo button already uses
+                        for its own "nothing saved yet" explanation. */}
+                    {!info.VersionBump && info.HistoryCount === 0 && (
+                        <div className="editor-version-bump">
+                            <div className="editor-version-bump-head">
+                                <span className="editor-version-bump-title">Version bump</span>
+                            </div>
+                            <span className="editor-hint">Suggestions appear here once you've saved this mod at least once and something changes since.</span>
+                        </div>
+                    )}
 
                     <div className="editor-field-row">
                         <label className="editor-field">
