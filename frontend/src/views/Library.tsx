@@ -20,6 +20,7 @@ import {GameLogo} from '../components/GameLogo';
 import {SourceBadge} from '../components/SourceBadge';
 import {openContextMenu} from '../data/contextMenu';
 import {notify} from '../data/notifications';
+import {useVirtualWindow} from '../data/useVirtualWindow';
 
 type LoadState =
     | { kind: 'loading' }
@@ -48,6 +49,13 @@ type LibraryFilter =
 function rowKey(gameId: string, modId: string): string {
     return `${gameId}:${modId}`;
 }
+
+// Exactly .library-row's own height (Library.css) - the windowing maths depends on it, the same
+// requirement LogView.tsx's own LINE_HEIGHT documents. The "All games" table has no cap on how
+// many mods it can show (every managed game's mods, concatenated), unlike Workspace/Editor's own
+// per-game lists.
+const ROW_HEIGHT = 34;
+const OVERSCAN = 10;
 
 export function Library() {
     const [state, setState] = useState<LoadState>({kind: 'loading'});
@@ -142,6 +150,11 @@ export function Library() {
         })
         .filter((r) => !search.trim() || r.name.toLowerCase().includes(search.toLowerCase()))
         .sort((a, b) => Number(isPinned(b)) - Number(isPinned(a)));
+
+    // .library-rows is already its own dedicated scroll container (Library.css), not shared with
+    // the toolbar/column-header above it - unlike Browse's own grid, no restructuring needed to
+    // attach this directly to it.
+    const rowWindow = useVirtualWindow<HTMLDivElement>(visibleRows.length, ROW_HEIGHT, OVERSCAN);
 
     function toggleRow(key: string) {
         setSelected((prev) => {
@@ -357,37 +370,41 @@ export function Library() {
                     <span className="col-played">LAST PLAYED</span>
                     <span className="col-state">STATE</span>
                 </div>
-                <div className="library-rows">
-                    {visibleRows.map((r) => {
-                        const key = rowKey(r.gameId, r.modId);
-                        return (
-                            <div
-                                key={key}
-                                className="library-row"
-                                onContextMenu={(e) => openContextMenu(e, [
-                                    {label: isPinned(r) ? 'Unpin' : 'Pin', onClick: () => togglePin(r)},
-                                ])}
-                            >
-                                <span className="col-check">
-                                    <Checkbox checked={selected.has(key)} onChange={() => toggleRow(key)}/>
-                                </span>
-                                <span className="col-src">
-                                    <SourceBadge source={r.source} name={r.name}/>
-                                </span>
-                                <span className="col-name name">
-                                    {r.name}
-                                    {isPinned(r) && <i className="fa-solid fa-thumbtack library-pin" title="Pinned"/>}
-                                </span>
-                                <span className="col-game">
-                                    <span className="game-name">{r.gameName}</span>
-                                </span>
-                                <span className="col-ver mono">{r.version || '-'}</span>
-                                <span className="col-size mono">{r.modId in sizes ? formatBytes(sizes[r.modId]) : '-'}</span>
-                                <span className="col-played">-</span>
-                                <span className="col-state mono">-</span>
-                            </div>
-                        );
-                    })}
+                <div className="library-rows" ref={rowWindow.ref} onScroll={rowWindow.onScroll}>
+                    {visibleRows.length > 0 && (
+                        <div style={{height: visibleRows.length * ROW_HEIGHT, paddingTop: rowWindow.first * ROW_HEIGHT, boxSizing: 'border-box'}}>
+                            {visibleRows.slice(rowWindow.first, rowWindow.last).map((r) => {
+                                const key = rowKey(r.gameId, r.modId);
+                                return (
+                                    <div
+                                        key={key}
+                                        className="library-row"
+                                        onContextMenu={(e) => openContextMenu(e, [
+                                            {label: isPinned(r) ? 'Unpin' : 'Pin', onClick: () => togglePin(r)},
+                                        ])}
+                                    >
+                                        <span className="col-check">
+                                            <Checkbox checked={selected.has(key)} onChange={() => toggleRow(key)}/>
+                                        </span>
+                                        <span className="col-src">
+                                            <SourceBadge source={r.source} name={r.name}/>
+                                        </span>
+                                        <span className="col-name name">
+                                            {r.name}
+                                            {isPinned(r) && <i className="fa-solid fa-thumbtack library-pin" title="Pinned"/>}
+                                        </span>
+                                        <span className="col-game">
+                                            <span className="game-name">{r.gameName}</span>
+                                        </span>
+                                        <span className="col-ver mono">{r.version || '-'}</span>
+                                        <span className="col-size mono">{r.modId in sizes ? formatBytes(sizes[r.modId]) : '-'}</span>
+                                        <span className="col-played">-</span>
+                                        <span className="col-state mono">-</span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
                     {state.kind === 'ready' && visibleRows.length === 0 && (
                         <p className="status-page">No mods found.</p>
                     )}
