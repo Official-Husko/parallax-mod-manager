@@ -186,6 +186,12 @@ export function EditorChecks({gameId, gameName, gameVersion, mod, installedNames
     const [filterText, setFilterText] = useState('');
     const [severityFilter, setSeverityFilter] = useState<Set<string>>(new Set());
     const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+    // Which groups had their own "Show N more" clicked, revealing every one of their findings
+    // instead of just the first GROUP_SHOW_CAP - a real bug, found live: the "more" row's own
+    // onExpand used to delete the group's key from collapsed (un-collapsing it), which is a
+    // no-op when the group is already showing findings at all (collapsed only ever hides a
+    // group's findings entirely, a separate concern from truncating how many of them show).
+    const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
     const [listExpanded, setListExpanded] = useState(false);
 
     function setResult(r: app.CheckResult | null) {
@@ -288,7 +294,7 @@ export function EditorChecks({gameId, gameName, gameVersion, mod, installedNames
         for (const g of groups) {
             items.push({kind: 'group', group: g});
             if (!collapsed.has(g.key)) {
-                const shown = g.findings.slice(0, GROUP_SHOW_CAP);
+                const shown = expandedGroups.has(g.key) ? g.findings : g.findings.slice(0, GROUP_SHOW_CAP);
                 for (const f of shown) items.push({kind: 'finding', finding: f});
                 const more = g.findings.length - shown.length;
                 if (more > 0) {
@@ -297,13 +303,13 @@ export function EditorChecks({gameId, gameName, gameVersion, mod, installedNames
                         navKey: `more-${g.key}`,
                         label: g.label,
                         count: more,
-                        onExpand: () => setCollapsed((prev) => { const next = new Set(prev); next.delete(g.key); return next; }),
+                        onExpand: () => setExpandedGroups((prev) => new Set(prev).add(g.key)),
                     });
                 }
             }
         }
         return items;
-    }, [view, filtered, groups, collapsed, listExpanded]);
+    }, [view, filtered, groups, collapsed, expandedGroups, listExpanded]);
     const flatNavRef = useRef<NavItem[]>([]);
     flatNavRef.current = flatNav;
 
