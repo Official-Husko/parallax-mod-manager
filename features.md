@@ -424,3 +424,7 @@ for security, privacy, reliability or performance is called out (see the last tw
   Installing it backs up the real file first and verifies the swap actually landed before calling
   it done, restoring the original automatically if anything goes wrong; removing it restores that
   same backup.
+- **Dependencies are checked for known vulnerabilities on every push and weekly** - `govulncheck`
+  runs against the main module and every companion module, only flagging one actually reachable
+  from code this project compiles (see the badge at the top of the README) rather than anything
+  merely sitting in `go.sum`.

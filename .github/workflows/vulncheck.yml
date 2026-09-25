@@ -1,0 +1,142 @@
+name: vulncheck
+
+# Checks this project's own real, reachable Go vulnerability exposure with govulncheck - unlike
+# just eyeballing go.sum or a generic dependency-list scanner, it does real call-graph analysis
+# and only flags something actually reachable from code this project compiles (see the PR that
+# added this for the concrete example: golang.org/x/crypto sits in go.mod as an indirect
+# requirement, but nothing here ever imports its one flagged package, so govulncheck correctly
+# reports clean). Runs against the main module and, separately, each companion module under
+# companions/ (see build.yml's own comment on why those are separate modules with their own
+# go.mod/go.sum, invisible to a scan of the main module alone).
+#
+# On push (so a newly-added vulnerable dependency is caught immediately) and weekly (so a
+# vulnerability disclosed later against something already here doesn't go unnoticed until the
+# next push happens to touch go.mod) - never on pull_request, since opening/closing the issue
+# below needs write access a fork's own PR run is never given.
+#
+# A finding opens (or comments again on) one standing issue naming exactly what govulncheck
+# printed, labelled vulnerability; a clean run closes that issue if it's still open. The job
+# itself also fails on a finding, which is what turns the README's badge red.
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  govulncheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      # One combined report, one pass/fail: the main module first, then each companion module
+      # in its own working directory (a nested go.mod carves it out of the main module's own
+      # ./..., so it needs its own govulncheck run to be seen at all).
+      - name: Scan every module
+        id: scan
+        shell: bash
+        run: |
+          set +e
+          found=0
+          : > report.txt
+
+          echo "## main module" >> report.txt
+          govulncheck ./... >> report.txt 2>&1
+          [ $? -ne 0 ] && found=1
+
+          for dir in companions/*/; do
+            name=$(basename "$dir")
+            echo "" >> report.txt
+            echo "## companions/$name" >> report.txt
+            (cd "$dir" && govulncheck ./...) >> report.txt 2>&1
+            [ $? -ne 0 ] && found=1
+          done
+
+          cat report.txt
+          echo "found=$found" >> "$GITHUB_OUTPUT"
+
+      - name: Open or update the tracking issue
+        if: steps.scan.outputs.found == '1'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            // Issue bodies are capped well under GitHub's own 65536-character limit.
+            const report = fs.readFileSync('report.txt', 'utf8').slice(0, 60000);
+            const runURL = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+
+            const open = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'vulnerability',
+            });
+
+            if (open.data.length > 0) {
+              const issue = open.data[0];
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: `Still present as of ${context.sha} (${runURL}):\n\n\`\`\`\n${report}\n\`\`\``,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: 'govulncheck found a reachable vulnerability',
+                labels: ['vulnerability'],
+                body: [
+                  `govulncheck flagged at least one vulnerability actually reachable from this project's own code, as of ${context.sha} (${runURL}).`,
+                  '',
+                  '```',
+                  report,
+                  '```',
+                  '',
+                  'Run it yourself: `govulncheck ./...` for the main module, and the same again inside each folder under `companions/`.',
+                ].join('\n'),
+              });
+            }
+
+      - name: Close the tracking issue if it's clean now
+        if: steps.scan.outputs.found != '1'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const open = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'vulnerability',
+            });
+            for (const issue of open.data) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: `govulncheck no longer finds anything reachable, as of ${context.sha} - closing.`,
+              });
+              await github.rest.issues.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                state: 'closed',
+              });
+            }
+
+      - name: Fail if anything was found
+        if: steps.scan.outputs.found == '1'
+        run: exit 1

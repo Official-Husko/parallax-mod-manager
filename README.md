@@ -7,6 +7,7 @@
 
 <p align="center">
   <a href="https://github.com/Official-Husko/parallax-mod-manager/actions/workflows/build.yml"><img alt="Build" src="https://github.com/Official-Husko/parallax-mod-manager/actions/workflows/build.yml/badge.svg"></a>
+  <a href="https://github.com/Official-Husko/parallax-mod-manager/actions/workflows/vulncheck.yml"><img alt="Vulnerabilities" src="https://github.com/Official-Husko/parallax-mod-manager/actions/workflows/vulncheck.yml/badge.svg"></a>
   <img alt="Version" src="https://img.shields.io/badge/version-1.0.0-6c5ce7">
   <img alt="Status" src="https://img.shields.io/badge/status-early%20development-orange">
   <a href="LICENCE.md"><img alt="Licence" src="https://img.shields.io/badge/licence-PMM--NCSL--1.0-blue"></a>
