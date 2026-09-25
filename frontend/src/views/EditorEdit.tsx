@@ -359,7 +359,7 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
                     </div>
                     <div className="editor-field">
                         <span className="editor-label">Tags</span>
-                        <ChipList id="editor-tags" items={draft.tags} onChange={(tags) => change({tags})} disabled={readOnly} placeholder="Gameplay, Graphics, Fixes..."/>
+                        <ChipList id="editor-tags" items={draft.tags} onChange={(tags) => change({tags})} disabled={readOnly} addLabel="+ Add tag" hint="Gameplay, Graphics, Fixes..."/>
                     </div>
                     <div className="editor-field">
                         <span className="editor-label">Dependencies</span>
@@ -368,7 +368,8 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
                             items={draft.dependencies}
                             onChange={(dependencies) => change({dependencies})}
                             disabled={readOnly}
-                            placeholder="Add a mod's exact name..."
+                            addLabel="+ Add"
+                            hint="Add a mod's exact name..."
                             suggestions={installedNames}
                             flagged={unknownDeps}
                             flagTitle="No installed mod has this name"
@@ -381,7 +382,7 @@ export function EditorEdit({gameId, gameVersion, mod, installedNames, initialDra
                     </div>
                     <div className="editor-field">
                         <span className="editor-label">Replace paths</span>
-                        <ChipList id="editor-replace" items={draft.replacePaths} onChange={(replacePaths) => change({replacePaths})} disabled={readOnly} mono placeholder="common/buildings"/>
+                        <ChipList id="editor-replace" items={draft.replacePaths} onChange={(replacePaths) => change({replacePaths})} disabled={readOnly} mono addLabel="+ Add path" hint="common/buildings"/>
                     </div>
                 </div>
             </div>

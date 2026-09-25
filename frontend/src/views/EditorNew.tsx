@@ -332,7 +332,7 @@ export function EditorNew({gameId, gameVersion, selected, onCreated}: {
                             </div>
                             <div className="editor-field">
                                 <span className="editor-label">Tags</span>
-                                <ChipList id="new-mod-tags" items={tags} onChange={setTags} placeholder="Gameplay, Graphics, Fixes..."/>
+                                <ChipList id="new-mod-tags" items={tags} onChange={setTags} addLabel="+ Add tag" hint="Gameplay, Graphics, Fixes..."/>
                             </div>
                         </>
                     ) : (

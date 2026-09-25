@@ -76,3 +76,21 @@
 .chip-list-input::placeholder {
     color: var(--text-dim);
 }
+
+/* While showing its own placeholder (addLabel, e.g. "+ Add tag") and nothing's actually being
+   typed, the add box reads as a real dashed pill of its own - the same recognizable "+ Add X"
+   action the mockup shows, alongside the filled chips rather than looking like a stray, easy-to-
+   miss text field. Reverts to a plain, full-width input the moment there's real text in it. */
+.chip-list-input:placeholder-shown {
+    flex: none;
+    min-width: 0;
+    width: auto;
+    border: 1px dashed var(--border-light);
+    border-radius: 11px;
+    padding: 3px 9px;
+    color: var(--text-muted);
+}
+
+.chip-list-input:placeholder-shown::placeholder {
+    color: var(--text-muted);
+}

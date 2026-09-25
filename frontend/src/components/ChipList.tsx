@@ -5,11 +5,19 @@ import {addItems} from '../data/editorDraft';
 
 // A list of short text items shown as chips, with a box to add more: a mod's tags, its
 // dependencies, its replace paths. Enter or a comma adds what is typed (several can be pasted at
-// once), leaving the box adds it too, and the x on a chip removes it.
-export function ChipList({items, onChange, placeholder, mono, suggestions, flagged, flagTitle, disabled, id}: {
+// once), leaving the box adds it too, and the x on a chip removes it. The add box itself always
+// reads as a real "+ Add X" action, matching the mockup's own dashed pill (see .chip-list-input's
+// :placeholder-shown styling) - not a plain, easy-to-miss text field with an example placeholder;
+// hint (if given) explains what kind of thing it wants as a tooltip instead, so that recognizable
+// label stays constant whether or not anything's already been added.
+export function ChipList({items, onChange, addLabel, hint, mono, suggestions, flagged, flagTitle, disabled, id}: {
     items: string[];
     onChange: (items: string[]) => void;
-    placeholder?: string;
+    // Always shown as the add box's own placeholder, e.g. "+ Add tag" - not just while empty.
+    addLabel: string;
+    // An example of what to type, e.g. "Gameplay, Graphics, Fixes..." - a tooltip on the add box,
+    // not competing with addLabel for the same space.
+    hint?: string;
     // Draw the chips in the monospace font (paths).
     mono?: boolean;
     // Names offered while typing.
@@ -49,7 +57,8 @@ export function ChipList({items, onChange, placeholder, mono, suggestions, flagg
                     className={`chip-list-input ${mono ? 'mono' : ''}`}
                     list={listId}
                     value={text}
-                    placeholder={items.length === 0 ? placeholder : 'Add another...'}
+                    placeholder={addLabel}
+                    title={hint}
                     spellcheck={false}
                     onInput={(e) => {
                         const value = (e.target as HTMLInputElement).value;
