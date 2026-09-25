@@ -33,10 +33,14 @@ const listeners = new Set<() => void>();
 const loversLabChanges = new Map<string, modupdates.Change[]>();
 
 function withLoversLabChanges(gameId: string, report: modupdates.Report): modupdates.Report {
-    const ll = loversLabChanges.get(gameId);
-    if (!ll || ll.length === 0) return report;
-    const llIds = new Set(ll.map((c) => c.ModID));
-    return modupdates.Report.createFrom({...report, Changes: [...report.Changes.filter((c) => !llIds.has(c.ModID)), ...ll]});
+    const ll = loversLabChanges.get(gameId) ?? [];
+    // Every existing loverslab-sourced entry is dropped and the current list re-appended in
+    // full, rather than only replacing the ones that still match by ModID - a mod resolved
+    // since the last merge (installed the update, so this game's own next LoversLab check no
+    // longer lists it) has to actually disappear here too, not just fail to be duplicated.
+    const withoutLoversLab = report.Changes.filter((c) => c.Source !== 'loverslab');
+    if (withoutLoversLab.length === report.Changes.length && ll.length === 0) return report;
+    return modupdates.Report.createFrom({...report, Changes: [...withoutLoversLab, ...ll]});
 }
 
 function setState(gameId: string, next: ModUpdatesState) {
@@ -79,8 +83,14 @@ export async function checkLoversLabUpdates(gameId: string): Promise<void> {
     try {
         const llChanges = await CheckLoversLabUpdates(gameId);
         loversLabChanges.set(gameId, llChanges ?? []);
-        if (!llChanges || llChanges.length === 0) return;
         const current = states.get(gameId) ?? IDLE;
+        // Nothing to add now, and nothing stale from an earlier merge to remove either -
+        // a real early-out, not just an empty-list shortcut (an empty llChanges still has to
+        // reach withLoversLabChanges below when the displayed report already carries a
+        // loverslab-sourced entry, so a resolved update actually clears instead of sticking
+        // around until an unrelated Workshop-side refresh happens to replace the whole report).
+        const hadLoversLabChanges = current.report?.Changes.some((c) => c.Source === 'loverslab') ?? false;
+        if ((!llChanges || llChanges.length === 0) && !hadLoversLabChanges) return;
         const base = current.report ?? modupdates.Report.createFrom({
             GameID: gameId,
             CheckedAt: Math.floor(Date.now() / 1000),
