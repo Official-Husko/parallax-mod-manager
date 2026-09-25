@@ -1306,12 +1306,21 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   real identity `UninstallLoversLabMod` takes; never assume it equals `loverslab_<FileID>`, since
   more than one row can share a FileID) - flagging one whose files can no longer be found on disk
   (removed by hand, or its drive isn't connected) rather than offering to uninstall something
-  already gone. Uninstall one specific mod from there (right-click a row, the same
+  already gone. This checks the real folder itself, not just that its stub descriptor still parses
+  - a stub can easily outlive the folder it points to (deleting a mod by hand often means deleting
+  the folder someone can see and missing the small, easy-to-overlook sibling `.mod` stub sitting
+  right next to it), and a real fix here corrected exactly that: a stub-without-a-folder used to
+  read as present. Uninstall one specific mod from there (right-click a row, the same
   `openContextMenu` pattern Library/Workspace already use, then a two-step inline confirm) or
   everything installed from one page at once from that page's own detail view (header, or its
   Files tab) - either deletes real content folders and stub descriptors and drops their
   update-tracking entries, mirroring `LoversLabInstall`'s own conventions exactly (the shared lock,
-  muting the folder watcher while writing). The lookup for "is this mod installed, and where" is
+  muting the folder watcher while writing). The list itself is refreshed after every install and
+  uninstall, and after switching game or signing in - guarded the same way `openDetail`'s own three
+  fetches already are (a real bug this session: with no guard, opening the Installed list while an
+  earlier, slower refresh from right before an install was still in flight could let that older
+  refresh's stale snapshot silently win once it finally resolved, showing a freshly installed mod
+  as though its files couldn't be found). The lookup for "is this mod installed, and where" is
   shared between installing and uninstalling, rather than two separate ways of finding the same
   thing.
 - **Card or list view, one toggle shared by the browsing grid and the Installed section**

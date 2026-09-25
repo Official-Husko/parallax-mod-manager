@@ -682,6 +682,14 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
     // so installing "the currently open file" could silently download and extract a completely
     // different file's own archive into a folder named after the one on screen).
     const detailRequestRef = useRef(0);
+    // Bumped by refreshInstalled on every call, and checked before its own fetch's result is
+    // applied - the same class of bug detailRequestRef guards against, just for this one: it's
+    // called from several places in quick succession (game switch, opening Installed, and right
+    // after a successful install or uninstall), and with no guard an older, slower call finishing
+    // after a newer one would silently overwrite fresh state (e.g. a just-installed mod's own
+    // correct, present-on-disk status) with a stale snapshot - which could easily look like a
+    // freshly installed mod's files "can't be found" when they really can.
+    const installedRequestRef = useRef(0);
 
     useEffect(() => {
         timeAsync('browse:status', LoversLabStatus).then(setStatus).catch(() => undefined);
@@ -729,19 +737,23 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
     // whether to offer Uninstall or Install/Update for whatever file is open.
     async function refreshInstalled() {
         if (!status?.SignedIn || !selectedGame) return;
+        const requestId = ++installedRequestRef.current;
         setInstalledState((prev) => (prev.kind === 'ready' ? prev : {kind: 'loading'}));
         try {
             const mods = await timeAsync('browse:installedMods', () => LoversLabInstalledMods(selectedGame));
+            if (installedRequestRef.current !== requestId) return; // a newer call already landed
             const list = mods ?? [];
             setInstalledState({kind: 'ready', mods: list});
             setInstalledIds(new Set(list.map((m) => m.FileID)));
         } catch (err) {
+            if (installedRequestRef.current !== requestId) return;
             setInstalledState({kind: 'error', message: errorText(err)});
         }
     }
 
     useEffect(() => {
         if (!status?.SignedIn || !selectedGame) {
+            installedRequestRef.current++; // a still-in-flight fetch for a previous game must not land now
             setInstalledState({kind: 'idle'});
             setInstalledIds(new Set());
             return;

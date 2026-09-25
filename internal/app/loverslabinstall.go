@@ -254,8 +254,17 @@ func (a *App) LoversLabInstalledMods(gameID string) ([]LoversLabInstalledMod, er
 	for modID, e := range installs {
 		missing := true
 		if modDir != "" {
-			if _, _, found := locateLoversLabInstall(modDir, modID); found {
-				missing = false
+			// locateLoversLabInstall only checks that a stub exists and declares a path -
+			// exactly the right question for resolving where to (re)install or what to
+			// remove (a leftover, content-less stub should still be findable so Uninstall
+			// can clean it up), but the wrong one for "should this show a files-missing
+			// warning": a stub can go on declaring a path whose real folder was since
+			// deleted by hand (or never fully written), which is exactly the case this is
+			// meant to catch - so this also verifies the folder it points to is real.
+			if dir, _, found := locateLoversLabInstall(modDir, modID); found {
+				if info, statErr := os.Stat(dir); statErr == nil && info.IsDir() {
+					missing = false
+				}
 			}
 		}
 		out = append(out, LoversLabInstalledMod{

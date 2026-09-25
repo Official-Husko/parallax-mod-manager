@@ -128,7 +128,8 @@ for security, privacy, reliability or performance is called out (see the last tw
   sidebar, listing everything installed from LoversLab for the current game (each mod its own
   entry, even two that came from the same page's Files tab); uninstall one specific mod from
   there (right-click) or everything installed from a page at once from that page's own detail
-  view - either deletes real files, after confirming.
+  view - either deletes real files, after confirming. A "files not found" warning means the real
+  folder itself is actually gone, not just that its own record can't be double-checked.
 - **Card or list view, your choice, shared everywhere in Browse** - the browsing grid and the
   Installed section switch between the exact same card and list views, one toggle for both.
 - **Download and install a LoversLab mod in one click** - extracts the real archive straight into

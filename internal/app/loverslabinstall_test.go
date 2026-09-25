@@ -593,3 +593,71 @@ func TestLoversLabInstalledModsFlagsContentPresentAfterARealInstall(t *testing.T
 		t.Errorf("unexpected entry: %+v", got[0])
 	}
 }
+
+// TestLoversLabInstalledModsFlagsContentMissingWhenTheStubOutlivesItsOwnFolder covers
+// a stub that still exists and still parses fine, declaring a path, but whose real
+// folder was since deleted by hand (leaving the stub behind - an easy mistake, since
+// it's a small, easy-to-miss ".mod" file sitting right next to the folder someone
+// actually meant to delete). locateLoversLabInstall alone can't tell this apart from a
+// real install (it only checks the stub parses), which used to make LoversLabInstalledMods
+// report this as present - the opposite of what "Files not found on disk" is supposed
+// to mean.
+func TestLoversLabInstalledModsFlagsContentMissingWhenTheStubOutlivesItsOwnFolder(t *testing.T) {
+	env := newInstallEnv(t)
+	srv := zipServer(t, buildTestZip(t, map[string]string{"descriptor.mod": "name=\"Outlived\"\nversion=\"1.0\"\n"}))
+	file := loverslab.FileSummary{ID: 902, Title: "Outlived", URL: "https://www.loverslab.com/files/file/902-outlived/", Updated: "today"}
+	if _, err := env.a.LoversLabInstall(env.cfg.ID, "req-outlived", file, "2026-01-01T00:00:00+0000", []loverslab.FileDownload{{URL: srv.URL}}); err != nil {
+		t.Fatalf("LoversLabInstall: %v", err)
+	}
+
+	// Simulate deleting just the content folder by hand, leaving the stub behind.
+	if err := os.RemoveAll(filepath.Join(env.modDir, "Outlived")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(env.modDir, "loverslab_902.mod")); err != nil {
+		t.Fatalf("setup: the stub should still be there: %v", err)
+	}
+
+	got, err := env.a.LoversLabInstalledMods(env.cfg.ID)
+	if err != nil {
+		t.Fatalf("LoversLabInstalledMods: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("got %d entries, want 1", len(got))
+	}
+	if !got[0].ContentMissing {
+		t.Error("a stub whose own declared folder no longer exists should be flagged ContentMissing")
+	}
+}
+
+// TestUninstallLoversLabModStillCleansUpAnOrphanedStubWithNoContentFolder confirms the
+// fix above didn't take away Uninstall's own ability to clean up exactly this
+// situation - locateLoversLabInstall itself (used by UninstallLoversLabMod and by
+// resolving where to reinstall) deliberately still only checks the stub, not the
+// folder, so a person can always clear out a leftover stub through the normal
+// Uninstall action even when its own content is already gone.
+func TestUninstallLoversLabModStillCleansUpAnOrphanedStubWithNoContentFolder(t *testing.T) {
+	env := newInstallEnv(t)
+	srv := zipServer(t, buildTestZip(t, map[string]string{"descriptor.mod": "name=\"Orphaned\"\nversion=\"1.0\"\n"}))
+	file := loverslab.FileSummary{ID: 903, Title: "Orphaned", URL: "https://www.loverslab.com/files/file/903-orphaned/", Updated: "today"}
+	if _, err := env.a.LoversLabInstall(env.cfg.ID, "req-orphaned", file, "2026-01-01T00:00:00+0000", []loverslab.FileDownload{{URL: srv.URL}}); err != nil {
+		t.Fatalf("LoversLabInstall: %v", err)
+	}
+	if err := os.RemoveAll(filepath.Join(env.modDir, "Orphaned")); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := env.a.UninstallLoversLabMod(env.cfg.ID, "loverslab_903"); err != nil {
+		t.Fatalf("UninstallLoversLabMod: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(env.modDir, "loverslab_903.mod")); !os.IsNotExist(err) {
+		t.Errorf("the orphaned stub was not removed: %v", err)
+	}
+	installs, err := env.a.loverslabInstalls.Load(env.cfg.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := installs["loverslab_903"]; ok {
+		t.Error("the tracking entry was not removed")
+	}
+}
