@@ -213,6 +213,17 @@
     display: flex;
     flex-direction: column;
     background: var(--bg-panel);
+}
+
+/* The actual scroll container for whichever list/grid is showing - kept separate from
+   .browse-main itself (which just stacks the toolbar above this, non-scrolling) because the
+   card grid's own virtualization (useVirtualGrid, Browse.tsx) computes which row is at the top
+   straight from this element's own scrollTop; with the toolbar inside the same scrolling
+   element, scrollTop would include the toolbar's own (non-fixed, branch-dependent) height and
+   throw that math off. */
+.browse-scroll {
+    flex: 1;
+    min-width: 0;
     overflow-y: auto;
 }
 
@@ -504,6 +515,13 @@
     grid-template-columns: repeat(auto-fill, minmax(198px, 1fr));
     gap: 14px;
     padding: 14px;
+    /* Without this, a grid container's default row-track alignment (align-content: normal,
+       which stretches auto-sized rows to fill any extra space) inflates every card's height to
+       fill whatever's left of an explicitly-set container height - exactly what
+       useVirtualGrid's own reserved-but-unrendered space (Browse.tsx) needs to NOT happen: that
+       space is meant to stay blank until scrolled into view, not get divided up among the cards
+       actually rendered. Harmless with a non-virtualized (natural-height) grid too. */
+    align-content: start;
 }
 
 .browse-card {

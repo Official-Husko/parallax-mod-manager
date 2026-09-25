@@ -366,6 +366,10 @@ for security, privacy, reliability or performance is called out (see the last tw
   page fetches, over a second combined the first time) is cached on disk for a day at a time, since
   its own real structure barely ever changes; a corrupt or missing cache just costs one real fetch to
   rebuild.
+- **Browse's card grid stays smooth on a long list** - only the cards actually on screen (plus a
+  small buffer) are ever in the page at once, so scrolling through hundreds of installed mods (the
+  browsing grid's own pages are already small) doesn't mean compositing every card's blurred
+  thumbnail backdrop at the same time.
 - **Mod list appears at once** - names, versions and sources show in about a millisecond, before the
   slower conflict pass finishes.
 - **Parallel where it is safe** - files are parsed on all cores, and merged in load order so the result

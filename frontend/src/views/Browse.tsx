@@ -33,6 +33,7 @@ import {colorFromName} from '../data/nameColor';
 import {checkLoversLabUpdates, useModUpdates} from '../data/modUpdates';
 import {notify} from '../data/notifications';
 import {time, timeAsync} from '../data/profiling';
+import {useVirtualGrid} from '../data/useVirtualGrid';
 
 // A "loverslab-install-progress" event's shape - not a Wails-bound method's own
 // parameter or return type, so it never gets a generated model (see
@@ -263,16 +264,44 @@ function ViewModeToggle({mode, onChange}: {mode: ViewMode; onChange: (m: ViewMod
     );
 }
 
+// The card grid's own fixed geometry, mirrored from Browse.css (.browse-grid/.browse-card) -
+// exactly measured against a real render, not guessed, since useVirtualGrid's windowing maths
+// depends on this being right - the same requirement LogView.tsx's own LINE_HEIGHT documents
+// for its flat list. minWidth/gap/padding here must match .browse-grid's own
+// grid-template-columns/gap/padding exactly, or the predicted column count drifts from the real
+// one.
+//
+// Two different row heights, not one: a browsing card's footer always shows an 18px author
+// avatar (browsingItems always sets authorName); an installed card's footer never does
+// (installedItems never sets authorName at all) and so is naturally 6px shorter - confirmed by
+// measuring both real renders, not assumed.
+const CARD_MIN_WIDTH = 198;
+const CARD_GRID_GAP = 14;
+const CARD_GRID_PADDING = 28; // .browse-grid's own padding: 14px, both sides combined
+const BROWSING_CARD_ROW_HEIGHT = 194; // 180px card + 14px row gap
+const INSTALLED_CARD_ROW_HEIGHT = 188; // 174px card (no author avatar) + 14px row gap
+const GRID_OVERSCAN = 2;
+
 // BrowseItemsView is the one shared system for showing a list of mods, as either a
 // card grid (Steam Workshop/Nexus-style) or a compact row list - reused as-is by
 // both the browsing grid and the Installed section, switched by ViewModeToggle
 // above. Kept generic (BrowseListItem, not either backend type directly) so this
 // rendering is never duplicated for the two different kinds of data it shows.
-function BrowseItemsView({items, viewMode, emptyIcon, emptyMessage}: {
+//
+// The card grid specifically is virtualized (grid, from useVirtualGrid) - Browse's own grid can
+// hold dozens of cards at once, each with its own blurred backdrop (.browse-card-thumb-backdrop,
+// a real, measured scroll-performance cost, worse on the real WebKitGTK webview than on
+// Chromium), so keeping every off-screen card's blur alive in the DOM at once was real,
+// avoidable scroll cost. The tree/list view is not virtualized yet - its rows are much smaller
+// (a 56x34px thumb, not 116px) and some rows (a missing-content warning) aren't a fixed height,
+// which useVirtualWindow's own windowing maths depends on; worth doing later if it turns out to
+// matter as much there.
+function BrowseItemsView({items, viewMode, emptyIcon, emptyMessage, grid}: {
     items: BrowseListItem[];
     viewMode: ViewMode;
     emptyIcon: string;
     emptyMessage: string;
+    grid: {first: number; last: number; firstRow: number; rowCount: number; rowHeight: number};
 }) {
     if (items.length === 0) {
         return <EmptyState icon={emptyIcon} title={emptyMessage}/>;
@@ -327,8 +356,11 @@ function BrowseItemsView({items, viewMode, emptyIcon, emptyMessage}: {
     }
 
     return (
-        <div className="browse-grid">
-            {items.map((it) => (
+        <div
+            className="browse-grid"
+            style={{height: grid.rowCount * grid.rowHeight, paddingTop: grid.firstRow * grid.rowHeight, boxSizing: 'border-box'}}
+        >
+            {items.slice(grid.first, grid.last).map((it) => (
                 <div
                     key={it.id}
                     className="browse-card"
@@ -1044,6 +1076,12 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
             (!selectedTagFilter || it.tag === selectedTagFilter) &&
             (!q || it.title.toLowerCase().includes(q)));
     }, [installedItems, selectedTagFilter, installedSearch]);
+    // The card grid's own virtualized window for each of the two lists - see useVirtualGrid and
+    // BrowseItemsView's own comment on why. ref/onScroll attach to .browse-scroll below (the
+    // actual scroll container, not .browse-grid itself), so scrollTop is measured from exactly
+    // where the grid's own content starts, not from above the toolbar that sits alongside it.
+    const browsingGrid = useVirtualGrid<HTMLDivElement>(visibleBrowsingItems.length, CARD_MIN_WIDTH, CARD_GRID_GAP, CARD_GRID_PADDING, BROWSING_CARD_ROW_HEIGHT, GRID_OVERSCAN);
+    const installedGrid = useVirtualGrid<HTMLDivElement>(visibleInstalledItems.length, CARD_MIN_WIDTH, CARD_GRID_GAP, CARD_GRID_PADDING, INSTALLED_CARD_ROW_HEIGHT, GRID_OVERSCAN);
     // Categories' own counts reflect whichever list is actually on screen right
     // now, not a fixed site-wide total this app has no way to know.
     const categoryCounts = useMemo(() => time('browse:categoryCounts', () => {
@@ -1163,25 +1201,32 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                                 <ViewModeToggle mode={viewMode} onChange={setViewMode}/>
                             </div>
                         </div>
-                        {installedState.kind === 'loading' && <EmptyState icon="fa-spinner fa-spin" title="Loading..."/>}
-                        {installedState.kind === 'error' && <EmptyState icon="fa-triangle-exclamation" tone="error" title="Couldn't load your installed mods" subtitle={installedState.message}/>}
-                        {installedState.kind === 'ready' && (
-                            <BrowseItemsView
-                                items={visibleInstalledItems}
-                                viewMode={viewMode}
-                                emptyIcon={installedSearch || selectedTagFilter ? 'fa-magnifying-glass' : 'fa-box-open'}
-                                emptyMessage={
-                                    installedSearch || selectedTagFilter
-                                        ? 'No installed mods match that.'
-                                        : 'Nothing installed from LoversLab yet for this game.'
-                                }
-                            />
-                        )}
+                        <div className="browse-scroll" ref={installedGrid.ref} onScroll={installedGrid.onScroll}>
+                            {installedState.kind === 'loading' && <EmptyState icon="fa-spinner fa-spin" title="Loading..."/>}
+                            {installedState.kind === 'error' && <EmptyState icon="fa-triangle-exclamation" tone="error" title="Couldn't load your installed mods" subtitle={installedState.message}/>}
+                            {installedState.kind === 'ready' && (
+                                <BrowseItemsView
+                                    grid={installedGrid}
+                                    items={visibleInstalledItems}
+                                    viewMode={viewMode}
+                                    emptyIcon={installedSearch || selectedTagFilter ? 'fa-magnifying-glass' : 'fa-box-open'}
+                                    emptyMessage={
+                                        installedSearch || selectedTagFilter
+                                            ? 'No installed mods match that.'
+                                            : 'Nothing installed from LoversLab yet for this game.'
+                                    }
+                                />
+                            )}
+                        </div>
                     </>
                 ) : !status?.SignedIn ? (
-                    <EmptyState icon="fa-lock" title="Sign in to browse LoversLab" subtitle="Enter a username or email and a password on the right to see your Paradox games' real Downloads sections."/>
+                    <div className="browse-scroll">
+                        <EmptyState icon="fa-lock" title="Sign in to browse LoversLab" subtitle="Enter a username or email and a password on the right to see your Paradox games' real Downloads sections."/>
+                    </div>
                 ) : !selectedCategory ? (
-                    <EmptyState icon="fa-gamepad" title="Pick a game" subtitle="Choose a game from the sidebar to see what's in it."/>
+                    <div className="browse-scroll">
+                        <EmptyState icon="fa-gamepad" title="Pick a game" subtitle="Choose a game from the sidebar to see what's in it."/>
+                    </div>
                 ) : (
                     <>
                         <div className="browse-toolbar column">
@@ -1225,16 +1270,19 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                             </div>
                         </div>
 
-                        {filesState.kind === 'loading' && <EmptyState icon="fa-spinner fa-spin" title="Loading..."/>}
-                        {filesState.kind === 'error' && <EmptyState icon="fa-triangle-exclamation" tone="error" title="Couldn't load this category" subtitle={filesState.message}/>}
-                        {filesState.kind === 'ready' && (
-                            <BrowseItemsView
-                                items={visibleBrowsingItems}
-                                viewMode={viewMode}
-                                emptyIcon={search ? 'fa-magnifying-glass' : 'fa-box-open'}
-                                emptyMessage={search ? 'No files match that search on this page.' : 'No files here.'}
-                            />
-                        )}
+                        <div className="browse-scroll" ref={browsingGrid.ref} onScroll={browsingGrid.onScroll}>
+                            {filesState.kind === 'loading' && <EmptyState icon="fa-spinner fa-spin" title="Loading..."/>}
+                            {filesState.kind === 'error' && <EmptyState icon="fa-triangle-exclamation" tone="error" title="Couldn't load this category" subtitle={filesState.message}/>}
+                            {filesState.kind === 'ready' && (
+                                <BrowseItemsView
+                                    grid={browsingGrid}
+                                    items={visibleBrowsingItems}
+                                    viewMode={viewMode}
+                                    emptyIcon={search ? 'fa-magnifying-glass' : 'fa-box-open'}
+                                    emptyMessage={search ? 'No files match that search on this page.' : 'No files here.'}
+                                />
+                            )}
+                        </div>
                     </>
                 )}
             </div>
