@@ -34,7 +34,7 @@ export function AutosortMissingDepsModal({missing, onClose, onLoadAndSort, onSor
                     {missing.map((m) => (
                         <div key={m.id} className="autosort-dep-row">
                             <i className={`fa-solid ${FLAG.dependency.icon}`}/>
-                            <span className="autosort-dep-name">{m.name}</span>
+                            <span className="row-name">{m.name}</span>
                         </div>
                     ))}
                 </div>

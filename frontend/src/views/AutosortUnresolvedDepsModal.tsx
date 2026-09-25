@@ -31,7 +31,7 @@ export function AutosortUnresolvedDepsModal({names, onClose}: {
                     {names.map((name) => (
                         <div key={name} className="autosort-dep-row unresolved">
                             <i className={`fa-solid ${FLAG.dependency.icon}`}/>
-                            <span className="autosort-dep-name">{name}</span>
+                            <span className="row-name">{name}</span>
                         </div>
                     ))}
                 </div>

@@ -224,7 +224,7 @@ export function BackgroundDownloadModal({mode, onClose}: {
                                         onChange={() => toggle(p.GameID)}
                                     />
                                     <div className="bgdl-pack-main">
-                                        <div className="bgdl-pack-name">{nameOf(p.GameID)}</div>
+                                        <div className="row-name">{nameOf(p.GameID)}</div>
                                         <div className="mono bgdl-pack-meta">
                                             {published
                                                 ? `${p.Files} images · ~${formatBytes(p.Bytes)}`
