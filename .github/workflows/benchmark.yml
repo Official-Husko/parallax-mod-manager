@@ -1,0 +1,77 @@
+name: benchmark
+
+# Runs this project's own Go benchmarks (testing.B) for the mod-scan/parse/conflict-resolution
+# pipeline - the hot path docs/performance-strategy.md tracks in detail by hand - and prints a
+# table ranking every benchmarked operation by cost into the run's own job summary.
+#
+# Unlike build.yml's `go test -race ./...`, correctness is not what this measures: a benchmark's
+# own ns/op reading jitters run to run on a shared runner, so this workflow deliberately never
+# fails the build or gates a merge on any number here - a red badge for "the mystery-meat CI
+# machine timed something 4ns slower today" would be pure noise, not a real signal, unlike
+# vulncheck.yml (a real yes/no vulnerability finding) or build.yml (a real compile/test pass or
+# fail). Its only job is to keep the same sorted "what's expensive" table
+# docs/performance-strategy.md's own case studies were built by hand, visible on this project's
+# own real CI hardware after every change, so a real regression (a whole extra pass over the
+# data, an accidentally-removed cache) stands out on sight rather than needing to be run and
+# eyeballed locally to notice. No badge in README for the same reason - nothing here is ever red
+# or green, so a badge would have nothing meaningful to show.
+#
+# Runs on push and pull_request (companions/ has none of this - nothing there is on the mod-scan
+# hot path) plus workflow_dispatch for an on-demand run; no schedule, since nothing here rots on
+# its own the way an undisclosed vulnerability does - only a code change moves these numbers.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # -run '^$' skips every actual test, so only the benchmarks execute. The four packages
+      # named here are exactly the ones internal/pipeline, internal/cache, internal/conflict and
+      # internal/library each carry a *_bench_test.go for - see docs/performance-strategy.md's
+      # own section on this suite for what each one covers and why.
+      - name: Run benchmarks
+        run: |
+          go test -run '^$' -bench . -benchmem \
+            ./internal/pipeline/... ./internal/cache/... ./internal/conflict/... ./internal/library/... \
+            | tee bench.txt
+
+      # Turns the raw `go test -bench` table (already grouped by package, not sorted by cost)
+      # into one table sorted slowest-first across every package, in the job's own summary -
+      # the "graph list at the end showing what is how expensive" this workflow exists for.
+      # Sorting via a zero-padded ns/op key plus a plain `sort -r` avoids relying on any one
+      # sort implementation's flag support for a specific tab-separated numeric field.
+      - name: Rank every benchmark by cost in the job summary
+        run: |
+          {
+            echo "### Benchmark results (slowest first)"
+            echo
+            echo "Full raw \`go test -bench\` output is in the previous step's log; this table"
+            echo "just re-sorts it by cost across every package."
+            echo
+            echo "| Benchmark | Time/op | Memory/op | Allocs/op |"
+            echo "|---|---|---|---|"
+            grep '^Benchmark' bench.txt | awk -F'\t' '
+              {
+                name = $1; gsub(/[ \t]+$/, "", name)
+                split($3, nsf, " "); ns = nsf[1]
+                split($4, bf, " "); bytes = bf[1] " " bf[2]
+                split($5, af, " "); allocs = af[1] " " af[2]
+                printf "%020d\t%s\t%s ns/op\t%s\t%s\n", ns, name, ns, bytes, allocs
+              }
+            ' | sort -r | awk -F'\t' '{ printf "| %s | %s | %s | %s |\n", $2, $3, $4, $5 }'
+          } >> "$GITHUB_STEP_SUMMARY"
