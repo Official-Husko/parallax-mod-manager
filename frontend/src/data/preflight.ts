@@ -47,6 +47,14 @@ export interface DependencyIssues {
 export function findDependencyIssues(active: library.ModSummary[]): DependencyIssues {
     const activeNames = new Set(active.map((m) => m.Name));
     const indexById = new Map(active.map((m, i) => [m.ID, i]));
+    // A Map lookup instead of active.find(...) inside the loop below - the same best-effort
+    // by-name matching data/autosort.ts's own idByName already uses (a duplicate active name,
+    // already an inherent ambiguity in this "match by display name, not a real reference"
+    // approach - see that file's own doc comment - resolves the same last-one-wins way there
+    // too). Matters for a large, realistic Stellaris load order: this is the O(n) scan that
+    // made the active list's own referential-stability bug upstream in Workspace.tsx worth
+    // fixing in the first place.
+    const byName = new Map(active.map((m) => [m.Name, m]));
     let missing = 0;
     let misordered = 0;
     const affectedIds = new Set<string>();
@@ -73,7 +81,7 @@ export function findDependencyIssues(active: library.ModSummary[]): DependencyIs
                 issuesOf(m.ID).missing.push(depName);
                 continue;
             }
-            const depMod = active.find((x) => x.Name === depName);
+            const depMod = byName.get(depName);
             if (depMod && (indexById.get(depMod.ID) ?? 0) > (indexById.get(m.ID) ?? 0)) {
                 misordered++;
                 affectedIds.add(m.ID);
