@@ -267,7 +267,7 @@ export function Library() {
                             style={{background: filter.kind === 'all' ? 'var(--bg-highlight)' : 'transparent', cursor: 'pointer'}}
                             onClick={() => setFilter({kind: 'all'})}
                         >
-                            <span className="swatch all-games"><i className="fa-solid fa-layer-group"/></span>
+                            <span className="swatch all-games fallback"><i className="fa-solid fa-layer-group"/></span>
                             <span className="name" style={{color: filter.kind === 'all' ? 'var(--text-bright)' : 'var(--text-mid)'}}>All games</span>
                             <span className="mono n">{totalMods}</span>
                         </div>

@@ -29,23 +29,9 @@
     flex: none;
 }
 
-.sidebar-game .swatch.fallback {
-    background: var(--border-light);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
 .sidebar-game .swatch.fallback i {
     font-size: 8px;
     color: var(--text-dim);
-}
-
-.sidebar-game .swatch.all-games {
-    background: var(--border-light);
-    display: flex;
-    align-items: center;
-    justify-content: center;
 }
 
 .sidebar-game .swatch.all-games i {

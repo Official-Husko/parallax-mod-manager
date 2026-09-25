@@ -119,13 +119,6 @@
     object-fit: cover;
 }
 
-.browse-category-icon.fallback {
-    background: var(--border-light);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
 .browse-category-icon.fallback i {
     font-size: 8px;
     color: var(--text-dim);

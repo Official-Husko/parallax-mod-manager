@@ -130,13 +130,6 @@
     flex: none;
 }
 
-.profile-swatch.fallback {
-    background: var(--border-light);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
 .profile-swatch.fallback i {
     font-size: 13px;
     color: var(--text-dim);
@@ -482,13 +475,6 @@
     border-radius: 3px;
     object-fit: cover;
     flex: none;
-}
-
-.chip-logo.fallback {
-    background: var(--border-light);
-    display: flex;
-    align-items: center;
-    justify-content: center;
 }
 
 .chip-logo.fallback i {

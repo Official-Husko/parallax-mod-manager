@@ -744,6 +744,21 @@
     flex: none;
 }
 
+/* components/GameLogo.tsx's own fallback box (no art for this game yet) always adds this
+   literal class alongside whatever sizing class the call site passes it - a plain-color box
+   the generic game icon sits centered in. Every call site (the sidebar's game switcher, the
+   Manage games chips, First Run's detected-games list, Browse's LoversLab category icons,
+   Settings' own profile swatch) had redefined the same 4 declarations under its own sizing
+   class; each keeps only its own icon size/color as a residual `<sizing-class>.fallback i`
+   rule now. Library's own "All games" tile (not a real GameLogo, but the same look) opts in
+   by adding this class too rather than repeating the box a seventh time. */
+.fallback {
+    background: var(--border-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
 /* The header bar shared by every modal and the Conflict Resolver's own overlay panel (see
    components/ModalHeader.tsx): a title, whatever badges/buttons a specific one needs, a
    spacer pushing anything after it to the far right, and usually a close button. Was
