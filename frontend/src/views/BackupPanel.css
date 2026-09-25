@@ -11,7 +11,10 @@
     gap: 7px;
 }
 
-.backup-folder-label {
+/* Also .backup-limits-title's own look (Limits, Free up space) - one shared rule for both
+   rather than two identical ones. */
+.backup-folder-label,
+.backup-limits-title {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -153,14 +156,6 @@
     border: 1px solid var(--border);
     border-radius: 5px;
     padding: 12px 14px;
-}
-
-.backup-limits-title {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font: 600 12px Barlow, sans-serif;
-    color: var(--text-bright);
 }
 
 .backup-limit-row {

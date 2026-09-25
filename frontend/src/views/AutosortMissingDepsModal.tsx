@@ -25,7 +25,7 @@ export function AutosortMissingDepsModal({missing, onClose, onLoadAndSort, onSor
                 <ModalHeader title="Missing dependencies" onClose={onClose}>
                     <span className="mono count">{missing.length} found</span>
                 </ModalHeader>
-                <p className="autosort-modal-intro">
+                <p className="modal-intro">
                     {missing.length} mod{missing.length === 1 ? '' : 's'} your active load order depends on{' '}
                     {missing.length === 1 ? "isn't" : "aren't"} active yet - Autosort can only reorder what's
                     already loaded, not add to it. Load {them} first, or sort without {them}?

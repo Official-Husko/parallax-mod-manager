@@ -22,7 +22,7 @@ export function AutosortUnresolvedDepsModal({names, onClose}: {
                 <ModalHeader title="Dependencies not found" onClose={onClose}>
                     <span className="mono count">{names.length} missing</span>
                 </ModalHeader>
-                <p className="autosort-modal-intro">
+                <p className="modal-intro">
                     {names.length} declared dependenc{names.length === 1 ? 'y' : 'ies'} of your active mods{' '}
                     {names.length === 1 ? "wasn't" : "weren't"} found among your installed mods at all - not
                     just inactive, not downloaded. It's recommended to install {them} from Steam Workshop.

@@ -759,6 +759,15 @@
     justify-content: center;
 }
 
+/* A modal's own opening explanation paragraph, above its list/body - was .autosort-modal-intro/
+   .purge-modal-intro, defined identically under both names. */
+.modal-intro {
+    padding: 14px 16px 4px;
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.5;
+}
+
 /* The header bar shared by every modal and the Conflict Resolver's own overlay panel (see
    components/ModalHeader.tsx): a title, whatever badges/buttons a specific one needs, a
    spacer pushing anything after it to the far right, and usually a close button. Was

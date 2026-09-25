@@ -63,7 +63,7 @@ export function PurgeEmptyModal({gameId, onClose, onPurged}: {
                 <ModalHeader title="Purge empty mods" onClose={onClose}>
                     {candidates && <span className="mono count">{candidates.length} found</span>}
                 </ModalHeader>
-                <p className="purge-modal-intro">
+                <p className="modal-intro">
                     These local mods have no real content - their folder is either missing or empty. Deleting
                     one only removes its small descriptor file here; nothing else on disk is touched. Uncheck
                     any you want to keep.
