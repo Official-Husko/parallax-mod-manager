@@ -2,7 +2,10 @@ package app
 
 import (
 	"context"
+	"fmt"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/Official-Husko/parallax-mod-manager/internal/loverslab"
 	"github.com/Official-Husko/parallax-mod-manager/internal/loverslabtracking"
@@ -161,6 +164,50 @@ func TestCheckLoversLabUpdatesNeverOverwritesAnAlreadyTrackedThumbnail(t *testin
 	}
 	if got["loverslab_1"].ThumbnailURL != "https://static.loverslab.com/1/original.jpg" {
 		t.Errorf("ThumbnailURL = %q, want the original left untouched", got["loverslab_1"].ThumbnailURL)
+	}
+}
+
+// TestCheckLoversLabUpdatesFetchesConcurrentlyNotOneAtATime is the real bug this
+// covers: checking a dozen-plus mods installed from LoversLab one at a time (this
+// function's own previous behavior) turns into several real seconds of sequential
+// page fetches every time it runs (on startup, and every few hours) - confirmed a
+// real, separate contributor to "browsing feels laggy", not just slow in the
+// abstract, since it competes with whatever the person is doing in Browse right
+// then for the same site. This installs 8 mods, each taking 50ms to "fetch", and
+// asserts the whole check finishes in well under 8 x 50ms - only possible with
+// real concurrency, not just because the individual fetches happen to be fast.
+func TestCheckLoversLabUpdatesFetchesConcurrentlyNotOneAtATime(t *testing.T) {
+	env := newInstallEnv(t)
+	const modCount = 8
+	installs := map[string]loverslabtracking.Entry{}
+	for i := 0; i < modCount; i++ {
+		modID := fmt.Sprintf("loverslab_%d", i)
+		installs[modID] = loverslabtracking.Entry{
+			FileURL: fmt.Sprintf("https://www.loverslab.com/files/file/%d-mod/", i), FileID: i,
+			Title: fmt.Sprintf("Mod %d", i), InstalledDateModified: "2026-01-01T00:00:00+0000",
+		}
+	}
+	if err := env.a.loverslabInstalls.Save(env.cfg.ID, installs); err != nil {
+		t.Fatal(err)
+	}
+	var calls atomic.Int64
+	env.a.loverslab.getFileDetail = func(ctx context.Context, client *loverslab.Client, fileURL string) (loverslab.FileDetail, error) {
+		calls.Add(1)
+		time.Sleep(50 * time.Millisecond)
+		return loverslab.FileDetail{DateModified: "2026-01-01T00:00:00+0000"}, nil
+	}
+
+	start := time.Now()
+	if _, err := env.a.CheckLoversLabUpdates(env.cfg.ID); err != nil {
+		t.Fatalf("CheckLoversLabUpdates: %v", err)
+	}
+	elapsed := time.Since(start)
+
+	if got := calls.Load(); got != modCount {
+		t.Fatalf("getFileDetail was called %d times, want %d (one per installed mod)", got, modCount)
+	}
+	if elapsed >= modCount*50*time.Millisecond {
+		t.Errorf("took %v for %d mods at 50ms each - looks sequential, not concurrent", elapsed, modCount)
 	}
 }
 

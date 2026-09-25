@@ -1,7 +1,12 @@
 package app
 
 import (
+	"sync"
+
+	"golang.org/x/sync/errgroup"
+
 	"github.com/Official-Husko/parallax-mod-manager/internal/applog"
+	"github.com/Official-Husko/parallax-mod-manager/internal/loverslabtracking"
 	"github.com/Official-Husko/parallax-mod-manager/internal/modupdates"
 )
 
@@ -32,14 +37,14 @@ func (a *App) CheckLoversLabUpdates(gameID string) ([]modupdates.Change, error) 
 		return nil, err
 	}
 
-	// Backfilled opportunistically below, from the very same detail fetch this
-	// function already does for its own reason (comparing DateModified) - never a
-	// fetch run just for this. Lets a mod installed before ThumbnailURL existed pick
-	// one up the next time this runs (on startup, and every few hours - see
-	// features.md), instead of needing to be reinstalled to get a real card image.
-	backfilled := false
-
-	changes := make([]modupdates.Change, 0, len(installs))
+	// modID/entry pairs actually worth a real fetch - an entry with no baseline is
+	// filtered out up front, so it never takes one of the 4 concurrent slots below
+	// for a fetch whose result would just be thrown away.
+	type candidate struct {
+		modID string
+		entry loverslabtracking.Entry
+	}
+	var toCheck []candidate
 	for modID, entry := range installs {
 		if entry.InstalledDateModified == "" {
 			// No real baseline was ever captured for this one (the detail fetch at
@@ -47,31 +52,61 @@ func (a *App) CheckLoversLabUpdates(gameID string) ([]modupdates.Change, error) 
 			// "unknown", never "updated". A later reinstall fixes it permanently.
 			continue
 		}
-		detail, err := a.loverslab.getFileDetail(a.baseContext(), client, entry.FileURL)
-		if err != nil {
-			log.Warnf("checking '%s' for updates failed, skipped: %v", entry.Title, err)
-			continue
-		}
-		if entry.ThumbnailURL == "" && len(detail.Screenshots) > 0 && detail.Screenshots[0].ThumbnailURL != "" {
-			entry.ThumbnailURL = detail.Screenshots[0].ThumbnailURL
-			installs[modID] = entry
-			backfilled = true
-		}
-		if detail.DateModified == "" || detail.DateModified == entry.InstalledDateModified {
-			continue
-		}
-		changes = append(changes, modupdates.Change{
-			ModID:  modID,
-			Name:   entry.Title,
-			Source: "loverslab",
-			Kind:   modupdates.KindUpdated,
-			New:    true,
+		toCheck = append(toCheck, candidate{modID, entry})
+	}
+
+	// Fetched with real concurrency (mirroring CheckModUpdates' own Workshop-
+	// existence check - see modupdates.go), not one at a time: a person with two
+	// dozen mods installed from LoversLab was otherwise looking at two dozen
+	// sequential page fetches - several real seconds - every time this runs (on
+	// startup, and every few hours), competing with whatever the person is doing
+	// in Browse right then for the exact same site. 4 at once, the same limit
+	// already chosen there, keeps this fast without hammering the site.
+	var mu sync.Mutex
+	var changes []modupdates.Change
+	backfilled := false
+	g, gctx := errgroup.WithContext(a.baseContext())
+	g.SetLimit(4)
+	for _, c := range toCheck {
+		g.Go(func() error {
+			if gctx.Err() != nil {
+				return nil
+			}
+			detail, err := a.loverslab.getFileDetail(gctx, client, c.entry.FileURL)
+			if err != nil {
+				log.Warnf("checking '%s' for updates failed, skipped: %v", c.entry.Title, err)
+				return nil
+			}
+
+			mu.Lock()
+			defer mu.Unlock()
+			if c.entry.ThumbnailURL == "" && len(detail.Screenshots) > 0 && detail.Screenshots[0].ThumbnailURL != "" {
+				c.entry.ThumbnailURL = detail.Screenshots[0].ThumbnailURL
+				installs[c.modID] = c.entry
+				backfilled = true
+			}
+			if detail.DateModified == "" || detail.DateModified == c.entry.InstalledDateModified {
+				return nil
+			}
+			changes = append(changes, modupdates.Change{
+				ModID:  c.modID,
+				Name:   c.entry.Title,
+				Source: "loverslab",
+				Kind:   modupdates.KindUpdated,
+				New:    true,
+			})
+			return nil
 		})
 	}
+	_ = g.Wait()
+
 	if backfilled {
 		if err := a.loverslabInstalls.Save(gameID, installs); err != nil {
 			log.Warnf("could not save backfilled thumbnails for '%s': %v", a.gameLabel(gameID), err)
 		}
+	}
+	if changes == nil {
+		changes = []modupdates.Change{}
 	}
 	return changes, nil
 }

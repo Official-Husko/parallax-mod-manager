@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"golang.org/x/net/html"
+	"golang.org/x/sync/singleflight"
 )
 
 const (
@@ -53,6 +54,11 @@ type Client struct {
 
 	cacheMu sync.Mutex
 	cache   map[string]cachedPage
+
+	// fetchGroup coalesces concurrent fetchBody calls for the same URL into one real
+	// request - see fetchBody's own comment for why the plain cache above, on its
+	// own, isn't enough to prevent this.
+	fetchGroup singleflight.Group
 }
 
 // cachedPage is one getDocument fetch's own result, cached by its exact URL.
@@ -92,40 +98,63 @@ func (c *Client) newRequest(ctx context.Context, method, url string, body io.Rea
 	return req, nil
 }
 
-// getDocument fetches pageURL and parses it as HTML for DOM-based scraping -
-// reusing a recent enough fetch of the exact same URL (see pageCacheTTL)
-// rather than making a fresh request every time.
+// getDocument fetches pageURL and parses it as HTML for DOM-based scraping - see
+// fetchBody for how the actual bytes are obtained. Always parses its own fresh,
+// independent tree even when fetchBody's result came from the cache (or was shared
+// with another concurrent caller) - html.Parse on already-fetched bytes is cheap,
+// local CPU work, and this avoids any question of two callers ever walking
+// (or, in principle, mutating) the same *html.Node tree at once.
 func (c *Client) getDocument(ctx context.Context, pageURL string) (*html.Node, error) {
-	if body := c.cachedBody(pageURL); body != nil {
-		doc, err := html.Parse(bytes.NewReader(body))
-		if err != nil {
-			return nil, fmt.Errorf("parsing %s: %w", pageURL, err)
-		}
-		return doc, nil
-	}
-
-	req, err := c.newRequest(ctx, http.MethodGet, pageURL, nil)
+	body, err := c.fetchBody(ctx, pageURL)
 	if err != nil {
 		return nil, err
 	}
-
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("fetching %s: %w", pageURL, err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("fetching %s: %w", pageURL, err)
-	}
-	c.storeCachedBody(pageURL, body)
-
 	doc, err := html.Parse(bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("parsing %s: %w", pageURL, err)
 	}
 	return doc, nil
+}
+
+// fetchBody returns pageURL's own raw bytes, from cache if recent enough (see
+// pageCacheTTL), otherwise a real fetch - single-flighted by URL so several
+// concurrent callers for the exact same page share one real request instead of
+// each making their own. This matters here specifically because opening a mod's
+// detail view fetches its own file page for three separate reasons at once
+// (the overview/GetFileDetail, the changelog/ListChangelog, and the support
+// topic lookup ListFileSupportPosts needs first) - confirmed a real, repeated
+// cost on every single mod opened, not just a theoretical race: the plain cache
+// above only ever helps a *later* visit, since it isn't populated yet the
+// instant all three of those first ask for the same brand new page.
+func (c *Client) fetchBody(ctx context.Context, pageURL string) ([]byte, error) {
+	if body := c.cachedBody(pageURL); body != nil {
+		return body, nil
+	}
+	v, err, _ := c.fetchGroup.Do(pageURL, func() (any, error) {
+		if body := c.cachedBody(pageURL); body != nil {
+			return body, nil
+		}
+		req, err := c.newRequest(ctx, http.MethodGet, pageURL, nil)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := c.http.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("fetching %s: %w", pageURL, err)
+		}
+		defer resp.Body.Close()
+
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("fetching %s: %w", pageURL, err)
+		}
+		c.storeCachedBody(pageURL, body)
+		return body, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return v.([]byte), nil
 }
 
 func (c *Client) cachedBody(url string) []byte {

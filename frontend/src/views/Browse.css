@@ -556,7 +556,14 @@
     inset: 0;
     background-size: cover;
     background-position: center;
-    filter: blur(20px) brightness(0.55);
+    /* A real, measured contributor to "browsing feels laggy": a full 20px gaussian
+       blur, recomputed for every card's own backdrop in a grid that can hold
+       several dozen at once, is real per-frame compositing work on scroll -
+       WebKitGTK's own filter/compositing path is nowhere near as cheap here as
+       Chromium's. 10px reads as close to identical (this is a soft background
+       fill behind a contained foreground image, not something anyone examines
+       closely) for roughly a quarter of the blur kernel's own cost. */
+    filter: blur(10px) brightness(0.55);
     transform: scale(1.15);
 }
 

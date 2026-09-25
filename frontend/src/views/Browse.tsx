@@ -293,7 +293,7 @@ function BrowseItemsView({items, viewMode, emptyIcon, emptyMessage}: {
                                     {it.thumbnailURL ? (
                                         <>
                                             <div className="browse-card-thumb-backdrop" style={{backgroundImage: `url(${it.thumbnailURL})`}}/>
-                                            <img className="browse-card-thumb-fg" src={it.thumbnailURL} alt=""/>
+                                            <img className="browse-card-thumb-fg" src={it.thumbnailURL} alt="" loading="lazy"/>
                                         </>
                                     ) : (
                                         <i className="fa-solid fa-image"/>
@@ -340,7 +340,7 @@ function BrowseItemsView({items, viewMode, emptyIcon, emptyMessage}: {
                                 {it.thumbnailURL ? (
                                     <>
                                         <div className="browse-card-thumb-backdrop" style={{backgroundImage: `url(${it.thumbnailURL})`}}/>
-                                        <img className="browse-card-thumb-fg" src={it.thumbnailURL} alt=""/>
+                                        <img className="browse-card-thumb-fg" src={it.thumbnailURL} alt="" loading="lazy"/>
                                     </>
                                 ) : (
                                     <i className="fa-solid fa-image"/>

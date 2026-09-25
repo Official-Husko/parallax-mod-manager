@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -40,6 +41,53 @@ func TestGetDocumentCachesARepeatedFetchOfTheExactSameURL(t *testing.T) {
 	}
 	if got := count.Load(); got != 1 {
 		t.Errorf("server received %d requests, want exactly 1 (the second fetch should have hit the cache)", got)
+	}
+}
+
+// TestGetDocumentCoalescesConcurrentFetchesOfTheExactSameURL is the real bug this
+// covers: opening a mod's detail view fetches its own file page three separate ways
+// at once (the overview, the changelog, and the support-topic lookup behind
+// comments), all racing to be the first to see the plain cache empty. Without
+// single-flighting fetchBody, every one of those was a real, independent HTTP
+// request for the identical page - up to 3x the network cost on every single mod
+// opened, confirmed a real contributor to "browsing feels laggy", not just a
+// theoretical race.
+func TestGetDocumentCoalescesConcurrentFetchesOfTheExactSameURL(t *testing.T) {
+	var count atomic.Int64
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		count.Add(1)
+		// Long enough that every goroutine below reliably starts its own call - and
+		// so sees the plain cache still empty - before this first request finishes
+		// and populates it, without actually slowing the test down noticeably.
+		time.Sleep(20 * time.Millisecond)
+		w.Write([]byte("<html><body>hello</body></html>"))
+	}))
+	defer srv.Close()
+
+	c, err := New()
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	ctx := context.Background()
+
+	const callers = 10
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(callers)
+	for i := 0; i < callers; i++ {
+		go func() {
+			defer wg.Done()
+			<-start
+			if _, err := c.getDocument(ctx, srv.URL); err != nil {
+				t.Errorf("getDocument: %v", err)
+			}
+		}()
+	}
+	close(start)
+	wg.Wait()
+
+	if got := count.Load(); got != 1 {
+		t.Errorf("server received %d requests from %d concurrent callers, want exactly 1", got, callers)
 	}
 }
 
