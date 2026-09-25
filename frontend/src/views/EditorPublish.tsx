@@ -4,7 +4,8 @@ import {CancelPublish, ListModFiles, PreviewModFile, PublishModToWorkshop, Steam
 import type {app, library} from '../../wailsjs/go/models';
 import {EventsOn} from '../../wailsjs/runtime/runtime';
 import {Avatar} from '../components/Avatar';
-import {FileTree} from '../components/FileTree';
+import {FILE_ROW_HEIGHT, FileTreeRows, buildFileTreeRows} from '../components/FileTree';
+import {useVirtualWindow} from '../data/useVirtualWindow';
 
 // The Publish tab: uploading a mod to the Steam Workshop as a new item, or pushing an update to
 // one already there, with a line-by-line log of what the app and Steam did - see
@@ -195,6 +196,14 @@ export function EditorPublish({gameId, mod}: { gameId: string; mod: library.ModS
 
     const fileSelection = useMemo(() => ({excluded, onToggle: toggleExcluded}), [excluded, toggleExcluded]);
 
+    // See FileTree.tsx's own comment on buildFileTreeRows/FileTreeRows: windowed the same way,
+    // for the same reason (a mod's file list can run into the thousands of entries).
+    const fileRows = useMemo(
+        () => files ? buildFileTreeRows(files.Entries, fileSelection, selectFile, selectedPath) : [],
+        [files, fileSelection, selectFile, selectedPath],
+    );
+    const fileWindow = useVirtualWindow<HTMLDivElement>(fileRows.length, FILE_ROW_HEIGHT, 15);
+
     // FILES TO UPLOAD's own "N of Total" badge - walking every entry against isEffectivelyExcluded
     // is real work for a big mod (tens of thousands of files), so this only redoes it when the
     // file list or the exclusion set actually changes, not on every render (selecting a file to
@@ -377,13 +386,8 @@ export function EditorPublish({gameId, mod}: { gameId: string; mod: library.ModS
                     {!filesError && files && files.Entries.length > 0 && (
                         <>
                             <div className="publish-file-layout">
-                                <div className="editor-file-picker publish-file-picker">
-                                    <FileTree
-                                        entries={files.Entries}
-                                        selection={fileSelection}
-                                        onSelectFile={selectFile}
-                                        selectedPath={selectedPath}
-                                    />
+                                <div className="editor-file-picker publish-file-picker" ref={fileWindow.ref} onScroll={fileWindow.onScroll}>
+                                    <FileTreeRows rows={fileRows} first={fileWindow.first} last={fileWindow.last}/>
                                 </div>
                                 <div className="publish-file-preview">
                                     {!selectedPath && <div className="editor-muted">Select a file to preview it.</div>}

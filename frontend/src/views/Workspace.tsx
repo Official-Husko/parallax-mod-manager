@@ -57,7 +57,8 @@ import {TipItem} from '../components/Tooltip';
 import {UpdatesCard} from '../components/UpdatesCard';
 import {checkModUpdates} from '../data/modUpdates';
 import {EmptyState} from '../components/EmptyState';
-import {FileTree} from '../components/FileTree';
+import {FILE_ROW_HEIGHT, FileTreeRows, buildFileTreeRows} from '../components/FileTree';
+import {useVirtualWindow} from '../data/useVirtualWindow';
 import {AutosortMissingDepsModal} from './AutosortMissingDepsModal';
 import {AutosortUnresolvedDepsModal} from './AutosortUnresolvedDepsModal';
 import {ConflictResolver} from './ConflictResolver';
@@ -1843,6 +1844,13 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, gameVersion, allM
         return () => { cancelled = true; };
     }, [gameId, mod?.ID]);
 
+    // Read-only here (no selection/onSelectFile - see FileTree.tsx's own SelectionProps, which
+    // only the Publish tab's own upload picker needs), windowed the same way Library.tsx's own
+    // table is: a total conversion mod can run into the thousands of files (see
+    // docs/performance-strategy.md and library.maxModFileEntries).
+    const fileRows = useMemo(() => files ? buildFileTreeRows(files.Entries, undefined, undefined, undefined) : [], [files]);
+    const fileWindow = useVirtualWindow<HTMLDivElement>(fileRows.length, FILE_ROW_HEIGHT, 15);
+
     useEffect(() => {
         setThumbnail(null);
         if (!mod) {
@@ -1974,7 +1982,7 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, gameVersion, allM
                             </span>
                         ))}
                     </div>
-                    <div className="detail-content">
+                    <div className="detail-content" ref={fileWindow.ref} onScroll={fileWindow.onScroll}>
                         {tab === 'overview' && (
                             <OverviewTab
                                 mod={mod}
@@ -2017,7 +2025,7 @@ function DetailPanel({mod, tab, onTab, onOpenResolver, gameId, gameVersion, allM
                                 {!filesError && files && files.Entries.length === 0 && (
                                     <p className="detail-empty">This mod's content folder is empty.</p>
                                 )}
-                                {files && files.Entries.length > 0 && <FileTree entries={files.Entries}/>}
+                                {files && files.Entries.length > 0 && <FileTreeRows rows={fileRows} first={fileWindow.first} last={fileWindow.last}/>}
                                 {files?.Truncated && (
                                     <p className="detail-sub" style={{padding: '8px 12px'}}>
                                         Showing the first {files.Entries.length.toLocaleString()} entries - this mod has more.

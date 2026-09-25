@@ -370,6 +370,11 @@ for security, privacy, reliability or performance is called out (see the last tw
   small buffer) are ever in the page at once, so scrolling through hundreds of installed mods (the
   browsing grid's own pages are already small) doesn't mean compositing every card's blurred
   thumbnail backdrop at the same time.
+- **The Library table stays smooth too** - the same windowed rendering as Browse's grid, for the
+  "All games" table (every mod from every managed game, with no natural size limit of its own).
+- **A mod's Files tab stays smooth on a big file tree too** - the same windowed rendering again,
+  for a total-conversion mod that can ship thousands of files, in both Workspace's read-only file
+  browser and Publish's own upload picker.
 - **Mod list appears at once** - names, versions and sources show in about a millisecond, before the
   slower conflict pass finishes.
 - **Parallel where it is safe** - files are parsed on all cores, and merged in load order so the result

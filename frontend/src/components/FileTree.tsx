@@ -1,8 +1,6 @@
 import './FileTree.css';
 import {h} from 'preact';
 import type {JSX} from 'preact';
-import {memo} from 'preact/compat';
-import {useMemo} from 'preact/hooks';
 import type {library} from '../../wailsjs/go/models';
 import {Checkbox} from './Checkbox';
 import {formatBytes} from '../data/format';
@@ -146,28 +144,45 @@ export interface SelectionProps {
     onToggle: (relPath: string, isDir: boolean) => void;
 }
 
-// Wrapped in memo(): a mod's file list can run into the tens of thousands of entries (see
-// docs/performance-strategy.md), and buildTree's own sort and directory-size rollup, plus
-// renderNodes' own recursive walk building one JSX row per entry, both redo that full amount of
-// work on every render otherwise - including a render this component's own parent does for a
-// reason that has nothing to do with the file list at all (Publish's own upload progress
-// ticking is exactly this: it re-renders EditorPublish many times a second while running, and
-// without this, every one of those would rebuild the entire tree along with it). This only pays
-// off because EditorPublish itself passes stable props (useCallback/useMemo) - a fresh object or
-// closure every render would make every one of these comparisons fail anyway.
-export const FileTree = memo(function FileTree({entries, selection, onSelectFile, selectedPath}: {
-    entries: library.FileEntry[];
-    selection?: SelectionProps;
-    // onSelectFile, when given, makes each file row clickable (a folder row's own
-    // collapse/expand is not part of this component at all - every folder always
-    // shows fully expanded) - the Publish tab's own file preview pane uses this;
-    // Workspace's read-only file browser leaves it out entirely.
-    onSelectFile?: (relPath: string) => void;
-    selectedPath?: string;
-}) {
-    const tree = useMemo(() => buildTree(entries), [entries]);
-    return <div className="file-tree-rows">{renderNodes(tree, [], selection, false, onSelectFile, selectedPath)}</div>;
-});
+// Exactly .file-row's own height (FileTree.css) - a caller's windowing maths (useVirtualWindow,
+// see FileTreeRows below) depends on it, the same requirement Library.tsx's own ROW_HEIGHT and
+// LogView.tsx's own LINE_HEIGHT document.
+export const FILE_ROW_HEIGHT = 24;
+
+// buildFileTreeRows turns a mod's flat file listing into one flat array of already-built rows
+// (buildTree's own sort and directory-size rollup, then renderNodes' recursive walk - both real
+// work: a mod's file list can run into the thousands of entries, see docs/performance-strategy.md
+// and library.maxModFileEntries). A caller wraps this in its own useMemo(..., [entries,
+// selection, onSelectFile, selectedPath]) so it only redoes that work when one of those actually
+// changes, not on every render for an unrelated reason (Publish's own upload-progress ticking is
+// exactly this: it re-renders EditorPublish many times a second while running) - this used to be
+// a memo() wrapped around the whole rendering component instead; moved out here because
+// windowing (FileTreeRows, below) needs the caller to already know the total row count before it
+// can even call useVirtualWindow, and the caller also owns whichever element actually scrolls
+// (Workspace's shared, multi-tab .detail-content; EditorPublish's own self-contained
+// .editor-file-picker) - a component FileTree itself doesn't render can't be virtualized from
+// inside FileTree.
+export function buildFileTreeRows(
+    entries: library.FileEntry[],
+    selection: SelectionProps | undefined,
+    onSelectFile: ((relPath: string) => void) | undefined,
+    selectedPath: string | undefined,
+): JSX.Element[] {
+    return renderNodes(buildTree(entries), [], selection, false, onSelectFile, selectedPath);
+}
+
+// FileTreeRows renders a windowed slice of buildFileTreeRows' own output - a thin,
+// non-memoized presentational wrapper (the expensive part is already done by the time rows
+// reaches here) that reserves the full list's own total height and offsets by first *
+// FILE_ROW_HEIGHT, the same padding-top technique LogView.tsx and Library.tsx use for their own
+// flat lists.
+export function FileTreeRows({rows, first, last}: {rows: JSX.Element[]; first: number; last: number}) {
+    return (
+        <div className="file-tree-rows" style={{height: rows.length * FILE_ROW_HEIGHT, paddingTop: first * FILE_ROW_HEIGHT, boxSizing: 'border-box'}}>
+            {rows.slice(first, last)}
+        </div>
+    );
+}
 
 // renderNodes recurses depth-first, tracking (for each ancestor level)
 // whether that ancestor still has a later sibling - a continuing guide
