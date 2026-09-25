@@ -809,6 +809,9 @@ export namespace app {
 	    ThumbnailURL: string;
 	    InstalledAt: number;
 	    InstalledDateModified: string;
+	    ArchiveName: string;
+	    ArchivePosted: string;
+	    ContentDir: string;
 	    ContentMissing: boolean;
 	
 	    static createFrom(source: any = {}) {
@@ -824,6 +827,9 @@ export namespace app {
 	        this.ThumbnailURL = source["ThumbnailURL"];
 	        this.InstalledAt = source["InstalledAt"];
 	        this.InstalledDateModified = source["InstalledDateModified"];
+	        this.ArchiveName = source["ArchiveName"];
+	        this.ArchivePosted = source["ArchivePosted"];
+	        this.ContentDir = source["ContentDir"];
 	        this.ContentMissing = source["ContentMissing"];
 	    }
 	}

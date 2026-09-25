@@ -1264,6 +1264,16 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   took (recognizing the pattern, then not over-matching it against an ordinary flat-root archive
   that just happens to also have a subfolder). Only `.zip` archives are supported; anything else
   is refused with a clear message rather than failing silently.
+- **A permanent record of what was actually installed and from where** (`loverslabtracking.Entry`'s
+  `ArchiveName`/`ArchivePosted`/`ContentDir`) - every install records the exact archive filename
+  and its own real "posted" release date (from the same download dialog scrape above, not the
+  page's own dateModified this app already uses for update-checking - a genuinely different date),
+  plus the resolved content folder path, independent of both LoversLab's own Files list (which can
+  later rename, replace, or drop that exact file) and the mod's own stub descriptor (still the real
+  source of truth for where a mod's content actually lives, never superseded by this - just backed
+  up by an independent record of it). Shown right on the Installed section's own card as a second
+  line under the mod's name, so it stays visible, not just written to a JSONC file nobody looks at.
+  Empty for anything installed before these fields existed.
 - **Real LoversLab notifications, not just this app's own alerts** (`internal/loverslab/notifications.go`,
   `LoversLabUnreadNotifications`, `data/loversLabNotifications.ts`) - a bell next to the sign-in panel
   shows the signed-in account's actual unread count, read straight from the site's own bell badge

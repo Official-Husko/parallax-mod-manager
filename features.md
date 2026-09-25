@@ -120,6 +120,10 @@ for security, privacy, reliability or performance is called out (see the last tw
   mod - its own folder named from its own filename, its own descriptor, separately uninstallable
   and separately tracked for updates - never merged together into one shared folder. If any one
   of several selected files fails, the whole batch is rolled back, not just the one that failed.
+  Which archive it came from, that archive's own release date, and where it was installed to are
+  all kept on record too, independent of LoversLab's own Files list and of the mod's own descriptor
+  - shown right on its card in the Installed section - so that record survives even if the site
+  later renames or drops that file.
 - **An Installed section, and uninstalling** - a new place in Browse, alongside its per-game
   sidebar, listing everything installed from LoversLab for the current game (each mod its own
   entry, even two that came from the same page's Files tab); uninstall one specific mod from

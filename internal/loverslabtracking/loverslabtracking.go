@@ -50,6 +50,26 @@ type Entry struct {
 	// seconds) - shown alongside Title for a person's own reference; not read by
 	// the update check itself.
 	InstalledAt int64 `json:"installedAt"`
+	// ArchiveName is the exact archive filename this mod was actually built from
+	// (loverslab.FileDownload.Name) - a permanent record kept independent of
+	// LoversLab's own Files list, which can later rename, replace, or drop that
+	// same entry without this app losing track of what it originally installed
+	// from. Never a working download link itself (LoversLabDownloadDialog's own
+	// URLs are one-time and expire almost immediately) - for record-keeping and
+	// display only. Empty for anything installed before this field existed.
+	ArchiveName string `json:"archiveName"`
+	// ArchivePosted is that same archive's own "posted"/release date, exactly as
+	// LoversLab's download dialog displayed it (loverslab.FileDownload.Posted) -
+	// the file's own real release date, distinct from InstalledAt (when this app
+	// grabbed it) and from InstalledDateModified (the page's own, not this one
+	// specific archive's own, last-modified timestamp).
+	ArchivePosted string `json:"archivePosted"`
+	// ContentDir is this mod's real content folder, as an informational record
+	// only - never itself the source of truth for where a mod's content lives
+	// (its own stub descriptor's path= is that - see locateLoversLabInstall in
+	// internal/app/loverslabinstall.go), so a person reading this file by hand
+	// can see where a mod actually is without cross-referencing its stub too.
+	ContentDir string `json:"contentDir"`
 }
 
 // Store keeps LoversLab install tracking on disk, one file per game in Dir.
@@ -140,8 +160,14 @@ func render(installs map[string]Entry) []byte {
 // extension - see internal/mod's LoversLabFilePrefix). Recorded automatically each
 // time a mod is downloaded and installed from Browse; "installedDateModified" is what
 // the update check compares against LoversLab's own current value for the same file
-// to notice a newer version. Deleting an entry here just stops that one mod being
-// checked for updates - it does not uninstall anything.
+// to notice a newer version. "archiveName"/"archivePosted"/"contentDir" are a
+// permanent record of what was actually downloaded and where it went, kept
+// independent of LoversLab's own Files list (which can later rename, replace, or
+// drop that same entry) and independent of the mod's own stub descriptor (which is
+// still the real source of truth for where its content lives) - so this file alone
+// still says what was installed and from where, even if either of those changes out
+// from under it later. Deleting an entry here just stops that one mod being checked
+// for updates - it does not uninstall anything.
 {
   "installs": {
 `)
@@ -153,7 +179,10 @@ func render(installs map[string]Entry) []byte {
 			"\"title\": " + quote(e.Title) + ", " +
 			"\"thumbnailUrl\": " + quote(e.ThumbnailURL) + ", " +
 			"\"installedDateModified\": " + quote(e.InstalledDateModified) + ", " +
-			"\"installedAt\": " + fmt.Sprint(e.InstalledAt) +
+			"\"installedAt\": " + fmt.Sprint(e.InstalledAt) + ", " +
+			"\"archiveName\": " + quote(e.ArchiveName) + ", " +
+			"\"archivePosted\": " + quote(e.ArchivePosted) + ", " +
+			"\"contentDir\": " + quote(e.ContentDir) +
 			"}")
 		if i < len(ids)-1 {
 			b.WriteString(",")

@@ -222,6 +222,13 @@ type LoversLabInstalledMod struct {
 	ThumbnailURL          string
 	InstalledAt           int64
 	InstalledDateModified string
+	// ArchiveName/ArchivePosted/ContentDir are a permanent record of exactly what
+	// was downloaded and where it went - see loverslabtracking.Entry's own fields of
+	// the same name, which these are read straight from. Empty for anything
+	// installed before they existed.
+	ArchiveName   string
+	ArchivePosted string
+	ContentDir    string
 	// ContentMissing is true when this entry's own stub descriptor and content
 	// folder can no longer be found on disk - the mod was removed by hand outside
 	// this app, or the drive it lived on isn't connected. Shown so a person isn't
@@ -259,6 +266,9 @@ func (a *App) LoversLabInstalledMods(gameID string) ([]LoversLabInstalledMod, er
 			ThumbnailURL:          e.ThumbnailURL,
 			InstalledAt:           e.InstalledAt,
 			InstalledDateModified: e.InstalledDateModified,
+			ArchiveName:           e.ArchiveName,
+			ArchivePosted:         e.ArchivePosted,
+			ContentDir:            e.ContentDir,
 			ContentMissing:        missing,
 		})
 	}
@@ -485,6 +495,9 @@ func (a *App) LoversLabInstall(gameID, requestID string, file loverslab.FileSumm
 			ThumbnailURL:          file.ThumbnailURL,
 			InstalledDateModified: dateModified,
 			InstalledAt:           time.Now().Unix(),
+			ArchiveName:           t.dl.Name,
+			ArchivePosted:         t.dl.Posted,
+			ContentDir:            contentDir,
 		})
 	}
 

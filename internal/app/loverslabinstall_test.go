@@ -226,7 +226,9 @@ func TestLoversLabInstallTracksTheInstallForUpdateChecking(t *testing.T) {
 		ThumbnailURL: "https://static.loverslab.com/files/42/thumb.jpg",
 	}
 
-	if _, err := env.a.LoversLabInstall(env.cfg.ID, "req-4", file, "2026-03-01T00:00:00+0000", []loverslab.FileDownload{{URL: srv.URL}}); err != nil {
+	if _, err := env.a.LoversLabInstall(env.cfg.ID, "req-4", file, "2026-03-01T00:00:00+0000", []loverslab.FileDownload{
+		{Name: "Tracked Mod v1.zip", URL: srv.URL, Posted: "December 8, 2020"},
+	}); err != nil {
 		t.Fatalf("LoversLabInstall: %v", err)
 	}
 
@@ -243,6 +245,47 @@ func TestLoversLabInstallTracksTheInstallForUpdateChecking(t *testing.T) {
 	}
 	if entry.InstalledAt == 0 {
 		t.Error("InstalledAt was not set")
+	}
+	// A permanent record of what was actually downloaded and where it went - kept
+	// independent of LoversLab's own Files list and the mod's own stub descriptor,
+	// so this file alone still says what was installed even if either changes later.
+	if entry.ArchiveName != "Tracked Mod v1.zip" {
+		t.Errorf("ArchiveName = %q, want %q", entry.ArchiveName, "Tracked Mod v1.zip")
+	}
+	if entry.ArchivePosted != "December 8, 2020" {
+		t.Errorf("ArchivePosted = %q, want %q", entry.ArchivePosted, "December 8, 2020")
+	}
+	wantContentDir := filepath.Join(env.modDir, "Tracked Mod")
+	if entry.ContentDir != wantContentDir {
+		t.Errorf("ContentDir = %q, want %q", entry.ContentDir, wantContentDir)
+	}
+}
+
+// TestLoversLabInstalledModsExposesTheArchiveRecord confirms LoversLabInstalledMods
+// (the frontend-facing read) actually surfaces the same record, not just
+// internal/loverslabtracking's own Store.
+func TestLoversLabInstalledModsExposesTheArchiveRecord(t *testing.T) {
+	env := newInstallEnv(t)
+	srv := zipServer(t, buildTestZip(t, map[string]string{"descriptor.mod": "name=\"Exposed\"\n"}))
+	file := loverslab.FileSummary{ID: 44, Title: "Exposed Mod", URL: "https://www.loverslab.com/files/file/44-exposed-mod/", Updated: "today"}
+	if _, err := env.a.LoversLabInstall(env.cfg.ID, "req-expose", file, "2026-03-01T00:00:00+0000", []loverslab.FileDownload{
+		{Name: "Exposed Mod.zip", URL: srv.URL, Posted: "January 1, 2021"},
+	}); err != nil {
+		t.Fatalf("LoversLabInstall: %v", err)
+	}
+
+	got, err := env.a.LoversLabInstalledMods(env.cfg.ID)
+	if err != nil {
+		t.Fatalf("LoversLabInstalledMods: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("got %d entries, want 1", len(got))
+	}
+	if got[0].ArchiveName != "Exposed Mod.zip" || got[0].ArchivePosted != "January 1, 2021" {
+		t.Errorf("unexpected archive record: %+v", got[0])
+	}
+	if got[0].ContentDir != filepath.Join(env.modDir, "Exposed Mod") {
+		t.Errorf("ContentDir = %q", got[0].ContentDir)
 	}
 }
 

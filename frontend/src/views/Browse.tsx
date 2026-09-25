@@ -1173,7 +1173,11 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
             tag: mockExtrasFor(m.FileID).tag,
             tagColor: mockExtrasFor(m.FileID).tagColor,
             stateIcon: m.ContentMissing ? 'missing' : updateAvailableModIds.has(m.ModID) ? 'update' : 'installed',
-            lineOne: m.ContentMissing ? 'Files not found on disk' : '',
+            // A real, permanent record of what this mod was actually built from (see
+            // internal/loverslabtracking.Entry.ArchiveName) - empty for anything installed
+            // before that field existed, or (like ContentMissing) not worth showing over the
+            // more urgent "files are gone" notice.
+            lineOne: m.ContentMissing ? 'Files not found on disk' : m.ArchiveName,
             lineOneWarn: m.ContentMissing,
             lineTwo: m.InstalledAt ? new Date(m.InstalledAt * 1000).toLocaleDateString() : undefined,
             onClick: confirmUninstallId === m.ModID ? undefined : () => openInstalledDetail(m),

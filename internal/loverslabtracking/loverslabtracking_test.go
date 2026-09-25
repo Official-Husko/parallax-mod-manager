@@ -11,7 +11,11 @@ import (
 func TestSaveThenLoadRoundTrips(t *testing.T) {
 	s := Store{Dir: filepath.Join(t.TempDir(), "loverslab_installs")}
 	installs := map[string]Entry{
-		"loverslab_31347": {FileURL: "https://www.loverslab.com/files/file/31347-stable-portraits/", FileID: 31347, Title: "Stable Portraits", InstalledDateModified: "2 days ago", InstalledAt: 1758000000},
+		"loverslab_31347": {
+			FileURL: "https://www.loverslab.com/files/file/31347-stable-portraits/", FileID: 31347, Title: "Stable Portraits",
+			InstalledDateModified: "2 days ago", InstalledAt: 1758000000,
+			ArchiveName: "Stable Portraits v3.zip", ArchivePosted: "December 8, 2020", ContentDir: "/mods/Stable Portraits",
+		},
 		"loverslab_44226": {FileURL: "https://www.loverslab.com/files/file/44226-deluxe-species-pack-reforged/", FileID: 44226, Title: "Deluxe Species pack reforged, with \"quotes\"", InstalledDateModified: "September 13", InstalledAt: 1758000001},
 	}
 	if err := s.Save("g1", installs); err != nil {
