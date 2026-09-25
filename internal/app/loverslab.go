@@ -379,21 +379,42 @@ func (a *App) LoversLabComments(filePageURL string, page int) (LoversLabCommentL
 	return LoversLabCommentList{Posts: posts, TotalPages: totalPages, HasTopic: true, TopicAuthor: topicAuthor}, nil
 }
 
-// LoversLabPostComment posts content as a reply to filePageURL's linked support
-// topic - the write side of LoversLabComments. content is plain text typed into this
-// app's own comment box; it is escaped and wrapped into the simple <p> HTML the
-// site's own rich text editor actually submits (see paragraphsToHTML) before being
-// sent, and returns a clear error if the file has no support topic to write to.
-func (a *App) LoversLabPostComment(filePageURL, content string) error {
-	content = strings.TrimSpace(content)
-	if content == "" {
+// CommentRun is one run of a comment draft's own text - the write-side mirror of
+// loverslab.DescriptionRun (the read side already parses exactly this shape back out
+// of a real reply), minus Underline/EmoteURL/EmoteAlt, which nothing in the Browse
+// tab's own editor offers yet. Exactly one of a plain-text run (Bold/Italic optionally
+// set) or a link run (LinkURL set, Text is the link's own visible label) - never both
+// at once, the same convention DescriptionRun already uses.
+type CommentRun struct {
+	Text    string
+	Bold    bool
+	Italic  bool
+	LinkURL string
+}
+
+// CommentParagraph is one paragraph of a comment draft - becomes one <p> element.
+type CommentParagraph struct {
+	Runs []CommentRun
+}
+
+// LoversLabPostComment posts paragraphs as a reply to filePageURL's linked support
+// topic - the write side of LoversLabComments. Built from structured runs, not a raw
+// HTML string, specifically so a run's own typed text is always HTML-escaped before
+// any formatting tag ever wraps it (see commentParagraphsToHTML) - the <strong>/<em>/
+// <a> tags only ever come from the draft's own structure, never from parsing
+// user-typed text, so there is no way for someone typing a literal "<b>" to be
+// misread as real markup. Returns a clear error if the file has no support topic to
+// write to, or if every paragraph is empty.
+func (a *App) LoversLabPostComment(filePageURL string, paragraphs []CommentParagraph) error {
+	body := commentParagraphsToHTML(paragraphs)
+	if body == "" {
 		return errors.New("write something before posting")
 	}
 	client, err := a.ensureLoversLabSession(a.baseContext())
 	if err != nil {
 		return err
 	}
-	if err := a.loverslab.postComment(a.baseContext(), client, filePageURL, paragraphsToHTML(content)); err != nil {
+	if err := a.loverslab.postComment(a.baseContext(), client, filePageURL, body); err != nil {
 		applog.For("LoversLab").Warnf("posting a comment on %s failed: %v", filePageURL, err)
 		return err
 	}
@@ -439,25 +460,44 @@ func (a *App) LoversLabProfile() (LoversLabAccountProfile, error) {
 	return LoversLabAccountProfile{Username: profile.Username, ProfileURL: profile.ProfileURL, AvatarURL: profile.AvatarURL}, nil
 }
 
-// paragraphsToHTML turns plain text typed into this app's own comment box into the
-// simple HTML the site's real rich text editor submits for an ordinary reply (see
-// docs/loverslab.md's Notifications/Comments research) - blank-line-separated
-// paragraphs, each escaped and wrapped in <p>, single line breaks within a paragraph
-// becoming <br>.
-func paragraphsToHTML(content string) string {
-	paras := strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n\n")
+// commentParagraphsToHTML turns a comment draft's own structured paragraphs/runs into
+// the simple HTML the site's real rich text editor submits for a reply (see
+// docs/loverslab.md's Notifications/Comments research for the plain-paragraph case,
+// already confirmed live) - one <p> per paragraph, a run's own text HTML-escaped
+// first and only then wrapped in <strong>/<em>/<a href> per its own flags, single line
+// breaks within a run's text becoming <br>. A run with no visible text (blank or
+// whitespace-only, matching the old plain-string function's own strings.TrimSpace
+// check) contributes nothing; a paragraph with nothing but empty runs is dropped
+// entirely, the same way a blank line was dropped before. Returns "" if every
+// paragraph turns out empty, matching the old function's own signal for that.
+func commentParagraphsToHTML(paragraphs []CommentParagraph) string {
 	var b strings.Builder
-	for _, p := range paras {
-		p = strings.TrimSpace(p)
-		if p == "" {
+	for _, para := range paragraphs {
+		var p strings.Builder
+		for _, run := range para.Runs {
+			text := strings.ReplaceAll(run.Text, "\r\n", "\n")
+			if strings.TrimSpace(text) == "" {
+				continue
+			}
+			escaped := strings.ReplaceAll(html.EscapeString(text), "\n", "<br>")
+			if run.LinkURL != "" {
+				p.WriteString(`<a href="` + html.EscapeString(run.LinkURL) + `">` + escaped + `</a>`)
+				continue
+			}
+			if run.Bold {
+				escaped = "<strong>" + escaped + "</strong>"
+			}
+			if run.Italic {
+				escaped = "<em>" + escaped + "</em>"
+			}
+			p.WriteString(escaped)
+		}
+		if p.Len() == 0 {
 			continue
 		}
 		b.WriteString("<p>")
-		b.WriteString(strings.ReplaceAll(html.EscapeString(p), "\n", "<br>"))
+		b.WriteString(p.String())
 		b.WriteString("</p>")
-	}
-	if b.Len() == 0 {
-		return "<p>" + html.EscapeString(content) + "</p>"
 	}
 	return b.String()
 }

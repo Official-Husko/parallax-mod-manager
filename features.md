@@ -108,7 +108,12 @@ for security, privacy, reliability or performance is called out (see the last tw
   gallery, changelog, and comments (LoversLab files link an ordinary forum topic for support
   instead of having native comments), all in one place instead of leaving the app.
 - **Write a reply, not just read them** - post a real comment to a file's support topic straight
-  from the Comments tab, with no need to open a browser.
+  from the Comments tab, with no need to open a browser. A small Bold/Italic/Link toolbar formats
+  it for real (the posted reply comes out properly formatted on the real site, not raw markup);
+  "Reply" opens an inline editor under any one comment, and "Quote" pre-fills it with that
+  comment's own text.
+- **Every reply links straight to itself** - its own real id, next to an external-link icon,
+  opens that exact comment on the real site.
 - **Pick any combination of files to install from its own Files tab** - every downloadable file
   for a mod listed with its own real size and posted date and a checkbox, so a main archive and
   a separate addon zip (or several old versions kept for rollback) can be selected together and

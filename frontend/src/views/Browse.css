@@ -1574,6 +1574,14 @@
     border-radius: 6px;
     padding: 10px 12px;
     background: var(--bg-inset);
+    /* Only visible spacing above a per-comment inline reply (CommentEditor rendered directly
+       under .browse-comment-footer, not inside the avatar-led .browse-comment-write row, where
+       that row's own gap already separates it from whatever's above). */
+    margin-top: 10px;
+}
+
+.browse-comment-write > .browse-comment-write-box {
+    margin-top: 0;
 }
 
 .browse-comment-input {
@@ -1589,10 +1597,75 @@
     box-sizing: border-box;
 }
 
+/* The Bold/Italic/Link toolbar row under the input - see data/commentDraft.ts and
+   CommentEditor (Browse.tsx) for how these markers turn into a real formatted post. */
+.browse-comment-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.browse-comment-toolbar-btn {
+    font: 600 11px Barlow, sans-serif;
+    color: var(--text-muted);
+    cursor: pointer;
+    flex: none;
+}
+
+.browse-comment-toolbar-btn:hover {
+    color: var(--text-mid);
+}
+
+.browse-comment-toolbar-btn.bold {
+    font-weight: 700;
+}
+
+.browse-comment-toolbar-btn.italic {
+    font-style: italic;
+}
+
 .browse-comment-post-btn {
-    align-self: flex-end;
     padding: 5px 14px;
     font-size: 11.5px;
+    flex: none;
+}
+
+/* A reply's own permalink - its real id plus an external-link icon, both clickable together
+   (BrowserOpenURL(post.URL)) - matches the real LoversLab site's own per-reply deep link. */
+.browse-comment-permalink {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    color: var(--text-muted);
+    cursor: pointer;
+    flex: none;
+}
+
+.browse-comment-permalink:hover {
+    color: var(--text-mid);
+}
+
+/* Reply/Quote, next to the reaction count - opens CommentEditor inline, under this one
+   comment, via replyTarget (Browse.tsx). */
+.browse-comment-action {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--text-mid);
+    cursor: pointer;
+}
+
+.browse-comment-action:hover {
+    color: var(--text-bright);
+}
+
+.browse-comment-action.muted {
+    color: var(--text-muted);
+}
+
+.browse-comment-action.muted:hover {
+    color: var(--text-mid);
 }
 
 /* The Download button's own flow (finding downloads, picking one, confirming,

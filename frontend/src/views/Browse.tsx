@@ -33,6 +33,7 @@ import {colorFromName} from '../data/nameColor';
 import {checkLoversLabUpdates, useModUpdates} from '../data/modUpdates';
 import {notify} from '../data/notifications';
 import {time, timeAsync} from '../data/profiling';
+import {isBlankDraft, parseDraftText, wrapSelection} from '../data/commentDraft';
 import {useVirtualGrid} from '../data/useVirtualGrid';
 
 // A "loverslab-install-progress" event's shape - not a Wails-bound method's own
@@ -103,6 +104,17 @@ type CommentsState =
 // sees the topic's own opening post), so moving to page 2+ must not forget it.
 function mergeTopicAuthor(existing: string, fetched: string): string {
     return fetched || existing;
+}
+
+// quotePrefix seeds a "Quote" reply's own draft with the quoted post's plain text, prefixed
+// clearly enough to read as a quote - deliberately not IPS4's own real attributed quote block
+// (that write-side format isn't confirmed anywhere against the real site yet; see
+// docs/loverslab.md), just safe plain text through the same already-confirmed-live
+// paragraph/run path everything else here uses.
+function quotePrefix(post: loverslab.Post): string {
+    const text = post.Content || '';
+    const quoted = text.split('\n').map((line) => `> ${line}`).join('\n');
+    return `> ${post.Author} wrote:\n${quoted}\n\n`;
 }
 
 // The detail overlay's four tabs, Nexus/Steam Workshop/Thunderstore-style: an
@@ -489,6 +501,67 @@ function DescriptionBlocksView({blocks}: {blocks: loverslab.DescriptionBlock[]})
     );
 }
 
+// CommentEditor is the one reply-writing UI, reused for both the bottom "write a new comment"
+// box (always present, no cancel) and a per-comment inline "Reply"/"Quote" box (rendered under
+// that one comment, replaces itself with a Cancel). The Bold/Italic/Link toolbar wraps the
+// textarea's own current selection in lightweight markdown-style markers (see
+// data/commentDraft.ts's own comment on why, over trying to track a live rich-text typing mode
+// against a plain textarea) - value stays a single plain string the whole time; parseDraftText
+// only turns it into real formatted runs right before posting.
+function CommentEditor({value, onChange, onSubmit, onCancel, posting, placeholder, submitLabel, autoFocus}: {
+    value: string;
+    onChange: (v: string) => void;
+    onSubmit: () => void;
+    onCancel?: () => void;
+    posting: boolean;
+    placeholder: string;
+    submitLabel: string;
+    autoFocus?: boolean;
+}) {
+    const areaRef = useRef<HTMLTextAreaElement>(null);
+
+    // A Quote's own pre-filled text (the quoted post) should leave the cursor ready for the
+    // person's own reply at the end, not wherever a freshly autofocused textarea would otherwise
+    // default to.
+    useEffect(() => {
+        if (autoFocus && areaRef.current) {
+            const end = areaRef.current.value.length;
+            areaRef.current.setSelectionRange(end, end);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    function toolbar(before: string, after: string) {
+        const el = areaRef.current;
+        if (!el) return;
+        onChange(wrapSelection(el, before, after));
+    }
+
+    return (
+        <div className="browse-comment-write-box">
+            <textarea
+                ref={areaRef}
+                className="browse-comment-input"
+                placeholder={placeholder}
+                value={value}
+                disabled={posting}
+                autoFocus={autoFocus}
+                onInput={(e) => onChange((e.target as HTMLTextAreaElement).value)}
+            />
+            <div className="browse-comment-toolbar">
+                <span className="browse-comment-toolbar-btn bold" title="Bold" onClick={() => toolbar('**', '**')}>B</span>
+                <span className="browse-comment-toolbar-btn italic" title="Italic" onClick={() => toolbar('*', '*')}>I</span>
+                <span className="browse-comment-toolbar-btn" title="Link" onClick={() => toolbar('[', '](url)')}><i className="fa-solid fa-link"/></span>
+                <div className="spacer"/>
+                {onCancel && <span className="link-btn" onClick={onCancel}>Cancel</span>}
+                <button type="button" className="btn-primary browse-comment-post-btn" disabled={posting || isBlankDraft(value)} onClick={onSubmit}>
+                    {posting ? 'Posting...' : submitLabel}
+                </button>
+            </div>
+        </div>
+    );
+}
+
 // StateBadge is the small circular install-state indicator overlaid on a card's
 // thumbnail (and shown plainly in list view) - installed (a real, tracked
 // LoversLab install) or missing (installed but its files are gone from disk,
@@ -581,7 +654,12 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
     // TopicAuthor), only ever refreshed by a page 1 fetch, kept across later pages of
     // the same topic rather than lost once the page moves on.
     const [topicAuthor, setTopicAuthor] = useState('');
-    const [commentDraft, setCommentDraft] = useState('');
+    // The bottom "write a new comment" box's own draft - always present, separate from any
+    // per-comment inline reply below.
+    const [newCommentDraft, setNewCommentDraft] = useState('');
+    // The one per-comment inline "Reply"/"Quote" editor currently open, if any - postID says
+    // which comment it's attached to (rendered directly under that comment, not the bottom box).
+    const [replyTarget, setReplyTarget] = useState<{postID: string; draft: string} | null>(null);
     const [postingComment, setPostingComment] = useState(false);
     const [filesTabState, setFilesTabState] = useState<FilesTabState>({kind: 'idle'});
     // Which of filesTabState.downloads are currently checked, by index - reset
@@ -763,6 +841,9 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
     }
 
     useEffect(() => {
+        // A different mod's own draft/open reply box never carries over.
+        setNewCommentDraft('');
+        setReplyTarget(null);
         if (!detailFor) {
             setCommentsState(null);
             setTopicAuthor('');
@@ -825,18 +906,17 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
         openDetail({ID: m.FileID, Title: m.Title, URL: m.FileURL, Author: '', AuthorURL: '', Updated: '', ThumbnailURL: ''} as loverslab.FileSummary);
     }
 
-    // Posting a reply: always reloads back to just page 1 afterward rather than
-    // trying to splice the new reply into whatever's already been scrolled into
-    // view - simpler, and correct regardless of how many pages had already
-    // been loaded when the person posted.
-    async function postComment() {
+    // Posting a reply (from either the bottom box or a per-comment inline editor - draft/onDone
+    // tell this which one): always reloads back to just page 1 afterward rather than trying to
+    // splice the new reply into whatever's already been scrolled into view - simpler, and
+    // correct regardless of how many pages had already been loaded when the person posted.
+    async function postComment(draft: string, onDone: () => void) {
         if (!detailFor) return;
-        const content = commentDraft.trim();
-        if (!content) return;
+        if (isBlankDraft(draft)) return;
         setPostingComment(true);
         try {
-            await LoversLabPostComment(detailFor.URL, content);
-            setCommentDraft('');
+            await LoversLabPostComment(detailFor.URL, parseDraftText(draft));
+            onDone();
             notify('success', 'Comment posted.');
             const result = await LoversLabComments(detailFor.URL, 1);
             setCommentsState({kind: 'ready', posts: result.Posts ?? [], page: 1, totalPages: result.TotalPages || 1, hasTopic: result.HasTopic, loadingMore: false});
@@ -857,7 +937,8 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
         setDetailState(null);
         setChangelogState(null);
         setCommentsState(null);
-        setCommentDraft('');
+        setNewCommentDraft('');
+        setReplyTarget(null);
         setFilesTabState({kind: 'idle'});
         setInstallState({kind: 'idle'});
         setSelectedFileIndexes(new Set());
@@ -1655,23 +1736,14 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                                             {commentsState?.kind === 'ready' && commentsState.hasTopic && (
                                                 <div className="browse-comment-write">
                                                     <Avatar name={status?.Username || '?'} size={28}/>
-                                                    <div className="browse-comment-write-box">
-                                                        <textarea
-                                                            className="browse-comment-input"
-                                                            placeholder="Write a reply..."
-                                                            value={commentDraft}
-                                                            disabled={postingComment}
-                                                            onInput={(e) => setCommentDraft((e.target as HTMLTextAreaElement).value)}
-                                                        />
-                                                        <button
-                                                            type="button"
-                                                            className="btn-primary browse-comment-post-btn"
-                                                            disabled={postingComment || commentDraft.trim() === ''}
-                                                            onClick={postComment}
-                                                        >
-                                                            {postingComment ? 'Posting...' : 'Post'}
-                                                        </button>
-                                                    </div>
+                                                    <CommentEditor
+                                                        value={newCommentDraft}
+                                                        onChange={setNewCommentDraft}
+                                                        onSubmit={() => postComment(newCommentDraft, () => setNewCommentDraft(''))}
+                                                        posting={postingComment}
+                                                        placeholder="Write a reply..."
+                                                        submitLabel="Post"
+                                                    />
                                                 </div>
                                             )}
                                             {commentsState?.kind === 'ready' && !commentsState.hasTopic && (
@@ -1711,11 +1783,13 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                                                                 <span className="browse-comment-posted">{post.Posted}{post.Edited ? ' (edited)' : ''}</span>
                                                                 <div className="spacer"/>
                                                                 {post.URL && (
-                                                                    <i
-                                                                        className="fa-solid fa-up-right-from-square"
+                                                                    <span
+                                                                        className="browse-comment-permalink mono"
                                                                         title="Open this reply on LoversLab"
                                                                         onClick={() => BrowserOpenURL(post.URL)}
-                                                                    />
+                                                                    >
+                                                                        #{post.ID} <i className="fa-solid fa-up-right-from-square"/>
+                                                                    </span>
                                                                 )}
                                                             </div>
                                                             {contentBlocks.length > 0 ? (
@@ -1736,7 +1810,31 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                                                             )}
                                                             <div className="browse-comment-footer">
                                                                 <span className="browse-comment-likes"><i className="fa-solid fa-heart"/> {post.Reactions}</span>
+                                                                <span
+                                                                    className="browse-comment-action"
+                                                                    onClick={() => setReplyTarget((prev) => prev?.postID === post.ID ? null : {postID: post.ID, draft: ''})}
+                                                                >
+                                                                    <i className="fa-solid fa-reply"/> Reply
+                                                                </span>
+                                                                <span
+                                                                    className="browse-comment-action muted"
+                                                                    onClick={() => setReplyTarget({postID: post.ID, draft: quotePrefix(post)})}
+                                                                >
+                                                                    Quote
+                                                                </span>
                                                             </div>
+                                                            {replyTarget?.postID === post.ID && (
+                                                                <CommentEditor
+                                                                    value={replyTarget.draft}
+                                                                    onChange={(v) => setReplyTarget({postID: post.ID, draft: v})}
+                                                                    onSubmit={() => postComment(replyTarget.draft, () => setReplyTarget(null))}
+                                                                    onCancel={() => setReplyTarget(null)}
+                                                                    posting={postingComment}
+                                                                    placeholder={`Replying to ${post.Author}...`}
+                                                                    submitLabel="Post reply"
+                                                                    autoFocus
+                                                                />
+                                                            )}
                                                         </div>
                                                     </div>
                                                 );

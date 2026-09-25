@@ -306,6 +306,55 @@ export namespace app {
 		    return a;
 		}
 	}
+	export class CommentRun {
+	    Text: string;
+	    Bold: boolean;
+	    Italic: boolean;
+	    LinkURL: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new CommentRun(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Text = source["Text"];
+	        this.Bold = source["Bold"];
+	        this.Italic = source["Italic"];
+	        this.LinkURL = source["LinkURL"];
+	    }
+	}
+	export class CommentParagraph {
+	    Runs: CommentRun[];
+	
+	    static createFrom(source: any = {}) {
+	        return new CommentParagraph(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Runs = this.convertValues(source["Runs"], CommentRun);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	export class DeepLStatus {
 	    HasKey: boolean;
 	    Fingerprint: string;

@@ -233,3 +233,133 @@ func TestLoversLabCategoriesStillRequiresASignedInSessionEvenWithAFreshCache(t *
 		t.Error("expected an error: a fresh cache must not bypass the sign-in requirement")
 	}
 }
+
+// --- commentParagraphsToHTML: comment drafts, run by run ---
+
+func TestCommentParagraphsToHTMLPlainText(t *testing.T) {
+	got := commentParagraphsToHTML([]CommentParagraph{{Runs: []CommentRun{{Text: "Same issue here on 4.0.21."}}}})
+	want := "<p>Same issue here on 4.0.21.</p>"
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestCommentParagraphsToHTMLMultipleParagraphs(t *testing.T) {
+	got := commentParagraphsToHTML([]CommentParagraph{
+		{Runs: []CommentRun{{Text: "First paragraph."}}},
+		{Runs: []CommentRun{{Text: "Second paragraph."}}},
+	})
+	want := "<p>First paragraph.</p><p>Second paragraph.</p>"
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestCommentParagraphsToHTMLBoldItalicAndPlainRunsInOneParagraph(t *testing.T) {
+	got := commentParagraphsToHTML([]CommentParagraph{{Runs: []CommentRun{
+		{Text: "This is "},
+		{Text: "bold", Bold: true},
+		{Text: " and "},
+		{Text: "italic", Italic: true},
+		{Text: " and "},
+		{Text: "both", Bold: true, Italic: true},
+		{Text: "."},
+	}}})
+	want := "<p>This is <strong>bold</strong> and <em>italic</em> and <em><strong>both</strong></em>.</p>"
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestCommentParagraphsToHTMLLink(t *testing.T) {
+	got := commentParagraphsToHTML([]CommentParagraph{{Runs: []CommentRun{
+		{Text: "See "},
+		{Text: "the changelog", LinkURL: "https://www.loverslab.com/files/file/12345-x/?do=history"},
+		{Text: " for details."},
+	}}})
+	want := `<p>See <a href="https://www.loverslab.com/files/file/12345-x/?do=history">the changelog</a> for details.</p>`
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+// TestCommentParagraphsToHTMLEscapesUserTypedMarkup is the whole reason this is built
+// from structured runs rather than accepting a raw HTML string: a run's own typed
+// text must never be interpreted as markup, only the run's own Bold/Italic/LinkURL
+// fields decide what tags wrap it.
+func TestCommentParagraphsToHTMLEscapesUserTypedMarkup(t *testing.T) {
+	got := commentParagraphsToHTML([]CommentParagraph{{Runs: []CommentRun{
+		{Text: `<script>alert(1)</script> & "quotes" & 5 < 10`},
+	}}})
+	want := "<p>&lt;script&gt;alert(1)&lt;/script&gt; &amp; &#34;quotes&#34; &amp; 5 &lt; 10</p>"
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestCommentParagraphsToHTMLLinkURLIsAlsoEscaped(t *testing.T) {
+	got := commentParagraphsToHTML([]CommentParagraph{{Runs: []CommentRun{
+		{Text: "link", LinkURL: `https://example.com/?a=1&b="x"`},
+	}}})
+	want := `<p><a href="https://example.com/?a=1&amp;b=&#34;x&#34;">link</a></p>`
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestCommentParagraphsToHTMLNewlineWithinARunBecomesBr(t *testing.T) {
+	got := commentParagraphsToHTML([]CommentParagraph{{Runs: []CommentRun{{Text: "line one\nline two"}}}})
+	want := "<p>line one<br>line two</p>"
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestCommentParagraphsToHTMLDropsEmptyParagraphsAndRuns(t *testing.T) {
+	got := commentParagraphsToHTML([]CommentParagraph{
+		{Runs: []CommentRun{{Text: ""}}},
+		{Runs: nil},
+		{Runs: []CommentRun{{Text: ""}, {Text: "real content"}, {Text: ""}}},
+	})
+	want := "<p>real content</p>"
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestCommentParagraphsToHTMLAllEmptyReturnsEmptyString(t *testing.T) {
+	got := commentParagraphsToHTML([]CommentParagraph{{Runs: []CommentRun{{Text: "  "}}}, {Runs: nil}, {}})
+	if got != "" {
+		t.Errorf("got %q, want empty string", got)
+	}
+	if got := commentParagraphsToHTML(nil); got != "" {
+		t.Errorf("nil paragraphs: got %q, want empty string", got)
+	}
+}
+
+// --- LoversLabPostComment: wiring, not the site's own real behavior (see docs/loverslab.md) ---
+
+func TestLoversLabPostCommentSendsTheBuiltHTMLAndRefusesAnEmptyDraft(t *testing.T) {
+	a := newLoversLabApp(t, t.TempDir())
+	if _, err := a.SaveLoversLabCredentials(testLoversLabUser, testLoversLabPass); err != nil {
+		t.Fatalf("SaveLoversLabCredentials: %v", err)
+	}
+
+	var sentContent string
+	a.loverslab.postComment = func(ctx context.Context, client *loverslab.Client, filePageURL, content string) error {
+		sentContent = content
+		return nil
+	}
+
+	draft := []CommentParagraph{{Runs: []CommentRun{{Text: "hello "}, {Text: "world", Bold: true}}}}
+	if err := a.LoversLabPostComment("https://www.loverslab.com/files/file/1-x/", draft); err != nil {
+		t.Fatalf("LoversLabPostComment: %v", err)
+	}
+	if want := "<p>hello <strong>world</strong></p>"; sentContent != want {
+		t.Errorf("sent content = %q, want %q", sentContent, want)
+	}
+
+	if err := a.LoversLabPostComment("https://www.loverslab.com/files/file/1-x/", []CommentParagraph{{Runs: []CommentRun{{Text: "   "}}}}); err == nil {
+		t.Error("expected an error posting an all-whitespace draft")
+	}
+}

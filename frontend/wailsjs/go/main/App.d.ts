@@ -151,7 +151,7 @@ export function LoversLabInstall(arg1:string,arg2:string,arg3:loverslab.FileSumm
 
 export function LoversLabInstalledMods(arg1:string):Promise<Array<app.LoversLabInstalledMod>>;
 
-export function LoversLabPostComment(arg1:string,arg2:string):Promise<void>;
+export function LoversLabPostComment(arg1:string,arg2:Array<app.CommentParagraph>):Promise<void>;
 
 export function LoversLabProfile():Promise<app.LoversLabAccountProfile>;
 
