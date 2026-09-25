@@ -115,14 +115,16 @@ for security, privacy, reliability or performance is called out (see the last tw
 - **Every reply links straight to itself** - its own real id, next to an external-link icon,
   opens that exact comment on the real site.
 - **Pick any combination of files to install from its own Files tab** - every downloadable file
-  for a mod listed with its own real size and posted date and a checkbox, so a main archive and
-  a separate addon zip (or several old versions kept for rollback) can be selected together and
-  installed in one action, landing inside the same mod folder exactly as extracting them there by
-  hand one after another would.
+  for a mod listed with its own real size and posted date and a checkbox, installed in one action.
+  Picking exactly one installs it as always; picking several installs each as its own separate
+  mod - its own folder named from its own filename, its own descriptor, separately uninstallable
+  and separately tracked for updates - never merged together into one shared folder. If any one
+  of several selected files fails, the whole batch is rolled back, not just the one that failed.
 - **An Installed section, and uninstalling** - a new place in Browse, alongside its per-game
-  sidebar, listing everything installed from LoversLab for the current game; uninstall from
-  there (right-click) or from the mod's own detail view - either deletes its files for real,
-  after confirming.
+  sidebar, listing everything installed from LoversLab for the current game (each mod its own
+  entry, even two that came from the same page's Files tab); uninstall one specific mod from
+  there (right-click) or everything installed from a page at once from that page's own detail
+  view - either deletes real files, after confirming.
 - **Card or list view, your choice, shared everywhere in Browse** - the browsing grid and the
   Installed section switch between the exact same card and list views, one toggle for both.
 - **Download and install a LoversLab mod in one click** - extracts the real archive straight into

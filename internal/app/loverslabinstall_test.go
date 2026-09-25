@@ -246,20 +246,16 @@ func TestLoversLabInstallTracksTheInstallForUpdateChecking(t *testing.T) {
 	}
 }
 
-// TestLoversLabInstallCombinesMultipleSelectedFilesIntoOneModFolder is the real
-// batch-install case the Files tab's checkboxes drive: picking a main archive
-// together with a separate addon zip must land both inside the same content
-// folder, not overwrite one with the other.
-func TestLoversLabInstallCombinesMultipleSelectedFilesIntoOneModFolder(t *testing.T) {
+// TestLoversLabInstallSplitsSeveralSelectedFilesIntoSeparateMods is the real
+// batch-install case the Files tab's checkboxes drive: picking two files together
+// must produce two independent mods, each in its own folder named from its own
+// filename, not one shared folder with both merged together.
+func TestLoversLabInstallSplitsSeveralSelectedFilesIntoSeparateMods(t *testing.T) {
 	env := newInstallEnv(t)
 	main := zipServer(t, buildTestZip(t, map[string]string{
 		"descriptor.mod":  "name=\"Lustful Void\"\nversion=\"0.8.0\"\n",
 		"common/main.txt": "main content",
 	}))
-	// Two top-level folders, like a real Paradox addon zip (common/, events/, gfx/,
-	// ...) - a single bare top-level folder would be treated as a wrapper to strip
-	// (see ExtractZip's own contentLayout), which a real addon archive practically
-	// never is.
 	addon := zipServer(t, buildTestZip(t, map[string]string{
 		"common/addon.txt":        "addon content",
 		"events/addon_events.txt": "addon events",
@@ -273,54 +269,112 @@ func TestLoversLabInstallCombinesMultipleSelectedFilesIntoOneModFolder(t *testin
 	if err != nil {
 		t.Fatalf("LoversLabInstall: %v", err)
 	}
-	if len(res.Files) != 1 {
-		t.Fatalf("wrote %v, want just the stub (the main archive shipped its own descriptor.mod)", res.Files)
+	// Main's own archive shipped a descriptor.mod (just its stub written); the addon
+	// has none of its own, so a descriptor.mod is synthesized for it too, plus its
+	// own stub - 1 + 2 = 3.
+	if len(res.Files) != 3 {
+		t.Fatalf("wrote %v, want 3 (main's stub, addon's synthesized descriptor.mod, addon's stub)", res.Files)
 	}
 
-	contentDir := filepath.Join(env.modDir, "Lustful Void")
-	if _, err := os.Stat(filepath.Join(contentDir, "common/main.txt")); err != nil {
-		t.Errorf("the main archive's own content is missing: %v", err)
+	mainDir := filepath.Join(env.modDir, "Lustful Void 0.8.0")
+	if data, err := os.ReadFile(filepath.Join(mainDir, "descriptor.mod")); err != nil || string(data) != "name=\"Lustful Void\"\nversion=\"0.8.0\"\n" {
+		t.Errorf("main's own descriptor.mod was not kept: %q, %v", data, err)
 	}
-	if _, err := os.Stat(filepath.Join(contentDir, "common/addon.txt")); err != nil {
-		t.Errorf("the addon zip's own content is missing - a batch install must not overwrite earlier selections: %v", err)
+	if _, err := os.Stat(filepath.Join(mainDir, "common/main.txt")); err != nil {
+		t.Errorf("main's own content is missing: %v", err)
 	}
-	if data, err := os.ReadFile(filepath.Join(contentDir, "descriptor.mod")); err != nil || string(data) != "name=\"Lustful Void\"\nversion=\"0.8.0\"\n" {
-		t.Errorf("the main archive's own descriptor.mod was not kept: %q, %v", data, err)
+	if _, err := os.Stat(filepath.Join(mainDir, "common/addon.txt")); !os.IsNotExist(err) {
+		t.Errorf("the addon's content leaked into main's own folder - they must install as separate mods: %v", err)
+	}
+
+	addonDir := filepath.Join(env.modDir, "LV Lewd Rooms")
+	if _, err := os.Stat(filepath.Join(addonDir, "common/addon.txt")); err != nil {
+		t.Errorf("the addon's own content is missing from its own separate folder: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(addonDir, "common/main.txt")); !os.IsNotExist(err) {
+		t.Errorf("main's content leaked into the addon's own folder - they must install as separate mods: %v", err)
+	}
+
+	installs, err := env.a.loverslabInstalls.Load(env.cfg.ID)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(installs) != 2 {
+		t.Fatalf("tracked %d installs, want 2 separate entries: %+v", len(installs), installs)
+	}
+	if _, ok := installs["loverslab_8719-Lustful Void 0.8.0"]; !ok {
+		t.Errorf("no tracked entry for main's own modID: %+v", installs)
+	}
+	if _, ok := installs["loverslab_8719-LV Lewd Rooms"]; !ok {
+		t.Errorf("no tracked entry for the addon's own modID: %+v", installs)
 	}
 }
 
-// TestLoversLabInstallBatchUpdateReplacesEverythingFromTheOldSelection is the
-// update-in-place equivalent: a previously installed multi-file batch, updated with
-// a smaller new selection, must not leave anything from the old one behind (the
-// existing single-file update test already covers wiping content the new archive
-// no longer ships; this covers wiping content an earlier addon in the old batch
-// shipped that isn't part of the new one either).
-func TestLoversLabInstallBatchUpdateReplacesEverythingFromTheOldSelection(t *testing.T) {
+// TestLoversLabInstallSingleFileSelectionIsUnchanged locks in that picking exactly
+// one file still uses the original, pre-split identity and folder-naming - real,
+// already-installed mods from before this app could split several files into
+// separate ones must keep working (same modID, same folder) across a later update,
+// never suddenly treated as a fresh, second install.
+func TestLoversLabInstallSingleFileSelectionIsUnchanged(t *testing.T) {
 	env := newInstallEnv(t)
-	file := loverslab.FileSummary{ID: 501, Title: "Evolving Bundle", URL: "https://www.loverslab.com/files/file/501-evolving-bundle/", Updated: "v1"}
-
-	main1 := zipServer(t, buildTestZip(t, map[string]string{"descriptor.mod": "name=\"Evolving Bundle\"\n", "common/main.txt": "v1"}))
-	addon1 := zipServer(t, buildTestZip(t, map[string]string{"common/old-addon.txt": "old addon"}))
-	if _, err := env.a.LoversLabInstall(env.cfg.ID, "req-b1", file, "2026-01-01T00:00:00+0000", []loverslab.FileDownload{
-		{Name: "main.zip", URL: main1.URL},
-		{Name: "old-addon.zip", URL: addon1.URL},
+	srv := zipServer(t, buildTestZip(t, map[string]string{"descriptor.mod": "name=\"Solo\"\n"}))
+	file := loverslab.FileSummary{ID: 555, Title: "Solo Mod", URL: "https://www.loverslab.com/files/file/555-solo-mod/", Updated: "today"}
+	if _, err := env.a.LoversLabInstall(env.cfg.ID, "req-solo", file, "2026-01-01T00:00:00+0000", []loverslab.FileDownload{
+		{Name: "some_archive_name.zip", URL: srv.URL},
 	}); err != nil {
-		t.Fatalf("first LoversLabInstall: %v", err)
+		t.Fatalf("LoversLabInstall: %v", err)
 	}
 
-	main2 := zipServer(t, buildTestZip(t, map[string]string{"descriptor.mod": "name=\"Evolving Bundle\"\n", "common/main.txt": "v2"}))
-	if _, err := env.a.LoversLabInstall(env.cfg.ID, "req-b2", file, "2026-02-01T00:00:00+0000", []loverslab.FileDownload{
-		{Name: "main.zip", URL: main2.URL},
-	}); err != nil {
-		t.Fatalf("second LoversLabInstall: %v", err)
+	// Folder and stub are named from the page's own title/id, never the archive's own
+	// filename, for a single selection - unaffected by what the one file is called.
+	if _, err := os.Stat(filepath.Join(env.modDir, "Solo Mod")); err != nil {
+		t.Errorf("content folder was not named from the page's own title: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(env.modDir, "loverslab_555.mod")); err != nil {
+		t.Errorf("stub was not named loverslab_555.mod: %v", err)
+	}
+	installs, err := env.a.loverslabInstalls.Load(env.cfg.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := installs["loverslab_555"]; !ok {
+		t.Errorf("tracked under an unexpected modID: %+v", installs)
+	}
+}
+
+// TestLoversLabInstallBatchFailurePartwayRollsBackEveryModThisCallAlreadyFinished is
+// the multi-file all-or-nothing guarantee: if the second of two selected files fails,
+// the first one (which fully succeeded already) must not be left behind as a
+// half-finished batch.
+func TestLoversLabInstallBatchFailurePartwayRollsBackEveryModThisCallAlreadyFinished(t *testing.T) {
+	env := newInstallEnv(t)
+	good := zipServer(t, buildTestZip(t, map[string]string{"descriptor.mod": "name=\"Good\"\n"}))
+	bad := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("not a zip"))
+	}))
+	defer bad.Close()
+
+	file := loverslab.FileSummary{ID: 700, Title: "Mixed Batch", URL: "https://www.loverslab.com/files/file/700-mixed-batch/", Updated: "today"}
+	_, err := env.a.LoversLabInstall(env.cfg.ID, "req-mixed", file, "2026-01-01T00:00:00+0000", []loverslab.FileDownload{
+		{Name: "good.zip", URL: good.URL},
+		{Name: "bad.zip", URL: bad.URL},
+	})
+	if err == nil {
+		t.Fatal("want an error when one of two selected files fails")
 	}
 
-	contentDir := filepath.Join(env.modDir, "Evolving Bundle")
-	if data, err := os.ReadFile(filepath.Join(contentDir, "common/main.txt")); err != nil || string(data) != "v2" {
-		t.Errorf("common/main.txt = %q, %v, want the new selection's content", data, err)
+	if _, err := os.Stat(filepath.Join(env.modDir, "good")); !os.IsNotExist(err) {
+		t.Errorf("the first, otherwise-successful mod was left behind: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(contentDir, "common/old-addon.txt")); !os.IsNotExist(err) {
-		t.Errorf("the old batch's addon content should have been wiped, not left behind: %v", err)
+	if _, err := os.Stat(filepath.Join(env.modDir, "loverslab_700-good.mod")); !os.IsNotExist(err) {
+		t.Errorf("the first mod's own stub was left behind: %v", err)
+	}
+	installs, err := env.a.loverslabInstalls.Load(env.cfg.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(installs) != 0 {
+		t.Errorf("tracking was not rolled back: %+v", installs)
 	}
 }
 
@@ -403,7 +457,7 @@ func TestUninstallLoversLabModRemovesContentStubAndTrackingEntry(t *testing.T) {
 		t.Fatalf("setup: content dir missing: %v", err)
 	}
 
-	if err := env.a.UninstallLoversLabMod(env.cfg.ID, 900); err != nil {
+	if err := env.a.UninstallLoversLabMod(env.cfg.ID, "loverslab_900"); err != nil {
 		t.Fatalf("UninstallLoversLabMod: %v", err)
 	}
 	if _, err := os.Stat(contentDir); !os.IsNotExist(err) {
@@ -426,7 +480,7 @@ func TestUninstallLoversLabModRemovesContentStubAndTrackingEntry(t *testing.T) {
 
 func TestUninstallLoversLabModOnAModThatIsNotInstalledReturnsAClearError(t *testing.T) {
 	env := newInstallEnv(t)
-	err := env.a.UninstallLoversLabMod(env.cfg.ID, 12345)
+	err := env.a.UninstallLoversLabMod(env.cfg.ID, "loverslab_12345")
 	if err == nil {
 		t.Fatal("expected an error for a mod that was never installed")
 	}

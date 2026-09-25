@@ -802,6 +802,7 @@ export namespace app {
 	}
 	
 	export class LoversLabInstalledMod {
+	    ModID: string;
 	    FileID: number;
 	    Title: string;
 	    FileURL: string;
@@ -816,6 +817,7 @@ export namespace app {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ModID = source["ModID"];
 	        this.FileID = source["FileID"];
 	        this.Title = source["Title"];
 	        this.FileURL = source["FileURL"];

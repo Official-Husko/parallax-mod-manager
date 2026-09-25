@@ -231,7 +231,11 @@ function formatBytes(bytes: number): string {
 type ViewMode = 'cards' | 'tree';
 
 interface BrowseListItem {
-    id: number;
+    // A search-result card's own id is the LoversLab page's numeric fileID; an
+    // installed-list row's is its own ModID string instead (see
+    // LoversLabInstalledMod.ModID) - several rows can now share one fileID, since
+    // selecting several files on the Files tab installs each as its own separate mod.
+    id: number | string;
     title: string;
     thumbnailURL: string;
     // A short genre/category badge shown over the thumbnail's top-left corner and,
@@ -636,7 +640,7 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
     // to sort installed mods by right now.
     const [installedNewestFirst, setInstalledNewestFirst] = useState(true);
     const [installedState, setInstalledState] = useState<InstalledModsState>({kind: 'idle'});
-    const [confirmUninstallId, setConfirmUninstallId] = useState<number | null>(null);
+    const [confirmUninstallId, setConfirmUninstallId] = useState<string | null>(null);
     // Which open file ids are installed - kept up to date alongside installedState,
     // read by the detail modal to decide whether to offer Uninstall or Install/Update.
     const [installedIds, setInstalledIds] = useState<Set<number>>(new Set());
@@ -1009,12 +1013,19 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
 
     // Uninstalling the file currently open in the detail modal (header or Files tab) -
     // shares installState with the install flow above, so both show the same way,
-    // inline at the top of the tab body.
+    // inline at the top of the tab body. A page can now back more than one installed
+    // mod (selecting several files on the Files tab installs each as its own separate
+    // mod), so this removes every one of them, not just a single fileID-keyed entry -
+    // "uninstall" here means "nothing from this page stays installed."
     async function uninstallCurrent() {
         if (!detailFor) return;
+        const modIDs = installedState.kind === 'ready'
+            ? installedState.mods.filter((m) => m.FileID === detailFor.ID).map((m) => m.ModID)
+            : [];
+        if (modIDs.length === 0) return;
         setInstallState({kind: 'uninstalling'});
         try {
-            await UninstallLoversLabMod(selectedGame, detailFor.ID);
+            for (const modID of modIDs) await UninstallLoversLabMod(selectedGame, modID);
             notify('success', `Uninstalled '${detailFor.Title}'.`);
             setInstallState({kind: 'idle'});
             void refreshInstalled();
@@ -1026,11 +1037,13 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
 
     // Uninstalling from the Installed list itself, after its own inline "Uninstall
     // this mod?" confirm (set by the row's right-click menu) - see
-    // confirmUninstallId below.
-    async function uninstallFromList(fileId: number, title: string) {
+    // confirmUninstallId below. modID is that one specific row's own identity
+    // (LoversLabInstalledMod.ModID), never just the page's fileID - several rows can
+    // share a fileID now, and this must only ever remove the one that was clicked.
+    async function uninstallFromList(modID: string, title: string) {
         setConfirmUninstallId(null);
         try {
-            await UninstallLoversLabMod(selectedGame, fileId);
+            await UninstallLoversLabMod(selectedGame, modID);
             notify('success', `Uninstalled '${title}'.`);
             void refreshInstalled();
         } catch (err) {
@@ -1061,23 +1074,42 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
     const canSave = !busy && username.trim() !== '' && password !== '';
     const isInstalled = detailFor ? installedIds.has(detailFor.ID) : false;
     const missingFilesCount = installedState.kind === 'ready' ? installedState.mods.filter((m) => m.ContentMissing).length : 0;
-    // Which LoversLab file IDs have a real update waiting - the same report
-    // Settings' own Updates window reads (data/modUpdates.ts), narrowed to the
-    // LoversLab-sourced changes it already merges in (see checkLoversLabUpdates)
-    // and their own "loverslab_<fileID>" ModID convention (internal/mod's
-    // LoversLabFilePrefix) unwound back to a plain numeric ID.
+    // The real count of installed mods, for display - deliberately not installedIds.size:
+    // that Set is page-level (one entry per LoversLab fileID, for "is anything from the
+    // page I'm looking at installed"), but selecting several files on the Files tab now
+    // installs each as its own separate mod, so two mods can share one fileID and still
+    // need to count as two here.
+    const installedModCount = installedState.kind === 'ready' ? installedState.mods.length : 0;
+    // The report Settings' own Updates window reads too (data/modUpdates.ts),
+    // narrowed to the LoversLab-sourced changes it already merges in (see
+    // checkLoversLabUpdates), read two ways: updateAvailableModIds matches a specific
+    // installed row's own exact ModID (several rows can share a page now - selecting
+    // several files on the Files tab installs each as its own separate mod, see
+    // LoversLabInstalledMod.ModID); updateAvailablePageIds unwinds the same ModIDs
+    // back to their page's own numeric fileID (internal/mod's LoversLabFilePrefix,
+    // "loverslab_<fileID>" for a single-file install or "loverslab_<fileID>-<name>"
+    // for a split one - the trailing "-<name>" is optional in the pattern for exactly
+    // that reason) for the search-grid card / detail header badges, which only know a
+    // page's own id, not any specific mod that might be installed from it.
     const modUpdatesState = useModUpdates(selectedGame);
-    const updateAvailableIds = useMemo(() => {
+    const updateAvailableModIds = useMemo(() => {
+        const s = new Set<string>();
+        for (const c of modUpdatesState.report?.Changes ?? []) {
+            if (c.Source === 'loverslab') s.add(c.ModID);
+        }
+        return s;
+    }, [modUpdatesState.report]);
+    const updateAvailablePageIds = useMemo(() => {
         const s = new Set<number>();
         for (const c of modUpdatesState.report?.Changes ?? []) {
             if (c.Source !== 'loverslab') continue;
-            const m = /^loverslab_(\d+)$/.exec(c.ModID);
+            const m = /^loverslab_(\d+)(?:-.*)?$/.exec(c.ModID);
             if (m) s.add(Number(m[1]));
         }
         return s;
     }, [modUpdatesState.report]);
     const updatesAvailableCount = installedState.kind === 'ready'
-        ? installedState.mods.filter((m) => updateAvailableIds.has(m.FileID)).length
+        ? installedState.mods.filter((m) => updateAvailableModIds.has(m.ModID)).length
         : 0;
     // The mock extras (see browseMockData.ts) for whichever mod's detail is open -
     // null while nothing is open, since every one of these fields is only ever
@@ -1120,7 +1152,7 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
             thumbnailURL: f.ThumbnailURL,
             tag: extras.tag,
             tagColor: extras.tagColor,
-            stateIcon: updateAvailableIds.has(f.ID) ? 'update' : installedIds.has(f.ID) ? 'installed' : null,
+            stateIcon: updateAvailablePageIds.has(f.ID) ? 'update' : installedIds.has(f.ID) ? 'installed' : null,
             authorName: f.Author,
             authorAvatarURL: f.AuthorAvatarURL,
             lineOne: f.Author,
@@ -1128,38 +1160,38 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
             lineTwo: [dateText, viewsText].filter(Boolean).join(' · '),
             onClick: () => openDetail(f),
         };
-    })), [visibleFiles, installedIds, updateAvailableIds]);
+    })), [visibleFiles, installedIds, updateAvailablePageIds]);
 
     const installedItems = useMemo<BrowseListItem[]>(() => time('browse:installedItems', () => {
         if (installedState.kind !== 'ready') return [];
         const mods = [...installedState.mods].sort((a, b) =>
             installedNewestFirst ? b.InstalledAt - a.InstalledAt : a.InstalledAt - b.InstalledAt);
         return mods.map((m) => ({
-            id: m.FileID,
+            id: m.ModID,
             title: m.Title,
             thumbnailURL: m.ThumbnailURL,
             tag: mockExtrasFor(m.FileID).tag,
             tagColor: mockExtrasFor(m.FileID).tagColor,
-            stateIcon: m.ContentMissing ? 'missing' : updateAvailableIds.has(m.FileID) ? 'update' : 'installed',
+            stateIcon: m.ContentMissing ? 'missing' : updateAvailableModIds.has(m.ModID) ? 'update' : 'installed',
             lineOne: m.ContentMissing ? 'Files not found on disk' : '',
             lineOneWarn: m.ContentMissing,
             lineTwo: m.InstalledAt ? new Date(m.InstalledAt * 1000).toLocaleDateString() : undefined,
-            onClick: confirmUninstallId === m.FileID ? undefined : () => openInstalledDetail(m),
+            onClick: confirmUninstallId === m.ModID ? undefined : () => openInstalledDetail(m),
             onContextMenu: (e: MouseEvent) => openContextMenu(e, [
                 {label: 'Open on LoversLab', onClick: () => BrowserOpenURL(m.FileURL)},
-                {label: 'Uninstall', danger: true, separatorBefore: true, onClick: () => setConfirmUninstallId(m.FileID)},
+                {label: 'Uninstall', danger: true, separatorBefore: true, onClick: () => setConfirmUninstallId(m.ModID)},
             ]),
-            overrideContent: confirmUninstallId === m.FileID ? (
+            overrideContent: confirmUninstallId === m.ModID ? (
                 <div className="browse-item-confirm">
                     <span>Uninstall this mod? This deletes its files from your mod folder.</span>
                     <div className="confirm-actions">
-                        <span className="btn-ghost danger" onClick={(e: MouseEvent) => { e.stopPropagation(); void uninstallFromList(m.FileID, m.Title); }}>Uninstall</span>
+                        <span className="btn-ghost danger" onClick={(e: MouseEvent) => { e.stopPropagation(); void uninstallFromList(m.ModID, m.Title); }}>Uninstall</span>
                         <span className="btn-ghost" onClick={(e: MouseEvent) => { e.stopPropagation(); setConfirmUninstallId(null); }}>Keep</span>
                     </div>
                 </div>
             ) : undefined,
         }));
-    }), [installedState, confirmUninstallId, updateAvailableIds, installedNewestFirst]);
+    }), [installedState, confirmUninstallId, updateAvailableModIds, installedNewestFirst]);
 
     const visibleBrowsingItems = useMemo(
         () => selectedTagFilter ? browsingItems.filter((it) => it.tag === selectedTagFilter) : browsingItems,
@@ -1206,7 +1238,7 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                             >
                                 <i className="fa-solid fa-circle-check browse-installed-icon"/>
                                 <span className="cat-name">Installed mods</span>
-                                <span className="mono cat-count">{installedIds.size}</span>
+                                <span className="mono cat-count">{installedModCount}</span>
                             </div>
                         </div>
 
@@ -1290,7 +1322,7 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                             </div>
                             <div className="browse-toolbar-row">
                                 <span className="mono browse-installed-stats">
-                                    {installedIds.size} installed &middot; {updatesAvailableCount} update{updatesAvailableCount === 1 ? '' : 's'} &middot; {missingFilesCount} missing file{missingFilesCount === 1 ? '' : 's'}
+                                    {installedModCount} installed &middot; {updatesAvailableCount} update{updatesAvailableCount === 1 ? '' : 's'} &middot; {missingFilesCount} missing file{missingFilesCount === 1 ? '' : 's'}
                                 </span>
                                 <div className="spacer"/>
                                 <ViewModeToggle mode={viewMode} onChange={setViewMode}/>

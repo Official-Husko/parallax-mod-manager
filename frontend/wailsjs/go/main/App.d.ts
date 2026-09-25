@@ -281,7 +281,7 @@ export function TranslateMod(arg1:string,arg2:string,arg3:string,arg4:app.Transl
 
 export function UndoModEdit(arg1:string,arg2:string):Promise<app.SaveResult>;
 
-export function UninstallLoversLabMod(arg1:string,arg2:number):Promise<void>;
+export function UninstallLoversLabMod(arg1:string,arg2:string):Promise<void>;
 
 export function WatchGameLog(arg1:string,arg2:string):Promise<number>;
 

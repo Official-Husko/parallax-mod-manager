@@ -1239,18 +1239,21 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   lists every downloadable file for a mod directly (rather than a picker that only appeared after
   clicking a single Download button), each with its own real file size and posted date (scraped
   from the same "Download your files" dialog's own markup, not guessed or left out) and a
-  checkbox. Any combination can be picked at once - a main archive together with a separate addon
-  zip, or several - and installed together in one action ("Download & install N files"): every
-  selected file downloads and extracts into the same mod folder in order, never wiped between
-  them (only once up front, when this replaces a previous install), exactly as extracting them
-  there by hand one after another would; only the first selected download's own sibling stub
-  descriptor (if it has one - see below) is used, since that's always the main archive in
-  practice. Downloads with real combined progress ("Downloading `<file>` (2 of 3)...") and a
-  Cancel option, then extracts straight into the game's own mod folder. A mod
-  already installed from LoversLab (tracked by its LoversLab file id, not by name - a file can be
-  retitled without this app losing track of it) is updated in place rather than left as a
-  duplicate. `mod.Source` gained `SourceLoversLab` (a `loverslab_` descriptor filename prefix,
-  the same convention Workshop's `ugc_` and the Paradox Launcher's `pdx_` already use), and it
+  checkbox. Any combination can be picked at once and installed together in one action ("Download
+  & install N files"). Picking exactly one file installs it the way this always has: one folder,
+  named from the page's own title, one `loverslab_<fileID>` identity. Picking several installs
+  each as its own separate mod instead - never merged into one shared folder - each with its own
+  folder named from its own filename, its own `loverslab_<fileID>-<name>` identity
+  (`loversLabDownloadModID`), separately uninstallable and separately tracked for updates; the
+  whole selection is still one all-or-nothing action, so if one of several fails partway through,
+  every mod that call already finished installing is rolled back too, not left as a half-finished
+  batch. Downloads with real combined progress ("Downloading `<file>` (2 of 3)...") and a
+  Cancel option, then extracts straight into the game's own mod folder. A mod already installed
+  under the same identity is updated in place rather than left as a duplicate (tracked by that
+  identity, not by name - a file can be retitled on the site without this app losing track of it).
+  `mod.Source` gained `SourceLoversLab` (a `loverslab_` descriptor filename prefix, the same
+  convention Workshop's `ugc_` and the Paradox Launcher's `pdx_` already use, matched loosely
+  enough that the per-download identity's own `-<name>` suffix still classifies correctly), and it
   gets its own badge everywhere a mod's source is already shown (`SourceBadge.tsx`), the same
   heart Browse's own sidebar uses for the source. Confirmed end to end against the real site,
   with a real (small) file, into a scratch temp mod folder rather than a real game install - which
@@ -1288,15 +1291,19 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   configured interval later.
 - **An Installed section, and uninstalling** (`UninstallLoversLabMod`, `LoversLabInstalledMods` in
   `loverslabinstall.go`) - a new place in Browse, alongside its per-game category sidebar, listing
-  every mod tracked as installed from LoversLab for the current game, flagging one whose files can
-  no longer be found on disk (removed by hand, or its drive isn't connected) rather than offering to
-  uninstall something already gone. Uninstall from there (right-click a row, the same
-  `openContextMenu` pattern Library/Workspace already use, then a two-step inline confirm) or from
-  the mod's own detail view (header, or its Files tab) - either deletes its content folder and stub
-  descriptor for real and drops its update-tracking entry, mirroring `LoversLabInstall`'s own
-  conventions exactly (the shared lock, muting the folder watcher while writing). The lookup for
-  "is this file installed, and where" is shared between installing and uninstalling, rather than
-  two separate ways of finding the same thing.
+  every mod tracked as installed from LoversLab for the current game - each its own row by its own
+  `ModID`, even two that came from the same page's Files tab (`LoversLabInstalledMod.ModID` is the
+  real identity `UninstallLoversLabMod` takes; never assume it equals `loverslab_<FileID>`, since
+  more than one row can share a FileID) - flagging one whose files can no longer be found on disk
+  (removed by hand, or its drive isn't connected) rather than offering to uninstall something
+  already gone. Uninstall one specific mod from there (right-click a row, the same
+  `openContextMenu` pattern Library/Workspace already use, then a two-step inline confirm) or
+  everything installed from one page at once from that page's own detail view (header, or its
+  Files tab) - either deletes real content folders and stub descriptors and drops their
+  update-tracking entries, mirroring `LoversLabInstall`'s own conventions exactly (the shared lock,
+  muting the folder watcher while writing). The lookup for "is this mod installed, and where" is
+  shared between installing and uninstalling, rather than two separate ways of finding the same
+  thing.
 - **Card or list view, one toggle shared by the browsing grid and the Installed section**
   (`BrowseItemsView`, `ViewModeToggle` in `Browse.tsx`) - both show through the exact same
   component (a normalized `BrowseListItem`, not either backend type directly), so switching
