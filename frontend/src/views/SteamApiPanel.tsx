@@ -4,6 +4,7 @@ import {useEffect, useRef, useState} from 'preact/hooks';
 import {CheckSteamAPIKey, SaveSteamAPIKey, SetSteamAPIMode, SteamAPIStatus} from '../../wailsjs/go/main/App';
 import type {app} from '../../wailsjs/go/models';
 import {BrowserOpenURL, EventsOn} from '../../wailsjs/runtime/runtime';
+import {StatusLine} from '../components/StatusLine';
 import {notify} from '../data/notifications';
 
 type Mode = 'complete' | 'backup' | 'free';
@@ -42,7 +43,7 @@ function timeOf(unixSeconds: number): string {
 
 // statusLine says what the app is doing right now, in one sentence, with the icon and
 // tone that go with it.
-function statusLine(s: app.SteamAPIStatus, draft: Mode | null): { icon: string; tone: string; text: string } {
+function statusLine(s: app.SteamAPIStatus, draft: Mode | null): { icon: string; tone: 'good' | 'warn' | 'bad' | 'neutral'; text: string } {
     switch (s.State) {
         case 'active':
             return {icon: 'fa-circle-check', tone: 'good', text: `Using your Steam API key (${s.Fingerprint}) - ${s.Mode === 'complete' ? 'for every request' : 'when the free API cannot answer'}.`};
@@ -167,10 +168,7 @@ export function SteamApiPanel() {
 
             <div className="settings-columns">
                 <div className="settings-column">
-                    <div className={`steam-status ${line.tone}`}>
-                        <i className={`fa-solid ${line.icon}`}/>
-                        <span>{line.text}</span>
-                    </div>
+                    <StatusLine icon={line.icon} tone={line.tone} text={line.text}/>
 
                     <div className="mode-option-list">
                         {MODES.map((m) => {
@@ -192,7 +190,7 @@ export function SteamApiPanel() {
                     </div>
 
                     {confirmFree && (
-                        <div className="steam-confirm">
+                        <div className="confirm-card">
                             <span>Free API use only deletes your saved key ({status.Fingerprint}) from the settings file. You would have to enter it again to use it later.</span>
                             <span className="confirm-actions">
                                 <button className="btn-primary" onClick={deleteKeyAndUseFree}>Delete key and use free</button>

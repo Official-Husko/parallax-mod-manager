@@ -609,7 +609,7 @@ function LaunchOptionsPanel() {
                             </div>
                         </div>
                         {confirmSteam && (
-                            <div className="steam-confirm">
+                            <div className="confirm-card">
                                 <span>
                                     Steam / Paradox Launcher opens an extra window on top of Steam itself
                                     every time - Parallax Direct above skips it, and so can Steam Direct,
@@ -622,7 +622,7 @@ function LaunchOptionsPanel() {
                             </div>
                         )}
                         {shimAction && (
-                            <div className="steam-confirm">
+                            <div className="confirm-card">
                                 <span>
                                     {shimAction === 'install' && `Install Steam Direct for ${selectedGame.DisplayName}? This replaces its own launcher file - the original is kept as a backup and restored any time you remove it.`}
                                     {shimAction === 'repair' && `Steam's own "Verify integrity of game files" restored the original launcher. Reinstall the Steam Direct shim for ${selectedGame.DisplayName}?`}

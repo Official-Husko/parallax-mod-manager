@@ -1,18 +1,6 @@
 .backup-modes {
 }
 
-.backup-confirm {
-    display: flex;
-    flex-direction: column;
-    gap: 9px;
-    border: 1px solid var(--amber);
-    border-radius: 5px;
-    padding: 10px 13px;
-    font: 400 12px/1.5 Barlow, sans-serif;
-    color: var(--text-mid);
-    background: rgba(224, 163, 64, .07);
-}
-
 .backup-warn {
     color: var(--red);
 }
@@ -289,11 +277,6 @@
 
 .backup-plan-names {
     color: var(--text-muted);
-}
-
-.backup-confirm.danger {
-    border-color: var(--red);
-    background: rgba(212, 87, 78, .07);
 }
 
 .backup-row-delete {

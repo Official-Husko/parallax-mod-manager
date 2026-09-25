@@ -608,6 +608,61 @@
     gap: 8px;
 }
 
+/* A one-line "here's what's going on" banner (see components/StatusLine.tsx) - was
+   .tools-status/.steam-status, defined identically under both names. */
+.status-line {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 9px 12px;
+    font: 500 12px/1.5 Barlow, sans-serif;
+    color: var(--text-mid);
+    background: rgba(255, 255, 255, .02);
+}
+
+.status-line i {
+    margin-top: 2px;
+    flex: none;
+}
+
+.status-line.good i {
+    color: var(--green);
+}
+
+.status-line.warn i {
+    color: var(--amber);
+}
+
+.status-line.bad i {
+    color: var(--red);
+}
+
+.status-line.neutral i {
+    color: var(--text-dim);
+}
+
+/* An inline "are you sure?" card (message + .confirm-actions) - was .tools-confirm/
+   .steam-confirm/.backup-confirm, defined identically under all three names. danger is for a
+   choice that deletes something, in place of the default amber "just double-checking" tint. */
+.confirm-card {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    border: 1px solid var(--amber);
+    border-radius: 5px;
+    padding: 10px 13px;
+    font: 400 12px/1.5 Barlow, sans-serif;
+    color: var(--text-mid);
+    background: rgba(224, 163, 64, .07);
+}
+
+.confirm-card.danger {
+    border-color: var(--red);
+    background: rgba(212, 87, 78, .07);
+}
+
 /* The header bar shared by every modal and the Conflict Resolver's own overlay panel (see
    components/ModalHeader.tsx): a title, whatever badges/buttons a specific one needs, a
    spacer pushing anything after it to the far right, and usually a close button. Was

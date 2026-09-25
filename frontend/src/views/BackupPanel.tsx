@@ -302,7 +302,7 @@ export function BackupPanel() {
                     </div>
 
                     {confirmAll && (
-                        <div className="backup-confirm">
+                        <div className="confirm-card">
                             <span>
                                 {overview
                                     ? <>This game has {overview.WorkshopMods} Workshop mods ({formatBytes(overview.WorkshopBytes)}); {overview.BackedUpMods > 0 ? `${formatBytes(willNeed)} more would be copied now. ` : 'all of it would be copied now. '}</>
@@ -434,7 +434,7 @@ export function BackupPanel() {
                                     </button>
                                 </div>
                                 {plan && (
-                                    <div className={`backup-confirm ${plan.kind === 'unavailable' ? 'danger' : ''}`}>
+                                    <div className={`confirm-card ${plan.kind === 'unavailable' ? 'danger' : ''}`}>
                                         {plan.entries.length === 0 ? (
                                             <span>
                                                 {plan.kind === 'installed'

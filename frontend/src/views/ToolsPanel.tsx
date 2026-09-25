@@ -4,6 +4,7 @@ import {useEffect, useRef, useState} from 'preact/hooks';
 import {ClearDeepLAPIKey, DeepLStatus, SaveDeepLAPIKey} from '../../wailsjs/go/main/App';
 import type {app} from '../../wailsjs/go/models';
 import {BrowserOpenURL} from '../../wailsjs/runtime/runtime';
+import {StatusLine} from '../components/StatusLine';
 import {notify} from '../data/notifications';
 
 const KEY_PAGE = 'https://www.deepl.com/en/your-account/keys';
@@ -13,7 +14,7 @@ type Tier = 'free' | 'pro';
 // statusLine says what the app knows about the saved DeepL key right now,
 // in one sentence, with the icon and tone that go with it - mirrors
 // SteamApiPanel.tsx's own statusLine exactly.
-function statusLine(s: app.DeepLStatus): { icon: string; tone: string; text: string } {
+function statusLine(s: app.DeepLStatus): { icon: string; tone: 'good' | 'warn' | 'bad' | 'neutral'; text: string } {
     if (s.Unreadable) {
         return {icon: 'fa-triangle-exclamation', tone: 'warn', text: 'A key is saved but cannot be read on this computer (the file came from another one, or was changed) - enter it again.'};
     }
@@ -97,10 +98,7 @@ export function ToolsPanel() {
 
             <div className="settings-columns">
                 <div className="settings-column">
-                    <div className={`tools-status ${line.tone}`}>
-                        <i className={`fa-solid ${line.icon}`}/>
-                        <span>{line.text}</span>
-                    </div>
+                    <StatusLine icon={line.icon} tone={line.tone} text={line.text}/>
 
                     {status.HasKey && !confirmClear && (
                         <div className="editor-actions">
@@ -110,7 +108,7 @@ export function ToolsPanel() {
                         </div>
                     )}
                     {confirmClear && (
-                        <div className="tools-confirm">
+                        <div className="confirm-card">
                             <span>Remove the saved DeepL key ({status.Fingerprint})? The DeepL option in the Translate tab becomes unavailable until you enter one again.</span>
                             <span className="confirm-actions">
                                 <button type="button" className="btn-primary" onClick={clear}>Remove key</button>
