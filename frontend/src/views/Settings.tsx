@@ -38,7 +38,7 @@ import {
 import {requestRandomBackground, useCurrentBackground} from '../data/backgroundControl';
 import {type PlaysetAutoloadMode, playsetAutoloadModeFor} from '../data/playsetAutoload';
 import {AboutPanel} from './About';
-import {GamePickerChips, type ManageGamesState, useManagedGamePicker} from './GamePicker';
+import {ManagedGamePicker, type ManageGamesState, useManagedGamePicker} from './GamePicker';
 import {BackgroundDownloadModal} from './BackgroundDownloadModal';
 import {SteamApiPanel} from './SteamApiPanel';
 import {ToolsPanel} from './ToolsPanel';
@@ -499,15 +499,10 @@ function LaunchOptionsPanel() {
                 </div>
             </div>
 
-            {state.kind === 'loading' && <p className="status-page">Checking installed games...</p>}
-            {state.kind === 'error' && <p className="status-page error">{state.message}</p>}
-            {state.kind === 'ready' && managedGames.length === 0 && (
-                <p className="status-page">No games are set up to manage yet - open Manage games to pick one.</p>
-            )}
-
-            {managedGames.length > 0 && (
-                <GamePickerChips games={managedGames} selectedGameId={selectedGameId} onSelect={setSelectedGameId}/>
-            )}
+            <ManagedGamePicker
+                state={state} managedGames={managedGames} selectedGameId={selectedGameId} onSelect={setSelectedGameId}
+                emptyMessage="No games are set up to manage yet - open Manage games to pick one."
+            />
 
             {selectedGame && prefs && (() => {
                 const mode = launchModeFor(prefs, selectedGame.ID);
@@ -696,15 +691,10 @@ function PlaysetsSettingsPanel() {
                 </div>
             </div>
 
-            {state.kind === 'loading' && <p className="status-page">Checking installed games...</p>}
-            {state.kind === 'error' && <p className="status-page error">{state.message}</p>}
-            {state.kind === 'ready' && managedGames.length === 0 && (
-                <p className="status-page">No games are set up to manage yet - open Manage games to pick one.</p>
-            )}
-
-            {managedGames.length > 0 && (
-                <GamePickerChips games={managedGames} selectedGameId={selectedGameId} onSelect={setSelectedGameId}/>
-            )}
+            <ManagedGamePicker
+                state={state} managedGames={managedGames} selectedGameId={selectedGameId} onSelect={setSelectedGameId}
+                emptyMessage="No games are set up to manage yet - open Manage games to pick one."
+            />
 
             {selectedGame && prefs && (() => {
                 const mode = playsetAutoloadModeFor(prefs, selectedGame.ID);
@@ -947,14 +937,10 @@ function ConflictRulesPanel() {
                 shows it for a real conflict (e.g. "common/buildings"), copied from there.
             </div>
 
-            {state.kind === 'loading' && <p className="status-page">Checking installed games...</p>}
-            {state.kind === 'error' && <p className="status-page error">{state.message}</p>}
-            {state.kind === 'ready' && managedGames.length === 0 && (
-                <p className="status-page">No games are set up to manage yet - open Manage games to pick one.</p>
-            )}
-            {managedGames.length > 0 && (
-                <GamePickerChips games={managedGames} selectedGameId={selectedGameId} onSelect={setSelectedGameId}/>
-            )}
+            <ManagedGamePicker
+                state={state} managedGames={managedGames} selectedGameId={selectedGameId} onSelect={setSelectedGameId}
+                emptyMessage="No games are set up to manage yet - open Manage games to pick one."
+            />
 
             {selectedGame && (
                 <>

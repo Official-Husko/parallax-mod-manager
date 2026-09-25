@@ -68,3 +68,27 @@ export function GamePickerChips({games, selectedGameId, onSelect}: {
     );
 }
 
+// ManagedGamePicker is useManagedGamePicker's own state (loading/error/ready) plus
+// GamePickerChips, combined into the one block every per-game Settings panel (Launch
+// Options, Playsets, Conflict Rules, Backup) was repeating identically: the same
+// "Checking installed games..."/error text while DetectGames() is in flight, then either
+// emptyMessage (nothing managed yet - open Manage games first) or the chip row itself.
+// Renders nothing once ready with something to pick from and no chips are wanted for it -
+// this only ever returns null when emptyMessage is left unset and there is nothing managed,
+// which is the one caller (BackupPanel) that already explains that state elsewhere on its
+// own page.
+export function ManagedGamePicker({state, managedGames, selectedGameId, onSelect, emptyMessage}: {
+    state: ManageGamesState;
+    managedGames: library.DetectedGame[];
+    selectedGameId: string;
+    onSelect: (gameId: string) => void;
+    emptyMessage?: string;
+}) {
+    if (state.kind === 'loading') return <p className="status-page">Checking installed games...</p>;
+    if (state.kind === 'error') return <p className="status-page error">{state.message}</p>;
+    if (managedGames.length === 0) {
+        return emptyMessage ? <p className="status-page">{emptyMessage}</p> : null;
+    }
+    return <GamePickerChips games={managedGames} selectedGameId={selectedGameId} onSelect={onSelect}/>;
+}
+

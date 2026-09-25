@@ -22,7 +22,7 @@ import {formatBytes, timeAgo} from '../data/format';
 import {notify} from '../data/notifications';
 import {Select} from '../components/Select';
 import {Toggle} from '../components/Toggle';
-import {GamePickerChips, useManagedGamePicker} from './GamePicker';
+import {ManagedGamePicker, useManagedGamePicker} from './GamePicker';
 
 type Mode = 'atrisk' | 'all' | 'off';
 
@@ -394,11 +394,7 @@ export function BackupPanel() {
                 </div>
                 <div className="settings-column">
                     <div className="backup-games">
-                        {state.kind === 'loading' && <p className="status-page">Checking installed games...</p>}
-                        {state.kind === 'error' && <p className="status-page error">{state.message}</p>}
-                        {managedGames.length > 0 && (
-                            <GamePickerChips games={managedGames} selectedGameId={selectedGameId} onSelect={setSelectedGameId}/>
-                        )}
+                        <ManagedGamePicker state={state} managedGames={managedGames} selectedGameId={selectedGameId} onSelect={setSelectedGameId}/>
                         {selectedGameId && (
                             <div className="backup-summary">
                                 {overview
