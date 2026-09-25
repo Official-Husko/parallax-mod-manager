@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Official-Husko/parallax-mod-manager/internal/loverslab"
+	"github.com/Official-Husko/parallax-mod-manager/internal/loverslabcategories"
 )
 
 func TestFindCategoryByName(t *testing.T) {
@@ -191,5 +192,44 @@ func TestEnsureLoversLabSessionWithNothingEverSavedFails(t *testing.T) {
 	a := newLoversLabApp(t, t.TempDir())
 	if _, err := a.ensureLoversLabSession(context.Background()); err == nil {
 		t.Error("expected an error when nothing has ever been signed in")
+	}
+}
+
+// --- LoversLabCategories: the on-disk sidebar cache ---
+// fakeLoversLabSession's client has no working ListCategories/ListSubcategories (they would
+// make a real request against the real site) - so a passing test here, returning exactly the
+// pre-seeded fake data below rather than hanging or failing on a real network call, is itself
+// proof the cache-hit path never touched the client at all.
+
+func TestLoversLabCategoriesReturnsAFreshCacheWithoutCallingTheClient(t *testing.T) {
+	a := newLoversLabApp(t, t.TempDir())
+	if _, err := a.SaveLoversLabCredentials(testLoversLabUser, testLoversLabPass); err != nil {
+		t.Fatalf("SaveLoversLabCredentials: %v", err)
+	}
+	a.loversLabCategories = loverslabcategories.Store{Dir: t.TempDir()}
+
+	seeded := []loverslab.Category{{ID: 999, Name: "Seeded From The Cache, Not A Real Fetch", URL: "https://example.invalid/seeded/", Depth: 0}}
+	if err := a.loversLabCategories.Save(seeded); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	got, err := a.LoversLabCategories()
+	if err != nil {
+		t.Fatalf("LoversLabCategories: %v", err)
+	}
+	if len(got) != 1 || got[0].Name != seeded[0].Name {
+		t.Errorf("LoversLabCategories = %+v, want the seeded cache back untouched", got)
+	}
+}
+
+func TestLoversLabCategoriesStillRequiresASignedInSessionEvenWithAFreshCache(t *testing.T) {
+	a := newLoversLabApp(t, t.TempDir()) // never signed in
+	a.loversLabCategories = loverslabcategories.Store{Dir: t.TempDir()}
+	if err := a.loversLabCategories.Save([]loverslab.Category{{ID: 1, Name: "Cached"}}); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	if _, err := a.LoversLabCategories(); err == nil {
+		t.Error("expected an error: a fresh cache must not bypass the sign-in requirement")
 	}
 }

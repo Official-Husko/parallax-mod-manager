@@ -33,6 +33,7 @@ import (
 	"github.com/Official-Husko/parallax-mod-manager/internal/launcherdb"
 	"github.com/Official-Husko/parallax-mod-manager/internal/launchershim"
 	"github.com/Official-Husko/parallax-mod-manager/internal/library"
+	"github.com/Official-Husko/parallax-mod-manager/internal/loverslabcategories"
 	"github.com/Official-Husko/parallax-mod-manager/internal/loverslabmeta"
 	"github.com/Official-Husko/parallax-mod-manager/internal/loverslabtracking"
 	"github.com/Official-Husko/parallax-mod-manager/internal/mod"
@@ -143,6 +144,10 @@ type App struct {
 	// grid has nowhere else to get at all (see internal/loverslabmeta), filled in
 	// as a side effect of LoversLabFileDetail, never fetched on purpose for this.
 	loverslabMeta loverslabmeta.Store
+	// loversLabCategories caches the Browse tab's own sidebar (the real "Paradox
+	// Games" category and its own subcategories) across restarts - see
+	// internal/loverslabcategories and LoversLabCategories.
+	loversLabCategories loverslabcategories.Store
 	// installMu guards installCancel: the download running for each LoversLabInstall
 	// request, so a Cancel call can reach and stop it - the same reason duplicateMu
 	// guards duplicateCancel just below.
@@ -320,6 +325,7 @@ func (a *App) startup(ctx context.Context) {
 		a.modNotes = modnotes.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "mod_notes")}
 		a.loverslabInstalls = loverslabtracking.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "loverslab_installs")}
 		a.loverslabMeta = loverslabmeta.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "loverslab_meta")}
+		a.loversLabCategories = loverslabcategories.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "loverslab_categories")}
 		a.versionIgnore = versionignore.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "version_ignore")}
 		a.modPins = modpins.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "mod_pins")}
 		a.resolvedConflicts = resolvedconflicts.Store{Dir: filepath.Join(configDir, "parallax-mod-manager", "resolved_conflicts")}

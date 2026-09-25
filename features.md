@@ -362,6 +362,10 @@ for security, privacy, reliability or performance is called out (see the last tw
   cache entry just means that one mod is read again.
 - **Fast warm rescans** - about 0.3 s instead of 2.3 s on an 86-mod install, with results identical to
   the slow path.
+- **Browse's sidebar loads instantly after the first day** - the LoversLab category sidebar (two real
+  page fetches, over a second combined the first time) is cached on disk for a day at a time, since
+  its own real structure barely ever changes; a corrupt or missing cache just costs one real fetch to
+  rebuild.
 - **Mod list appears at once** - names, versions and sources show in about a millisecond, before the
   slower conflict pass finishes.
 - **Parallel where it is safe** - files are parsed on all cores, and merged in load order so the result

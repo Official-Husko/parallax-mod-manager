@@ -166,10 +166,24 @@ const allCategoryName = "All"
 // unfiltered) first, then whichever of its own real subcategories currently exist for one
 // specific Paradox game - everything else LoversLab hosts (Skyrim, Fallout, The Sims, and so
 // on) is dropped, since this app has nothing to do with any of it.
+//
+// Building this costs two real page fetches that must run one after another (the second page's
+// own URL is only known once the first is parsed) - confirmed live to cost over a second
+// combined on a cold fetch, and internal/loverslab's own page cache (three minutes, gone the
+// moment a fresh *Client replaces the old one) doesn't help a first-of-the-run call. Since the
+// sidebar's own real structure changes on a timescale of essentially never, a.loversLabCategories
+// (internal/loverslabcategories, on disk, a day's worth of trust) is checked first - a fresh
+// cache skips both fetches entirely.
 func (a *App) LoversLabCategories() ([]loverslab.Category, error) {
 	client, err := a.ensureLoversLabSession(a.baseContext())
 	if err != nil {
 		return nil, err
+	}
+
+	if cached, fresh, err := a.loversLabCategories.Load(); err != nil {
+		applog.For("LoversLab").Warnf("reading the cached sidebar failed, fetching fresh: %v", err)
+	} else if fresh {
+		return cached, nil
 	}
 
 	root, err := client.ListCategories(a.baseContext())
@@ -191,7 +205,12 @@ func (a *App) LoversLabCategories() ([]loverslab.Category, error) {
 		applog.For("LoversLab").Warnf("listing Paradox Games' own subcategories failed: %v", err)
 		subs = nil
 	}
-	return buildBrowseSidebar(*paradox, subs), nil
+	sidebar := buildBrowseSidebar(*paradox, subs)
+
+	if err := a.loversLabCategories.Save(sidebar); err != nil {
+		applog.For("LoversLab").Warnf("could not cache the sidebar: %v", err)
+	}
+	return sidebar, nil
 }
 
 // buildBrowseSidebar turns the real "Paradox Games" category and (if it was reachable) its own
