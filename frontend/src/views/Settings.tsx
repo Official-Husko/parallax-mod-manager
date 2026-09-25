@@ -1084,7 +1084,8 @@ function BrowseSettingsPanel() {
 
     function stepInterval(delta: number) {
         if (!prefs) return;
-        const clamped = Math.min(MAX_LOVERSLAB_CHECK_INTERVAL_HOURS, Math.max(MIN_LOVERSLAB_CHECK_INTERVAL_HOURS, (Number(intervalInput) || DEFAULT_LOVERSLAB_CHECK_INTERVAL_HOURS) + delta));
+        const current = Number(intervalInput);
+        const clamped = Math.min(MAX_LOVERSLAB_CHECK_INTERVAL_HOURS, Math.max(MIN_LOVERSLAB_CHECK_INTERVAL_HOURS, (Number.isFinite(current) ? current : DEFAULT_LOVERSLAB_CHECK_INTERVAL_HOURS) + delta));
         setIntervalInput(String(clamped));
         const next = {...prefs, loversLabCheckIntervalHours: clamped};
         setPrefs(next);
@@ -1111,7 +1112,8 @@ function BrowseSettingsPanel() {
 
     function stepNotificationInterval(delta: number) {
         if (!prefs) return;
-        const clamped = Math.min(MAX_LOVERSLAB_NOTIFICATION_INTERVAL_MINUTES, Math.max(MIN_LOVERSLAB_NOTIFICATION_INTERVAL_MINUTES, (Number(notificationIntervalInput) || DEFAULT_LOVERSLAB_NOTIFICATION_INTERVAL_MINUTES) + delta));
+        const current = Number(notificationIntervalInput);
+        const clamped = Math.min(MAX_LOVERSLAB_NOTIFICATION_INTERVAL_MINUTES, Math.max(MIN_LOVERSLAB_NOTIFICATION_INTERVAL_MINUTES, (Number.isFinite(current) ? current : DEFAULT_LOVERSLAB_NOTIFICATION_INTERVAL_MINUTES) + delta));
         setNotificationIntervalInput(String(clamped));
         const next = {...prefs, loversLabNotificationIntervalMinutes: clamped};
         setPrefs(next);
