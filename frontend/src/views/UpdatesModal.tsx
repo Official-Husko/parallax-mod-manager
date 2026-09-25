@@ -3,6 +3,7 @@ import {Fragment, h} from 'preact';
 import type {modupdates} from '../../wailsjs/go/models';
 import {BrowserOpenURL} from '../../wailsjs/runtime/runtime';
 import {EmptyState} from '../components/EmptyState';
+import {ModalHeader} from '../components/ModalHeader';
 import {SourceBadge} from '../components/SourceBadge';
 import {TipItem} from '../components/Tooltip';
 import {formatBytes, timeAgo} from '../data/format';
@@ -178,40 +179,42 @@ export function UpdatesModal({gameId, gameName, onClose}: {
     return (
         <div className="overlay" onClick={onClose}>
             <div className="updates-modal" onClick={(e) => e.stopPropagation()}>
-                <div className="updates-modal-header">
-                    <span className="title">Updates</span>
-                    <span className="mono checked">
+                <ModalHeader
+                    title="Updates"
+                    onClose={onClose}
+                    after={<>
+                        <span
+                            className={`btn-ghost ${checking ? 'inert' : ''}`}
+                            onClick={checking ? undefined : () => checkModUpdates(gameId, true)}
+                            {...tip(() => (
+                                <TipItem icon="fa-arrows-rotate" color="var(--blue)" title="Check again">
+                                    Ask Steam again and re-read the mod folders. Still compares with your last startup.
+                                </TipItem>
+                            ))}
+                        >
+                            <i className={`fa-solid fa-arrows-rotate ${checking ? 'fa-spin' : ''}`}/> Check again
+                        </span>
+                        {summary.fresh > 0 && (
+                            <span
+                                className="btn-primary"
+                                onClick={() => markModUpdatesSeen(gameId)}
+                                {...tip(() => (
+                                    <TipItem icon="fa-check" color="var(--green)" title="Mark all seen">
+                                        Clear this list. Later checks only report what changes from now on.
+                                    </TipItem>
+                                ))}
+                            >
+                                Mark all seen
+                            </span>
+                        )}
+                    </>}
+                >
+                    <span className="mono count">
                         {checking ? 'checking...'
                             : report ? `checked ${timeAgo(report.CheckedAt)}${report.BaselineAt > 0 ? ` · since ${shortDate(report.BaselineAt)}` : ''}`
                                 : ''}
                     </span>
-                    <div className="spacer"/>
-                    <span
-                        className={`btn-ghost ${checking ? 'inert' : ''}`}
-                        onClick={checking ? undefined : () => checkModUpdates(gameId, true)}
-                        {...tip(() => (
-                            <TipItem icon="fa-arrows-rotate" color="var(--blue)" title="Check again">
-                                Ask Steam again and re-read the mod folders. Still compares with your last startup.
-                            </TipItem>
-                        ))}
-                    >
-                        <i className={`fa-solid fa-arrows-rotate ${checking ? 'fa-spin' : ''}`}/> Check again
-                    </span>
-                    {summary.fresh > 0 && (
-                        <span
-                            className="btn-primary"
-                            onClick={() => markModUpdatesSeen(gameId)}
-                            {...tip(() => (
-                                <TipItem icon="fa-check" color="var(--green)" title="Mark all seen">
-                                    Clear this list. Later checks only report what changes from now on.
-                                </TipItem>
-                            ))}
-                        >
-                            Mark all seen
-                        </span>
-                    )}
-                    <i className="fa-solid fa-xmark close-btn" onClick={onClose}/>
-                </div>
+                </ModalHeader>
                 <div className="updates-modal-body">{body}</div>
             </div>
         </div>

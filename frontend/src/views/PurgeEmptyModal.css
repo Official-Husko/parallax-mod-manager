@@ -9,33 +9,6 @@
     flex-direction: column;
 }
 
-.purge-modal-header {
-    display: flex;
-    align-items: center;
-    height: 42px;
-    padding: 0 16px;
-    /* --bg-header-on-panel, not --bg-header - .purge-modal (this sits inside it) already
-       applies --bg-panel once; see that variable's own comment in App.css. */
-    background: var(--bg-header-on-panel);
-    border-bottom: 1px solid var(--border);
-    gap: 11px;
-    flex: none;
-}
-
-.purge-modal-header .title {
-    font: 600 13px Barlow, sans-serif;
-    color: var(--text-bright);
-}
-
-.purge-modal-header .count {
-    font-size: 11px;
-    color: var(--text-dim);
-}
-
-.purge-modal-header .spacer {
-    flex: 1;
-}
-
 .purge-modal-intro {
     padding: 14px 16px 4px;
     font-size: 12px;

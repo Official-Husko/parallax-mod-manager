@@ -9,35 +9,10 @@
     flex-direction: column;
 }
 
-.bgdl-header {
-    display: flex;
-    align-items: center;
-    height: 44px;
-    padding: 0 16px;
-    background: var(--bg-header);
-    border-bottom: 1px solid var(--border);
-    gap: 11px;
-    flex: none;
-}
-
 .bgdl-header > i:first-child {
     width: auto;
     color: var(--blue);
     font-size: 14px;
-}
-
-.bgdl-header .title {
-    font: 600 13px Barlow, sans-serif;
-    color: var(--text-bright);
-}
-
-.bgdl-header .spacer {
-    flex: 1;
-}
-
-.bgdl-header .close-btn {
-    cursor: pointer;
-    color: var(--text-muted);
 }
 
 .bgdl-intro {

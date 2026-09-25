@@ -84,22 +84,12 @@
     color: inherit;
 }
 
+/* A little wider than .modal-header's own default padding/gap - everything else
+   (background, height, border, the title/close-btn styling) comes from that shared class;
+   see App.css. */
 .resolver-header {
-    display: flex;
-    align-items: center;
     gap: 12px;
-    height: 42px;
-    flex: none;
     padding: 0 14px;
-    /* --bg-header-on-panel, not --bg-header - .resolver (this sits inside it) already
-       applies --bg-panel once; see that variable's own comment in App.css. */
-    background: var(--bg-header-on-panel);
-    border-bottom: 1px solid var(--border);
-}
-
-.resolver-header .title {
-    font: 600 13px Barlow, sans-serif;
-    color: var(--text-bright);
 }
 
 .badge {
@@ -132,10 +122,6 @@
     border: 1px solid var(--amber);
 }
 
-.resolver-header .spacer {
-    flex: 1;
-}
-
 .mode-toggle {
     display: flex;
     border: 1px solid var(--border-light);
@@ -153,12 +139,6 @@
 .mode-toggle span.active {
     background: var(--bg-highlight);
     color: var(--text-bright);
-}
-
-.close-btn {
-    color: var(--text-muted);
-    cursor: pointer;
-    font-size: 13px;
 }
 
 .resolver-body {
@@ -704,7 +684,7 @@
     overflow-x: auto;
     overflow-y: hidden;
     border-top: 1px solid var(--border);
-    /* --bg-header-on-panel - see .resolver-header's own comment above. */
+    /* --bg-header-on-panel - see its own comment in App.css. */
     background: var(--bg-header-on-panel);
 }
 
@@ -716,7 +696,7 @@
     height: 34px;
     flex: none;
     border-top: 1px solid var(--border);
-    /* --bg-header-on-panel - see .resolver-header's own comment above. */
+    /* --bg-header-on-panel - see its own comment in App.css. */
     background: var(--bg-header-on-panel);
     display: flex;
     align-items: center;

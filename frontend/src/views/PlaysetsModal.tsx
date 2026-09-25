@@ -1,7 +1,8 @@
 import './PlaysetsModal.css';
-import {h} from 'preact';
+import {Fragment, h} from 'preact';
 import {useState} from 'preact/hooks';
 import {colorFromName} from '../data/nameColor';
+import {ModalHeader} from '../components/ModalHeader';
 import type {launcherdb} from '../../wailsjs/go/models';
 
 export function PlaysetsModal({gameName, names, launcherPlaysets, onActivate, onNew, onImport, onRename, onDelete, onClose}: {
@@ -71,13 +72,15 @@ export function PlaysetsModal({gameName, names, launcherPlaysets, onActivate, on
     return (
         <div className="overlay" onClick={onClose}>
             <div className="playsets-modal" onClick={(e) => e.stopPropagation()}>
-                <div className="playsets-modal-header">
-                    <span className="title">Playsets</span>
+                <ModalHeader
+                    title="Playsets"
+                    after={<>
+                        <span className="btn-ghost inert">Import code</span>
+                        <span className="btn-primary" onClick={onNew}>New</span>
+                    </>}
+                >
                     <span className="mono count">{names.length} · {gameName}</span>
-                    <div className="spacer"/>
-                    <span className="btn-ghost inert">Import code</span>
-                    <span className="btn-primary" onClick={onNew}>New</span>
-                </div>
+                </ModalHeader>
                 <div className="playsets-modal-body">
                     {names.length === 0 && <div className="playsets-empty">No saved playsets yet - save one from the Workspace.</div>}
                     {names.map((name) => (

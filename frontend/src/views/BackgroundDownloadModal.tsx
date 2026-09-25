@@ -12,6 +12,7 @@ import {
 import {EventsOn} from '../../wailsjs/runtime/runtime';
 import type {app} from '../../wailsjs/go/models';
 import {EmptyState} from '../components/EmptyState';
+import {ModalHeader} from '../components/ModalHeader';
 import {formatBytes} from '../data/format';
 import {notify} from '../data/notifications';
 
@@ -311,12 +312,11 @@ export function BackgroundDownloadModal({mode, onClose}: {
     return (
         <div className="overlay" onClick={decline}>
             <div className="bgdl-modal" onClick={(e) => e.stopPropagation()}>
-                <div className="bgdl-header">
-                    <i className="fa-solid fa-cloud-arrow-down"/>
-                    <span className="title">{mode === 'switch' ? 'Go offline: download backgrounds' : 'Downloaded backgrounds'}</span>
-                    <div className="spacer"/>
-                    {phase !== 'downloading' && <i className="fa-solid fa-xmark close-btn" title="Close (Esc)" onClick={decline}/>}
-                </div>
+                <ModalHeader
+                    title={mode === 'switch' ? 'Go offline: download backgrounds' : 'Downloaded backgrounds'}
+                    icon="fa-cloud-arrow-down" overlay headerClassName="bgdl-header"
+                    onClose={phase !== 'downloading' ? decline : undefined} closeTitle="Close (Esc)"
+                />
                 {phase === 'choose' && mode === 'switch' && (
                     <p className="bgdl-intro">
                         Offline mode uses only images stored on this computer, so nothing is fetched while you use the

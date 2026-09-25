@@ -19,6 +19,7 @@ import {timeAgo} from '../data/format';
 import {notify} from '../data/notifications';
 import {EmptyState} from '../components/EmptyState';
 import {MarqueeText} from '../components/MarqueeText';
+import {ModalHeader} from '../components/ModalHeader';
 
 // maxMatrixMods caps how many mods the overlap matrix renders - a real
 // modlist can have 50+ mods touching at least one contested key, and an
@@ -185,8 +186,23 @@ export function ConflictResolver({gameId, conflicts, patch, order, onClose, onPa
     return (
         <div className="overlay" onClick={onClose}>
             <div className="resolver" onClick={(e) => e.stopPropagation()}>
-                <div className="resolver-header">
-                    <span className="title">Conflicts</span>
+                <ModalHeader
+                    title="Conflicts" onClose={onClose} headerClassName="resolver-header"
+                    after={<>
+                        <span className="mode-toggle">
+                            <span className={mode === 'list' ? 'active' : ''} onClick={() => setMode('list')}>List</span>
+                            <span className={mode === 'matrix' ? 'active' : ''} onClick={() => setMode('matrix')}>Matrix</span>
+                        </span>
+                        {manualCount > 0 && (
+                            <span className="btn-ghost" onClick={handleAutoResolveAll}>Auto-resolve all</span>
+                        )}
+                        {conflicts.length > 0 && (
+                            <span className={`btn-primary ${patching ? 'inert' : ''}`} onClick={patching ? undefined : handleGeneratePatch}>
+                                {patching ? 'Generating...' : patch?.Exists ? 'Regenerate patch' : 'Generate patch'}
+                            </span>
+                        )}
+                    </>}
+                >
                     <span className={`badge ${conflicts.length > 0 ? 'hard' : 'clean'}`}>
                         {conflicts.length === 0 && <i className="fa-solid fa-circle-check"/>}
                         {conflicts.length} contested {conflicts.length === 1 ? 'key' : 'keys'}
@@ -199,21 +215,7 @@ export function ConflictResolver({gameId, conflicts, patch, order, onClose, onPa
                             {patch.Changed} to review
                         </span>
                     )}
-                    <div className="spacer"/>
-                    <span className="mode-toggle">
-                        <span className={mode === 'list' ? 'active' : ''} onClick={() => setMode('list')}>List</span>
-                        <span className={mode === 'matrix' ? 'active' : ''} onClick={() => setMode('matrix')}>Matrix</span>
-                    </span>
-                    {manualCount > 0 && (
-                        <span className="btn-ghost" onClick={handleAutoResolveAll}>Auto-resolve all</span>
-                    )}
-                    {conflicts.length > 0 && (
-                        <span className={`btn-primary ${patching ? 'inert' : ''}`} onClick={patching ? undefined : handleGeneratePatch}>
-                            {patching ? 'Generating...' : patch?.Exists ? 'Regenerate patch' : 'Generate patch'}
-                        </span>
-                    )}
-                    <i className="fa-solid fa-xmark close-btn" onClick={onClose}/>
-                </div>
+                </ModalHeader>
 
                 {patchNeedsAttention(patch) && (
                     <div className="patch-banner stale">

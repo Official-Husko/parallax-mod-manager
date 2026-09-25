@@ -11,30 +11,10 @@
     flex-direction: column;
 }
 
-.licence-modal-header {
-    display: flex;
-    align-items: center;
-    height: 44px;
-    padding: 0 16px;
-    background: var(--bg-header);
-    border-bottom: 1px solid var(--border);
-    gap: 11px;
-    flex: none;
-}
-
 .licence-modal-header > i:first-child {
     width: auto;
     color: var(--amber);
     font-size: 14px;
-}
-
-.licence-modal-header .title {
-    font: 600 13px Barlow, sans-serif;
-    color: var(--text-bright);
-}
-
-.licence-modal-header .spacer {
-    flex: 1;
 }
 
 .licence-id {
@@ -43,15 +23,6 @@
     border-radius: 9px;
     font-size: 10.5px;
     color: var(--amber);
-}
-
-.licence-modal-header .close-btn {
-    cursor: pointer;
-    color: var(--text-muted);
-}
-
-.licence-modal-header .close-btn:hover {
-    color: var(--text-bright);
 }
 
 .licence-modal-body {

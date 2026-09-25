@@ -22,6 +22,7 @@ import {
 } from '../data/gameLog';
 import {useVirtualWindow} from '../data/useVirtualWindow';
 import {EmptyState} from '../components/EmptyState';
+import {ModalHeader} from '../components/ModalHeader';
 import {Select} from '../components/Select';
 import {UploadLogButton} from '../components/UploadLogButton';
 
@@ -199,15 +200,12 @@ export function GameLogModal({gameId, gameName, running, onClose}: {
     return (
         <div className="overlay" onClick={onClose}>
             <div className="game-log-modal" onClick={(e) => e.stopPropagation()}>
-                <div className="game-log-header">
-                    <span className="title">Game log</span>
+                <ModalHeader title="Game log" onClose={onClose} closeTitle="Close (Esc)" headerClassName="game-log-header">
                     <span className="game-log-game">{gameName}</span>
                     <span className={`game-log-live ${running ? 'on' : ''}`} title={running ? 'The game is running - new lines appear as it writes them' : 'The game is not running - new lines appear if it starts'}>
                         <i className="fa-solid fa-circle"/> {running ? 'Game running' : 'Game not running'}
                     </span>
-                    <div className="spacer"/>
-                    <i className="fa-solid fa-xmark close-btn" title="Close (Esc)" onClick={onClose}/>
-                </div>
+                </ModalHeader>
                 <div className="log-view">
                     <div className="log-toolbar">
                         <Select

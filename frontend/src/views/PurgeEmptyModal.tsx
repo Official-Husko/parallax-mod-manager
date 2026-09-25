@@ -4,6 +4,7 @@ import {useEffect, useMemo, useState} from 'preact/hooks';
 import {FindEmptyMods, PurgeMods} from '../../wailsjs/go/main/App';
 import type {library} from '../../wailsjs/go/models';
 import {Checkbox} from '../components/Checkbox';
+import {ModalHeader} from '../components/ModalHeader';
 import {notify} from '../data/notifications';
 
 // PurgeEmptyModal reviews every local mod with no usable content (missing
@@ -59,12 +60,9 @@ export function PurgeEmptyModal({gameId, onClose, onPurged}: {
     return (
         <div className="overlay" onClick={onClose}>
             <div className="purge-modal" onClick={(e) => e.stopPropagation()}>
-                <div className="purge-modal-header">
-                    <span className="title">Purge empty mods</span>
+                <ModalHeader title="Purge empty mods" onClose={onClose}>
                     {candidates && <span className="mono count">{candidates.length} found</span>}
-                    <div className="spacer"/>
-                    <i className="fa-solid fa-xmark" style={{cursor: 'pointer', color: 'var(--text-muted)'}} onClick={onClose}/>
-                </div>
+                </ModalHeader>
                 <p className="purge-modal-intro">
                     These local mods have no real content - their folder is either missing or empty. Deleting
                     one only removes its small descriptor file here; nothing else on disk is touched. Uncheck

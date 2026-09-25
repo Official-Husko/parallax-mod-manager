@@ -13,24 +13,6 @@
     flex-direction: column;
 }
 
-.game-log-header {
-    display: flex;
-    align-items: center;
-    height: 42px;
-    padding: 0 16px;
-    /* --bg-header-on-panel, not --bg-header - .game-log-modal (this sits inside it) already
-       applies --bg-panel once; see that variable's own comment in App.css. */
-    background: var(--bg-header-on-panel);
-    border-bottom: 1px solid var(--border);
-    gap: 11px;
-    flex: none;
-}
-
-.game-log-header .title {
-    font: 600 13px Barlow, sans-serif;
-    color: var(--text-bright);
-}
-
 /* The game's name in the game's own accent colour (--rust is set per game, see
    data/useGameAccent.ts), as a pill, so the window says at a glance which
    game's log this is. */
@@ -42,19 +24,6 @@
     color: var(--rust);
     font: 600 11px Barlow, sans-serif;
     letter-spacing: .02em;
-}
-
-.game-log-header .spacer {
-    flex: 1;
-}
-
-.game-log-header .close-btn {
-    cursor: pointer;
-    color: var(--text-muted);
-}
-
-.game-log-header .close-btn:hover {
-    color: var(--text-bright);
 }
 
 /* Whether the game is running, at a glance. */

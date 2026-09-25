@@ -1,5 +1,6 @@
 import './AutosortModals.css';
 import {h} from 'preact';
+import {ModalHeader} from '../components/ModalHeader';
 import {FLAG} from '../data/flags';
 import type {MissingDependency} from '../data/autosort';
 
@@ -21,12 +22,9 @@ export function AutosortMissingDepsModal({missing, onClose, onLoadAndSort, onSor
     return (
         <div className="overlay" onClick={onClose}>
             <div className="autosort-modal" onClick={(e) => e.stopPropagation()}>
-                <div className="autosort-modal-header">
-                    <span className="title">Missing dependencies</span>
+                <ModalHeader title="Missing dependencies" onClose={onClose}>
                     <span className="mono count">{missing.length} found</span>
-                    <div className="spacer"/>
-                    <i className="fa-solid fa-xmark" style={{cursor: 'pointer', color: 'var(--text-muted)'}} onClick={onClose}/>
-                </div>
+                </ModalHeader>
                 <p className="autosort-modal-intro">
                     {missing.length} mod{missing.length === 1 ? '' : 's'} your active load order depends on{' '}
                     {missing.length === 1 ? "isn't" : "aren't"} active yet - Autosort can only reorder what's

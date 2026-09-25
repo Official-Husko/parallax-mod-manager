@@ -1,5 +1,6 @@
 import './AutosortModals.css';
 import {h} from 'preact';
+import {ModalHeader} from '../components/ModalHeader';
 import {FLAG} from '../data/flags';
 
 // Shown after Autosort actually runs (see Workspace's own handleAutosort),
@@ -18,12 +19,9 @@ export function AutosortUnresolvedDepsModal({names, onClose}: {
     return (
         <div className="overlay" onClick={onClose}>
             <div className="autosort-modal" onClick={(e) => e.stopPropagation()}>
-                <div className="autosort-modal-header">
-                    <span className="title">Dependencies not found</span>
+                <ModalHeader title="Dependencies not found" onClose={onClose}>
                     <span className="mono count">{names.length} missing</span>
-                    <div className="spacer"/>
-                    <i className="fa-solid fa-xmark" style={{cursor: 'pointer', color: 'var(--text-muted)'}} onClick={onClose}/>
-                </div>
+                </ModalHeader>
                 <p className="autosort-modal-intro">
                     {names.length} declared dependenc{names.length === 1 ? 'y' : 'ies'} of your active mods{' '}
                     {names.length === 1 ? "wasn't" : "weren't"} found among your installed mods at all - not

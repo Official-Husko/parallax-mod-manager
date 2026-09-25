@@ -4,6 +4,7 @@ import type {ComponentChild} from 'preact';
 import {useEffect, useMemo, useState} from 'preact/hooks';
 import {LicenceText} from '../../wailsjs/go/main/App';
 import {BrowserOpenURL} from '../../wailsjs/runtime/runtime';
+import {ModalHeader} from '../components/ModalHeader';
 import {type Block, type Inline, parseMarkdown} from '../data/markdown';
 
 function renderInlines(inlines: Inline[]): ComponentChild[] {
@@ -49,13 +50,12 @@ export function LicenceModal({name, id, onClose}: { name: string; id: string; on
     return (
         <div className="overlay" onClick={onClose}>
             <div className="licence-modal" onClick={(e) => e.stopPropagation()}>
-                <div className="licence-modal-header">
-                    <i className="fa-solid fa-scale-balanced"/>
-                    <span className="title">{name || 'Licence'}</span>
+                <ModalHeader
+                    title={name || 'Licence'} icon="fa-scale-balanced" overlay onClose={onClose} closeTitle="Close (Esc)"
+                    headerClassName="licence-modal-header"
+                >
                     {id && <span className="mono licence-id">{id}</span>}
-                    <div className="spacer"/>
-                    <i className="fa-solid fa-xmark close-btn" title="Close (Esc)" onClick={onClose}/>
-                </div>
+                </ModalHeader>
                 <div className="licence-modal-body">
                     {failed && <p className="status-page error">Couldn't read the licence text.</p>}
                     {!failed && text === null && <p className="status-page">Loading...</p>}

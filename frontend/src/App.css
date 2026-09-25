@@ -608,6 +608,57 @@
     gap: 8px;
 }
 
+/* The header bar shared by every modal and the Conflict Resolver's own overlay panel (see
+   components/ModalHeader.tsx): a title, whatever badges/buttons a specific one needs, a
+   spacer pushing anything after it to the far right, and usually a close button. Was
+   copy-pasted per modal under its own name (.autosort-modal-header, .licence-modal-header,
+   .bgdl-header, .resolver-header, .updates-modal-header, .purge-modal-header,
+   .game-log-header, .playsets-modal-header) - overlay is for the two modals (Licence,
+   Background download) whose own box sits directly on the dark overlay rather than inside a
+   page's own panel; see --bg-header-on-panel's own comment above for why the background
+   differs for the rest. A file with its own small residual spacing quirk (the Conflict
+   Resolver's own slightly wider padding/gap) keeps a tiny override rule under its own
+   .resolver-header class rather than repeating the whole block. */
+.modal-header {
+    display: flex;
+    align-items: center;
+    height: 42px;
+    padding: 0 16px;
+    background: var(--bg-header-on-panel);
+    border-bottom: 1px solid var(--border);
+    gap: 11px;
+    flex: none;
+}
+
+.modal-header.overlay {
+    height: 44px;
+    background: var(--bg-header);
+}
+
+.modal-header .title {
+    font: 600 13px Barlow, sans-serif;
+    color: var(--text-bright);
+}
+
+.modal-header .close-btn {
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: 13px;
+}
+
+.modal-header .close-btn:hover {
+    color: var(--text-bright);
+}
+
+.modal-header .spacer {
+    flex: 1;
+}
+
+.modal-header .count {
+    font-size: 11px;
+    color: var(--text-dim);
+}
+
 .sidebar-label {
     font: 600 9.5px "Azeret Mono", monospace;
     color: var(--text-dim);
