@@ -57,7 +57,10 @@ func TestLoadModParsesAllScannedFiles(t *testing.T) {
 	for _, d := range defs {
 		ids[d.ID] = true
 	}
-	for _, want := range []string{"some_building", "country_event", "KEY"} {
+	// The events entry's ID is its own nested "id = m.1" field, not the
+	// generic "country_event" category keyword every event shares - see
+	// definition.FromScriptFile's eventsType handling.
+	for _, want := range []string{"some_building", "m.1", "KEY"} {
 		if !ids[want] {
 			t.Errorf("missing definition with ID %q, got %v", want, ids)
 		}

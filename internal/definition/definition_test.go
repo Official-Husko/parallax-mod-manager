@@ -41,6 +41,83 @@ some_building = {
 	}
 }
 
+func TestFromScriptFileEventsUsesNestedIDField(t *testing.T) {
+	// Every real event's top-level key is one of a handful of generic
+	// category keywords ("country_event", "ship_event", ...) shared by
+	// thousands of unrelated events - the real, unique id is nested inside
+	// as "id = ...". Two different events sharing the same category
+	// keyword must not collapse to the same ID.
+	f := mustParseScript(t, `
+country_event = {
+	id = my_events.1
+	title = my_events.1.title
+}
+country_event = {
+	id = my_events.2
+	title = my_events.2.title
+}
+`)
+	defs := FromScriptFile("test_mod", "events/x.txt", eventsType, f)
+	if len(defs) != 2 {
+		t.Fatalf("expected 2 definitions, got %d: %+v", len(defs), defs)
+	}
+	if defs[0].ID != "my_events.1" || defs[1].ID != "my_events.2" {
+		t.Errorf("IDs = %q, %q, want my_events.1, my_events.2", defs[0].ID, defs[1].ID)
+	}
+	for _, d := range defs {
+		if d.Type != eventsType {
+			t.Errorf("Type = %q, want %q", d.Type, eventsType)
+		}
+	}
+}
+
+func TestFromScriptFileEventsSkipsNamespaceDeclaration(t *testing.T) {
+	f := mustParseScript(t, `
+namespace = my_events
+country_event = {
+	id = my_events.1
+}
+`)
+	defs := FromScriptFile("test_mod", "events/x.txt", eventsType, f)
+	if len(defs) != 1 {
+		t.Fatalf("expected 1 definition (namespace skipped), got %d: %+v", len(defs), defs)
+	}
+	if defs[0].ID != "my_events.1" {
+		t.Errorf("ID = %q, want my_events.1", defs[0].ID)
+	}
+}
+
+func TestFromScriptFileEventsWithoutNestedIDFallsBackToTopLevelKey(t *testing.T) {
+	// inline_script (and any other malformed-ish events-folder entry with
+	// no "id" field of its own) keeps the old behavior rather than
+	// crashing or silently dropping the entry.
+	f := mustParseScript(t, `
+inline_script = {
+	script = "some/path"
+}
+`)
+	defs := FromScriptFile("test_mod", "events/x.txt", eventsType, f)
+	if len(defs) != 1 || defs[0].ID != "inline_script" {
+		t.Fatalf("defs = %+v, want exactly one entry with ID inline_script", defs)
+	}
+}
+
+func TestFromScriptFileNonEventsTypeUnaffectedByEventHandling(t *testing.T) {
+	// A non-events Type must never look inside its own block for a nested
+	// "id" field, even if one happens to be present - only defType ==
+	// eventsType triggers that behavior.
+	f := mustParseScript(t, `
+some_building = {
+	id = should_not_be_used
+	cost = 100
+}
+`)
+	defs := FromScriptFile("test_mod", "common/buildings/x.txt", Type("common/buildings"), f)
+	if len(defs) != 1 || defs[0].ID != "some_building" {
+		t.Fatalf("defs = %+v, want exactly one entry with ID some_building (unaffected by its own nested id field)", defs)
+	}
+}
+
 func TestFromScriptFileSkipsBareTopLevelListItems(t *testing.T) {
 	// Malformed-ish but should not crash: a bare value with no key at the
 	// top level isn't a conflictable object and should be skipped.

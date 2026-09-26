@@ -144,6 +144,34 @@ func mustDefs(t *testing.T, modID, relPath, defType, src string) []definition.De
 	return definition.FromScriptFile(modID, relPath, definition.Type(defType), f)
 }
 
+func TestResolveTwoModsEachAddingDifferentEventsIsNotAFalseConflict(t *testing.T) {
+	// Regression test for a real bug: before definition.FromScriptFile's
+	// eventsType handling, every event's ID defaulted to its generic
+	// top-level category keyword ("country_event") - shared by every event
+	// of that category, across every mod. Two mods that each add their own,
+	// completely unrelated country_events would collide at
+	// Key{Type:"events", ID:"country_event"} and be flagged as a genuine
+	// conflict needing a decision, even though nothing about their content
+	// actually overlaps.
+	a := mustDefs(t, "mod_a", "events/x.txt", "events", `
+country_event = { id = mod_a.1 title = a1 }
+country_event = { id = mod_a.2 title = a2 }
+`)
+	b := mustDefs(t, "mod_b", "events/x.txt", "events", `
+country_event = { id = mod_b.1 title = b1 }
+`)
+
+	inputs := []Input{
+		{Mod: mod.Mod{ID: "mod_a"}, Defs: a},
+		{Mod: mod.Mod{ID: "mod_b"}, Defs: b},
+	}
+	result := Resolve(LoadOrder{"mod_a", "mod_b"}, inputs, Options{ConflictsOnly: true})
+
+	if len(result.Conflicts) != 0 {
+		t.Fatalf("expected no conflicts (each mod's events are genuinely distinct), got %+v", result.Conflicts)
+	}
+}
+
 func TestResolveEndToEndThreeMods(t *testing.T) {
 	// mod_base defines a building; mod_a and mod_b both override it
 	// differently and don't declare any dependency on each other, so it's
@@ -192,7 +220,10 @@ func TestResolveEndToEndThreeMods(t *testing.T) {
 		t.Errorf("building resolution = %+v, want Reason=ReasonResolved Winner.ModID=mod_b (last in load order)", buildingRes)
 	}
 
-	eventKey := Key{Type: "events", ID: "some_event"}
+	// The event's real ID is its own nested "id = e.1" field, not its
+	// top-level category keyword ("some_event") - see
+	// definition.FromScriptFile's eventsType handling.
+	eventKey := Key{Type: "events", ID: "e.1"}
 	eventRes, ok := result.Resolutions[eventKey]
 	if !ok {
 		t.Fatal("missing resolution for event key")

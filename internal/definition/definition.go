@@ -40,16 +40,44 @@ type Definition struct {
 	Order    int // position within the file; a future FIOS tie-break needs this
 }
 
+// eventsType is the Type FromScriptFile treats specially: every top-level
+// entry in a real events file is one of a handful of generic category
+// keywords ("country_event", "ship_event", "fleet_event", ...) shared by
+// thousands of unrelated events (confirmed against a real Stellaris
+// install: "country_event" alone is the literal top-level key of 5,000+
+// distinct vanilla events) - never itself a usable id. This convention
+// (a nested "id = <namespace>.<number>" field carries the real, globally
+// unique identifier; the top-level key only says which event category it
+// is) is a long-standing, near-universal Clausewitz one, confirmed here
+// against Stellaris specifically and assumed, not independently reverified,
+// to hold for every other Paradox game's own identically-named "events"
+// folder.
+const eventsType = Type("events")
+
+// eventIDField is the nested field a real event's own Definition carries
+// its true id in - see eventsType.
+const eventIDField = "id"
+
+// eventNamespaceKey is the bare top-level directive ("namespace = foo")
+// every real events file starts with, establishing the file's own id
+// prefix. It carries no content of its own to conflict over, and its
+// literal key repeats across virtually every mod's own events files (160+
+// times in the vanilla install's own events/ folder alone) - treating it
+// as a definition would flag a bogus conflict between any two mods that
+// each declare one, the same problem eventsType/eventIDField above solves
+// for actual events. Skipped entirely rather than assigned any id.
+const eventNamespaceKey = "namespace"
+
 // FromScriptFile extracts one Definition per top-level entry of a parsed
 // Clausewitz script file. ID defaults to the entry's own key, which is
 // correct for the common case (e.g. common/buildings, where the top-level
-// key is the building's own tag). Some categories (e.g. events, where the
-// real id is a nested "id = ..." field) need a category-specific override -
-// deliberately deferred to the conflict-resolution milestone, not built here.
+// key is the building's own tag). defType == eventsType is a confirmed
+// exception - see eventsType/eventIDField/eventNamespaceKey.
 func FromScriptFile(modID, relPath string, defType Type, f *script.File) []Definition {
 	if f == nil {
 		return nil
 	}
+	isEvents := defType == eventsType
 	defs := make([]Definition, 0, len(f.Root.Entries))
 	for i, e := range f.Root.Entries {
 		if e.Key == "" {
@@ -57,9 +85,18 @@ func FromScriptFile(modID, relPath string, defType Type, f *script.File) []Defin
 			// and isn't a conflictable "object" on its own; skip it.
 			continue
 		}
+		if isEvents && e.Key == eventNamespaceKey {
+			continue
+		}
+		id := e.Key
+		if isEvents {
+			if nested, ok := nestedFieldRaw(e.Value, eventIDField); ok {
+				id = nested
+			}
+		}
 		defs = append(defs, Definition{
 			Type:     defType,
-			ID:       e.Key,
+			ID:       id,
 			ModID:    modID,
 			FilePath: relPath,
 			Hash:     xhash.Definition(Normalize(e.Value)),
@@ -73,6 +110,23 @@ func FromScriptFile(modID, relPath string, defType Type, f *script.File) []Defin
 		})
 	}
 	return defs
+}
+
+// nestedFieldRaw returns the raw scalar text of key's value inside v's own
+// block (v.Kind must be KindBlock), if v has an entry with that key -
+// deliberately narrow (not a general lookup helper): just enough to pull a
+// real event's own "id = ..." out of its containing block. The first match
+// wins; a well-formed event never repeats its own id field.
+func nestedFieldRaw(v script.Value, key string) (string, bool) {
+	if v.Kind != script.KindBlock || v.Block == nil {
+		return "", false
+	}
+	for _, e := range v.Block.Entries {
+		if e.Key == key {
+			return e.Value.Raw, true
+		}
+	}
+	return "", false
 }
 
 // FromLocaleCatalog extracts one Definition per localization entry. Type is

@@ -72,6 +72,10 @@ for security, privacy, reliability or performance is called out (see the last tw
 
 - **Conflict detection** - real load-order winners per content type, with dependency-aware suppression
   and same-mod duplicates handled the way the game does.
+- **Events are now identified by their own real id, not their event category** - two mods each
+  adding unrelated events no longer collide as a false conflict just because both happened to add,
+  say, a `country_event` (shared by 5,000+ distinct vanilla events alone); confirmed against a real
+  48-mod install (10 false event conflicts down to 1 genuine one).
 - **Engine-native merges aren't false-flagged as conflicts** - Stellaris' `common/on_actions` is
   unioned by the game itself across every mod that defines the same on_action name, so two mods
   adding different events there no longer shows up as a conflict needing a decision.
