@@ -34,6 +34,7 @@ type Row = {
     source: string;
     gameId: string;
     gameName: string;
+    contentMissing: boolean;
 };
 
 // What the main table is currently showing - "all games" (the default),
@@ -95,7 +96,7 @@ export function Library() {
                             if (cancelled) return;
                             const gameRows = summary.Mods.map((m): Row => ({
                                 modId: m.ID, name: m.Name, version: m.Version, source: m.Source,
-                                gameId: g.ID, gameName: g.DisplayName,
+                                gameId: g.ID, gameName: g.DisplayName, contentMissing: m.ContentMissing,
                             }));
                             setRows((prev) => [...prev.filter((r) => r.gameId !== g.ID), ...gameRows]);
                         })
@@ -399,7 +400,11 @@ export function Library() {
                                         <span className="col-ver mono">{r.version || '-'}</span>
                                         <span className="col-size mono">{r.modId in sizes ? formatBytes(sizes[r.modId]) : '-'}</span>
                                         <span className="col-played">-</span>
-                                        <span className="col-state mono">-</span>
+                                        <span className="col-state mono">
+                                            {r.contentMissing
+                                                ? <i className="fa-solid fa-triangle-exclamation library-missing" title="Files not found on disk"/>
+                                                : '-'}
+                                        </span>
                                     </div>
                                 );
                             })}

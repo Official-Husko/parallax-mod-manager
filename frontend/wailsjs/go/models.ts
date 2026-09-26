@@ -1759,6 +1759,7 @@ export namespace library {
 	    ShortDescription: string;
 	    Enabled: boolean;
 	    GeneratedPatch: boolean;
+	    ContentMissing: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new ModSummary(source);
@@ -1777,12 +1778,14 @@ export namespace library {
 	        this.ShortDescription = source["ShortDescription"];
 	        this.Enabled = source["Enabled"];
 	        this.GeneratedPatch = source["GeneratedPatch"];
+	        this.ContentMissing = source["ContentMissing"];
 	    }
 	}
 	export class PatchResult {
 	    Written: boolean;
 	    PatchedKeys: number;
 	    SkippedKeys: number;
+	    MergedKeys: number;
 	    ModID: string;
 	    Generation: number;
 	
@@ -1795,6 +1798,7 @@ export namespace library {
 	        this.Written = source["Written"];
 	        this.PatchedKeys = source["PatchedKeys"];
 	        this.SkippedKeys = source["SkippedKeys"];
+	        this.MergedKeys = source["MergedKeys"];
 	        this.ModID = source["ModID"];
 	        this.Generation = source["Generation"];
 	    }

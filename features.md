@@ -44,7 +44,9 @@ for security, privacy, reliability or performance is called out (see the last tw
 - **Mod detail panel** - real description, declared game version and dependencies, file tree, the mods
   it conflicts with, thumbnail, open-folder and Workshop page buttons.
 - **Library** - every managed game's mods in one searchable table with sizes, plus cross-game
-  collections and bulk "add to playset" / "move to collection".
+  collections and bulk "add to playset" / "move to collection". A mod whose content folder can't
+  be found on disk (a deleted drive, a moved install, or one removed by hand outside this app)
+  is flagged with a warning icon in its own STATE column.
 - **Mod update tracking** - on each startup, what was updated, changed on disk, removed, or deleted
   from the Workshop since last time, with a card in the sidebar and a review window.
 

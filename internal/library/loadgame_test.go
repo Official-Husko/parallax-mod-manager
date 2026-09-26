@@ -44,6 +44,37 @@ version = "1.0"
 	writeFile(t, modDir, filepath.Join(id, "common", "x.txt"), script)
 }
 
+func TestLoadGameFlagsAModWhoseContentFolderIsMissing(t *testing.T) {
+	modDir := t.TempDir()
+	writeMod(t, modDir, "mod_a", "Mod A", `thing = { a = 1 }`)
+	// A real stub whose own path points nowhere real - a deleted drive, a
+	// moved install, or a mod removed by hand outside this app.
+	writeFile(t, modDir, "gone.mod", `name = "Gone Mod"
+path = "`+filepath.Join(modDir, "does-not-exist")+`"
+version = "1.0"
+`)
+
+	summary, err := LoadGame(context.Background(), testGameConfig(), Options{
+		CacheDir: t.TempDir(),
+		ModDir:   modDir,
+		Order:    conflict.LoadOrder{"mod_a"},
+	})
+	if err != nil {
+		t.Fatalf("LoadGame: %v", err)
+	}
+
+	byID := map[string]ModSummary{}
+	for _, m := range summary.Mods {
+		byID[m.ID] = m
+	}
+	if byID["mod_a"].ContentMissing {
+		t.Error("mod_a has real content, ContentMissing should be false")
+	}
+	if !byID["gone"].ContentMissing {
+		t.Errorf("gone's content folder doesn't exist, ContentMissing should be true, got %+v", byID["gone"])
+	}
+}
+
 func TestLoadGameCleanScanNoConflicts(t *testing.T) {
 	modDir := t.TempDir()
 	writeMod(t, modDir, "mod_a", "Mod A", `thing_a = { cost = 1 }`)

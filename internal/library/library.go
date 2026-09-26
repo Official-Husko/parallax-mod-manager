@@ -135,6 +135,13 @@ type ModSummary struct {
 	// (Autosort keeps it last, dependency checks leave it alone) without
 	// knowing its ID.
 	GeneratedPatch bool
+	// ContentMissing mirrors mod.Mod's own field of the same name: the
+	// descriptor stub exists, but the folder it points at doesn't - a
+	// deleted drive, a moved install, or a mod removed by hand outside this
+	// app. Surfaced here so every view backed by ModSummary (the Library
+	// and Workspace) can flag it, not just Browse's own LoversLab-specific
+	// tracking, which already did before this field existed.
+	ContentMissing bool
 }
 
 // GameUpdate is a game whose installed version changed since the app last saw
@@ -330,6 +337,7 @@ func resolveConflicts(ctx context.Context, cfg game.GameConfig, opts Options) (r
 			RemoteFileID:     m.Descriptor.RemoteFileID,
 			Enabled:          enabled[m.ID],
 			GeneratedPatch:   m.ID == patchModID,
+			ContentMissing:   m.ContentMissing,
 		})
 	}
 

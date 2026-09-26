@@ -289,6 +289,10 @@
     font-size: 10px;
 }
 
+.library-missing {
+    color: var(--amber);
+}
+
 .library-footer {
     height: 30px;
     flex: none;
