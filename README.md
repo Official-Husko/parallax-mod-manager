@@ -49,8 +49,18 @@ is the only game verified against a real one so far.
 <br><sub>DLC - toggle installed DLC per playset, with Steam Store details</sub>
 </td>
 <td width="50%">
-<img src=".github/readme/screenshots/editor.png" alt="Editor: descriptor and thumbnail editing with a live diff preview before saving">
-<br><sub>Editor - edit a mod's descriptor and thumbnail, previewed before you save</sub>
+<img src=".github/readme/screenshots/editor.png" alt="Editor: descriptor and thumbnail editing, previewed before saving">
+<br><sub>Editor - edit a mod's descriptor and thumbnail, with a preview of exactly what changes before you save</sub>
+</td>
+</tr>
+<tr>
+<td width="50%">
+<img src=".github/readme/screenshots/browse.png" alt="Browse: a LoversLab card grid, signed in, with real titles, authors and view counts">
+<br><sub>Browse - find and install mods from LoversLab without leaving the app</sub>
+</td>
+<td width="50%">
+<img src=".github/readme/screenshots/publish.png" alt="Publish: uploading a mod to the Steam Workshop, with a real file tree and account info">
+<br><sub>Publish - upload your own mod to the Steam Workshop, choosing exactly what goes with it</sub>
 </td>
 </tr>
 </table>
