@@ -468,7 +468,18 @@ function DescriptionBlocksView({blocks}: {blocks: loverslab.DescriptionBlock[]})
         <>
             {blocks.map((block, i) => {
                 if (block.ImageURL) {
-                    return <img key={i} className="browse-description-image" src={block.ImageURL} alt="" loading="lazy"/>;
+                    const url = block.ImageURL;
+                    return (
+                        <img
+                            key={i}
+                            className="browse-description-image"
+                            src={url}
+                            alt=""
+                            loading="lazy"
+                            title="Open full size"
+                            onClick={() => BrowserOpenURL(url)}
+                        />
+                    );
                 }
                 if (block.Divider) {
                     return <hr key={i} className="browse-description-divider"/>;
@@ -1091,6 +1102,15 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
     }, [allGames]);
     const canSave = !busy && username.trim() !== '' && password !== '';
     const isInstalled = detailFor ? installedIds.has(detailFor.ID) : false;
+    // Every real installed mod this page's own FileID backs - almost always
+    // one, but selecting several files on the Files tab installs each as its
+    // own separate mod (see LoversLabInstalledMod.ModID), so a page can back
+    // more than one. Used for the "Installed on ... Installed files: ..."
+    // banner and shared with uninstallCurrent's own, separately-computed
+    // modIDs list above.
+    const installedEntries = detailFor && installedState.kind === 'ready'
+        ? installedState.mods.filter((m) => m.FileID === detailFor.ID)
+        : [];
     const missingFilesCount = installedState.kind === 'ready' ? installedState.mods.filter((m) => m.ContentMissing).length : 0;
     // The real count of installed mods, for display - deliberately not installedIds.size:
     // that Set is page-level (one entry per LoversLab fileID, for "is anything from the
@@ -1565,6 +1585,15 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                                 onClick={closeDetail}
                             />
                         </div>
+                        {isInstalled && installedEntries.length > 0 && (
+                            <div className="browse-detail-installed-banner">
+                                <i className="fa-solid fa-circle-check"/>
+                                <span>
+                                    Installed on {new Date(Math.min(...installedEntries.map((m) => m.InstalledAt)) * 1000).toLocaleDateString()}
+                                    {' · '}Installed files: {installedEntries.map((m) => m.Title).join(', ')}
+                                </span>
+                            </div>
+                        )}
                         <div className="browse-detail-content">
                             <div className="browse-detail-left">
                                 <div className="browse-detail-media">
@@ -1943,7 +1972,14 @@ export function Browse({games, selectedGame, onOpenInWorkspace}: {
                                 )}
                                 <div className="browse-detail-actions">
                                     {isInstalled ? (
-                                        <span className="browse-detail-installed-pill"><i className="fa-solid fa-circle-check"/> Installed</span>
+                                        <button
+                                            type="button"
+                                            className="btn-danger browse-detail-install-btn"
+                                            disabled={installState.kind !== 'idle'}
+                                            onClick={() => setInstallState({kind: 'uninstall-confirm'})}
+                                        >
+                                            <i className="fa-solid fa-trash-can"/> Uninstall
+                                        </button>
                                     ) : (
                                         <button type="button" className="btn-primary browse-detail-install-btn" onClick={() => setDetailTab('files')}>
                                             <i className="fa-solid fa-download"/> Install

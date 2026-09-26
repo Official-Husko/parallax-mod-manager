@@ -164,7 +164,8 @@ for security, privacy, reliability or performance is called out (see the last tw
   syntax some authors paste straight into the editor as plain text, e.g. "# Heading" or
   "**bold**", interpreted properly instead of shown as inert punctuation) - a color too dark to
   read against this app's own dark theme is left as ordinary text rather than rendered
-  unreadable.
+  unreadable. Embedded images are capped to a sane size and open at full resolution on click,
+  instead of showing at whatever size was actually uploaded.
 - **Write a reply, not just read them** - post a real comment to a file's support topic straight
   from the Comments tab, with no need to open a browser. A small Bold/Italic/Link toolbar formats
   it for real (the posted reply comes out properly formatted on the real site, not raw markup);
@@ -187,7 +188,10 @@ for security, privacy, reliability or performance is called out (see the last tw
   entry, even two that came from the same page's Files tab); uninstall one specific mod from
   there (right-click) or everything installed from a page at once from that page's own detail
   view - either deletes real files, after confirming. A "files not found" warning means the real
-  folder itself is actually gone, not just that its own record can't be double-checked.
+  folder itself is actually gone, not just that its own record can't be double-checked. An
+  installed page's own detail view shows a red Uninstall button in place of Install, and a small
+  banner naming when it was installed and which real mod(s) it backs (several when picking more
+  than one file on the Files tab installed each as its own separate mod).
 - **Card or list view, your choice, shared everywhere in Browse** - the browsing grid and the
   Installed section switch between the exact same card and list views, one toggle for both.
 - **Download and install a LoversLab mod in one click** - extracts the real archive straight into

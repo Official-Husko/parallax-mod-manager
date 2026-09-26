@@ -906,6 +906,29 @@
     border-color: var(--red);
 }
 
+/* A page can now back more than one real installed mod (selecting several
+   files on the Files tab installs each as its own separate mod - see
+   LoversLabInstalledMod.ModID), so naming which ones is worth its own line,
+   not just the single green "Installed" pill this used to be before the main
+   action button below took over signaling install state (now a red Uninstall
+   button instead). */
+.browse-detail-installed-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: rgba(90, 168, 122, .1);
+    border-bottom: 1px solid var(--border);
+    font: 400 11.5px Barlow, sans-serif;
+    color: var(--text-mid);
+    flex: none;
+}
+
+.browse-detail-installed-banner i {
+    color: var(--green);
+    font-size: 12px;
+}
+
 .browse-detail-content {
     flex: 1;
     min-height: 0;
@@ -1064,18 +1087,24 @@
     margin: 0 0 8px;
 }
 
-/* Capped rather than shown at whatever native resolution the source
-   actually uploaded (a real screenshot can be several thousand pixels tall)
-   - object-fit: contain keeps it fully visible, uncropped, inside that cap
-   instead of stretching or overflowing the panel. */
+/* Capped rather than shown at whatever native resolution the source actually
+   uploaded (a real screenshot can be several thousand pixels tall) - object-fit:
+   contain keeps it fully visible, uncropped, inside that cap instead of
+   stretching or overflowing the panel. Capped to the same height as the hero
+   screenshot above (.browse-detail-hero) rather than something taller: a
+   description image sitting among paragraphs of text read as far too dominant
+   at a bigger size, even though it was never actually overflowing the panel.
+   Clickable to open the real, full-resolution original, the same "Open full
+   size" affordance the hero image already has. */
 .browse-description-image {
     max-width: 100%;
-    max-height: 420px;
+    max-height: 258px;
     width: auto;
     height: auto;
     object-fit: contain;
     border-radius: 5px;
     margin: 2px 0 10px;
+    cursor: pointer;
 }
 
 /* A real inline emoticon (loverslab.DescriptionRun.EmoteURL) - icon-sized and
@@ -1815,19 +1844,6 @@
 
 .browse-detail-install-btn {
     flex: 1;
-}
-
-.browse-detail-installed-pill {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    font: 600 12px Barlow, sans-serif;
-    color: var(--green);
-    border: 1px solid var(--green);
-    border-radius: 5px;
-    padding: 8px 0;
 }
 
 .browse-detail-like-btn,
