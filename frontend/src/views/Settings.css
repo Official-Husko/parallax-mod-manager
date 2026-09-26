@@ -89,6 +89,66 @@
     min-width: 0;
 }
 
+/* Groups a whole related section (an external site in Browse - LoversLab
+   today, more may join it later - or a service in Tools, currently just
+   DeepL) into one bounded box of its own, an icon/name header over its
+   actual settings - instead of those settings' rows sitting loose directly
+   on the panel, which is what both of these looked like before. */
+.settings-group-card {
+    background: var(--bg-inset);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 15px 17px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.settings-group-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+}
+
+.settings-group-title {
+    font: 700 13px Barlow, sans-serif;
+    color: var(--text-bright);
+}
+
+.settings-group-icon {
+    font-size: 15px;
+    color: var(--text-dim);
+    width: 18px;
+    text-align: center;
+}
+
+.settings-group-body {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+/* One toggle and whatever only applies while it's on (an interval stepper,
+   for instance), kept visually together within a .settings-group-body. */
+.settings-group-item {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.settings-group-divider {
+    border-top: 1px solid var(--border);
+}
+
+/* A dependent row nested under the toggle above it (Check every N hours/minutes,
+   under its own "Check for..." toggle) - a little indent is the only thing that
+   distinguishes it from a plain .profile-toggle-row otherwise. */
+.profile-toggle-row.sub {
+    padding-left: 15px;
+}
+
 .settings-content.split {
     display: flex;
 }

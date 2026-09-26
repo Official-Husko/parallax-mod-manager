@@ -96,54 +96,60 @@ export function ToolsPanel() {
                 </div>
             </div>
 
-            <div className="settings-columns">
-                <div className="settings-column">
-                    <StatusLine icon={line.icon} tone={line.tone} text={line.text}/>
-
-                    {status.HasKey && !confirmClear && (
-                        <div className="editor-actions">
-                            <button type="button" className="btn-ghost" disabled={busy !== null} onClick={() => setConfirmClear(true)}>
-                                {busy === 'clear' ? 'Removing...' : 'Remove saved key'}
-                            </button>
-                        </div>
-                    )}
-                    {confirmClear && (
-                        <div className="confirm-card">
-                            <span>Remove the saved DeepL key ({status.Fingerprint})? The DeepL option in the Translate tab becomes unavailable until you enter one again.</span>
-                            <span className="confirm-actions">
-                                <button type="button" className="btn-primary" onClick={clear}>Remove key</button>
-                                <button type="button" className="btn-ghost" onClick={() => setConfirmClear(false)}>Cancel</button>
-                            </span>
-                        </div>
-                    )}
+            <div className="settings-group-card">
+                <div className="settings-group-header">
+                    <i className="fa-solid fa-language settings-group-icon"/>
+                    <span className="settings-group-title">DeepL</span>
                 </div>
+                <div className="settings-columns">
+                    <div className="settings-column">
+                        <StatusLine icon={line.icon} tone={line.tone} text={line.text}/>
 
-                <div className="settings-column">
-                    <ApiKeyField
-                        id="deepl-api-key"
-                        label="DeepL API key"
-                        keyPageURL={KEY_PAGE}
-                        value={key}
-                        disabled={busy !== null}
-                        placeholder={status.HasKey ? 'A key is saved - enter a new one to replace it' : 'Paste your DeepL API key'}
-                        onInput={setKey}
-                        onEnter={() => canSave && save()}
-                        error={error}
-                        protection={status.Protection}
-                        note={<>
-                            The key is checked with DeepL before it is saved, so a wrong one (or the wrong tier for
-                            a real key) is never stored.
-                            {status.HasKey && <> Saved key: <span className="mono">{status.Fingerprint}</span> (a short fingerprint, not the key).</>}
-                        </>}
-                    >
-                        <select className="tools-tier-select" value={tier} disabled={busy !== null} onChange={(e) => setTier((e.target as HTMLSelectElement).value as Tier)}>
-                            <option value="free">Free tier</option>
-                            <option value="pro">Pro tier</option>
-                        </select>
-                        <button type="button" className="btn-primary" disabled={!canSave} onClick={save}>
-                            {busy === 'save' ? 'Checking...' : 'Save key'}
-                        </button>
-                    </ApiKeyField>
+                        {status.HasKey && !confirmClear && (
+                            <div className="editor-actions">
+                                <button type="button" className="btn-ghost" disabled={busy !== null} onClick={() => setConfirmClear(true)}>
+                                    {busy === 'clear' ? 'Removing...' : 'Remove saved key'}
+                                </button>
+                            </div>
+                        )}
+                        {confirmClear && (
+                            <div className="confirm-card">
+                                <span>Remove the saved DeepL key ({status.Fingerprint})? The DeepL option in the Translate tab becomes unavailable until you enter one again.</span>
+                                <span className="confirm-actions">
+                                    <button type="button" className="btn-primary" onClick={clear}>Remove key</button>
+                                    <button type="button" className="btn-ghost" onClick={() => setConfirmClear(false)}>Cancel</button>
+                                </span>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="settings-column">
+                        <ApiKeyField
+                            id="deepl-api-key"
+                            label="DeepL API key"
+                            keyPageURL={KEY_PAGE}
+                            value={key}
+                            disabled={busy !== null}
+                            placeholder={status.HasKey ? 'A key is saved - enter a new one to replace it' : 'Paste your DeepL API key'}
+                            onInput={setKey}
+                            onEnter={() => canSave && save()}
+                            error={error}
+                            protection={status.Protection}
+                            note={<>
+                                The key is checked with DeepL before it is saved, so a wrong one (or the wrong tier for
+                                a real key) is never stored.
+                                {status.HasKey && <> Saved key: <span className="mono">{status.Fingerprint}</span> (a short fingerprint, not the key).</>}
+                            </>}
+                        >
+                            <select className="tools-tier-select" value={tier} disabled={busy !== null} onChange={(e) => setTier((e.target as HTMLSelectElement).value as Tier)}>
+                                <option value="free">Free tier</option>
+                                <option value="pro">Pro tier</option>
+                            </select>
+                            <button type="button" className="btn-primary" disabled={!canSave} onClick={save}>
+                                {busy === 'save' ? 'Checking...' : 'Save key'}
+                            </button>
+                        </ApiKeyField>
+                    </div>
                 </div>
             </div>
         </div>
