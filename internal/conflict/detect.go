@@ -44,6 +44,23 @@ func detectKey(k Key, raw []definition.Definition, deps dependencyGraph, order L
 		}, nil
 	}
 
+	// A localisation Key with exactly one candidate in Stellaris' own
+	// "replace" folder (see replaceFolderCandidates) always wins
+	// unconditionally in-game - never a genuine conflict. The rare case of
+	// 2+ mods both using the convention for the same Key falls through to
+	// ordinary resolution below, scoped to just those candidates: every
+	// non-replace-folder candidate is already a guaranteed loser and is
+	// dropped from consideration here.
+	if restricted, ok := replaceFolderCandidates(k.Type, candidates); ok {
+		if len(restricted) == 1 {
+			return Resolution{
+				Key: k, Winner: restricted[0], Reason: ReasonReplaceFolder,
+				Losers: withoutWinner(candidates, restricted[0]),
+			}, nil
+		}
+		candidates = restricted
+	}
+
 	ids := modIDs(candidates)
 	if deps.fullyConnected(ids) {
 		winner := pickByRule(candidates, order, rule)

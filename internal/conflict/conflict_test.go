@@ -133,6 +133,58 @@ func TestRepeatableMergeKeysIsNearEmpty(t *testing.T) {
 	}
 }
 
+func TestPathHasSegment(t *testing.T) {
+	tests := []struct {
+		path string
+		want bool
+	}{
+		{"localisation/english/replace/x.yml", true},
+		{"localisation/replace/x.yml", true},
+		{"localisation/english/x.yml", false},
+		{"localisation/replacement/x.yml", false}, // must match a whole segment, not a prefix
+		{`localisation\english\replace\x.yml`, true},
+	}
+	for _, tt := range tests {
+		if got := pathHasSegment(tt.path, "replace"); got != tt.want {
+			t.Errorf("pathHasSegment(%q, \"replace\") = %v, want %v", tt.path, got, tt.want)
+		}
+	}
+}
+
+func TestReplaceFolderCandidatesOnlyAppliesToLocalisationTypes(t *testing.T) {
+	candidates := []definition.Definition{
+		{ModID: "mod_a", FilePath: "common/replace/x.txt"},
+		{ModID: "mod_b", FilePath: "common/x.txt"},
+	}
+	_, ok := replaceFolderCandidates("common", candidates)
+	if ok {
+		t.Error("expected ok = false for a non-localisation Type, even with a literal \"replace\" path segment")
+	}
+}
+
+func TestReplaceFolderCandidatesNarrowsToTheReplaceFolderOnes(t *testing.T) {
+	candidates := []definition.Definition{
+		{ModID: "mod_a", FilePath: "localisation/english/x.yml"},
+		{ModID: "mod_b", FilePath: "localisation/english/replace/x.yml"},
+		{ModID: "mod_c", FilePath: "localisation/english/y.yml"},
+	}
+	restricted, ok := replaceFolderCandidates("localisation/english", candidates)
+	if !ok || len(restricted) != 1 || restricted[0].ModID != "mod_b" {
+		t.Fatalf("restricted = %+v, ok = %v, want exactly mod_b", restricted, ok)
+	}
+}
+
+func TestReplaceFolderCandidatesNoneUsingItIsUnaffected(t *testing.T) {
+	candidates := []definition.Definition{
+		{ModID: "mod_a", FilePath: "localisation/english/x.yml"},
+		{ModID: "mod_b", FilePath: "localisation/english/y.yml"},
+	}
+	restricted, ok := replaceFolderCandidates("localisation/english", candidates)
+	if ok || len(restricted) != 2 {
+		t.Fatalf("restricted = %+v, ok = %v, want candidates unchanged and ok = false", restricted, ok)
+	}
+}
+
 // --- Resolve integration tests -------------------------------------------
 
 func mustDefs(t *testing.T, modID, relPath, defType, src string) []definition.Definition {

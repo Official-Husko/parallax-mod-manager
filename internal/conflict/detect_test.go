@@ -122,6 +122,72 @@ func TestDetectKeyEngineMergedTypeNotAConflict(t *testing.T) {
 	}
 }
 
+func TestDetectKeyReplaceFolderAlwaysWinsRegardlessOfLoadOrder(t *testing.T) {
+	// mod_a is last in load order (would ordinarily win under LIOS), but
+	// mod_b's own file lives in a "replace" folder - Stellaris' own
+	// convention guarantees it wins unconditionally instead.
+	a := def("mod_a", "localisation/english", "KEY", hashOf(t, `thing = { a = 1 }`))
+	a.FilePath = "localisation/english/x.yml"
+	b := def("mod_b", "localisation/english", "KEY", hashOf(t, `thing = { a = 2 }`))
+	b.FilePath = "localisation/english/replace/x.yml"
+	raw := []definition.Definition{a, b}
+
+	res, conflict := detectKey(Key{Type: "localisation/english", ID: "KEY"}, raw, dependencyGraph{}, LoadOrder{"mod_b", "mod_a"}, nil)
+
+	if res.Reason != ReasonReplaceFolder {
+		t.Errorf("Reason = %v, want ReasonReplaceFolder", res.Reason)
+	}
+	if res.Winner.ModID != "mod_b" {
+		t.Errorf("Winner.ModID = %q, want mod_b (its file is in a replace folder)", res.Winner.ModID)
+	}
+	if conflict != nil {
+		t.Errorf("a replace-folder resolution must never be reported as a Conflict, got %+v", conflict)
+	}
+	if len(res.Losers) != 1 || res.Losers[0].ModID != "mod_a" {
+		t.Errorf("Losers = %+v, want exactly mod_a", res.Losers)
+	}
+}
+
+func TestDetectKeyReplaceFolderDoesNotApplyToNonLocalisationTypes(t *testing.T) {
+	a := def("mod_a", "common", "thing", hashOf(t, `thing = { a = 1 }`))
+	a.FilePath = "common/x.txt"
+	b := def("mod_b", "common", "thing", hashOf(t, `thing = { a = 2 }`))
+	b.FilePath = "common/replace/x.txt" // coincidentally named "replace" - must not matter here
+
+	res, conflict := detectKey(Key{Type: "common", ID: "thing"}, []definition.Definition{a, b}, dependencyGraph{}, LoadOrder{"mod_a", "mod_b"}, nil)
+
+	if res.Reason != ReasonResolved {
+		t.Errorf("Reason = %v, want ReasonResolved (a coincidental \"replace\" folder name means nothing outside localisation)", res.Reason)
+	}
+	if conflict == nil {
+		t.Fatal("expected a genuine conflict")
+	}
+}
+
+func TestDetectKeyTwoReplaceFolderCandidatesStillResolveByRuleAmongThemselves(t *testing.T) {
+	a := def("mod_a", "localisation/english", "KEY", hashOf(t, `thing = { a = 1 }`))
+	a.FilePath = "localisation/english/replace/a.yml"
+	b := def("mod_b", "localisation/english", "KEY", hashOf(t, `thing = { a = 2 }`))
+	b.FilePath = "localisation/english/replace/b.yml"
+	c := def("mod_c", "localisation/english", "KEY", hashOf(t, `thing = { a = 3 }`))
+	c.FilePath = "localisation/english/x.yml" // not in replace/ - a guaranteed loser either way
+
+	res, conflict := detectKey(Key{Type: "localisation/english", ID: "KEY"}, []definition.Definition{a, b, c}, dependencyGraph{}, LoadOrder{"mod_a", "mod_b", "mod_c"}, nil)
+
+	if res.Reason != ReasonResolved {
+		t.Errorf("Reason = %v, want ReasonResolved (2 replace-folder candidates still disagree)", res.Reason)
+	}
+	if res.Winner.ModID != "mod_b" {
+		t.Errorf("Winner.ModID = %q, want mod_b (LIOS among the two replace-folder candidates)", res.Winner.ModID)
+	}
+	if conflict == nil {
+		t.Fatal("expected a genuine conflict")
+	}
+	if len(conflict.Candidates) != 2 {
+		t.Errorf("Candidates = %+v, want exactly the 2 replace-folder ones, mod_c excluded entirely", conflict.Candidates)
+	}
+}
+
 func TestDetectKeySuppressedByDependency(t *testing.T) {
 	raw := []definition.Definition{
 		def("mod_base", "common", "thing", hashOf(t, `thing = { a = 1 }`)),

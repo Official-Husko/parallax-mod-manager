@@ -76,6 +76,10 @@ for security, privacy, reliability or performance is called out (see the last tw
   adding unrelated events no longer collide as a false conflict just because both happened to add,
   say, a `country_event` (shared by 5,000+ distinct vanilla events alone); confirmed against a real
   48-mod install (10 false event conflicts down to 1 genuine one).
+- **Localisation's own "replace" folder is recognized as a guaranteed winner, not an ordinary
+  conflict** - a mod's `localisation/<language>/replace/` content always overrides everywhere in
+  the real game regardless of load order; confirmed on the same real 48-mod install (22 false
+  localisation conflicts eliminated).
 - **Engine-native merges aren't false-flagged as conflicts** - Stellaris' `common/on_actions` is
   unioned by the game itself across every mod that defines the same on_action name, so two mods
   adding different events there no longer shows up as a conflict needing a decision.

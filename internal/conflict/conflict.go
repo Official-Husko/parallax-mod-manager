@@ -13,6 +13,7 @@ package conflict
 
 import (
 	"sort"
+	"strings"
 
 	"github.com/Official-Husko/parallax-mod-manager/internal/definition"
 	"github.com/Official-Husko/parallax-mod-manager/internal/mod"
@@ -211,7 +212,64 @@ const (
 	// one; it isn't meaningful here the way it is for ReasonResolved, since
 	// nothing about this Key ever "wins" in-game.
 	ReasonEngineMerged
+	// ReasonReplaceFolder is a localisation Key where exactly one candidate
+	// lives in Stellaris' own "replace" folder convention (see
+	// localisationReplaceFolder) - it always wins unconditionally in-game,
+	// regardless of mod load order or any other candidate's filename, so
+	// this was never a genuine conflict either. Losers is every other
+	// candidate, none of which could have won no matter what.
+	ReasonReplaceFolder
 )
+
+// localisationReplaceFolder is the literal path segment name Stellaris
+// treats specially inside a "localisation" folder: files there are
+// guaranteed to load after every other localisation file and always
+// override a duplicate key, regardless of mod load order or filename -
+// confirmed via Paradox's own wiki ("Localisation files in this folder
+// will load after all other localisation files, and overwrite any
+// duplicate keys", plus its own explicit warning that overriding
+// localisation *without* this folder "is not a reliable method" - fetched
+// live, 2026-09-26) and against a real install: several real Workshop mods
+// on the dev machine use exactly this convention, both per-language
+// ("localisation/english/replace/...") and shared across every language
+// ("localisation/replace/...").
+const localisationReplaceFolder = "replace"
+
+// replaceFolderCandidates narrows candidates to just those whose own
+// FilePath lives inside a literal "replace" folder segment, if k's Type is
+// a localisation one and at least one candidate uses the convention - see
+// localisationReplaceFolder. ok is false (candidates returned unchanged)
+// for any non-localisation Type, or when no candidate uses it at all.
+func replaceFolderCandidates(t definition.Type, candidates []definition.Definition) (restricted []definition.Definition, ok bool) {
+	if !strings.HasPrefix(string(t), "localisation/") {
+		return candidates, false
+	}
+	for _, d := range candidates {
+		if pathHasSegment(d.FilePath, localisationReplaceFolder) {
+			restricted = append(restricted, d)
+		}
+	}
+	if len(restricted) == 0 {
+		return candidates, false
+	}
+	return restricted, true
+}
+
+// pathHasSegment reports whether path (a mod-relative FilePath) has segment
+// as one of its own directory components. Splits on both '/' and '\\'
+// explicitly rather than relying on filepath.ToSlash, which only converts
+// backslashes when the *running* OS uses them as its own separator - not
+// reliable here, since path was produced by whatever OS scanned the mod,
+// which isn't necessarily the one running this check.
+func pathHasSegment(path, segment string) bool {
+	normalized := strings.ReplaceAll(path, `\`, "/")
+	for _, seg := range strings.Split(normalized, "/") {
+		if seg == segment {
+			return true
+		}
+	}
+	return false
+}
 
 // DependencyEdge records the declared dependency that caused a conflict to
 // be suppressed instead of surfaced.
