@@ -127,12 +127,22 @@ var EngineMergedTypes = map[definition.Type]bool{
 // merging (see docs/merge-patch.md and AdditiveEntries) may even be
 // attempted - a losing candidate's own entries that the winner doesn't
 // already have get spliced into the generated patch instead of silently
-// dropped. Empty by default, the same "don't add a Type without a
-// confirmed source" bar as DefaultPriorityRules and EngineMergedTypes: a
-// promising-looking shape (see docs/merge-safety-by-type.md's discussion of
-// common/scripted_variables) isn't the same thing as a confirmed one, and
-// this list should only ever grow from the latter.
-var MergeSafeTypes = map[definition.Type]bool{}
+// dropped. The same "don't add a Type without a confirmed source" bar as
+// DefaultPriorityRules and EngineMergedTypes applies here too: a promising-
+// looking shape isn't the same thing as a confirmed one (see
+// docs/merge-safety-by-type.md's discussion of why common/scripted_variables
+// - despite looking like an obvious candidate at first - was deliberately
+// left off this list: two mods each adding their own uniquely-named
+// variable are already two independent, non-conflicting Keys, never
+// reaching Tier 1 at all; Tier 1 only ever matters once 2+ mods already
+// share the same Key, which a flat scalar assignment like a scripted
+// variable rarely does in the first place).
+//
+// Confirmed so far:
+//   - Stellaris' "common/governments/authorities": see RepeatableMergeKeys.
+var MergeSafeTypes = map[definition.Type]bool{
+	"common/governments/authorities": true,
+}
 
 // RepeatableMergeKeys names, for a specific Type in MergeSafeTypes, entry
 // keys that are confirmed to legitimately repeat within one definition's
@@ -143,15 +153,26 @@ var MergeSafeTypes = map[definition.Type]bool{}
 // entry with different content is treated as a real disagreement, not a
 // safe addition - see AdditiveEntries.
 //
-// Empty until a Type actually appears in MergeSafeTypes - a repeatable key
-// for a Type nothing merges yet has nothing to apply to. Confirmed
-// precedent for the one entry worth naming here even before that (see
-// docs/merge-safety-by-type.md): Stellaris' "common/governments/authorities",
-// key "advanced_authority_swap" - multiple mods' own swap entries are meant
-// to coexist, not override each other, confirmed against both a real
-// vanilla file and an existing reference implementation's own narrow,
-// production auto-merge special case.
-var RepeatableMergeKeys = map[definition.Type]map[string]bool{}
+// Confirmed so far:
+//   - Stellaris' "common/governments/authorities", key
+//     "advanced_authority_swap": confirmed directly against a real vanilla
+//     file (common/governments/authorities/00_authorities.txt) - a single
+//     authority's own definition (e.g. auth_democratic) legitimately
+//     repeats this exact key 11+ times, each with its own distinguishing
+//     "name" field, alongside plenty of other, non-repeating fields
+//     (election_term_years, color, possible, etc. - a mixed body, not a
+//     block consisting solely of swaps). Also corroborated by an existing
+//     reference implementation's own narrow, production auto-merge special
+//     case naming this exact key - though that tool's own gate requires a
+//     definition's *entire* body to be nothing but repeated swaps, which
+//     the real vanilla shape above never actually satisfies (it always has
+//     other fields too); AdditiveEntries doesn't share that restriction -
+//     it matches non-repeating fields for uniqueness and the repeating one
+//     by content, entry by entry, so a mixed body works correctly. See
+//     docs/merge-safety-by-type.md.
+var RepeatableMergeKeys = map[definition.Type]map[string]bool{
+	"common/governments/authorities": {"advanced_authority_swap": true},
+}
 
 // Reason explains why a Resolution's Winner is what it is.
 type Reason int

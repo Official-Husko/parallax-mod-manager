@@ -1726,10 +1726,11 @@ that legitimately does rewrite the file's `modsOrder`).
   that combines content from more than one candidate instead of picking a single winner. The
   backend engine for the additive case now exists and runs inside every patch generation (byte-
   range splicing, a mod-level-atomic apply pass so a mod's contributions are all applied or none
-  are, with the outcome logged) - but the list of object types it's actually allowed to run for
-  ships empty, on purpose, until one is confirmed safe against a real install, so nothing merges
-  for a real user yet, and there's still no UI surfacing it beyond the activity log; see
-  [docs/merge-patch.md](docs/merge-patch.md).
+  are, with the outcome logged), and it's live for one real, confirmed content type already
+  (Stellaris' authority "advanced swap" options) - but the list of object types it's actually
+  allowed to run for otherwise stays empty, on purpose, until each is independently confirmed
+  safe against a real install, and there's still no UI surfacing any of it beyond the activity
+  log; see [docs/merge-patch.md](docs/merge-patch.md).
 - **Exclude file from both** - the Conflict Resolver's disabled option for dropping a file from
   every mod that supplies it, expressed through the generated patch mod since another mod's files
   can't be edited. No code yet, and the intent behind the label was never written down;

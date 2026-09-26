@@ -138,10 +138,73 @@ func TestGeneratePatchMergeLaterModCollidesWithEarlierModsAddition(t *testing.T)
 	}
 }
 
+// writeModAt is writeMod but for a Type other than the fixed "common" folder
+// writeMod always uses - needed to exercise the one real, confirmed
+// MergeSafeTypes entry (common/governments/authorities), which writeMod's
+// fixture can't reach.
+func writeModAt(t *testing.T, modDir, id, name, relDir, script string) {
+	t.Helper()
+	writeFile(t, modDir, id+".mod", `name = "`+name+`"
+path = "`+id+`"
+version = "1.0"
+`)
+	writeFile(t, modDir, filepath.Join(id, relDir, "x.txt"), script)
+}
+
+func TestGeneratePatchMergesRealAuthoritySwapAgainstAMixedBody(t *testing.T) {
+	// No withMergeSafeType call - common/governments/authorities is a real,
+	// already-enabled entry. Content shape matches the real vanilla file
+	// (see conflict.RepeatableMergeKeys' own doc comment): several ordinary
+	// fields plus a repeated advanced_authority_swap key, not a block
+	// consisting solely of swaps.
+	modDir := t.TempDir()
+	const relDir = "common/governments/authorities"
+	writeModAt(t, modDir, "mod_a", "Mod A", relDir, `auth_democratic = {
+	election_term_years = 10
+	color = { 81 140 44 255 }
+	advanced_authority_swap = { name = "vanilla_swap" }
+	advanced_authority_swap = { name = "mod_a_new_swap" }
+}`)
+	writeModAt(t, modDir, "mod_b", "Mod B", relDir, `auth_democratic = {
+	election_term_years = 10
+	color = { 81 140 44 255 }
+	advanced_authority_swap = { name = "vanilla_swap" }
+}`)
+
+	result, err := GeneratePatch(context.Background(), testGameConfig(), Options{
+		CacheDir: t.TempDir(),
+		ModDir:   modDir,
+		Order:    conflict.LoadOrder{"mod_a", "mod_b"}, // mod_b wins (LIOS)
+	})
+	if err != nil {
+		t.Fatalf("GeneratePatch: %v", err)
+	}
+	if result.MergedKeys != 1 {
+		t.Fatalf("MergedKeys = %d, want 1", result.MergedKeys)
+	}
+
+	contentPath := filepath.Join(modDir, patchModID, relDir, patchModID+".txt")
+	data, err := os.ReadFile(contentPath)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	content := string(data)
+	if !strings.Contains(content, `election_term_years = 10`) {
+		t.Errorf("content = %q, want the winner's own ordinary fields preserved", content)
+	}
+	if !strings.Contains(content, `mod_a_new_swap`) {
+		t.Errorf("content = %q, want mod_a's own new swap merged in", content)
+	}
+	if strings.Count(content, "vanilla_swap") != 1 {
+		t.Errorf("content = %q, want the shared vanilla_swap entry exactly once, not duplicated", content)
+	}
+}
+
 func TestGeneratePatchMergeSafeTypesEmptyByDefaultIsNoOp(t *testing.T) {
-	// No withMergeSafeType call - conflict.MergeSafeTypes is empty, the real
-	// default. A candidate that *could* additively merge must not be merged
-	// when nothing has opted its Type in.
+	// No withMergeSafeType call - the plain "common" Type used by writeMod's
+	// fixture isn't on conflict.MergeSafeTypes (only
+	// common/governments/authorities is). A candidate that *could*
+	// additively merge must not be merged when its own Type isn't opted in.
 	modDir := t.TempDir()
 	writeMod(t, modDir, "mod_a", "Mod A", `thing = { @a = 1 @extra = 99 }`)
 	writeMod(t, modDir, "mod_b", "Mod B", `thing = { @a = 1 }`)

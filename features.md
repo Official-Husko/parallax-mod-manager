@@ -80,6 +80,11 @@ for security, privacy, reliability or performance is called out (see the last tw
 - **Manual winner per conflict** - pick a different winner for one contested key and reset it later.
 - **Generated patch mod** - writes a real mod with the winning text of every conflict copied byte for
   byte, loaded last, including localisation.
+- **One content type merges instead of just picking a winner** - Stellaris' authority "advanced
+  swap" options (`common/governments/authorities`) are additively combined when two mods each add
+  their own, rather than one mod's addition silently losing; a mod's own contributions are only
+  ever applied all together or not at all, never partially, and it's the same generated patch mod
+  either way.
 - **Patch staleness detection** - tells you when a source mod changed and the patch is out of date,
   with the reasons and a one-click regenerate.
 - **Live conflict counts** - the sidebar counts only the mods in the load order you are editing.

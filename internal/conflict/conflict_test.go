@@ -90,6 +90,42 @@ func TestEngineMergedTypesIsNearEmpty(t *testing.T) {
 	}
 }
 
+func TestMergeSafeTypesIsNearEmpty(t *testing.T) {
+	// Same regression guard as TestDefaultPriorityRulesIsNearEmpty, for the
+	// same reason - see MergeSafeTypes' own doc comment. Exactly one entry
+	// is confirmed so far.
+	want := map[definition.Type]bool{"common/governments/authorities": true}
+	if len(MergeSafeTypes) != len(want) {
+		t.Fatalf("MergeSafeTypes has %d entries, want exactly %d (see its doc comment before adding any more)", len(MergeSafeTypes), len(want))
+	}
+	for typ, v := range want {
+		if got := MergeSafeTypes[typ]; got != v {
+			t.Errorf("MergeSafeTypes[%q] = %v, want %v", typ, got, v)
+		}
+	}
+}
+
+func TestRepeatableMergeKeysIsNearEmpty(t *testing.T) {
+	// Same regression guard again - see RepeatableMergeKeys' own doc comment.
+	want := map[definition.Type]map[string]bool{
+		"common/governments/authorities": {"advanced_authority_swap": true},
+	}
+	if len(RepeatableMergeKeys) != len(want) {
+		t.Fatalf("RepeatableMergeKeys has %d entries, want exactly %d (see its doc comment before adding any more)", len(RepeatableMergeKeys), len(want))
+	}
+	for typ, keys := range want {
+		got := RepeatableMergeKeys[typ]
+		if len(got) != len(keys) {
+			t.Fatalf("RepeatableMergeKeys[%q] has %d entries, want exactly %d", typ, len(got), len(keys))
+		}
+		for key, v := range keys {
+			if got[key] != v {
+				t.Errorf("RepeatableMergeKeys[%q][%q] = %v, want %v", typ, key, got[key], v)
+			}
+		}
+	}
+}
+
 // --- Resolve integration tests -------------------------------------------
 
 func mustDefs(t *testing.T, modID, relPath, defType, src string) []definition.Definition {
