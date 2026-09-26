@@ -278,8 +278,9 @@ for security, privacy, reliability or performance is called out (see the last tw
   rate limit is never mistaken for a mod being deleted, and unlisted mods are shown as such.
 - **Open in Workshop, in Settings > Steam API** - every "Workshop page" button and link across the app
   (context menus, the mod detail panel, the updates review window, an already-published item's own
-  Publish tab) opens either the item's real page in your default browser (the default) or the local
-  Steam client directly, your choice.
+  Publish tab) opens the item directly in the local Steam client by default, falling back to its real
+  page in your browser automatically if that doesn't work (Steam isn't installed, for instance) - or
+  choose browser yourself to skip Steam entirely.
 
 ## Mod preservation
 
@@ -384,8 +385,8 @@ for security, privacy, reliability or performance is called out (see the last tw
   the mod's own metadata; you only type a change note and pick a visibility (private by default).
   Every real step streams into a live upload log as it happens, alongside a real byte/percent
   progress bar, and an existing item's row links straight to its own Workshop page.
-- **The item's page opens by itself once a publish finishes** - in your browser or the local
-  Steam client, whichever Settings > Steam API's "Open in Workshop" is set to.
+- **The item's page opens by itself once a publish finishes** - in the local Steam client or your
+  browser, whichever Settings > Steam API's "Open in Workshop" resolves to.
 - **Leave specific files out of a Workshop upload** - the Publish tab's own file tree: untick a
   file or a whole folder to keep it off Steam entirely (unticking a folder does the same to
   everything inside it) - it stays on your computer either way, nothing is deleted or moved. A

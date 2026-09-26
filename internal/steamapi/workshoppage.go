@@ -10,11 +10,15 @@ type WorkshopOpenMode string
 
 const (
 	// WorkshopOpenModeBrowser opens the item's real public page
-	// (WorkshopPageURL) in whatever browser the OS defaults to. The
-	// long-standing behavior, and the default - see preferences.Defaults.
+	// (WorkshopPageURL) in whatever browser the OS defaults to - either
+	// chosen explicitly, or reached automatically as WorkshopOpenModeApp's
+	// own fallback (see internal/app.OpenWorkshopPage) when opening the
+	// Steam client fails, for instance because it isn't installed.
 	WorkshopOpenModeBrowser WorkshopOpenMode = "browser"
 	// WorkshopOpenModeApp opens the same item directly in the local Steam
-	// client instead (WorkshopClientURL), if one is installed.
+	// client instead (WorkshopClientURL). The default - see
+	// preferences.Defaults - since most people publishing or browsing
+	// Workshop items already have Steam open.
 	WorkshopOpenModeApp WorkshopOpenMode = "app"
 )
 

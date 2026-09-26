@@ -226,13 +226,16 @@ type Preferences struct {
 	FeatureConflictsEnabled bool `json:"featureConflictsEnabled"`
 	// WorkshopOpenMode is a person's chosen way of opening a Workshop
 	// item's page from this app - steamapi.WorkshopOpenMode's own two
-	// values ("browser", the default and long-standing behavior, or
-	// "app", which opens the local Steam client directly via its own
-	// steam:// protocol handler instead), stored as a plain string here
-	// the same way LaunchModes already is, so this package doesn't need to
-	// import steamapi just to hold a settings value. An empty string (an
-	// existing settings file saved before this setting existed) is
-	// treated as "browser" wherever this is read, not as an invalid value.
+	// values ("app", the default, which opens the local Steam client
+	// directly via its own steam:// protocol handler, or "browser", used
+	// either by explicit choice or automatically as "app"'s own fallback
+	// if opening Steam fails), stored as a plain string here the same way
+	// LaunchModes already is, so this package doesn't need to import
+	// steamapi just to hold a settings value. An empty string (an
+	// existing settings file saved before this setting existed, or saved
+	// while "app" was still the implicit zero value rather than a real
+	// default) is treated as "app" wherever this is read, not as an
+	// invalid value.
 	WorkshopOpenMode string `json:"workshopOpenMode"`
 }
 
@@ -374,6 +377,7 @@ func Defaults() Preferences {
 		FeatureEditorEnabled:                 true,
 		FeatureLibraryEnabled:                true,
 		FeatureConflictsEnabled:              true,
+		WorkshopOpenMode:                     "app",
 	}
 }
 

@@ -292,29 +292,47 @@ func formatFileID(id uint64) string {
 	return strconv.FormatUint(id, 10)
 }
 
-// workshopPageURLFor returns the URL OpenWorkshopPage should open for
-// publishedFileID, given mode (a person's raw WorkshopOpenMode preference
-// string, straight from Preferences.WorkshopOpenMode) - "app" opens the
-// local Steam client directly; anything else ("browser", or an empty or
-// unrecognized value - e.g. a settings file saved before this preference
-// existed) falls back to the item's real public page in a browser, the
-// long-standing behavior.
-func workshopPageURLFor(mode, publishedFileID string) string {
-	if steamapi.WorkshopOpenMode(mode) == steamapi.WorkshopOpenModeApp {
-		return steamapi.WorkshopClientURL(publishedFileID)
+// workshopOpenSequence returns, in the order OpenWorkshopPage should try
+// them, the URL(s) for publishedFileID given mode (a person's raw
+// WorkshopOpenMode preference string, straight from
+// Preferences.WorkshopOpenMode). "browser" chosen explicitly is a single
+// URL - the item's real public page, nothing else to fall back to. Every
+// other value ("app", the default, or an empty or unrecognized one - e.g. a
+// settings file saved before this preference existed, or while "app" was
+// still the implicit zero value rather than a real default) tries the
+// local Steam client first, with the public page as a second entry
+// OpenWorkshopPage only reaches if opening Steam itself failed (not
+// installed, no steam:// handler registered, and so on).
+func workshopOpenSequence(mode, publishedFileID string) []string {
+	if steamapi.WorkshopOpenMode(mode) == steamapi.WorkshopOpenModeBrowser {
+		return []string{steamapi.WorkshopPageURL(publishedFileID)}
 	}
-	return steamapi.WorkshopPageURL(publishedFileID)
+	return []string{steamapi.WorkshopClientURL(publishedFileID), steamapi.WorkshopPageURL(publishedFileID)}
 }
 
 // OpenWorkshopPage opens a Workshop item's page using the person's own
-// "Open in Workshop" preference (Settings > Steam): their default browser,
-// showing the item's real public page, or the local Steam client itself,
-// via its own documented steam://url/CommunityFilePage/ protocol handler.
+// "Open in Workshop" preference (Settings > Steam API): the local Steam
+// client by default, via its own documented steam://url/CommunityFilePage/
+// protocol handler, or their default browser showing the item's real
+// public page - either chosen explicitly, or reached automatically here if
+// opening Steam itself didn't work. Only the final attempt's own error (if
+// every URL failed) is returned.
 func (a *App) OpenWorkshopPage(publishedFileID string) error {
 	a.preferencesMu.Lock()
 	mode := a.preferences.WorkshopOpenMode
 	a.preferencesMu.Unlock()
-	return launch.OSLauncher{}.OpenURL(workshopPageURLFor(mode, publishedFileID))
+	urls := workshopOpenSequence(mode, publishedFileID)
+	launcher := launch.OSLauncher{}
+	var err error
+	for i, url := range urls {
+		if err = launcher.OpenURL(url); err == nil {
+			return nil
+		}
+		if i < len(urls)-1 {
+			applog.For("Workshop").Warnf("opening %q for item %s failed (%v) - falling back to the browser", url, publishedFileID, err)
+		}
+	}
+	return err
 }
 
 // steamLibraryPath finds installDir's own real Steamworks client library

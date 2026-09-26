@@ -17,14 +17,15 @@ type WorkshopOpenMode = 'browser' | 'app';
 
 const WORKSHOP_OPEN_MODES: { mode: WorkshopOpenMode; name: string; desc: string }[] = [
     {
-        mode: 'browser',
-        name: 'Open in browser',
-        desc: 'Opens the item\'s real Workshop page in your default browser.',
-    },
-    {
         mode: 'app',
         name: 'Open in Steam',
-        desc: 'Opens the same item directly in the local Steam client instead, if one is installed.',
+        desc: 'Opens the item directly in the local Steam client. If that doesn\'t work (Steam isn\'t '
+            + 'installed, for instance), the browser is used instead automatically.',
+    },
+    {
+        mode: 'browser',
+        name: 'Open in browser',
+        desc: 'Always opens the item\'s real Workshop page in your default browser instead, skipping Steam entirely.',
     },
 ];
 
@@ -279,14 +280,17 @@ export function SteamApiPanel() {
                     </div>
                     <div className="mode-option-list">
                         {WORKSHOP_OPEN_MODES.map((m) => {
-                            const active = (prefs.workshopOpenMode || 'browser') === m.mode;
+                            // An empty or unrecognized saved value behaves as "app" - matching
+                            // internal/app's own workshopOpenSequence, not just the long-standing
+                            // "browser" fallback from before "app" became the default.
+                            const active = (prefs.workshopOpenMode || 'app') === m.mode;
                             return (
                                 <div key={m.mode} className={`mode-option ${active ? 'active' : ''}`} onClick={() => setWorkshopOpenMode(m.mode)}>
                                     <i className={`fa-solid ${active ? 'fa-circle-dot' : 'fa-circle'} mode-option-radio ${active ? 'on' : 'off'}`}/>
                                     <div className="mode-option-main">
                                         <div className="mode-option-name">
                                             {m.name}
-                                            {m.mode === 'browser' && <span className="chip">Default</span>}
+                                            {m.mode === 'app' && <span className="chip">Default</span>}
                                         </div>
                                         <div className="mode-option-desc">{m.desc}</div>
                                     </div>

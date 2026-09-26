@@ -442,19 +442,33 @@ func TestSteamAccountInfoPropagatesThePublishersOwnError(t *testing.T) {
 	}
 }
 
-func TestWorkshopPageURLFor(t *testing.T) {
+func TestWorkshopOpenSequence(t *testing.T) {
+	steamThenBrowser := []string{"steam://url/CommunityFilePage/123", "https://steamcommunity.com/sharedfiles/filedetails/?id=123"}
+	browserOnly := []string{"https://steamcommunity.com/sharedfiles/filedetails/?id=123"}
 	tests := []struct {
 		mode string
-		want string
+		want []string
 	}{
-		{"app", "steam://url/CommunityFilePage/123"},
-		{"browser", "https://steamcommunity.com/sharedfiles/filedetails/?id=123"},
-		{"", "https://steamcommunity.com/sharedfiles/filedetails/?id=123"},
-		{"some-garbage-value", "https://steamcommunity.com/sharedfiles/filedetails/?id=123"},
+		{"app", steamThenBrowser},
+		// An empty or unrecognized value (an old settings file, or one saved
+		// while "app" was still the zero value rather than a real default)
+		// behaves exactly like "app" - Steam first, browser as the fallback.
+		{"", steamThenBrowser},
+		{"some-garbage-value", steamThenBrowser},
+		// "browser" chosen explicitly is the one case with nothing to fall
+		// back to - a single URL, Steam never tried at all.
+		{"browser", browserOnly},
 	}
 	for _, tt := range tests {
-		if got := workshopPageURLFor(tt.mode, "123"); got != tt.want {
-			t.Errorf("workshopPageURLFor(%q, \"123\") = %q, want %q", tt.mode, got, tt.want)
+		got := workshopOpenSequence(tt.mode, "123")
+		if len(got) != len(tt.want) {
+			t.Errorf("workshopOpenSequence(%q, \"123\") = %v, want %v", tt.mode, got, tt.want)
+			continue
+		}
+		for i := range got {
+			if got[i] != tt.want[i] {
+				t.Errorf("workshopOpenSequence(%q, \"123\")[%d] = %q, want %q", tt.mode, i, got[i], tt.want[i])
+			}
 		}
 	}
 }

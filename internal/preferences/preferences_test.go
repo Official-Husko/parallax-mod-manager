@@ -385,6 +385,22 @@ func TestLoversLabNotificationsDefaultOnWithA10MinuteIntervalAndSurviveASave(t *
 	}
 }
 
+func TestWorkshopOpenModeDefaultsToApp(t *testing.T) {
+	if Defaults().WorkshopOpenMode != "app" {
+		t.Errorf("Defaults().WorkshopOpenMode = %q, want \"app\"", Defaults().WorkshopOpenMode)
+	}
+	// A file from before the setting existed keeps that default (steamapi's
+	// own interpretation additionally treats an explicit "" the same way -
+	// see internal/app's own workshopOpenSequence).
+	path := filepath.Join(t.TempDir(), "preferences.jsonc")
+	if err := os.WriteFile(path, []byte(`{"scanForNewMods": false}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := Load(path); got.WorkshopOpenMode != "app" {
+		t.Errorf("an older file loads with WorkshopOpenMode %q, want \"app\"", got.WorkshopOpenMode)
+	}
+}
+
 func TestAccentDefaultsToTheGamesOwnColour(t *testing.T) {
 	if Defaults().AccentMode != AccentModeGame || Defaults().AccentColor != "" {
 		t.Errorf("defaults: mode %q colour %q, want the game's own colour and none custom", Defaults().AccentMode, Defaults().AccentColor)

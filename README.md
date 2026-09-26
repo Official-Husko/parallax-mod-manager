@@ -489,10 +489,10 @@ This list grows as features land - see [Progress](#progress) below, which is kep
   involve, from the same conflict detection Workspace already runs - no fabricated file counts
   or percentages this project has no way to back), and a working "Open folder" button plus a
   real Steam Workshop page link for Workshop mods (built from the descriptor's own
-  `remote_file_id`, opened via `github.com/pkg/browser` by default, or the local Steam client
-  itself via its own `steam://` protocol handler if Settings > Steam API's "Open in Workshop" is
-  set to it - already this project's Steam-launch mechanism, not a new network dependency). A
-  classic-format mod's descriptor has no description
+  `remote_file_id`, opened directly in the local Steam client by default via its own `steam://`
+  protocol handler - already this project's Steam-launch mechanism, not a new network dependency -
+  falling back to `github.com/pkg/browser` automatically if that fails, or by choice via Settings >
+  Steam API's "Open in Workshop"). A classic-format mod's descriptor has no description
   field at all (see docs/paradox-mod-format.md), so that section honestly says so rather than
   showing invented text; the Changes tab does the same for update history, since that's Steam
   Workshop's own metadata and this project doesn't fetch anything from the network. The panel's
