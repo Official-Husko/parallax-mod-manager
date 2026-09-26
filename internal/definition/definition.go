@@ -96,12 +96,17 @@ const eventsType = Type("events")
 //     literal keyword "gfx_settings", confirmed repeated across 21
 //     distinct vanilla files; the real, unique name is nested as
 //     "world = customization_view_planet".
+//   - Stellaris' "common/ambient_objects": every top-level entry is the
+//     single literal keyword "ambient_object", confirmed repeated 220+
+//     times across more than 20 distinct vanilla files; the real, unique
+//     name is nested as "name = "habitat_cracker_object"".
 var NestedIDFields = map[Type]string{
 	eventsType:                       "id",
 	Type("common/section_templates"): "key",
 	Type("common/message_types"):     "key",
 	Type("gfx/projectiles"):          "name",
 	Type("gfx/worldgfx"):             "world",
+	Type("common/ambient_objects"):   "name",
 }
 
 // wholeFileTypePrefix is the folder (and every one of its own subfolders)

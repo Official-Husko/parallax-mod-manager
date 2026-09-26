@@ -72,13 +72,13 @@ for security, privacy, reliability or performance is called out (see the last tw
 
 - **Conflict detection** - real load-order winners per content type, with dependency-aware suppression
   and same-mod duplicates handled the way the game does.
-- **Events, ship section templates and message types are now identified by their own real id, not
-  the generic category keyword every one of them shares** - two mods each adding unrelated ones no
-  longer collide as a false conflict just because both happened to add, say, a `country_event`
-  (shared by 5,000+ distinct vanilla events alone) or a `ship_section_template` (shared by
-  hundreds); confirmed against a real 48-mod install (10 false event conflicts down to 1 genuine
-  one; a section-templates conflict wrongly naming 11 unrelated mods, and a message-types one
-  naming 5, both gone entirely).
+- **Events, ship section templates, message types and ambient objects are now identified by their
+  own real id, not the generic category keyword every one of them shares** - two mods each adding
+  unrelated ones no longer collide as a false conflict just because both happened to add, say, a
+  `country_event` (shared by 5,000+ distinct vanilla events alone) or a `ship_section_template`
+  (shared by hundreds); confirmed against a real 48-mod install (10 false event conflicts down to
+  1 genuine one; a section-templates conflict wrongly naming 11 unrelated mods, a message-types
+  one naming 5, and an ambient-objects one naming 5 more, all gone entirely).
 - **Inline-script snippet files are now identified by their own filename, not by whichever field
   happens to appear at the top of them** - `common/inline_scripts` (and every subfolder of it) is
   a folder of reusable script fragments referenced elsewhere purely by filename, not by anything

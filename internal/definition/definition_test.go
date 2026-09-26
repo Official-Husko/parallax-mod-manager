@@ -20,13 +20,14 @@ func TestNestedIDFieldsIsNearEmpty(t *testing.T) {
 	// Same regression guard as conflict.DefaultPriorityRules' own - don't
 	// let someone add an unverified Type/field pair without a confirmed
 	// source (a real conflict traced back to a real file, per each entry's
-	// own doc comment above). Exactly five entries are confirmed so far.
+	// own doc comment above). Exactly six entries are confirmed so far.
 	want := map[Type]string{
 		eventsType:                       "id",
 		Type("common/section_templates"): "key",
 		Type("common/message_types"):     "key",
 		Type("gfx/projectiles"):          "name",
 		Type("gfx/worldgfx"):             "world",
+		Type("common/ambient_objects"):   "name",
 	}
 	if len(NestedIDFields) != len(want) {
 		t.Fatalf("NestedIDFields has %d entries, want exactly %d (see its doc comment before adding any more)", len(NestedIDFields), len(want))
@@ -157,6 +158,26 @@ projectile_gfx_ballistic = {
 	}
 	if defs[0].ID != "ion_cannon" || defs[1].ID != "mass_driver" {
 		t.Errorf("IDs = %q, %q, want ion_cannon, mass_driver", defs[0].ID, defs[1].ID)
+	}
+}
+
+func TestFromScriptFileAmbientObjectsUsesNestedNameField(t *testing.T) {
+	f := mustParseScript(t, `
+ambient_object = {
+	name = "habitat_cracker_object"
+	entity = "megastructure_habitat_destruction_explosion_entity"
+}
+ambient_object = {
+	name = "ringworld_cracker_object"
+	entity = "megastructure_ringworld_destruction_explosion_entity"
+}
+`)
+	defs := FromScriptFile("test_mod", "common/ambient_objects/x.txt", Type("common/ambient_objects"), f)
+	if len(defs) != 2 {
+		t.Fatalf("expected 2 definitions, got %d: %+v", len(defs), defs)
+	}
+	if defs[0].ID != "habitat_cracker_object" || defs[1].ID != "ringworld_cracker_object" {
+		t.Errorf("IDs = %q, %q, want habitat_cracker_object, ringworld_cracker_object", defs[0].ID, defs[1].ID)
 	}
 }
 
