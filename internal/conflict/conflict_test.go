@@ -75,6 +75,21 @@ func TestDefaultPriorityRulesIsNearEmpty(t *testing.T) {
 	}
 }
 
+func TestEngineMergedTypesIsNearEmpty(t *testing.T) {
+	// Same regression guard as TestDefaultPriorityRulesIsNearEmpty, for the
+	// same reason - see EngineMergedTypes' own doc comment. Exactly one
+	// entry is confirmed so far.
+	want := map[definition.Type]bool{"common/on_actions": true}
+	if len(EngineMergedTypes) != len(want) {
+		t.Fatalf("EngineMergedTypes has %d entries, want exactly %d (see its doc comment before adding any more)", len(EngineMergedTypes), len(want))
+	}
+	for typ, v := range want {
+		if got := EngineMergedTypes[typ]; got != v {
+			t.Errorf("EngineMergedTypes[%q] = %v, want %v", typ, got, v)
+		}
+	}
+}
+
 // --- Resolve integration tests -------------------------------------------
 
 func mustDefs(t *testing.T, modID, relPath, defType, src string) []definition.Definition {

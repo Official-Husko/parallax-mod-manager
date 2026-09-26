@@ -136,6 +136,18 @@ func normalizeValue(buf *bytes.Buffer, v script.Value) {
 	}
 }
 
+// NormalizeEntry produces canonical bytes for hashing a single script entry
+// (key, operator, and value together) - the same normalization Hash itself
+// uses internally for a whole top-level object, exported here so a caller
+// matching individual entries *within* a definition's block (see
+// internal/conflict.AdditiveEntries and docs/merge-patch.md's Tier 1) can
+// hash them the same, consistent way rather than duplicating the logic.
+func NormalizeEntry(e script.Entry) []byte {
+	var buf bytes.Buffer
+	normalizeEntry(&buf, e)
+	return buf.Bytes()
+}
+
 func normalizeEntry(buf *bytes.Buffer, e script.Entry) {
 	if e.Key != "" {
 		buf.WriteString(e.Key)

@@ -31,6 +31,19 @@ func detectKey(k Key, raw []definition.Definition, deps dependencyGraph, order L
 		}, nil
 	}
 
+	// A Type the engine merges natively (see EngineMergedTypes) is never a
+	// real conflict regardless of content, so this is checked before
+	// dependency-based suppression even gets computed - the engine doesn't
+	// care whether the competing mods declare a dependency on each other,
+	// it merges them either way.
+	if EngineMergedTypes[k.Type] {
+		winner := pickByRule(candidates, order, rule)
+		return Resolution{
+			Key: k, Winner: winner, Reason: ReasonEngineMerged, Rule: rule,
+			Losers: withoutWinner(candidates, winner),
+		}, nil
+	}
+
 	ids := modIDs(candidates)
 	if deps.fullyConnected(ids) {
 		winner := pickByRule(candidates, order, rule)

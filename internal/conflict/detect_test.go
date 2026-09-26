@@ -103,6 +103,25 @@ func TestDetectKeyGenuineConflictCustomFIOSRule(t *testing.T) {
 	}
 }
 
+func TestDetectKeyEngineMergedTypeNotAConflict(t *testing.T) {
+	// common/on_actions is in EngineMergedTypes: 2+ mods with genuinely
+	// differing content at the same Key must not be surfaced as a
+	// conflict - the engine unions them natively (see
+	// docs/merge-safety-by-type.md).
+	raw := []definition.Definition{
+		def("mod_a", "common/on_actions", "on_game_start", hashOf(t, `on_game_start = { events = { a.1 } }`)),
+		def("mod_b", "common/on_actions", "on_game_start", hashOf(t, `on_game_start = { events = { b.1 } }`)),
+	}
+	res, conflict := detectKey(Key{Type: "common/on_actions", ID: "on_game_start"}, raw, dependencyGraph{}, LoadOrder{"mod_a", "mod_b"}, nil)
+
+	if res.Reason != ReasonEngineMerged {
+		t.Errorf("Reason = %v, want ReasonEngineMerged", res.Reason)
+	}
+	if conflict != nil {
+		t.Errorf("an engine-merged Type must never be reported as a Conflict, got %+v", conflict)
+	}
+}
+
 func TestDetectKeySuppressedByDependency(t *testing.T) {
 	raw := []definition.Definition{
 		def("mod_base", "common", "thing", hashOf(t, `thing = { a = 1 }`)),

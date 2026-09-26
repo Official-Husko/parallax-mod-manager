@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Official-Husko/parallax-mod-manager/internal/applog"
 	"github.com/Official-Husko/parallax-mod-manager/internal/atomicfile"
 	"github.com/Official-Husko/parallax-mod-manager/internal/conflict"
 	"github.com/Official-Husko/parallax-mod-manager/internal/definition"
@@ -64,6 +65,12 @@ type PatchResult struct {
 	// winning definition with no extractable byte range, or whose source
 	// file changed since that range was computed. See docs/patch-mods.md.
 	SkippedKeys int
+	// MergedKeys counts conflicts (already included in PatchedKeys) whose
+	// patched content is the winner plus one or more other mods' safely
+	// merged-in entries, rather than just the plain winner - see
+	// docs/merge-patch.md's Tier 1. Always 0 while conflict.MergeSafeTypes
+	// is empty.
+	MergedKeys int
 	// ModID is patchModID, handed back so callers don't need to know the
 	// constant themselves.
 	ModID string
@@ -162,6 +169,15 @@ func GeneratePatch(ctx context.Context, cfg game.GameConfig, opts Options) (Patc
 	var typeOrder []string
 	patched, skipped := 0, 0
 
+	// Tier 1 additive merge (see docs/merge-patch.md) - a no-op today since
+	// conflict.MergeSafeTypes ships empty, but computed unconditionally so
+	// the moment a Type is ever confirmed safe, patches for it pick up
+	// merged content with no further wiring needed here.
+	merges, mergeReport := computeMerges(opts.Order, rg.result.Conflicts, rg.names, opts.Overrides, readModFile)
+	if len(mergeReport.Mods) > 0 {
+		logMergeReport(applog.For("Merge"), mergeReport)
+	}
+
 	// What this patch is being built from, for the manifest - see
 	// internal/patchmanifest and patchstate.go.
 	manifest := patchmanifest.Manifest{
@@ -186,6 +202,7 @@ func GeneratePatch(ctx context.Context, cfg game.GameConfig, opts Options) (Patc
 		})
 	}
 
+	merged := 0
 	for _, c := range rg.result.Conflicts {
 		winner, manual := effectiveWinner(c, opts.Overrides)
 		var winnerDef *definition.Definition
@@ -201,6 +218,26 @@ func GeneratePatch(ctx context.Context, cfg game.GameConfig, opts Options) (Patc
 		if winnerDef == nil || winnerDef.Span.EndOffset <= winnerDef.Span.StartOffset {
 			skipped++
 			record(c, winner, manual, true)
+			continue
+		}
+
+		// A successful Tier 1 merge for this Key (see computeMerges above)
+		// already carries the winner's own text plus every safely-added
+		// entry - write that instead of re-reading and re-slicing the
+		// winner's plain span.
+		if mergedText, ok := merges[c.Key]; ok {
+			typeKey := string(c.Key.Type)
+			buf, ok := byType[typeKey]
+			if !ok {
+				buf = &bytes.Buffer{}
+				byType[typeKey] = buf
+				typeOrder = append(typeOrder, typeKey)
+			}
+			buf.Write(mergedText)
+			buf.WriteString("\n\n")
+			patched++
+			merged++
+			record(c, winner, manual, false)
 			continue
 		}
 
@@ -285,7 +322,26 @@ func GeneratePatch(ctx context.Context, cfg game.GameConfig, opts Options) (Patc
 		return PatchResult{}, fmt.Errorf("library: writing patch descriptor: %w", err)
 	}
 
-	return PatchResult{Written: true, PatchedKeys: patched, SkippedKeys: skipped, ModID: patchModID, Generation: generation}, nil
+	return PatchResult{Written: true, PatchedKeys: patched, SkippedKeys: skipped, MergedKeys: merged, ModID: patchModID, Generation: generation}, nil
+}
+
+// logMergeReport writes one line per mod outcome from a Tier 1 pass (see
+// docs/merge-patch.md), plus a totals line - the same "surface it through
+// the log before building dedicated UI" approach this project already uses
+// elsewhere. Only called when report.Mods is non-empty, so this never fires
+// while conflict.MergeSafeTypes is empty.
+func logMergeReport(log applog.Logger, report MergeReport) {
+	applied, skippedMods := 0, 0
+	for _, m := range report.Mods {
+		if m.Applied {
+			applied++
+			log.Infof("merge: '%s' contributed %d entries", m.ModName, m.EntriesAdded)
+		} else {
+			skippedMods++
+			log.Warnf("merge: '%s' skipped entirely - %s (%s:%s)", m.ModName, m.FailedReason, m.FailedKey.Type, m.FailedKey.ID)
+		}
+	}
+	log.Infof("merge pass: %d mod(s) merged, %d skipped, %d entries added in total", applied, skippedMods, report.EntriesApplied)
 }
 
 // patchDependencies lists, by name and in load order, every mod that's loaded

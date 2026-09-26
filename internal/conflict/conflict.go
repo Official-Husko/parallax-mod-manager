@@ -104,6 +104,55 @@ var DefaultPriorityRules = PriorityRules{
 	"common/static_modifiers": FIOS,
 }
 
+// EngineMergedTypes is the set of definition Types where the game engine
+// itself unions every mod's contribution under the same Key, rather than
+// having one mod's version win - see docs/merge-safety-by-type.md. A Key of
+// one of these Types is never a genuine conflict, even when 2+ mods define
+// it with differing content: the real game runs all of them, it doesn't
+// choose one. Deliberately near-empty, the same bar as DefaultPriorityRules
+// - don't add a Type without a confirmed source.
+//
+// Confirmed so far:
+//   - Stellaris' "common/on_actions": the real game documents this itself
+//     (common/on_actions/99_README_ON_ACTIONS.txt, a real vanilla file, plus
+//     Paradox's own wiki: "new entries will be merged with the existing
+//     entry with the same NAME={}") - every on_action's events/random_events
+//     lists are unioned across every mod that defines the same on_action
+//     name, not replaced by whichever loads last.
+var EngineMergedTypes = map[definition.Type]bool{
+	"common/on_actions": true,
+}
+
+// MergeSafeTypes is the set of definition Types where Tier 1 additive
+// merging (see docs/merge-patch.md and AdditiveEntries) may even be
+// attempted - a losing candidate's own entries that the winner doesn't
+// already have get spliced into the generated patch instead of silently
+// dropped. Empty by default, the same "don't add a Type without a
+// confirmed source" bar as DefaultPriorityRules and EngineMergedTypes: a
+// promising-looking shape (see docs/merge-safety-by-type.md's discussion of
+// common/scripted_variables) isn't the same thing as a confirmed one, and
+// this list should only ever grow from the latter.
+var MergeSafeTypes = map[definition.Type]bool{}
+
+// RepeatableMergeKeys names, for a specific Type in MergeSafeTypes, entry
+// keys that are confirmed to legitimately repeat within one definition's
+// block - so a same-keyed entry with different content from another
+// candidate is a new, distinct instance, not a disagreement over the same
+// thing. An entry whose key isn't listed here (for its Type) is matched for
+// uniqueness instead: only one entry may exist per key, and a same-keyed
+// entry with different content is treated as a real disagreement, not a
+// safe addition - see AdditiveEntries.
+//
+// Empty until a Type actually appears in MergeSafeTypes - a repeatable key
+// for a Type nothing merges yet has nothing to apply to. Confirmed
+// precedent for the one entry worth naming here even before that (see
+// docs/merge-safety-by-type.md): Stellaris' "common/governments/authorities",
+// key "advanced_authority_swap" - multiple mods' own swap entries are meant
+// to coexist, not override each other, confirmed against both a real
+// vanilla file and an existing reference implementation's own narrow,
+// production auto-merge special case.
+var RepeatableMergeKeys = map[definition.Type]map[string]bool{}
+
 // Reason explains why a Resolution's Winner is what it is.
 type Reason int
 
@@ -113,6 +162,13 @@ const (
 	ReasonSuppressed               // 2+ mods, differing content, but a declared dependency
 	// among the competing mods explains it as intentional
 	ReasonResolved // a genuine, unsuppressed conflict; Winner chosen by Rule
+	// ReasonEngineMerged is 2+ mods, differing content, but the Type is in
+	// EngineMergedTypes - the engine merges all of them natively, so this
+	// was never a real conflict. Winner is still populated (chosen by Rule,
+	// same as any other multi-candidate Key) purely so every Resolution has
+	// one; it isn't meaningful here the way it is for ReasonResolved, since
+	// nothing about this Key ever "wins" in-game.
+	ReasonEngineMerged
 )
 
 // DependencyEdge records the declared dependency that caused a conflict to

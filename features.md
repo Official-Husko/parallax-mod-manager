@@ -72,6 +72,9 @@ for security, privacy, reliability or performance is called out (see the last tw
 
 - **Conflict detection** - real load-order winners per content type, with dependency-aware suppression
   and same-mod duplicates handled the way the game does.
+- **Engine-native merges aren't false-flagged as conflicts** - Stellaris' `common/on_actions` is
+  unioned by the game itself across every mod that defines the same on_action name, so two mods
+  adding different events there no longer shows up as a conflict needing a decision.
 - **Conflict resolver** - winner and losers side by side with syntax highlighting and a line diff,
   an overlap matrix, and a two-step preview-then-apply flow that stays fast on huge modlists.
 - **Manual winner per conflict** - pick a different winner for one contested key and reset it later.

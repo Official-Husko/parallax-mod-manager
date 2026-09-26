@@ -1723,10 +1723,13 @@ that legitimately does rewrite the file's `modsOrder`).
 - **Restoring a backup from the interface** - a backup is a plain 1:1 folder that can be copied back by hand; a
   one-click restore (copy into the mod folder and write the descriptor stub) is not built yet.
 - **Merge patch** - the Conflict Resolver's disabled "Generate merge patch" option: a resolution
-  that combines content from more than one candidate instead of picking a single winner. No code
-  yet; [docs/merge-patch.md](docs/merge-patch.md) records what it would take (byte-range
-  splicing, since there's no script writer, plus a confirmed list of safe-to-combine types) and
-  what must be verified against a real install first.
+  that combines content from more than one candidate instead of picking a single winner. The
+  backend engine for the additive case now exists and runs inside every patch generation (byte-
+  range splicing, a mod-level-atomic apply pass so a mod's contributions are all applied or none
+  are, with the outcome logged) - but the list of object types it's actually allowed to run for
+  ships empty, on purpose, until one is confirmed safe against a real install, so nothing merges
+  for a real user yet, and there's still no UI surfacing it beyond the activity log; see
+  [docs/merge-patch.md](docs/merge-patch.md).
 - **Exclude file from both** - the Conflict Resolver's disabled option for dropping a file from
   every mod that supplies it, expressed through the generated patch mod since another mod's files
   can't be edited. No code yet, and the intent behind the label was never written down;
