@@ -33,6 +33,10 @@ var requiredSymbols = []string{
 	"SteamAPI_ISteamUGC_SubmitItemUpdate",
 	"SteamAPI_ISteamUGC_GetItemUpdateProgress",
 	"SteamAPI_ISteamFriends_GetPersonaName",
+	"SteamAPI_ISteamUser_GetSteamID",
+	"SteamAPI_ISteamFriends_GetLargeFriendAvatar",
+	"SteamAPI_ISteamUtils_GetImageSize",
+	"SteamAPI_ISteamUtils_GetImageRGBA",
 }
 
 // Client is a single open handle to a real, on-disk libsteam_api.so/
@@ -45,6 +49,7 @@ type Client struct {
 	utils   uintptr // ISteamUtils* - only valid once Init has succeeded
 	ugc     uintptr // ISteamUGC* - only valid once Init has succeeded
 	friends uintptr // ISteamFriends* - only valid once Init has succeeded
+	user    uintptr // ISteamUser* - only valid once Init has succeeded
 
 	fn steamFuncs
 }
@@ -60,11 +65,16 @@ type steamFuncs struct {
 	getUtils   func() uintptr
 	getUGC     func() uintptr
 	getFriends func() uintptr
+	getUser    func() uintptr
 
-	getAppID           func(self uintptr) uint32
-	isAPICallCompleted func(self uintptr, call uint64, pbFailed *bool) bool
-	getAPICallResult   func(self uintptr, call uint64, pCallback unsafe.Pointer, cubCallback int32, iCallbackExpected int32, pbFailed *bool) bool
-	getPersonaName     func(self uintptr) string
+	getAppID             func(self uintptr) uint32
+	isAPICallCompleted   func(self uintptr, call uint64, pbFailed *bool) bool
+	getAPICallResult     func(self uintptr, call uint64, pCallback unsafe.Pointer, cubCallback int32, iCallbackExpected int32, pbFailed *bool) bool
+	getPersonaName       func(self uintptr) string
+	getSteamID           func(self uintptr) uint64
+	getLargeFriendAvatar func(self uintptr, steamID uint64) int32
+	getImageSize         func(self uintptr, image int32, width, height *uint32) bool
+	getImageRGBA         func(self uintptr, image int32, dest unsafe.Pointer, destBufferSize int32) bool
 
 	createItem            func(self uintptr, appID uint32, fileType int32) uint64
 	startItemUpdate       func(self uintptr, appID uint32, itemID uint64) uint64
@@ -105,6 +115,10 @@ func Open(libPath string) (*Client, error) {
 	if !ok {
 		return nil, fmt.Errorf("steamworks: %s exports no known ISteamFriends accessor (tried %v)", libPath, steamFriendsVersions)
 	}
+	userAccessor, ok := resolveVersion(steamUserVersions, resolves)
+	if !ok {
+		return nil, fmt.Errorf("steamworks: %s exports no known ISteamUser accessor (tried %v)", libPath, steamUserVersions)
+	}
 	for _, name := range requiredSymbols {
 		if !resolves(name) {
 			return nil, fmt.Errorf("steamworks: %s is missing required symbol %s", libPath, name)
@@ -118,6 +132,7 @@ func Open(libPath string) (*Client, error) {
 	purego.RegisterLibFunc(&c.fn.getUtils, handle, utilsAccessor)
 	purego.RegisterLibFunc(&c.fn.getUGC, handle, ugcAccessor)
 	purego.RegisterLibFunc(&c.fn.getFriends, handle, friendsAccessor)
+	purego.RegisterLibFunc(&c.fn.getUser, handle, userAccessor)
 	purego.RegisterLibFunc(&c.fn.getAppID, handle, "SteamAPI_ISteamUtils_GetAppID")
 	purego.RegisterLibFunc(&c.fn.isAPICallCompleted, handle, "SteamAPI_ISteamUtils_IsAPICallCompleted")
 	purego.RegisterLibFunc(&c.fn.getAPICallResult, handle, "SteamAPI_ISteamUtils_GetAPICallResult")
@@ -131,6 +146,10 @@ func Open(libPath string) (*Client, error) {
 	purego.RegisterLibFunc(&c.fn.submitItemUpdate, handle, "SteamAPI_ISteamUGC_SubmitItemUpdate")
 	purego.RegisterLibFunc(&c.fn.getItemUpdateProgress, handle, "SteamAPI_ISteamUGC_GetItemUpdateProgress")
 	purego.RegisterLibFunc(&c.fn.getPersonaName, handle, "SteamAPI_ISteamFriends_GetPersonaName")
+	purego.RegisterLibFunc(&c.fn.getSteamID, handle, "SteamAPI_ISteamUser_GetSteamID")
+	purego.RegisterLibFunc(&c.fn.getLargeFriendAvatar, handle, "SteamAPI_ISteamFriends_GetLargeFriendAvatar")
+	purego.RegisterLibFunc(&c.fn.getImageSize, handle, "SteamAPI_ISteamUtils_GetImageSize")
+	purego.RegisterLibFunc(&c.fn.getImageRGBA, handle, "SteamAPI_ISteamUtils_GetImageRGBA")
 
 	return c, nil
 }
@@ -149,6 +168,7 @@ func (c *Client) Init() (ok bool) {
 	c.utils = c.fn.getUtils()
 	c.ugc = c.fn.getUGC()
 	c.friends = c.fn.getFriends()
+	c.user = c.fn.getUser()
 	return true
 }
 
@@ -169,6 +189,48 @@ func (c *Client) AppID() uint32 {
 // to decide anything about the publish itself.
 func (c *Client) PersonaName() string {
 	return c.fn.getPersonaName(c.friends)
+}
+
+// SteamID returns the raw CSteamID (as a plain uint64) of whichever Steam
+// account is currently signed into the local client - the same identity
+// GetLargeFriendAvatar and every "who owns this Workshop item" comparison
+// this project makes are keyed on.
+func (c *Client) SteamID() uint64 {
+	return c.fn.getSteamID(c.user)
+}
+
+// maxAvatarDimension bounds the width/height Avatar accepts from
+// GetImageSize before allocating a buffer for it - real Steam avatars are
+// always small (the documented "large" avatar is 184x184), so anything
+// beyond this is treated as a corrupt response rather than trusted.
+const maxAvatarDimension = 2048
+
+// Avatar fetches the signed-in account's own large avatar image, as a raw,
+// unencoded RGBA buffer (see identity() in publish.go, which PNG-encodes it
+// before this ever leaves the process) - never a friend's, only the local
+// user's own, which Steam already has loaded locally by the time Init
+// succeeds (unlike a friend's avatar, which can still be pending download).
+// ok is false, with no error, for a real, ordinary case this isn't
+// exceptional at all: an account with no avatar set, or - defensively,
+// though not expected for one's own account - one Steam hasn't loaded yet.
+func (c *Client) Avatar() (img Image, ok bool, err error) {
+	steamID := c.fn.getSteamID(c.user)
+	handle := c.fn.getLargeFriendAvatar(c.friends, steamID)
+	if handle <= 0 {
+		return Image{}, false, nil
+	}
+	var width, height uint32
+	if !c.fn.getImageSize(c.utils, handle, &width, &height) {
+		return Image{}, false, nil
+	}
+	if width == 0 || height == 0 || width > maxAvatarDimension || height > maxAvatarDimension {
+		return Image{}, false, fmt.Errorf("steamworks: GetImageSize returned an implausible %dx%d", width, height)
+	}
+	buf := make([]byte, int(width)*int(height)*4)
+	if !c.fn.getImageRGBA(c.utils, handle, unsafe.Pointer(&buf[0]), int32(len(buf))) {
+		return Image{}, false, fmt.Errorf("steamworks: GetImageRGBA failed for a %dx%d image", width, height)
+	}
+	return Image{Width: width, Height: height, RGBA: buf}, true, nil
 }
 
 // CreateItemAndWait creates a new, empty Workshop item for appID and blocks

@@ -200,6 +200,20 @@ func (a *App) CancelPublish(requestID string) {
 // for the Publish tab's own STEAM ACCOUNT card.
 type SteamAccountInfo struct {
 	PersonaName string
+	// SteamID is the signed-in account's own real SteamID64, kept as a
+	// string for the same reason WorkshopPublishRequest.ItemID is (see its
+	// own doc comment) - what the Publish tab compares against a
+	// steamapi.PublishedFileDetails.Creator to tell whether this account
+	// can actually push an update to an existing item, rather than letting
+	// Steam reject a doomed attempt after the fact. "" when it could not be
+	// determined, same as PersonaName.
+	SteamID string
+	// AvatarDataURI is the signed-in account's own avatar, already a real
+	// "data:image/png;base64,..." string ready for an <img src> - "" when
+	// Steam has none loaded for them (a real, ordinary case, not an error -
+	// the frontend's own Avatar component falls back to an initial-letter
+	// avatar the same way it already does for anyone else with none).
+	AvatarDataURI string
 }
 
 // SteamAccountInfo asks the local Steam client who is signed in, using
@@ -233,7 +247,11 @@ func (a *App) SteamAccountInfo(gameID string) (SteamAccountInfo, error) {
 	if err != nil {
 		return SteamAccountInfo{}, err
 	}
-	return SteamAccountInfo{PersonaName: result.PersonaName}, nil
+	info := SteamAccountInfo{PersonaName: result.PersonaName, SteamID: result.SteamID}
+	if len(result.Avatar) > 0 {
+		info.AvatarDataURI = "data:image/png;base64," + base64.StdEncoding.EncodeToString(result.Avatar)
+	}
+	return info, nil
 }
 
 // FilePreview is a small, resized preview of one file in a mod's own folder - the Publish tab's

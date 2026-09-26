@@ -304,7 +304,7 @@ export function EditorPublish({gameId, mod}: { gameId: string; mod: library.ModS
                     <div className="editor-card-title">STEAM ACCOUNT</div>
                     {account ? (
                         <div className="publish-account-row">
-                            <Avatar name={account.PersonaName || '?'} size={32}/>
+                            <Avatar name={account.PersonaName || '?'} url={account.AvatarDataURI || undefined} size={32}/>
                             <div>
                                 <div className="publish-account-name">{account.PersonaName || 'Signed in'}</div>
                                 <div className="editor-muted">Signed in to the Steam client. Parallax uses that session.</div>

@@ -370,7 +370,11 @@ func TestSteamAccountInfoFailsWhenInstallCannotBeFound(t *testing.T) {
 func TestSteamAccountInfoReturnsThePublishersOwnPersonaName(t *testing.T) {
 	dir := newStellarisInstallDir(t, true)
 	a, _ := newWorkshopTestApp(t, dir)
-	fake := &fakePublisher{identityResult: workshop.IdentityResult{PersonaName: "Kestrel_Admiral"}}
+	fake := &fakePublisher{identityResult: workshop.IdentityResult{
+		PersonaName: "Kestrel_Admiral",
+		SteamID:     "76561197989629849",
+		Avatar:      []byte{0x89, 'P', 'N', 'G'}, // real content is asserted separately; only the format matters here
+	}}
 	a.workshopPublisher = fake
 
 	info, err := a.SteamAccountInfo(game.Stellaris.ID)
@@ -380,11 +384,31 @@ func TestSteamAccountInfoReturnsThePublishersOwnPersonaName(t *testing.T) {
 	if info.PersonaName != "Kestrel_Admiral" {
 		t.Errorf("PersonaName = %q, want %q", info.PersonaName, "Kestrel_Admiral")
 	}
+	if info.SteamID != "76561197989629849" {
+		t.Errorf("SteamID = %q, want %q", info.SteamID, "76561197989629849")
+	}
+	if !strings.HasPrefix(info.AvatarDataURI, "data:image/png;base64,") {
+		t.Errorf("AvatarDataURI = %q, want a data:image/png;base64, prefix", info.AvatarDataURI)
+	}
 	if fake.gotIdentityReq.AppID != 281990 {
 		t.Errorf("Publisher got AppID %d, want 281990", fake.gotIdentityReq.AppID)
 	}
 	if fake.gotIdentityReq.LibraryPath != filepath.Join(dir, realLibraryName()) {
 		t.Errorf("Publisher got LibraryPath %q, want the resolved install dir's own library", fake.gotIdentityReq.LibraryPath)
+	}
+}
+
+func TestSteamAccountInfoLeavesAvatarEmptyWhenThePublisherHasNone(t *testing.T) {
+	dir := newStellarisInstallDir(t, true)
+	a, _ := newWorkshopTestApp(t, dir)
+	a.workshopPublisher = &fakePublisher{identityResult: workshop.IdentityResult{PersonaName: "Kestrel_Admiral"}}
+
+	info, err := a.SteamAccountInfo(game.Stellaris.ID)
+	if err != nil {
+		t.Fatalf("SteamAccountInfo() error = %v", err)
+	}
+	if info.AvatarDataURI != "" {
+		t.Errorf("AvatarDataURI = %q, want empty when the publisher reports no avatar", info.AvatarDataURI)
 	}
 }
 

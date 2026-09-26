@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -110,6 +111,10 @@ type helperEvent struct {
 	Total           uint64 `json:"total,omitempty"`
 	PublishedFileID uint64 `json:"publishedFileId,omitempty"`
 	PersonaName     string `json:"personaName,omitempty"`
+	SteamID         string `json:"steamId,omitempty"`
+	// AvatarPNG is still base64-encoded here, exactly as the helper wrote
+	// it - decoded to real bytes only once, in Identity below.
+	AvatarPNG string `json:"avatarPng,omitempty"`
 }
 
 // HelperPublisher is the real Publisher, driving a real
@@ -240,7 +245,7 @@ func (h HelperPublisher) Identity(ctx context.Context, req IdentityRequest) (Ide
 		return IdentityResult{}, fmt.Errorf("workshop: starting the helper: %w", err)
 	}
 
-	var personaName string
+	var personaName, steamID, avatarPNG string
 	var decodeErr error
 	scanner := bufio.NewScanner(stdout)
 	for scanner.Scan() {
@@ -255,6 +260,8 @@ func (h HelperPublisher) Identity(ctx context.Context, req IdentityRequest) (Ide
 		switch e.Stage {
 		case "done":
 			personaName = e.PersonaName
+			steamID = e.SteamID
+			avatarPNG = e.AvatarPNG
 		case "error":
 			decodeErr = errors.New(e.Message)
 		}
@@ -270,7 +277,17 @@ func (h HelperPublisher) Identity(ctx context.Context, req IdentityRequest) (Ide
 		}
 		return IdentityResult{}, fmt.Errorf("workshop: the helper exited with an error: %w", waitErr)
 	}
-	return IdentityResult{PersonaName: personaName}, nil
+	// A corrupt/truncated base64 avatar is treated the same as none at all -
+	// this whole identity request has otherwise genuinely succeeded, and an
+	// initial-letter avatar is a perfectly fine fallback, not worth failing
+	// over.
+	var avatar []byte
+	if avatarPNG != "" {
+		if decoded, err := base64.StdEncoding.DecodeString(avatarPNG); err == nil {
+			avatar = decoded
+		}
+	}
+	return IdentityResult{PersonaName: personaName, SteamID: steamID, Avatar: avatar}, nil
 }
 
 // errNoFinalEvent is decodeEvents' own error for a helper that exits

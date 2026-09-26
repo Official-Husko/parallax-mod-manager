@@ -50,6 +50,17 @@ var steamFriendsVersions = []string{
 	"SteamAPI_SteamFriends_v015",
 }
 
+// steamUserVersions: v021 is confirmed firsthand the same way (nm -D against
+// the same real, bundled libsteam_api.so) - the rest is the same defensive
+// bracket, unconfirmed.
+var steamUserVersions = []string{
+	"SteamAPI_SteamUser_v023",
+	"SteamAPI_SteamUser_v022",
+	"SteamAPI_SteamUser_v021",
+	"SteamAPI_SteamUser_v020",
+	"SteamAPI_SteamUser_v019",
+}
+
 // resolveVersion returns the first name in candidates (newest first) that
 // resolves reports present, given resolves - a thin seam so this probing
 // logic is unit-testable without a real library ever being loaded (see

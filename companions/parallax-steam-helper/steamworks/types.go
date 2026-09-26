@@ -42,6 +42,15 @@ type FileType int32
 
 const FileTypeCommunity FileType = 0
 
+// Image is a raw, top-down RGBA buffer straight out of GetImageRGBA - Steam's
+// own in-memory form for an avatar, never encoded to any file format itself
+// (see (*Client).Avatar and identity() in publish.go, which PNG-encodes it
+// before this ever leaves the process).
+type Image struct {
+	Width, Height uint32
+	RGBA          []byte
+}
+
 // UpdateStatus mirrors Valve's EItemUpdateStatus, as reported while an item
 // update is in flight (see Client.SubmitItemUpdateAndWait's onProgress).
 type UpdateStatus int32

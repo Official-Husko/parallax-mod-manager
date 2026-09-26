@@ -72,4 +72,15 @@ type Event struct {
 	// PersonaName is set on the final "done" event of an "identity" mode
 	// request - the signed-in Steam user's own display name.
 	PersonaName string `json:"personaName,omitempty"`
+	// SteamID is the same request's signed-in Steam user's own real
+	// CSteamID64, as a decimal string (the same reason internal/library
+	// never crosses a raw 64-bit value over the Wails boundary either -
+	// see that package's own doc comment) - what "does this account own
+	// this Workshop item" is actually compared against.
+	SteamID string `json:"steamId,omitempty"`
+	// AvatarPNG is the same request's signed-in Steam user's own large
+	// avatar, already PNG-encoded and base64-encoded (see identity() in
+	// publish.go) - empty when Steam has no avatar loaded for them at all,
+	// never a partial or placeholder image.
+	AvatarPNG string `json:"avatarPng,omitempty"`
 }

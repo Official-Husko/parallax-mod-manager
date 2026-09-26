@@ -83,10 +83,20 @@ type IdentityRequest struct {
 	LibraryPath string
 }
 
-// IdentityResult is the signed-in Steam user's own persona name, "" if it
-// could not be determined (Steam not running, not logged in, and so on).
+// IdentityResult is the signed-in Steam user's own persona name, SteamID64
+// and avatar - all "" (Avatar nil) if none of it could be determined (Steam
+// not running, not logged in, and so on). SteamID is what "does this account
+// own that Workshop item" is actually compared against, matching a
+// PublishedFileDetails.Creator string for string; a missing Avatar is a real,
+// ordinary outcome (an account with none set), not a sign anything went wrong.
 type IdentityResult struct {
 	PersonaName string
+	SteamID     string
+	// Avatar is already a real, encoded PNG, ready to hand the frontend as
+	// a data URI - never raw pixels (see companions/parallax-steam-
+	// helper's own identity()/avatarPNG, which does that encoding before
+	// this ever crosses the process boundary). nil when there is none.
+	Avatar []byte
 }
 
 // Publisher publishes or updates a Workshop item, reporting progress as it

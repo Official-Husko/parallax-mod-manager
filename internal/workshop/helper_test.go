@@ -1,7 +1,9 @@
 package workshop
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"os"
@@ -127,6 +129,61 @@ func TestHelperPublisherIdentityReturnsThePersonaName(t *testing.T) {
 	}
 	if result.PersonaName != "Kestrel_Admiral" {
 		t.Errorf("PersonaName = %q, want %q", result.PersonaName, "Kestrel_Admiral")
+	}
+}
+
+func TestHelperPublisherIdentityReturnsTheSteamIDAndDecodesTheAvatar(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fixture is a Unix shell script - see the test's own doc comment")
+	}
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	// A real, valid 1x1 PNG, base64-encoded - just enough to confirm decoding
+	// end to end, not a claim about what a real avatar looks like.
+	const avatarPNGBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR42mPgEpEDAABoAD1q9XBbAAAAAElFTkSuQmCC"
+	script := "#!/bin/sh\ncat > /dev/null\necho '{\"stage\":\"opening\"}'\n" +
+		"echo '{\"stage\":\"done\",\"personaName\":\"Kestrel_Admiral\",\"steamId\":\"76561197989629849\",\"avatarPng\":\"" + avatarPNGBase64 + "\"}'\n"
+	path := filepath.Join(t.TempDir(), "fake-helper.sh")
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	pub := HelperPublisher{BinaryPath: path}
+	result, err := pub.Identity(context.Background(), IdentityRequest{AppID: 281990})
+	if err != nil {
+		t.Fatalf("Identity() error = %v", err)
+	}
+	if result.SteamID != "76561197989629849" {
+		t.Errorf("SteamID = %q, want %q", result.SteamID, "76561197989629849")
+	}
+	wantPNG, _ := base64.StdEncoding.DecodeString(avatarPNGBase64)
+	if !bytes.Equal(result.Avatar, wantPNG) {
+		t.Errorf("Avatar = %d bytes, want the decoded %d-byte fixture PNG", len(result.Avatar), len(wantPNG))
+	}
+}
+
+func TestHelperPublisherIdentityTreatsGarbageAvatarBase64AsNoneRatherThanFailing(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fixture is a Unix shell script - see the test's own doc comment")
+	}
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	script := "#!/bin/sh\ncat > /dev/null\necho '{\"stage\":\"done\",\"personaName\":\"Kestrel_Admiral\",\"avatarPng\":\"not-valid-base64!!\"}'\n"
+	path := filepath.Join(t.TempDir(), "fake-helper.sh")
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	pub := HelperPublisher{BinaryPath: path}
+	result, err := pub.Identity(context.Background(), IdentityRequest{AppID: 281990})
+	if err != nil {
+		t.Fatalf("Identity() error = %v, want a corrupt avatar to be dropped, not fail the whole request", err)
+	}
+	if result.Avatar != nil {
+		t.Errorf("Avatar = %v, want nil for undecodable base64", result.Avatar)
+	}
+	if result.PersonaName != "Kestrel_Admiral" {
+		t.Errorf("PersonaName = %q, want %q even though the avatar was garbage", result.PersonaName, "Kestrel_Admiral")
 	}
 }
 

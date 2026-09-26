@@ -1005,6 +1005,8 @@ export namespace app {
 	}
 	export class SteamAccountInfo {
 	    PersonaName: string;
+	    SteamID: string;
+	    AvatarDataURI: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new SteamAccountInfo(source);
@@ -1013,6 +1015,8 @@ export namespace app {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.PersonaName = source["PersonaName"];
+	        this.SteamID = source["SteamID"];
+	        this.AvatarDataURI = source["AvatarDataURI"];
 	    }
 	}
 	export class TemplateSummary {

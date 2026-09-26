@@ -1,7 +1,12 @@
 package main
 
 import (
+	"bytes"
+	"encoding/base64"
 	"fmt"
+	"image"
+	"image/png"
+	"strconv"
 	"time"
 
 	"github.com/Official-Husko/parallax-mod-manager/companions/parallax-steam-helper/steamworks"
@@ -22,6 +27,8 @@ type steamClient interface {
 	Shutdown()
 	AppID() uint32
 	PersonaName() string
+	SteamID() uint64
+	Avatar() (img steamworks.Image, ok bool, err error)
 	CreateItemAndWait(appID uint32, fileType steamworks.FileType, timeout time.Duration) (steamworks.CreateItemResult, error)
 	StartItemUpdate(appID uint32, itemID uint64) uint64
 	SetItemTitle(handle uint64, title string) bool
@@ -47,8 +54,37 @@ func identity(client steamClient, req Request, emit func(Event)) error {
 	if gotAppID := client.AppID(); gotAppID != req.AppID {
 		return fmt.Errorf("Steam reports AppID %d, expected %d - steam_appid.txt did not take effect", gotAppID, req.AppID)
 	}
-	emit(Event{Stage: "done", PersonaName: client.PersonaName()})
+	emit(Event{
+		Stage:       "done",
+		PersonaName: client.PersonaName(),
+		SteamID:     strconv.FormatUint(client.SteamID(), 10),
+		AvatarPNG:   avatarPNG(client),
+	})
 	return nil
+}
+
+// avatarPNG fetches the signed-in account's own avatar and PNG-encodes it,
+// base64'd ready for the wire - "" (never an error of its own) for anything
+// that keeps this from working: no avatar set, a corrupt image Steam
+// reported, or a PNG encode failure. A missing avatar is real and ordinary,
+// not worth failing an otherwise-successful identity request over - the
+// caller falls back to an initial-letter avatar the same way it already does
+// for any other account with none.
+func avatarPNG(client steamClient) string {
+	img, ok, err := client.Avatar()
+	if err != nil || !ok {
+		return ""
+	}
+	rgba := &image.RGBA{
+		Pix:    img.RGBA,
+		Stride: int(img.Width) * 4,
+		Rect:   image.Rect(0, 0, int(img.Width), int(img.Height)),
+	}
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, rgba); err != nil {
+		return ""
+	}
+	return base64.StdEncoding.EncodeToString(buf.Bytes())
 }
 
 // visibilityFromString maps Request.Visibility to steamworks.Visibility,

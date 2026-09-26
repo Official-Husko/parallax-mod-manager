@@ -16,6 +16,10 @@ type fakeClient struct {
 	initOK      bool
 	appID       uint32
 	personaName string
+	steamID     uint64
+	avatar      steamworks.Image
+	avatarOK    bool
+	avatarErr   error
 	created     steamworks.CreateItemResult
 	createErr   error
 	submitted   steamworks.SubmitItemUpdateResult
@@ -35,6 +39,10 @@ func (f *fakeClient) Init() bool          { return f.initOK }
 func (f *fakeClient) Shutdown()           { f.shutdownCalled = true }
 func (f *fakeClient) AppID() uint32       { return f.appID }
 func (f *fakeClient) PersonaName() string { return f.personaName }
+func (f *fakeClient) SteamID() uint64     { return f.steamID }
+func (f *fakeClient) Avatar() (steamworks.Image, bool, error) {
+	return f.avatar, f.avatarOK, f.avatarErr
+}
 func (f *fakeClient) CreateItemAndWait(uint32, steamworks.FileType, time.Duration) (steamworks.CreateItemResult, error) {
 	return f.created, f.createErr
 }
