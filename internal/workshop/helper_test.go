@@ -162,6 +162,53 @@ func TestHelperPublisherIdentityReturnsTheSteamIDAndDecodesTheAvatar(t *testing.
 	}
 }
 
+// TestHelperPublisherIdentityHandlesARealisticallyLargeAvatarLine is a real
+// regression test: bufio.Scanner's default per-line limit is 64KB, and a
+// real large avatar's base64 alone is already close to that on its own (a
+// real 184x184 one, confirmed live, comes to ~70KB) - once folded into one
+// JSON "done" line alongside personaName/steamId, the line silently
+// exceeded the old default. Scan() just returned false with no error at
+// all, so PersonaName/SteamID/Avatar all came back "" - not a crash, not a
+// timeout, just quietly wrong data, and exactly what a real user actually
+// hit before this test (and the buffer-size fix it guards) existed.
+func TestHelperPublisherIdentityHandlesARealisticallyLargeAvatarLine(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("fixture is a Unix shell script - see the test's own doc comment")
+	}
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	// 90,000 raw bytes, well past a real avatar's own real size, so the
+	// resulting base64 (~120,000 characters) comfortably exceeds 64KB on
+	// its own, before any of the rest of the JSON line is even counted.
+	raw := make([]byte, 90_000)
+	for i := range raw {
+		raw[i] = byte(i)
+	}
+	avatarPNGBase64 := base64.StdEncoding.EncodeToString(raw)
+
+	script := "#!/bin/sh\ncat > /dev/null\necho '{\"stage\":\"opening\"}'\n" +
+		"echo '{\"stage\":\"done\",\"personaName\":\"Kestrel_Admiral\",\"steamId\":\"76561197989629849\",\"avatarPng\":\"" + avatarPNGBase64 + "\"}'\n"
+	path := filepath.Join(t.TempDir(), "fake-helper.sh")
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	pub := HelperPublisher{BinaryPath: path}
+	result, err := pub.Identity(context.Background(), IdentityRequest{AppID: 281990})
+	if err != nil {
+		t.Fatalf("Identity() error = %v", err)
+	}
+	if result.PersonaName != "Kestrel_Admiral" {
+		t.Errorf("PersonaName = %q, want %q (a too-long line must not silently blank out fields that came before it in the JSON)", result.PersonaName, "Kestrel_Admiral")
+	}
+	if result.SteamID != "76561197989629849" {
+		t.Errorf("SteamID = %q, want %q", result.SteamID, "76561197989629849")
+	}
+	if !bytes.Equal(result.Avatar, raw) {
+		t.Errorf("Avatar = %d bytes, want the real %d-byte fixture back unchanged", len(result.Avatar), len(raw))
+	}
+}
+
 func TestHelperPublisherIdentityTreatsGarbageAvatarBase64AsNoneRatherThanFailing(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("fixture is a Unix shell script - see the test's own doc comment")

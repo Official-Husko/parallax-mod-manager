@@ -248,6 +248,17 @@ func (h HelperPublisher) Identity(ctx context.Context, req IdentityRequest) (Ide
 	var personaName, steamID, avatarPNG string
 	var decodeErr error
 	scanner := bufio.NewScanner(stdout)
+	// bufio.Scanner's default line limit is 64KB - comfortably enough for
+	// every other event this helper ever writes, but a base64-encoded
+	// avatar PNG alone can already be around that size on its own (a real
+	// 184x184 one, confirmed live, comes to ~70KB just for that one field).
+	// Without raising this, the "done" event carrying it is silently too
+	// long to scan at all: Scan() just returns false, personaName/steamID/
+	// avatarPNG all stay "" with no error ever surfaced - not a crash, not
+	// a timeout, just quietly wrong data (confirmed: this is exactly what
+	// shipped and reached a real user before this fix). 4MB is nowhere
+	// close to a real avatar's size, only generous headroom.
+	scanner.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
 	for scanner.Scan() {
 		line := bytes.TrimSpace(scanner.Bytes())
 		if len(line) == 0 {
@@ -266,10 +277,14 @@ func (h HelperPublisher) Identity(ctx context.Context, req IdentityRequest) (Ide
 			decodeErr = errors.New(e.Message)
 		}
 	}
+	scanErr := scanner.Err()
 	waitErr := cmd.Wait()
 
 	if decodeErr != nil {
 		return IdentityResult{}, fmt.Errorf("workshop: %w", decodeErr)
+	}
+	if scanErr != nil {
+		return IdentityResult{}, fmt.Errorf("workshop: reading the helper's own output: %w", scanErr)
 	}
 	if waitErr != nil {
 		if msg := strings.TrimSpace(stderr.String()); msg != "" {
