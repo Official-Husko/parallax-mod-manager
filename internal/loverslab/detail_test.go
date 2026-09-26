@@ -212,6 +212,69 @@ func TestParseDescriptionBlocksExtractsFormattingAndLinks(t *testing.T) {
 	}
 }
 
+func TestParseDescriptionBlocksExtractsStrikethrough(t *testing.T) {
+	doc := parseFixture(t, `<div><p>Before <s>struck</s> and <strike>also struck</strike> and <del>deleted</del>.</p></div>`)
+	body := findOne(doc, func(n *html.Node) bool { return isElement(n, "div") })
+	blocks := parseDescriptionBlocks(body)
+	if len(blocks) != 1 {
+		t.Fatalf("got %d blocks, want 1: %+v", len(blocks), blocks)
+	}
+	for _, text := range []string{"struck", "also struck", "deleted"} {
+		found := false
+		for _, r := range blocks[0].Runs {
+			if strings.Contains(r.Text, text) {
+				found = true
+				if !r.Strikethrough {
+					t.Errorf("run %q should carry Strikethrough", r.Text)
+				}
+			}
+		}
+		if !found {
+			t.Fatalf("no run containing %q among %+v", text, blocks[0].Runs)
+		}
+	}
+}
+
+func TestParseDescriptionBlocksExtractsColor(t *testing.T) {
+	doc := parseFixture(t, `<div><p><span style="color:#e91e63;">warning</span> and <span style="background-color:#111;color: rgb(30, 144, 255)">info</span> and <strong style="color:#e91e63">bold warning</strong>.</p></div>`)
+	body := findOne(doc, func(n *html.Node) bool { return isElement(n, "div") })
+	blocks := parseDescriptionBlocks(body)
+	if len(blocks) != 1 {
+		t.Fatalf("got %d blocks, want 1: %+v", len(blocks), blocks)
+	}
+	runs := blocks[0].Runs
+	find := func(text string) DescriptionRun {
+		for _, r := range runs {
+			if strings.Contains(r.Text, text) {
+				return r
+			}
+		}
+		t.Fatalf("no run containing %q among %+v", text, runs)
+		return DescriptionRun{}
+	}
+	if c := find("warning").Color; c != "#e91e63" {
+		t.Errorf("the 'warning' run's Color = %q, want #e91e63", c)
+	}
+	if c := find("info").Color; c != "rgb(30, 144, 255)" {
+		t.Errorf("the 'info' run's Color = %q (background-color must never be picked up), want rgb(30, 144, 255)", c)
+	}
+	if bold := find("bold warning"); bold.Color != "#e91e63" || !bold.Bold {
+		t.Errorf("the 'bold warning' run = %+v, want both Bold and Color #e91e63", bold)
+	}
+}
+
+func TestParseDescriptionBlocksDropsANearBlackColorInsteadOfRenderingItUnreadable(t *testing.T) {
+	doc := parseFixture(t, `<div><p><span style="color:#000000;">plain</span> and <span style="color:#111111;">alsoplain</span>.</p></div>`)
+	body := findOne(doc, func(n *html.Node) bool { return isElement(n, "div") })
+	blocks := parseDescriptionBlocks(body)
+	runs := blocks[0].Runs
+	for _, r := range runs {
+		if r.Color != "" {
+			t.Errorf("run %q kept a near-black Color %q, want it dropped", r.Text, r.Color)
+		}
+	}
+}
+
 func TestParseDescriptionBlocksExtractsImagesAsTheirOwnBlock(t *testing.T) {
 	doc := parseFixture(t, `<div><p>Before.</p><p><img src="https://static.loverslab.com/x.png" /></p><p>After.</p></div>`)
 	body := findOne(doc, func(n *html.Node) bool { return isElement(n, "div") })
@@ -480,5 +543,47 @@ func TestParseDescriptionBlocksNeverTreatsARealLinksLabelAsMarkdownBold(t *testi
 	}
 	if blocks[0].Runs[0].Text != "a link" || blocks[0].Runs[0].Bold {
 		t.Errorf("runs[0] = %+v, want the link's own label left untouched", blocks[0].Runs[0])
+	}
+}
+
+func TestExtractCSSColor(t *testing.T) {
+	tests := []struct {
+		style string
+		want  string
+	}{
+		{"color:#e91e63;", "#e91e63"},
+		{"color: #e91e63", "#e91e63"},
+		{"background-color:#111;color:#e91e63", "#e91e63"},
+		{"color: rgb(30, 144, 255)", "rgb(30, 144, 255)"},
+		{"background-color:#111", ""},
+		{"", ""},
+		{"font-weight:bold", ""},
+	}
+	for _, tt := range tests {
+		if got := extractCSSColor(tt.style); got != tt.want {
+			t.Errorf("extractCSSColor(%q) = %q, want %q", tt.style, got, tt.want)
+		}
+	}
+}
+
+func TestTooDarkForDarkTheme(t *testing.T) {
+	tests := []struct {
+		color string
+		want  bool
+	}{
+		{"#000000", true},
+		{"#111111", true},
+		{"#000", true},
+		{"rgb(10, 10, 10)", true},
+		{"#e91e63", false},
+		{"rgb(30, 144, 255)", false},
+		{"#ffffff", false},
+		{"inherit", false}, // unparseable - rendered rather than silently dropped
+		{"red", false},     // a named color - same reasoning
+	}
+	for _, tt := range tests {
+		if got := tooDarkForDarkTheme(tt.color); got != tt.want {
+			t.Errorf("tooDarkForDarkTheme(%q) = %v, want %v", tt.color, got, tt.want)
+		}
 	}
 }

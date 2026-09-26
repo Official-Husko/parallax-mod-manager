@@ -159,6 +159,12 @@ for security, privacy, reliability or performance is called out (see the last tw
   and Comments tabs, a stats rail always visible on the side): real description and screenshot
   gallery, changelog, and comments (LoversLab files link an ordinary forum topic for support
   instead of having native comments), all in one place instead of leaving the app.
+- **Rich descriptions and changelogs, colors included** - real headings, bold/italic/underline/
+  strikethrough, colored text, blockquotes, list items and dividers (including literal Markdown
+  syntax some authors paste straight into the editor as plain text, e.g. "# Heading" or
+  "**bold**", interpreted properly instead of shown as inert punctuation) - a color too dark to
+  read against this app's own dark theme is left as ordinary text rather than rendered
+  unreadable.
 - **Write a reply, not just read them** - post a real comment to a file's support topic straight
   from the Comments tab, with no need to open a browser. A small Bold/Italic/Link toolbar formats
   it for real (the posted reply comes out properly formatted on the real site, not raw markup);

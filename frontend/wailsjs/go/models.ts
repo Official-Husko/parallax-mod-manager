@@ -1917,6 +1917,8 @@ export namespace loverslab {
 	    Bold: boolean;
 	    Italic: boolean;
 	    Underline: boolean;
+	    Strikethrough: boolean;
+	    Color: string;
 	    LinkURL: string;
 	    EmoteURL: string;
 	    EmoteAlt: string;
@@ -1931,6 +1933,8 @@ export namespace loverslab {
 	        this.Bold = source["Bold"];
 	        this.Italic = source["Italic"];
 	        this.Underline = source["Underline"];
+	        this.Strikethrough = source["Strikethrough"];
+	        this.Color = source["Color"];
 	        this.LinkURL = source["LinkURL"];
 	        this.EmoteURL = source["EmoteURL"];
 	        this.EmoteAlt = source["EmoteAlt"];

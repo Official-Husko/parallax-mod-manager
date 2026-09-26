@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"golang.org/x/net/html"
@@ -112,10 +113,23 @@ type DescriptionBlock struct {
 // DescriptionRun is one contiguous span of a text DescriptionBlock sharing the
 // same formatting.
 type DescriptionRun struct {
-	Text      string
-	Bold      bool
-	Italic    bool
-	Underline bool
+	Text          string
+	Bold          bool
+	Italic        bool
+	Underline     bool
+	Strikethrough bool
+	// Color is a CSS color the run's own text should render in - lifted straight
+	// from a real inline color span the site's own rich-text editor writes
+	// (<span style="color:...">, the standard IPS Community Suite editor's
+	// output), never anything besides what its own color picker can produce, and
+	// run through here as a literal CSS color value, never evaluated. Empty
+	// means no explicit color - the frontend's own default text color applies.
+	// A color too dark to read against this app's own dark panels is treated
+	// the same as no color at all (see tooDarkForDarkTheme) - LoversLab's site
+	// is light-themed by default, so a near-black choice there was clearly
+	// meant to look like ordinary text, not to specifically render as
+	// dark-on-dark here.
+	Color string
 	// LinkURL is set when this run is a hyperlink - opened in the system browser,
 	// the same way every other external link in this app is.
 	LinkURL string
@@ -348,10 +362,18 @@ func (b *descriptionBuilder) walk(n *html.Node, style DescriptionRun) {
 		style.Italic = true
 	case isElement(n, "u"):
 		style.Underline = true
+	case isElement(n, "s") || isElement(n, "strike") || isElement(n, "del"):
+		style.Strikethrough = true
 	case isElement(n, "a"):
 		if href := attrOr(n, "href"); href != "" {
 			style.LinkURL = href
 		}
+	}
+	// A color can land on any element (almost always a <span>, but never
+	// assume that), independent of the tag-based switch above - a colored
+	// <strong> is still both bold and colored.
+	if c := runColor(n); c != "" {
+		style.Color = c
 	}
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
 		b.walk(c, style)
@@ -377,7 +399,82 @@ var (
 	// non-greedy, so "**a** and **b**" splits into two separate bold spans
 	// rather than one run spanning "a** and **b".
 	markdownBoldPattern = regexp.MustCompile(`\*\*(.+?)\*\*`)
+	// cssColorPattern matches an inline style attribute's own "color: ..."
+	// declaration - anchored to the start of the string or right after a ";" so
+	// it never matches "background-color:" (a run is never given its own
+	// background here - this app's panels already set one, and stacking a
+	// second could make the text unreadable against it).
+	cssColorPattern = regexp.MustCompile(`(?:^|;)\s*color\s*:\s*([^;]+)`)
+	hexColorPattern = regexp.MustCompile(`^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$`)
+	rgbColorPattern = regexp.MustCompile(`^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)`)
 )
+
+// runColor returns the CSS color n's own inline style attribute declares, or ""
+// if there is none, or if it parses as too dark to read against this app's own
+// dark panels - see DescriptionRun.Color and tooDarkForDarkTheme. Not yet
+// confirmed against a real captured page the way this package's other parsing
+// rules are (see this file's own doc comments elsewhere) - based on the
+// standard IPS Community Suite rich-text editor's well-documented output
+// (<span style="color:...">), which is the only mechanism its color picker
+// has to express a color at all.
+func runColor(n *html.Node) string {
+	c := extractCSSColor(attrOr(n, "style"))
+	if c == "" || tooDarkForDarkTheme(c) {
+		return ""
+	}
+	return c
+}
+
+// extractCSSColor pulls a "color:" declaration's own value out of a raw inline
+// style attribute (e.g. "color: rgb(233, 30, 99);" or
+// "background-color:#111;color:#e91e63") - the value is used as a literal CSS
+// color by the frontend, never evaluated here.
+func extractCSSColor(styleAttr string) string {
+	if styleAttr == "" {
+		return ""
+	}
+	m := cssColorPattern.FindStringSubmatch(styleAttr)
+	if m == nil {
+		return ""
+	}
+	return strings.TrimSpace(m[1])
+}
+
+// tooDarkForDarkTheme reports whether c (a CSS color value straight from a
+// run's own inline style) is dark enough that showing it as-is against this
+// app's own dark panels would be unreadable - a generous perceived-luminance
+// threshold, since the point is only to catch a near-black default (LoversLab
+// itself is light-themed, so black or near-black text there is indistinguishable
+// from its own editor's unstyled default - never a deliberate high-contrast
+// choice the way it would be on a dark background), not to second-guess every
+// dark color an author picked on purpose. A value this doesn't recognize (a
+// named color, "inherit", anything besides hex/rgb()) is treated as not too
+// dark, so it still renders - the safe failure here is showing a color that
+// might be a little hard to read, not silently dropping one that would have
+// been fine.
+func tooDarkForDarkTheme(c string) bool {
+	c = strings.TrimSpace(c)
+	var r, g, b int64
+	switch {
+	case hexColorPattern.MatchString(c):
+		hex := strings.TrimPrefix(c, "#")
+		if len(hex) == 3 {
+			hex = string([]byte{hex[0], hex[0], hex[1], hex[1], hex[2], hex[2]})
+		}
+		r, _ = strconv.ParseInt(hex[0:2], 16, 32)
+		g, _ = strconv.ParseInt(hex[2:4], 16, 32)
+		b, _ = strconv.ParseInt(hex[4:6], 16, 32)
+	case rgbColorPattern.MatchString(c):
+		m := rgbColorPattern.FindStringSubmatch(c)
+		r, _ = strconv.ParseInt(m[1], 10, 32)
+		g, _ = strconv.ParseInt(m[2], 10, 32)
+		b, _ = strconv.ParseInt(m[3], 10, 32)
+	default:
+		return false
+	}
+	luminance := 0.299*float64(r) + 0.587*float64(g) + 0.114*float64(b)
+	return luminance < 60
+}
 
 // flushText closes off the text block accumulated so far, dropping it entirely
 // if nothing but whitespace (including the source page's own literal " "

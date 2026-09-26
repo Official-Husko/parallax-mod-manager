@@ -424,8 +424,12 @@ function BrowseItemsView({items, viewMode, emptyIcon, emptyMessage, grid}: {
 // (originally a <br>) as an actual <br/> (a literal "\n" in JSX text has no visual
 // effect at all - browsers collapse it, the same as any other whitespace in
 // normal text flow), otherwise the run's own text wrapped in whichever of
-// bold/italic/underline/link it carries. A link opens in the system browser like
-// every other external link in this app, never navigating away from it in place.
+// bold/italic/underline/strikethrough/color/link it carries. A link opens in the
+// system browser like every other external link in this app, never navigating
+// away from it in place. Color is applied last, as a wrapping span rather than one
+// of the semantic tags above, since it's the one of these that isn't really a
+// nested element on the real page either - just a color, whatever else the run
+// also happens to be.
 function DescriptionRunView({run}: {run: loverslab.DescriptionRun}) {
     if (run.Text === '\n') {
         return <br/>;
@@ -444,8 +448,10 @@ function DescriptionRunView({run}: {run: loverslab.DescriptionRun}) {
         node = <span className="browse-description-link" onClick={() => BrowserOpenURL(url)}>{node}</span>;
     }
     if (run.Underline) node = <u>{node}</u>;
+    if (run.Strikethrough) node = <s>{node}</s>;
     if (run.Italic) node = <em>{node}</em>;
     if (run.Bold) node = <strong>{node}</strong>;
+    if (run.Color) node = <span style={{color: run.Color}}>{node}</span>;
     return <>{node}</>;
 }
 
