@@ -384,6 +384,8 @@ for security, privacy, reliability or performance is called out (see the last tw
   the mod's own metadata; you only type a change note and pick a visibility (private by default).
   Every real step streams into a live upload log as it happens, alongside a real byte/percent
   progress bar, and an existing item's row links straight to its own Workshop page.
+- **The item's page opens by itself once a publish finishes** - in your browser or the local
+  Steam client, whichever Settings > Steam API's "Open in Workshop" is set to.
 - **Leave specific files out of a Workshop upload** - the Publish tab's own file tree: untick a
   file or a whole folder to keep it off Steam entirely (unticking a folder does the same to
   everything inside it) - it stays on your computer either way, nothing is deleted or moved. A

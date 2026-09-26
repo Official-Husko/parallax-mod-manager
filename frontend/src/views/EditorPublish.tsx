@@ -274,6 +274,12 @@ export function EditorPublish({gameId, mod}: { gameId: string; mod: library.ModS
             Visibility: visibility,
             ExcludePaths: Array.from(excluded),
         } as unknown as app.WorkshopPublishRequest)
+            .then((result) => {
+                // Never blocks or fails the publish itself - the upload already succeeded by
+                // this point regardless of whether opening the page works (Steam not
+                // installed, no default browser configured, and so on).
+                if (result?.PublishedFileID) OpenWorkshopPage(result.PublishedFileID).catch(() => undefined);
+            })
             .catch((err) => {
                 const text = String(err);
                 setError(text);
