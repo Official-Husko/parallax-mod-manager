@@ -1,8 +1,8 @@
 # Features
 
-What Parallax Mod Manager can do today, one line each. This is the at-a-glance list; the
-[README](README.md) has the detailed progress notes and the "not yet built" list, and [docs/](docs/)
-explains how the underlying Paradox modding concepts work.
+What Parallax Mod Manager can do today, one line each. This is the at-a-glance list;
+[PROGRESS.md](PROGRESS.md) has the detailed progress notes and the "not yet built" list, and
+[docs/](docs/) explains how the underlying Paradox modding concepts work.
 
 Kept current: every feature that lands gets a line here in the same commit, and anything worth naming
 for security, privacy, reliability or performance is called out (see the last two sections).
