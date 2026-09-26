@@ -1,7 +1,7 @@
 import './Dlc.css';
 import {Fragment, h} from 'preact';
 import {useEffect, useMemo, useState} from 'preact/hooks';
-import {DLCStoreData, ListDLC, ListPlaysets, LoadPlayset, SavePlayset} from '../../wailsjs/go/main/App';
+import {DLCStoreData, GetPreferences, ListDLC, ListPlaysets, LoadPlayset, SavePlayset} from '../../wailsjs/go/main/App';
 import {BrowserOpenURL, EventsOn} from '../../wailsjs/runtime/runtime';
 import type {dlc, dlcstore, library, playset} from '../../wailsjs/go/models';
 import {Toggle} from '../components/Toggle';
@@ -90,10 +90,26 @@ export function Dlc({games, selectedGame}: {
         ListDLC(selectedGame)
             .then((entries) => setDlcState({kind: 'ready', entries}))
             .catch((err) => setDlcState({kind: 'error', message: String(err)}));
-        ListPlaysets(selectedGame)
-            .then((names) => {
+        // ListPlaysets itself returns names sorted alphabetically, not in any
+        // "which one is actually active" order - defaulting to names[0]
+        // regardless picked whichever playset happened to sort first (a
+        // real, confirmed bug: an unrelated test playset alphabetically
+        // ahead of the one actually open in Workspace silently became what
+        // this screen edited and saved to instead). Preferences'
+        // lastActivePlaysets is Workspace's own record of which playset it
+        // last actually loaded or saved for this game - the same one shown
+        // in the top bar - so that's what a fresh default should match,
+        // falling back to names[0] only when there's no such record (or it
+        // no longer exists) at all. Still never overrides prev - a playset
+        // already explicitly picked on this screen for this game stays put.
+        Promise.all([ListPlaysets(selectedGame), GetPreferences().catch(() => null)])
+            .then(([names, prefs]) => {
                 setPlaysetNames(names);
-                setSelectedPlayset((prev) => (names.includes(prev) ? prev : names[0] ?? ''));
+                setSelectedPlayset((prev) => {
+                    if (names.includes(prev)) return prev;
+                    const active = prefs?.lastActivePlaysets?.[selectedGame];
+                    return active && names.includes(active) ? active : names[0] ?? '';
+                });
             })
             .catch(() => undefined);
     }, [selectedGame]);

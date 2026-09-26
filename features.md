@@ -145,6 +145,9 @@ for security, privacy, reliability or performance is called out (see the last tw
   honestly as not installed.
 - **Stale references shown, not dropped** - a disabled DLC that is no longer found is listed with a
   one-click clear.
+- **Opens on the playset you're actually working with** - the DLC screen's own playset picker
+  defaults to whichever one is currently active in Workspace for that game, not just whichever
+  name happens to sort first.
 
 ## Browse
 
