@@ -1068,6 +1068,7 @@ func (a *App) ScanGame(gameID, playsetName string) (library.Summary, error) {
 		RuleOverrides: a.parsedPriorityRuleOverrides(gameID),
 		ContentPaths:  &a.contentPaths,
 		GameVersion:   gameVersion,
+		SkipConflicts: !a.preferences.FeatureConflictsEnabled,
 		// The mod list itself (names/versions/sources) is known the moment
 		// scanning finishes, well before conflict detection's slower
 		// per-mod content parsing completes - emit it immediately so the
@@ -1275,6 +1276,7 @@ func (a *App) GeneratePatch(gameID string, order []string) (library.PatchResult,
 		RuleOverrides:  a.parsedPriorityRuleOverrides(gameID),
 		GameVersion:    gameVersion,
 		PatchThumbnail: a.patchThumbnail(),
+		SkipConflicts:  !a.preferences.FeatureConflictsEnabled,
 	})
 	switch {
 	case err != nil:

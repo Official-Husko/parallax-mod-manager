@@ -328,7 +328,7 @@ func TestLoversLabUpdateCheckDefaultsOnWithA4HourIntervalAndSurvivesASave(t *tes
 
 func TestFeatureTogglesDefaultOnAndSurviveASave(t *testing.T) {
 	d := Defaults()
-	if !d.FeatureBrowseEnabled || !d.FeatureEditorEnabled || !d.FeatureLibraryEnabled {
+	if !d.FeatureBrowseEnabled || !d.FeatureEditorEnabled || !d.FeatureLibraryEnabled || !d.FeatureConflictsEnabled {
 		t.Errorf("feature toggles must all default to on: %+v", d)
 	}
 
@@ -337,7 +337,7 @@ func TestFeatureTogglesDefaultOnAndSurviveASave(t *testing.T) {
 		t.Fatal(err)
 	}
 	loaded := Load(path)
-	if !loaded.FeatureBrowseEnabled || !loaded.FeatureEditorEnabled || !loaded.FeatureLibraryEnabled {
+	if !loaded.FeatureBrowseEnabled || !loaded.FeatureEditorEnabled || !loaded.FeatureLibraryEnabled || !loaded.FeatureConflictsEnabled {
 		t.Error("a file from before these settings existed must keep them on, not read as off")
 	}
 
@@ -350,8 +350,8 @@ func TestFeatureTogglesDefaultOnAndSurviveASave(t *testing.T) {
 	if got.FeatureBrowseEnabled {
 		t.Error("FeatureBrowseEnabled = true after a save/load, want false")
 	}
-	if !got.FeatureEditorEnabled || !got.FeatureLibraryEnabled {
-		t.Error("the other two feature toggles should not have been touched")
+	if !got.FeatureEditorEnabled || !got.FeatureLibraryEnabled || !got.FeatureConflictsEnabled {
+		t.Error("the other feature toggles should not have been touched")
 	}
 }
 

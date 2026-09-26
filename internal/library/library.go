@@ -265,6 +265,16 @@ type Options struct {
 	// override, never the built-in default. nil means no overrides at all,
 	// which is exactly the built-in defaults alone.
 	RuleOverrides conflict.PriorityRules
+	// SkipConflicts, when true, bypasses conflict detection entirely -
+	// Settings > Features' own "Conflicts" toggle (EXPERIMENTAL, on by
+	// default - see internal/preferences.Preferences.FeatureConflictsEnabled),
+	// an escape hatch rather than a normal setting. Skips the slow per-mod
+	// content parsing conflict detection needs, not just the final resolve
+	// step - every mod is still discovered and listed (Summary.Mods is
+	// unaffected), but Summary.Conflicts/Summary.Patch come back empty and
+	// GeneratePatch has nothing to write. False (detection runs normally)
+	// is the default zero value, matching every other Options field here.
+	SkipConflicts bool
 }
 
 // maxModWorkers caps how many mods are read at once. More than this stops
@@ -347,6 +357,14 @@ func resolveConflicts(ctx context.Context, cfg game.GameConfig, opts Options) (r
 			Mods:   append([]ModSummary(nil), modSummaries...),
 			Errors: append([]string(nil), errs...),
 		})
+	}
+
+	if opts.SkipConflicts {
+		// The mod list itself is already complete above; only the slow
+		// per-mod content parsing conflict detection needs, and the
+		// resolve step itself, are skipped - see Options.SkipConflicts.
+		applog.For("Conflicts").Infof("conflict detection skipped for '%s' (Settings > Features)", cfg.DisplayName)
+		return resolvedGame{mods: mods, modSummaries: modSummaries, names: names, errs: errs}, nil
 	}
 
 	// Decide which mods actually get parsed.

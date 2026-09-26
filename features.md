@@ -23,6 +23,12 @@ for security, privacy, reliability or performance is called out (see the last tw
   is logged to the activity log, applies immediately (the tab shows or hides right away, no restart
   needed), and offers a one-click restart anyway afterward as a safety net for anything a
   deep-running background task might still have left half-initialized.
+- **Conflicts, an EXPERIMENTAL fourth switch in the same Features panel** - turns off conflict
+  detection itself rather than a tab: every mod is still found and listed, but nothing is checked
+  for conflicts on your next scan and Generate Patch has nothing to write. On by default; meant as
+  an escape hatch if the large, same-day round of conflict-detection changes documented in
+  docs/conflict-resolution.md misbehaves for you before it's had more real-world mileage, not a
+  setting most people should ever need to touch.
 - **Installed game version** - shown next to the game name, and used to flag mods built for another
   version.
 - **Game update notice** - notices when a game updated (at startup and when the window regains focus)

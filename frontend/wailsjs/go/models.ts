@@ -2473,6 +2473,7 @@ export namespace preferences {
 	    featureBrowseEnabled: boolean;
 	    featureEditorEnabled: boolean;
 	    featureLibraryEnabled: boolean;
+	    featureConflictsEnabled: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Preferences(source);
@@ -2514,6 +2515,7 @@ export namespace preferences {
 	        this.featureBrowseEnabled = source["featureBrowseEnabled"];
 	        this.featureEditorEnabled = source["featureEditorEnabled"];
 	        this.featureLibraryEnabled = source["featureLibraryEnabled"];
+	        this.featureConflictsEnabled = source["featureConflictsEnabled"];
 	    }
 	}
 

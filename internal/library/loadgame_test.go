@@ -203,6 +203,47 @@ func TestLoadGameDetectsGenuineConflict(t *testing.T) {
 	}
 }
 
+func TestLoadGameSkipConflictsFindsModsButNoConflicts(t *testing.T) {
+	modDir := t.TempDir()
+	writeMod(t, modDir, "mod_a", "Mod A", `shared_thing = { cost = 1 }`)
+	writeMod(t, modDir, "mod_b", "Mod B", `shared_thing = { cost = 2 }`)
+
+	summary, err := LoadGame(context.Background(), testGameConfig(), Options{
+		CacheDir:      t.TempDir(),
+		ModDir:        modDir,
+		Order:         conflict.LoadOrder{"mod_a", "mod_b"},
+		SkipConflicts: true,
+	})
+	if err != nil {
+		t.Fatalf("LoadGame: %v", err)
+	}
+	if len(summary.Mods) != 2 {
+		t.Fatalf("expected both mods still listed, got %d: %+v", len(summary.Mods), summary.Mods)
+	}
+	if summary.Conflicts == nil || len(summary.Conflicts) != 0 {
+		t.Errorf("Conflicts = %+v, want a real empty slice (JS boundary), not nil, and definitely not the genuine conflict this modlist has", summary.Conflicts)
+	}
+}
+
+func TestGeneratePatchSkipConflictsWritesNothing(t *testing.T) {
+	modDir := t.TempDir()
+	writeMod(t, modDir, "mod_a", "Mod A", `shared_thing = { cost = 1 }`)
+	writeMod(t, modDir, "mod_b", "Mod B", `shared_thing = { cost = 2 }`)
+
+	result, err := GeneratePatch(context.Background(), testGameConfig(), Options{
+		CacheDir:      t.TempDir(),
+		ModDir:        modDir,
+		Order:         conflict.LoadOrder{"mod_a", "mod_b"},
+		SkipConflicts: true,
+	})
+	if err != nil {
+		t.Fatalf("GeneratePatch: %v", err)
+	}
+	if result.Written {
+		t.Errorf("result = %+v, want Written = false - nothing to patch with conflict detection skipped", result)
+	}
+}
+
 // A user's own RuleOverrides (internal/priorityrules, converted by the
 // caller) must actually flip the winner - proof the override reaches
 // conflict.Resolve, not just that it's accepted and ignored.

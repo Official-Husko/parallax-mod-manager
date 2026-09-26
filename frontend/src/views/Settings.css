@@ -654,6 +654,17 @@
     margin-bottom: 2px;
 }
 
+.experimental-badge {
+    margin-left: 8px;
+    padding: 1px 6px;
+    font: 700 8.5px Barlow, sans-serif;
+    letter-spacing: .04em;
+    color: var(--amber);
+    border: 1px solid var(--amber);
+    border-radius: 3px;
+    vertical-align: middle;
+}
+
 .sort-rule-desc {
     font: 400 11.5px Barlow, sans-serif;
     color: var(--text-muted);

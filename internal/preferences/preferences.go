@@ -214,6 +214,16 @@ type Preferences struct {
 	FeatureBrowseEnabled  bool `json:"featureBrowseEnabled"`
 	FeatureEditorEnabled  bool `json:"featureEditorEnabled"`
 	FeatureLibraryEnabled bool `json:"featureLibraryEnabled"`
+	// FeatureConflictsEnabled gates conflict detection itself, not a nav
+	// tab (there isn't one) - turning it off skips conflict.Resolve
+	// entirely during a scan, so Summary.Conflicts/Summary.Patch stay
+	// empty and Generate Patch has nothing to write. Marked EXPERIMENTAL
+	// in Settings > Features: conflict detection went through a large,
+	// same-day round of real bug fixes and new behavior (see
+	// docs/conflict-resolution.md), and this is the escape hatch if any of
+	// it misbehaves for someone before it's had more real-world mileage.
+	// On by default, same reasoning as the three above.
+	FeatureConflictsEnabled bool `json:"featureConflictsEnabled"`
 }
 
 // DefaultLoversLabCheckIntervalHours is what the app shipped with - see
@@ -353,6 +363,7 @@ func Defaults() Preferences {
 		FeatureBrowseEnabled:                 true,
 		FeatureEditorEnabled:                 true,
 		FeatureLibraryEnabled:                true,
+		FeatureConflictsEnabled:              true,
 	}
 }
 

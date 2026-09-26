@@ -1018,7 +1018,7 @@ function FeaturesPanel({onPreferencesChanged}: { onPreferencesChanged?: () => vo
         GetPreferences().then(setPrefs).catch(() => undefined);
     }, []);
 
-    function togglePref(key: 'featureBrowseEnabled' | 'featureEditorEnabled' | 'featureLibraryEnabled') {
+    function togglePref(key: 'featureBrowseEnabled' | 'featureEditorEnabled' | 'featureLibraryEnabled' | 'featureConflictsEnabled') {
         if (!prefs) return;
         const next = {...prefs, [key]: !prefs[key]};
         setPrefs(next);
@@ -1070,6 +1070,21 @@ function FeaturesPanel({onPreferencesChanged}: { onPreferencesChanged?: () => vo
                             </div>
                         </div>
                         <Toggle on={prefs.featureBrowseEnabled} onClick={() => togglePref('featureBrowseEnabled')}/>
+                    </div>
+                    <div className="sort-rule-row">
+                        <div className="sort-rule-main">
+                            <div className="sort-rule-name">
+                                Conflicts
+                                <span className="experimental-badge" title="Conflict detection went through a large round of changes recently - this is the escape hatch if any of it misbehaves before it's had more real-world mileage.">EXPERIMENTAL</span>
+                            </div>
+                            <div className="sort-rule-desc">
+                                Detecting and resolving conflicts between mods, and generating a patch for
+                                them. Turning this off skips conflict detection entirely on your next scan -
+                                every mod is still found and listed, but nothing is checked for conflicts and
+                                there is nothing for Generate Patch to write.
+                            </div>
+                        </div>
+                        <Toggle on={prefs.featureConflictsEnabled} onClick={() => togglePref('featureConflictsEnabled')}/>
                     </div>
                 </div>
             )}
