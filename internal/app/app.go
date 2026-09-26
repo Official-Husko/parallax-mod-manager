@@ -1227,13 +1227,21 @@ func (a *App) PurgeMods(gameID string, modIDs []string) (library.PurgeResult, er
 	if !ok {
 		return library.PurgeResult{}, fmt.Errorf("app: unknown game %q", gameID)
 	}
-	// The frontend refreshes the mod list itself once this returns.
+	// Workspace, which drives this dialog, refreshes its own mod list from
+	// result.Deleted directly - but nothing else that's ever cached a mod
+	// list (Editor, in particular) hears about it without this: every other
+	// mutating call in this file emits "mods-changed" on success, and this
+	// one only looked like an exception because its caller happens to also
+	// update itself locally.
 	defer a.watchMute.Begin(modWatchMuteGrace)()
 	result, err := library.PurgeMods(a.ctx, cfg, library.Options{SteamRoots: a.steamRoots, ExtraFolders: a.extraModFolders(gameID)}, modIDs)
 	if err != nil {
 		applog.For("Library").Errorf("purging empty mods in '%s' failed: %v", cfg.DisplayName, err)
 	} else {
 		applog.For("Library").Infof("purged %d empty mods from '%s' (%d couldn't be deleted)", len(result.Deleted), cfg.DisplayName, len(result.Errors))
+	}
+	if len(result.Deleted) > 0 {
+		a.emit("mods-changed", gameID)
 	}
 	return result, err
 }

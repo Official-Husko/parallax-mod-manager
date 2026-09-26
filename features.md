@@ -347,6 +347,9 @@ for security, privacy, reliability or performance is called out (see the last tw
   This app's own generated patch always stays read-only - there is no "anyway" for it.
 - **Pin mods to the top of the list** - in both the Editor and the Library, right-click a mod to pin or unpin
   it.
+- **The mod list updates the moment a mod is deleted elsewhere** - purging an empty mod from Workspace now
+  refreshes the Editor's own list too, instead of it still showing a mod that's already gone from disk until
+  something else happens to trigger a refresh.
 - **Check a mod for problems before publishing or sharing it** - the Checks tab, on request: files and script
   keys it overwrites from the base game (not just another mod), syntax errors in its own script files with the
   exact file and line, a descriptor problem (no supported_version, a badly shaped one, a missing picture file),
