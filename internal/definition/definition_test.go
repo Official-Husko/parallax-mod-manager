@@ -97,6 +97,107 @@ ship_section_template = {
 	}
 }
 
+func TestFromScriptFileMessageTypesUsesNestedKeyField(t *testing.T) {
+	f := mustParseScript(t, `
+message_type = {
+	key = "FIRST_CONTACT"
+}
+message_type = {
+	key = "SECOND_CONTACT"
+}
+`)
+	const messageTypesType = Type("common/message_types")
+	defs := FromScriptFile("test_mod", "common/message_types/x.txt", messageTypesType, f)
+	if len(defs) != 2 {
+		t.Fatalf("expected 2 definitions, got %d: %+v", len(defs), defs)
+	}
+	if defs[0].ID != "FIRST_CONTACT" || defs[1].ID != "SECOND_CONTACT" {
+		t.Errorf("IDs = %q, %q, want FIRST_CONTACT, SECOND_CONTACT", defs[0].ID, defs[1].ID)
+	}
+}
+
+func TestFromScriptFileWholeFileTypeUsesFilenameAsID(t *testing.T) {
+	// Every top-level entry in a real inline_scripts file is just an
+	// ordinary field (icon = ..., modifier = {...}) - no wrapper key at
+	// all. The whole file is one unit; its own filename (without
+	// extension) is its real identity, per the game's own documentation.
+	f := mustParseScript(t, `
+icon = "some/path.dds"
+modifier = {
+	a = 1
+}
+`)
+	defs := FromScriptFile("test_mod", "common/inline_scripts/traits/radiotrophic_effects.txt", Type("common/inline_scripts/traits"), f)
+	if len(defs) != 1 {
+		t.Fatalf("expected exactly 1 definition for the whole file, got %d: %+v", len(defs), defs)
+	}
+	if defs[0].ID != "radiotrophic_effects" {
+		t.Errorf("ID = %q, want radiotrophic_effects (the filename, not a field name)", defs[0].ID)
+	}
+}
+
+func TestFromScriptFileWholeFileTypeAppliesToSubfoldersToo(t *testing.T) {
+	f := mustParseScript(t, `resources = { category = edicts }`)
+	defs := FromScriptFile("test_mod", "common/inline_scripts/edicts/upkeep_low.txt", Type("common/inline_scripts/edicts"), f)
+	if len(defs) != 1 || defs[0].ID != "upkeep_low" {
+		t.Fatalf("defs = %+v, want exactly one entry with ID upkeep_low", defs)
+	}
+}
+
+func TestFromScriptFileWholeFileTypeDirectlyUnderTheFolderToo(t *testing.T) {
+	// Not every inline script lives in a subfolder - some sit directly
+	// under common/inline_scripts itself (Type has no further "/subfolder"
+	// suffix at all), which must still be treated as whole-file.
+	f := mustParseScript(t, `weight = 10`)
+	defs := FromScriptFile("test_mod", "common/inline_scripts/councilor_leader_weights.txt", Type("common/inline_scripts"), f)
+	if len(defs) != 1 || defs[0].ID != "councilor_leader_weights" {
+		t.Fatalf("defs = %+v, want exactly one entry with ID councilor_leader_weights", defs)
+	}
+}
+
+func TestFromScriptFileWholeFileTypeEmptyFileYieldsNoDefinitions(t *testing.T) {
+	f := mustParseScript(t, `# just a comment, nothing else`)
+	defs := FromScriptFile("test_mod", "common/inline_scripts/traits/empty.txt", Type("common/inline_scripts/traits"), f)
+	if len(defs) != 0 {
+		t.Errorf("defs = %+v, want none for an empty file", defs)
+	}
+}
+
+func TestFromScriptFileWholeFileTypeHashCoversTheWholeFile(t *testing.T) {
+	a := mustParseScript(t, `icon = "a" modifier = { x = 1 }`)
+	b := mustParseScript(t, `icon = "a" modifier = { x = 2 }`)       // differs only in a later field
+	same := mustParseScript(t, `icon = "a"    modifier = { x = 1 }`) // whitespace-only difference
+
+	defsA := FromScriptFile("m", "common/inline_scripts/traits/x.txt", Type("common/inline_scripts/traits"), a)
+	defsB := FromScriptFile("m", "common/inline_scripts/traits/x.txt", Type("common/inline_scripts/traits"), b)
+	defsSame := FromScriptFile("m", "common/inline_scripts/traits/x.txt", Type("common/inline_scripts/traits"), same)
+
+	if defsA[0].Hash == defsB[0].Hash {
+		t.Error("expected different hashes - the two files genuinely differ")
+	}
+	if defsA[0].Hash != defsSame[0].Hash {
+		t.Error("expected identical hashes - only whitespace differs")
+	}
+}
+
+func TestIsWholeFileType(t *testing.T) {
+	tests := []struct {
+		typ  Type
+		want bool
+	}{
+		{"common/inline_scripts", true},
+		{"common/inline_scripts/traits", true},
+		{"common/inline_scripts/buildings", true},
+		{"common/buildings", false},
+		{"common/inline_scripts_other", false}, // must match a whole segment, not a prefix of the folder name itself
+	}
+	for _, tt := range tests {
+		if got := IsWholeFileType(tt.typ); got != tt.want {
+			t.Errorf("IsWholeFileType(%q) = %v, want %v", tt.typ, got, tt.want)
+		}
+	}
+}
+
 func TestFromScriptFileEventsSkipsNamespaceDeclaration(t *testing.T) {
 	f := mustParseScript(t, `
 namespace = my_events

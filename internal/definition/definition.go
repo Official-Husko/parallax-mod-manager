@@ -10,6 +10,8 @@ package definition
 
 import (
 	"bytes"
+	"path"
+	"strings"
 
 	"github.com/Official-Husko/parallax-mod-manager/internal/locale"
 	"github.com/Official-Husko/parallax-mod-manager/internal/script"
@@ -73,9 +75,46 @@ const eventsType = Type("events")
 //     matters: without it, every section template in every mod looked
 //     like it was colliding with every other one, a false positive on
 //     the same scale as the events case above.
+//   - Stellaris' "common/message_types": every top-level entry is the
+//     single literal keyword "message_type" - the real vanilla file
+//     (common/message_types/00_message_types.txt) is entirely commented
+//     out (it ships zero real message types itself, purely as a
+//     documentation template for modders), but confirms the same wrapper
+//     shape: the real, unique name is nested as "key = "SOME_NAME"".
+//     Found by the same method as section_templates above: a real
+//     conflict naming five unrelated mods as if they shared one object.
 var NestedIDFields = map[Type]string{
 	eventsType:                       "id",
 	Type("common/section_templates"): "key",
+	Type("common/message_types"):     "key",
+}
+
+// wholeFileTypePrefix is the folder (and every one of its own subfolders)
+// where an entire *file* - not any of its own top-level entries - is the
+// real conflictable unit, and the file's own name (without extension) is
+// its real identity, not anything inside it. Confirmed directly from the
+// game's own documentation, common/inline_scripts/00_README.txt: "you can
+// only have one inline script per file and... the file name will be used
+// when inlining the script into other scripts" (elsewhere referenced via
+// `inline_script = "traits/radiotrophic_effects"`, a path relative to this
+// folder, extension omitted) - "you can organize the inline scripts by
+// putting them inside subfolders" confirms subfolders share the same
+// convention, not just the top-level folder itself.
+//
+// Before this was recognized, every top-level *field* inside one of these
+// files (icon = ..., resources = {...}, modifier = {...} - these files are
+// literally just a flat list of fields, no wrapper key at all) was wrongly
+// treated as its own separate definition, competing with any other mod's
+// completely unrelated inline-script file that happened to define a field
+// with the same name - confirmed on a real install: a real conflict named
+// two entirely unrelated mods' files as if they shared an object, just
+// because both happened to define a field called "resources" or "icon".
+const wholeFileTypePrefix = "common/inline_scripts"
+
+// IsWholeFileType reports whether t is wholeFileTypePrefix or one of its
+// own subfolders.
+func IsWholeFileType(t Type) bool {
+	return string(t) == wholeFileTypePrefix || strings.HasPrefix(string(t), wholeFileTypePrefix+"/")
 }
 
 // skipTopLevelKeys names, for a specific Type, top-level keys that should
@@ -98,10 +137,14 @@ var skipTopLevelKeys = map[Type]map[string]bool{
 // FromScriptFile extracts one Definition per top-level entry of a parsed
 // Clausewitz script file. ID defaults to the entry's own key; defType's
 // presence in NestedIDFields/skipTopLevelKeys is a confirmed exception -
-// see their own doc comments.
+// see their own doc comments. IsWholeFileType(defType) is a different kind
+// of exception entirely - see fromWholeFile.
 func FromScriptFile(modID, relPath string, defType Type, f *script.File) []Definition {
 	if f == nil {
 		return nil
+	}
+	if IsWholeFileType(defType) {
+		return fromWholeFile(modID, relPath, defType, f)
 	}
 	nestedField := NestedIDFields[defType]
 	skip := skipTopLevelKeys[defType]
@@ -137,6 +180,37 @@ func FromScriptFile(modID, relPath string, defType Type, f *script.File) []Defin
 		})
 	}
 	return defs
+}
+
+// fromWholeFile builds the single Definition a whole-file Type (see
+// IsWholeFileType) gets for one file: id is the file's own name without
+// extension - the real identity every reference to it uses - content is
+// the entire file's top-level block, normalized and hashed as one unit
+// (reusing Normalize/normalizeValue's own existing block-handling rather
+// than duplicating it), and Span covers from its first entry's own start
+// to its last entry's own end. Empty (no entries at all - a blank or
+// fully-commented file) yields no Definition; there's nothing to conflict
+// over.
+func fromWholeFile(modID, relPath string, defType Type, f *script.File) []Definition {
+	if len(f.Root.Entries) == 0 {
+		return nil
+	}
+	base := path.Base(strings.ReplaceAll(relPath, `\`, "/"))
+	id := strings.TrimSuffix(base, path.Ext(base))
+	first, last := f.Root.Entries[0], f.Root.Entries[len(f.Root.Entries)-1]
+	return []Definition{{
+		Type:     defType,
+		ID:       id,
+		ModID:    modID,
+		FilePath: relPath,
+		Hash:     xhash.Definition(Normalize(script.Value{Kind: script.KindBlock, Block: &f.Root})),
+		Span: Span{
+			StartOffset: first.Offset,
+			EndOffset:   last.EndOffset,
+			StartLine:   first.Pos.Line,
+			EndLine:     last.Value.Pos.Line,
+		},
+	}}
 }
 
 // nestedFieldRaw returns the raw scalar text of key's value inside v's own
