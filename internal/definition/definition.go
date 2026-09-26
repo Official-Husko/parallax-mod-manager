@@ -40,44 +40,71 @@ type Definition struct {
 	Order    int // position within the file; a future FIOS tie-break needs this
 }
 
-// eventsType is the Type FromScriptFile treats specially: every top-level
-// entry in a real events file is one of a handful of generic category
-// keywords ("country_event", "ship_event", "fleet_event", ...) shared by
-// thousands of unrelated events (confirmed against a real Stellaris
-// install: "country_event" alone is the literal top-level key of 5,000+
-// distinct vanilla events) - never itself a usable id. This convention
-// (a nested "id = <namespace>.<number>" field carries the real, globally
-// unique identifier; the top-level key only says which event category it
-// is) is a long-standing, near-universal Clausewitz one, confirmed here
-// against Stellaris specifically and assumed, not independently reverified,
-// to hold for every other Paradox game's own identically-named "events"
-// folder.
+// eventsType is Stellaris' own events Type - see NestedIDFields and
+// skipTopLevelKeys, both of which have a confirmed entry for it.
 const eventsType = Type("events")
 
-// eventIDField is the nested field a real event's own Definition carries
-// its true id in - see eventsType.
-const eventIDField = "id"
+// NestedIDFields names, for a specific Type, the nested field within each
+// top-level entry's own block that carries its real, unique identifier -
+// for Types where the top-level key itself is just a shared category
+// keyword, never a usable id on its own. A Type absent from this map keeps
+// the default: its own top-level key is the id (correct for the common
+// case, e.g. common/buildings, where the top-level key is the building's
+// own tag).
+//
+// Confirmed so far:
+//   - Stellaris' "events": every top-level entry is one of a handful of
+//     generic category keywords ("country_event", "ship_event",
+//     "fleet_event", ...) shared by thousands of unrelated events -
+//     confirmed against a real install, "country_event" alone is the
+//     literal top-level key of 5,000+ distinct vanilla events. The real,
+//     globally unique identifier is nested as "id = <namespace>.<number>".
+//     This convention is a long-standing, near-universal Clausewitz one,
+//     confirmed here against Stellaris specifically and assumed, not
+//     independently reverified, to hold for every other Paradox game's
+//     own identically-named "events" folder.
+//   - Stellaris' "common/section_templates": every top-level entry is the
+//     single literal keyword "ship_section_template" - confirmed against
+//     a real install, hundreds of distinct vanilla section templates all
+//     share it. The real, unique name is nested as "key = "SOME_NAME"".
+//     Paradox's own wiki confirms a genuine duplicate here is destructive
+//     ("existing can't be overwritten, used ships/starbases will get
+//     deleted") - all the more reason getting the real identity right
+//     matters: without it, every section template in every mod looked
+//     like it was colliding with every other one, a false positive on
+//     the same scale as the events case above.
+var NestedIDFields = map[Type]string{
+	eventsType:                       "id",
+	Type("common/section_templates"): "key",
+}
 
-// eventNamespaceKey is the bare top-level directive ("namespace = foo")
-// every real events file starts with, establishing the file's own id
-// prefix. It carries no content of its own to conflict over, and its
-// literal key repeats across virtually every mod's own events files (160+
-// times in the vanilla install's own events/ folder alone) - treating it
-// as a definition would flag a bogus conflict between any two mods that
-// each declare one, the same problem eventsType/eventIDField above solves
-// for actual events. Skipped entirely rather than assigned any id.
-const eventNamespaceKey = "namespace"
+// skipTopLevelKeys names, for a specific Type, top-level keys that should
+// never become a Definition at all - directives with no content of their
+// own to conflict over, distinct from a NestedIDFields entry (which still
+// produces a Definition, just under a different id).
+//
+// Confirmed so far:
+//   - Stellaris' "events", key "namespace": the bare directive
+//     ("namespace = foo") every real events file starts with, establishing
+//     the file's own id prefix. Its literal key repeats across virtually
+//     every mod's own events files (160+ times in the vanilla install's
+//     own events/ folder alone) - treating it as a definition would flag a
+//     bogus conflict between any two mods that each declare one, the same
+//     problem NestedIDFields solves for actual events.
+var skipTopLevelKeys = map[Type]map[string]bool{
+	eventsType: {"namespace": true},
+}
 
 // FromScriptFile extracts one Definition per top-level entry of a parsed
-// Clausewitz script file. ID defaults to the entry's own key, which is
-// correct for the common case (e.g. common/buildings, where the top-level
-// key is the building's own tag). defType == eventsType is a confirmed
-// exception - see eventsType/eventIDField/eventNamespaceKey.
+// Clausewitz script file. ID defaults to the entry's own key; defType's
+// presence in NestedIDFields/skipTopLevelKeys is a confirmed exception -
+// see their own doc comments.
 func FromScriptFile(modID, relPath string, defType Type, f *script.File) []Definition {
 	if f == nil {
 		return nil
 	}
-	isEvents := defType == eventsType
+	nestedField := NestedIDFields[defType]
+	skip := skipTopLevelKeys[defType]
 	defs := make([]Definition, 0, len(f.Root.Entries))
 	for i, e := range f.Root.Entries {
 		if e.Key == "" {
@@ -85,12 +112,12 @@ func FromScriptFile(modID, relPath string, defType Type, f *script.File) []Defin
 			// and isn't a conflictable "object" on its own; skip it.
 			continue
 		}
-		if isEvents && e.Key == eventNamespaceKey {
+		if skip[e.Key] {
 			continue
 		}
 		id := e.Key
-		if isEvents {
-			if nested, ok := nestedFieldRaw(e.Value, eventIDField); ok {
+		if nestedField != "" {
+			if nested, ok := nestedFieldRaw(e.Value, nestedField); ok {
 				id = nested
 			}
 		}

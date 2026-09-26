@@ -59,18 +59,24 @@ func TestPriorityRulesRuleForNilMapDefaultsToLIOS(t *testing.T) {
 func TestDefaultPriorityRulesIsNearEmpty(t *testing.T) {
 	// Regression guard: don't let someone "helpfully" add unverified
 	// Paradox Type names without a confirmed source - see
-	// docs/conflict-resolution.md and this var's doc comment. Exactly six
-	// entries are confirmed so far (see the doc comment for each one's
-	// source) - this pins the map to precisely those, so a new entry still
-	// has to be a deliberate, reviewed addition rather than something that
-	// crept in unnoticed.
+	// docs/conflict-resolution.md and this var's doc comment. Exactly
+	// twelve entries are confirmed so far (see the doc comment for each
+	// one's source) - this pins the map to precisely those, so a new entry
+	// still has to be a deliberate, reviewed addition rather than something
+	// that crept in unnoticed.
 	want := PriorityRules{
-		"common/static_modifiers":    FIOS,
-		"common/component_sets":      FIOS,
-		"common/component_templates": FIOS,
-		"common/global_ship_designs": FIOS,
-		"common/scripted_loc":        FIOS,
-		"common/scripted_variables":  FIOS,
+		"common/static_modifiers":          FIOS,
+		"common/component_sets":            FIOS,
+		"common/component_templates":       FIOS,
+		"common/global_ship_designs":       FIOS,
+		"common/scripted_loc":              FIOS,
+		"common/scripted_variables":        FIOS,
+		"events":                           FIOS,
+		"common/ship_behaviors":            FIOS,
+		"common/special_projects":          FIOS,
+		"common/solar_system_initializers": FIOS,
+		"common/start_screen_messages":     FIOS,
+		"common/event_chains":              FIOS,
 	}
 	if len(DefaultPriorityRules) != len(want) {
 		t.Fatalf("DefaultPriorityRules has %d entries, want exactly %d (see its doc comment before adding any more)", len(DefaultPriorityRules), len(want))

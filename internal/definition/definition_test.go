@@ -71,6 +71,32 @@ country_event = {
 	}
 }
 
+func TestFromScriptFileSectionTemplatesUsesNestedKeyField(t *testing.T) {
+	// Every real section template's top-level key is the single literal
+	// keyword "ship_section_template", shared by hundreds of unrelated
+	// vanilla templates alone - the real, unique name is nested as
+	// "key = ...". Two different templates sharing that same wrapper
+	// keyword must not collapse to the same ID.
+	f := mustParseScript(t, `
+ship_section_template = {
+	key = "TITAN_BOW"
+	ship_size = titan
+}
+ship_section_template = {
+	key = "TITAN_CORE"
+	ship_size = titan
+}
+`)
+	const sectionTemplatesType = Type("common/section_templates")
+	defs := FromScriptFile("test_mod", "common/section_templates/x.txt", sectionTemplatesType, f)
+	if len(defs) != 2 {
+		t.Fatalf("expected 2 definitions, got %d: %+v", len(defs), defs)
+	}
+	if defs[0].ID != "TITAN_BOW" || defs[1].ID != "TITAN_CORE" {
+		t.Errorf("IDs = %q, %q, want TITAN_BOW, TITAN_CORE", defs[0].ID, defs[1].ID)
+	}
+}
+
 func TestFromScriptFileEventsSkipsNamespaceDeclaration(t *testing.T) {
 	f := mustParseScript(t, `
 namespace = my_events

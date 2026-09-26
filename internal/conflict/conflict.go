@@ -117,13 +117,37 @@ func (r PriorityRules) RuleFor(t definition.Type) PriorityRule {
 //     docs/merge-safety-by-type.md), but the wiki's own statement is a
 //     direct, specific enough source to act on by itself, the same bar
 //     static_modifiers was already held to.
+//   - Stellaris' "events" (a top-level folder, not under "common/"):
+//     cross-confirmed by two independent sources - the wiki's own prose
+//     ("Events are usually treated as FIOS... The error log will make it
+//     look like it is LIOS, but this is not true, it is definitely FIOS")
+//     and the reference implementation's own FIOS folder list.
+//   - Stellaris' "common/ship_behaviors", "common/special_projects",
+//     "common/solar_system_initializers", "common/start_screen_messages",
+//     and "common/event_chains": the remaining entries in the reference
+//     implementation's own FIOS folder list not already covered above,
+//     each independently cross-confirmed by the same wiki summary table
+//     (fetched 2026-09-26). Deliberately excludes two other entries from
+//     that same reference list - "common/strategic_resources" and
+//     "common/traits" - which the wiki instead classifies as whole-file-
+//     only (DUPL), not a normal per-key FIOS/LIOS choice at all; and
+//     "common/section_templates", whose wiki row warns a genuine
+//     duplicate is destructive ("existing can't be overwritten, used
+//     ships/starbases will get deleted") rather than a safe, predictable
+//     override - see docs/merge-safety-by-type.md.
 var DefaultPriorityRules = PriorityRules{
-	"common/static_modifiers":    FIOS,
-	"common/component_sets":      FIOS,
-	"common/component_templates": FIOS,
-	"common/global_ship_designs": FIOS,
-	"common/scripted_loc":        FIOS,
-	"common/scripted_variables":  FIOS,
+	"common/static_modifiers":          FIOS,
+	"common/component_sets":            FIOS,
+	"common/component_templates":       FIOS,
+	"common/global_ship_designs":       FIOS,
+	"common/scripted_loc":              FIOS,
+	"common/scripted_variables":        FIOS,
+	"events":                           FIOS,
+	"common/ship_behaviors":            FIOS,
+	"common/special_projects":          FIOS,
+	"common/solar_system_initializers": FIOS,
+	"common/start_screen_messages":     FIOS,
+	"common/event_chains":              FIOS,
 }
 
 // EngineMergedTypes is the set of definition Types where the game engine

@@ -72,10 +72,12 @@ for security, privacy, reliability or performance is called out (see the last tw
 
 - **Conflict detection** - real load-order winners per content type, with dependency-aware suppression
   and same-mod duplicates handled the way the game does.
-- **Events are now identified by their own real id, not their event category** - two mods each
-  adding unrelated events no longer collide as a false conflict just because both happened to add,
-  say, a `country_event` (shared by 5,000+ distinct vanilla events alone); confirmed against a real
-  48-mod install (10 false event conflicts down to 1 genuine one).
+- **Events and ship section templates are now identified by their own real id, not the generic
+  category keyword every one of them shares** - two mods each adding unrelated events (or section
+  templates) no longer collide as a false conflict just because both happened to add, say, a
+  `country_event` (shared by 5,000+ distinct vanilla events alone) or a `ship_section_template`
+  (shared by hundreds); confirmed against a real 48-mod install (10 false event conflicts down to
+  1 genuine one; a section-templates conflict wrongly naming 11 unrelated mods gone entirely).
 - **Localisation's own "replace" folder is recognized as a guaranteed winner, not an ordinary
   conflict** - a mod's `localisation/<language>/replace/` content always overrides everywhere in
   the real game regardless of load order; confirmed on the same real 48-mod install (22 false
@@ -97,11 +99,13 @@ for security, privacy, reliability or performance is called out (see the last tw
   with the reasons and a one-click regenerate.
 - **Live conflict counts** - the sidebar counts only the mods in the load order you are editing.
 - **Conflict rules, in Settings** - which content types resolve first-in-wins instead of the usual
-  last-in-wins, confirmed against real sources rather than guessed (Stellaris' own
+  last-in-wins, confirmed against real sources rather than guessed (twelve Stellaris folders today:
   `common/static_modifiers`, `common/component_sets`, `common/component_templates`,
-  `common/global_ship_designs`, `common/scripted_loc` and `common/scripted_variables` today) -
-  plus your own per-game override for a type you've confirmed from your own modding experience,
-  applied to both the resolver and the generated patch.
+  `common/global_ship_designs`, `common/scripted_loc`, `common/scripted_variables`, `events`,
+  `common/ship_behaviors`, `common/special_projects`, `common/solar_system_initializers`,
+  `common/start_screen_messages` and `common/event_chains`) - plus your own per-game override for a
+  type you've confirmed from your own modding experience, applied to both the resolver and the
+  generated patch.
 - **Localisation conflicts now seen for every game, not just Stellaris** - Crusader Kings III,
   Europa Universalis IV, Hearts of Iron IV, Imperator: Rome and Victoria 3 previously found zero
   localisation conflicts at all (their real folder is spelled or configured differently than
