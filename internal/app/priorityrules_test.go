@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/Official-Husko/parallax-mod-manager/internal/conflict"
+	"github.com/Official-Husko/parallax-mod-manager/internal/definition"
 	"github.com/Official-Husko/parallax-mod-manager/internal/game"
 	"github.com/Official-Husko/parallax-mod-manager/internal/priorityrules"
 )
@@ -23,8 +24,13 @@ func TestBuiltInPriorityRulesReflectsTheRealPackageVar(t *testing.T) {
 		t.Fatalf("got %+v, want exactly %d entries", got, len(conflict.DefaultPriorityRules))
 	}
 	for _, e := range got {
-		if e.Type != "common/static_modifiers" || e.Rule != "FIOS" {
-			t.Errorf("entry = %+v, want the confirmed common/static_modifiers: FIOS", e)
+		want, ok := conflict.DefaultPriorityRules[definition.Type(e.Type)]
+		if !ok {
+			t.Errorf("entry = %+v, want a Type present in conflict.DefaultPriorityRules", e)
+			continue
+		}
+		if (e.Rule == "FIOS") != (want == conflict.FIOS) {
+			t.Errorf("entry = %+v, want Rule to match conflict.DefaultPriorityRules[%q] = %v", e, e.Type, want)
 		}
 	}
 }

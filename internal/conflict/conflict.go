@@ -83,14 +83,15 @@ func (r PriorityRules) RuleFor(t definition.Type) PriorityRule {
 }
 
 // DefaultPriorityRules is this project's starting point for which object
-// Types use FIOS instead of the LIOS default. Deliberately near-empty:
-// treat this as an open, extensible point, not settled data - don't add a
-// specific Type name without a confirmed source. A game's Type strings are
-// literal mod folder paths (see internal/pipeline's own derivation), so one
-// game's entry here can never bleed into another's: Resolve is always
-// called for exactly one game's own mod set at a time.
+// Types use FIOS instead of the LIOS default. Treat this as an open,
+// extensible point, not settled data - don't add a specific Type name
+// without a confirmed source. A game's Type strings are literal mod folder
+// paths (see internal/pipeline's own derivation), so one game's entry here
+// can never bleed into another's: Resolve is always called for exactly one
+// game's own mod set at a time.
 //
-// Confirmed so far:
+// Confirmed so far (see docs/merge-safety-by-type.md for the fuller,
+// sourced table this is drawn from):
 //   - Stellaris' "common/static_modifiers": Paradox's own wiki states a
 //     static modifier is overridden by placing the changed version in a
 //     new file that sorts *before* the original asciibetically - i.e. the
@@ -99,9 +100,29 @@ func (r PriorityRules) RuleFor(t definition.Type) PriorityRule {
 //     confirmed only for this one folder - a neighboring one like
 //     "common/notification_modifiers" is mentioned on the same page with no
 //     such statement, so it is deliberately not assumed to behave the same
-//     way).
+//     way). This one folder's own wiki page contradicts a *different* wiki
+//     page's general summary table, which calls it LIOS - see
+//     docs/merge-safety-by-type.md for why this project sides with FIOS.
+//   - Stellaris' "common/component_sets", "common/component_templates", and
+//     "common/global_ship_designs": cross-confirmed by two independent
+//     sources - the same general Paradox wiki summary table (fetched
+//     2026-09-26) and an existing reference implementation's own
+//     Stellaris-specific FIOS folder list, which agree on all three.
+//   - Stellaris' "common/scripted_variables": same two-source
+//     cross-confirmation as the three above.
+//   - Stellaris' "common/scripted_loc": confirmed by the wiki table only -
+//     it is *not* in the reference implementation's own FIOS folder list,
+//     a discrepancy between the two sources worth keeping on record (see
+//     docs/merge-safety-by-type.md), but the wiki's own statement is a
+//     direct, specific enough source to act on by itself, the same bar
+//     static_modifiers was already held to.
 var DefaultPriorityRules = PriorityRules{
-	"common/static_modifiers": FIOS,
+	"common/static_modifiers":    FIOS,
+	"common/component_sets":      FIOS,
+	"common/component_templates": FIOS,
+	"common/global_ship_designs": FIOS,
+	"common/scripted_loc":        FIOS,
+	"common/scripted_variables":  FIOS,
 }
 
 // EngineMergedTypes is the set of definition Types where the game engine

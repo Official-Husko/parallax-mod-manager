@@ -89,9 +89,11 @@ for security, privacy, reliability or performance is called out (see the last tw
   with the reasons and a one-click regenerate.
 - **Live conflict counts** - the sidebar counts only the mods in the load order you are editing.
 - **Conflict rules, in Settings** - which content types resolve first-in-wins instead of the usual
-  last-in-wins, confirmed against a real source (Stellaris' own `common/static_modifiers` today,
-  from Paradox's own wiki) rather than guessed - plus your own per-game override for a type you've
-  confirmed from your own modding experience, applied to both the resolver and the generated patch.
+  last-in-wins, confirmed against real sources rather than guessed (Stellaris' own
+  `common/static_modifiers`, `common/component_sets`, `common/component_templates`,
+  `common/global_ship_designs`, `common/scripted_loc` and `common/scripted_variables` today) -
+  plus your own per-game override for a type you've confirmed from your own modding experience,
+  applied to both the resolver and the generated patch.
 - **Localisation conflicts now seen for every game, not just Stellaris** - Crusader Kings III,
   Europa Universalis IV, Hearts of Iron IV, Imperator: Rome and Victoria 3 previously found zero
   localisation conflicts at all (their real folder is spelled or configured differently than
