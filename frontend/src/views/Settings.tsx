@@ -22,7 +22,9 @@ import {
     SetPriorityRuleOverride,
 } from '../../wailsjs/go/main/App';
 import type {app, library, preferences} from '../../wailsjs/go/models';
+import {WindowReloadApp} from '../../wailsjs/runtime/runtime';
 import {GameLogo} from '../components/GameLogo';
+import {ModalHeader} from '../components/ModalHeader';
 import {Select} from '../components/Select';
 import {Toggle} from '../components/Toggle';
 import {settingsNav} from '../data/mockData';
@@ -111,7 +113,7 @@ export function Settings({jumpToManageGames, jumpToBackup, jumpToTools, onGamesC
             </div>
 
             {section === 'manage' && <ManageGamesPanel onGamesChanged={onGamesChanged}/>}
-            {section === 'features' && <FeaturesPanel/>}
+            {section === 'features' && <FeaturesPanel onPreferencesChanged={onPreferencesChanged}/>}
             {section === 'launch' && <LaunchOptionsPanel/>}
             {section === 'playsets' && <PlaysetsSettingsPanel/>}
             {section === 'sort' && <SortRulesPanel/>}
@@ -1000,8 +1002,17 @@ function ConflictRulesPanel() {
 // it's off here too, not just while its own tab happens to be closed. Every toggle here
 // is logged to the activity log the moment it changes, on top of the app's usual
 // "preferences saved" line.
-function FeaturesPanel() {
+function FeaturesPanel({onPreferencesChanged}: { onPreferencesChanged?: () => void }) {
     const [prefs, setPrefs] = useState<preferences.Preferences | null>(null);
+    // Shown right after any toggle here saves successfully. The nav tab
+    // itself already updates instantly (onPreferencesChanged tells
+    // app.tsx to refetch the prefs its own hiddenViews is derived from),
+    // but a feature this deeply wired (Browse's own background timers, in
+    // particular) can still leave something half-initialized if its view
+    // was already mounted before being turned back on - a real restart
+    // guarantees a clean slate, so this is offered every time rather than
+    // only when something is actually known to be stale.
+    const [showRestartPrompt, setShowRestartPrompt] = useState(false);
 
     useEffect(() => {
         GetPreferences().then(setPrefs).catch(() => undefined);
@@ -1011,7 +1022,12 @@ function FeaturesPanel() {
         if (!prefs) return;
         const next = {...prefs, [key]: !prefs[key]};
         setPrefs(next);
-        SetPreferences(next).catch(() => setPrefs(prefs));
+        SetPreferences(next)
+            .then(() => {
+                onPreferencesChanged?.();
+                setShowRestartPrompt(true);
+            })
+            .catch(() => setPrefs(prefs));
     }
 
     return (
@@ -1057,6 +1073,32 @@ function FeaturesPanel() {
                     </div>
                 </div>
             )}
+            {showRestartPrompt && <RestartPrompt onDismiss={() => setShowRestartPrompt(false)}/>}
+        </div>
+    );
+}
+
+// A small confirmation offered after a Features toggle, not a hard
+// requirement - the tab itself already shows/hides instantly. Restart
+// reloads the whole frontend from scratch (WindowReloadApp: the closest
+// thing to "restart the app" this Wails build can do without killing and
+// relaunching the real process - see docs), guaranteeing every view starts
+// clean; Dismiss just keeps going, trusting the live update that already
+// happened.
+function RestartPrompt({onDismiss}: { onDismiss: () => void }) {
+    return (
+        <div className="overlay" onClick={onDismiss}>
+            <div className="restart-prompt" onClick={(e) => e.stopPropagation()}>
+                <ModalHeader title="Restart recommended" icon="fa-triangle-exclamation" onClose={onDismiss}/>
+                <p className="modal-intro">
+                    That feature's tab has already updated, but a full restart makes sure nothing
+                    it left running keeps its old state.
+                </p>
+                <div className="modal-footer">
+                    <span className="btn-ghost" onClick={onDismiss}>Dismiss</span>
+                    <button className="btn-primary" onClick={() => WindowReloadApp()}>Restart</button>
+                </div>
+            </div>
         </div>
     );
 }

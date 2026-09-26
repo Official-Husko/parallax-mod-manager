@@ -933,3 +933,11 @@
     opacity: .5;
     cursor: not-allowed;
 }
+
+.restart-prompt {
+    width: 380px;
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+}

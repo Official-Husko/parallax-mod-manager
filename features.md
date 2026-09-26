@@ -20,7 +20,9 @@ for security, privacy, reliability or performance is called out (see the last tw
   Preferences step) - Library, Editor and Browse each get their own switch; turning one off removes
   its top-nav tab entirely and, for Browse specifically, stops its own periodic LoversLab update and
   notification checks too, not just while its tab happens to be closed. On by default. Toggling one
-  is logged to the activity log.
+  is logged to the activity log, applies immediately (the tab shows or hides right away, no restart
+  needed), and offers a one-click restart anyway afterward as a safety net for anything a
+  deep-running background task might still have left half-initialized.
 - **Installed game version** - shown next to the game name, and used to flag mods built for another
   version.
 - **Game update notice** - notices when a game updated (at startup and when the window regains focus)
