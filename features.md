@@ -395,6 +395,9 @@ for security, privacy, reliability or performance is called out (see the last tw
   come from the mod's own metadata; you only type a change note and pick a visibility (private by
   default). Every real step streams into a live upload log as it happens, alongside a real
   byte/percent progress bar, and an existing item's row links straight to its own Workshop page.
+- **Told before an update would fail, not after** - if a mod's existing Workshop item belongs to a
+  different Steam account than the one currently signed in, the Publish tab says so plainly and
+  disables Publish, instead of letting you start an update Steam would only refuse.
 - **The item's page opens by itself once a publish finishes** - in the local Steam client or your
   browser, whichever Settings > Steam API's "Open in Workshop" resolves to.
 - **Leave specific files out of a Workshop upload** - the Publish tab's own file tree: untick a
@@ -493,7 +496,8 @@ for security, privacy, reliability or performance is called out (see the last tw
 - **Publishing never signs you into anything, and never launches the real game** - it uses whichever
   Steam account is already logged into your own, already-running Steam client (the same one the
   game itself would use), so this app never sees or asks for a Steam password. The Publish tab's own
-  account row only reads your already-signed-in display name, SteamID and avatar - never a
+  account row only reads your already-signed-in display name, SteamID and avatar (the SteamID only
+  to check you actually own a mod's existing Workshop item before offering to update it) - never a
   password, a token, or anything that could sign into anything, and none of it is written anywhere
   on disk. A published item defaults to **private** unless you choose otherwise, and a file you
   untick in the Publish tab's file picker never leaves your computer at all - it is never included

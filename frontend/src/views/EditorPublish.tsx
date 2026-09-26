@@ -1,10 +1,11 @@
 import {Fragment, h} from 'preact';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'preact/hooks';
-import {CancelPublish, GetPreferences, ListModFiles, OpenWorkshopPage, PreviewModFile, PublishModToWorkshop, SetPreferences, SteamAccountInfo} from '../../wailsjs/go/main/App';
+import {CancelPublish, GetPreferences, ListModFiles, OpenWorkshopPage, PreviewModFile, PublishModToWorkshop, SetPreferences, SteamAccountInfo, WorkshopDetails} from '../../wailsjs/go/main/App';
 import type {app, library, preferences} from '../../wailsjs/go/models';
 import {EventsOn} from '../../wailsjs/runtime/runtime';
 import {Avatar} from '../components/Avatar';
 import {FILE_ROW_HEIGHT, FileTreeRows, buildFileTreeRows} from '../components/FileTree';
+import {Select} from '../components/Select';
 import {useVirtualWindow} from '../data/useVirtualWindow';
 
 // The Publish tab: uploading a mod to the Steam Workshop as a new item, or pushing an update to
@@ -36,6 +37,17 @@ function isEffectivelyExcluded(relPath: string, excluded: Set<string>): boolean 
     }
     return false;
 }
+
+// The Visibility field's own options, for the shared Select component - see
+// components/Select.tsx (the app's own dropdown; a native <select> draws its
+// popup with the webview's own system theme, a white box on this dark UI,
+// and can't be restyled at all).
+const VISIBILITY_OPTIONS = [
+    {value: 'public', label: 'Public'},
+    {value: 'friendsOnly', label: 'Friends only'},
+    {value: 'unlisted', label: 'Unlisted'},
+    {value: 'private', label: 'Private'},
+];
 
 type LogTone = 'info' | 'success' | 'warn' | 'error';
 
@@ -129,6 +141,13 @@ export function EditorPublish({gameId, mod}: { gameId: string; mod: library.ModS
     const [preview, setPreview] = useState<app.FilePreview | null>(null);
     const [account, setAccount] = useState<app.SteamAccountInfo | null>(null);
     const [accountError, setAccountError] = useState('');
+    // The real owner's own SteamID64 for a mod that already has a
+    // remote_file_id, from the exact same Workshop details this app already
+    // fetches to show subscriber counts and changelogs elsewhere (a cache
+    // hit here, not a fresh fetch) - null while unknown, "" if the lookup
+    // came back but genuinely found no matching entry. See ownerMismatch
+    // below for what this is actually for.
+    const [remoteCreator, setRemoteCreator] = useState<string | null>(null);
     // Only for the one-time "Allow / No thanks" prompt below, on this person's first-ever
     // publish - see toolMarkPrompt and internal/toolmark's own doc comment for the feature
     // itself. Fetched once, not per-mod - it's an app-wide setting, not this tab's own draft.
@@ -175,9 +194,36 @@ export function EditorPublish({gameId, mod}: { gameId: string; mod: library.ModS
             .catch((err) => setAccountError(String(err)));
     }, [gameId]);
 
+    // Who actually owns this mod's existing Workshop item, if it has one -
+    // Steam itself would refuse an update from any other account anyway,
+    // but this catches it before a doomed attempt ever starts (see
+    // ownerMismatch below). Skipped entirely for a mod with no
+    // remote_file_id - there's nothing to own yet, it can only ever be
+    // published as a new item.
+    useEffect(() => {
+        setRemoteCreator(null);
+        if (!hasRemote) return;
+        let cancelled = false;
+        WorkshopDetails(gameId)
+            .then((list) => {
+                if (cancelled) return;
+                setRemoteCreator(list.find((d) => d.ID === mod.RemoteFileID)?.Creator ?? '');
+            })
+            .catch(() => undefined); // stays null - never asserted a mismatch on a failed lookup
+        return () => { cancelled = true; };
+    }, [gameId, mod.RemoteFileID, hasRemote]);
+
     useEffect(() => {
         GetPreferences().then(setPrefs).catch(() => undefined);
     }, []);
+
+    // True only once both this account's own SteamID and the item's real
+    // owner are both actually known and non-empty, and they disagree -
+    // never on incomplete data (still loading, or either lookup failed),
+    // since the cost of a false positive (blocking a publish that would
+    // have worked) is worse than occasionally letting Steam's own real
+    // rejection be the one to catch it instead.
+    const ownerMismatch = hasRemote && !!account?.SteamID && !!remoteCreator && account.SteamID !== remoteCreator;
 
     // Stable across renders (see the empty/narrow deps below) specifically so FileTree - wrapped
     // in memo() for exactly this - can skip its own expensive re-render (tens of thousands of
@@ -235,6 +281,10 @@ export function EditorPublish({gameId, mod}: { gameId: string; mod: library.ModS
     }, [gameId]);
 
     function publish() {
+        // Belt and braces alongside the disabled button above - Publish
+        // should be unreachable already, but never send a doomed update to
+        // Steam on its say-so alone.
+        if (ownerMismatch) return;
         // First-ever publish (prefs loaded and never yet asked): hold off starting the real
         // upload and ask instead - answerToolMarkPrompt below calls doPublish() itself once
         // answered, so nothing is lost, this click just takes one extra step the first time.
@@ -334,6 +384,21 @@ export function EditorPublish({gameId, mod}: { gameId: string; mod: library.ModS
                         )}
                     </div>
                     <div className="editor-muted">Chosen automatically. A mod without a remote_file_id is published as a new item.</div>
+                    {ownerMismatch && (
+                        <div className="editor-alert bad">
+                            <span className="editor-alert-icon"/>
+                            <div className="editor-alert-body">
+                                <div className="editor-alert-title">This account can't update this item</div>
+                                <div className="editor-alert-text">
+                                    This Workshop item belongs to a different Steam account than the one signed
+                                    in right now ({account?.PersonaName || 'this one'}) - Steam only lets an
+                                    item's own owner push updates to it, so this would fail. Signed-in account:{' '}
+                                    <span className="mono">{account?.SteamID}</span>, item's own owner:{' '}
+                                    <span className="mono">{remoteCreator}</span>.
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 <div className="editor-card">
@@ -352,17 +417,12 @@ export function EditorPublish({gameId, mod}: { gameId: string; mod: library.ModS
                     <div className="editor-field-row">
                         <label className="editor-field">
                             <span className="editor-label">Visibility</span>
-                            <select
-                                className="editor-input"
-                                disabled={publishing}
+                            <Select
                                 value={visibility}
-                                onChange={(e) => setVisibility((e.target as HTMLSelectElement).value as typeof visibility)}
-                            >
-                                <option value="public">Public</option>
-                                <option value="friendsOnly">Friends only</option>
-                                <option value="unlisted">Unlisted</option>
-                                <option value="private">Private</option>
-                            </select>
+                                options={VISIBILITY_OPTIONS}
+                                onChange={(v) => setVisibility(v as typeof visibility)}
+                                disabled={publishing}
+                            />
                             <span className="editor-hint">Default. Switch to Public when you're ready.</span>
                         </label>
                         <label className="editor-field">
@@ -384,7 +444,15 @@ export function EditorPublish({gameId, mod}: { gameId: string; mod: library.ModS
                     </div>
                     {!publishing && (
                         <div className="editor-actions">
-                            <button type="button" className="btn-primary" onClick={publish}>Publish</button>
+                            <button
+                                type="button"
+                                className={`btn-primary ${ownerMismatch ? 'inert' : ''}`}
+                                disabled={ownerMismatch}
+                                title={ownerMismatch ? "This account doesn't own this Workshop item" : undefined}
+                                onClick={publish}
+                            >
+                                Publish
+                            </button>
                         </div>
                     )}
                     {toolMarkPrompt && (
