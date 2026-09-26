@@ -441,3 +441,20 @@ func TestSteamAccountInfoPropagatesThePublishersOwnError(t *testing.T) {
 		t.Fatal("want the fake publisher's own error to propagate")
 	}
 }
+
+func TestWorkshopPageURLFor(t *testing.T) {
+	tests := []struct {
+		mode string
+		want string
+	}{
+		{"app", "steam://url/CommunityFilePage/123"},
+		{"browser", "https://steamcommunity.com/sharedfiles/filedetails/?id=123"},
+		{"", "https://steamcommunity.com/sharedfiles/filedetails/?id=123"},
+		{"some-garbage-value", "https://steamcommunity.com/sharedfiles/filedetails/?id=123"},
+	}
+	for _, tt := range tests {
+		if got := workshopPageURLFor(tt.mode, "123"); got != tt.want {
+			t.Errorf("workshopPageURLFor(%q, \"123\") = %q, want %q", tt.mode, got, tt.want)
+		}
+	}
+}

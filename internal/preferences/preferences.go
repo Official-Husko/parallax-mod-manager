@@ -224,6 +224,16 @@ type Preferences struct {
 	// it misbehaves for someone before it's had more real-world mileage.
 	// On by default, same reasoning as the three above.
 	FeatureConflictsEnabled bool `json:"featureConflictsEnabled"`
+	// WorkshopOpenMode is a person's chosen way of opening a Workshop
+	// item's page from this app - steamapi.WorkshopOpenMode's own two
+	// values ("browser", the default and long-standing behavior, or
+	// "app", which opens the local Steam client directly via its own
+	// steam:// protocol handler instead), stored as a plain string here
+	// the same way LaunchModes already is, so this package doesn't need to
+	// import steamapi just to hold a settings value. An empty string (an
+	// existing settings file saved before this setting existed) is
+	// treated as "browser" wherever this is read, not as an invalid value.
+	WorkshopOpenMode string `json:"workshopOpenMode"`
 }
 
 // DefaultLoversLabCheckIntervalHours is what the app shipped with - see

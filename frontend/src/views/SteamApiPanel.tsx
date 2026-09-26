@@ -1,14 +1,32 @@
 import './SteamApiPanel.css';
 import {Fragment, h} from 'preact';
 import {useEffect, useRef, useState} from 'preact/hooks';
-import {CheckSteamAPIKey, SaveSteamAPIKey, SetSteamAPIMode, SteamAPIStatus} from '../../wailsjs/go/main/App';
-import type {app} from '../../wailsjs/go/models';
+import {CheckSteamAPIKey, GetPreferences, SaveSteamAPIKey, SetPreferences, SetSteamAPIMode, SteamAPIStatus} from '../../wailsjs/go/main/App';
+import type {app, preferences} from '../../wailsjs/go/models';
 import {EventsOn} from '../../wailsjs/runtime/runtime';
 import {ApiKeyField} from '../components/ApiKeyField';
 import {StatusLine} from '../components/StatusLine';
 import {notify} from '../data/notifications';
 
 type Mode = 'complete' | 'backup' | 'free';
+
+// preferences.WorkshopOpenMode's own two values - kept as plain string
+// literals here rather than importing an enum, matching how Mode above is
+// already just a TS union, not a generated Go one.
+type WorkshopOpenMode = 'browser' | 'app';
+
+const WORKSHOP_OPEN_MODES: { mode: WorkshopOpenMode; name: string; desc: string }[] = [
+    {
+        mode: 'browser',
+        name: 'Open in browser',
+        desc: 'Opens the item\'s real Workshop page in your default browser.',
+    },
+    {
+        mode: 'app',
+        name: 'Open in Steam',
+        desc: 'Opens the same item directly in the local Steam client instead, if one is installed.',
+    },
+];
 
 const KEY_PAGE = 'https://steamcommunity.com/dev/apikey';
 
@@ -73,6 +91,10 @@ export function SteamApiPanel() {
     // Choosing Free while a key is saved asks first, since it deletes the key.
     const [confirmFree, setConfirmFree] = useState(false);
     const alive = useRef(true);
+    // Unrelated to the API key/mode above - fetched separately since this
+    // panel otherwise only ever talks to SteamAPIStatus, never
+    // GetPreferences.
+    const [prefs, setPrefs] = useState<preferences.Preferences | null>(null);
 
     function refresh() {
         SteamAPIStatus().then((s) => alive.current && setStatus(s)).catch(() => undefined);
@@ -89,6 +111,17 @@ export function SteamApiPanel() {
             off();
         };
     }, []);
+
+    useEffect(() => {
+        GetPreferences().then(setPrefs).catch(() => undefined);
+    }, []);
+
+    function setWorkshopOpenMode(mode: WorkshopOpenMode) {
+        if (!prefs || prefs.workshopOpenMode === mode) return;
+        const next = {...prefs, workshopOpenMode: mode};
+        setPrefs(next);
+        SetPreferences(next).catch(() => setPrefs(prefs));
+    }
 
     if (!status) return <div className="settings-content single"/>;
 
@@ -236,6 +269,33 @@ export function SteamApiPanel() {
                     )}
                 </div>
             </div>
+
+            {prefs && (
+                <div className="steam-workshop-open">
+                    <div className="sort-rule-name">Open in Workshop</div>
+                    <div className="sort-rule-desc">
+                        Which "Open Workshop page" buttons throughout the app do - including the one
+                        offered right after you publish a mod.
+                    </div>
+                    <div className="mode-option-list">
+                        {WORKSHOP_OPEN_MODES.map((m) => {
+                            const active = (prefs.workshopOpenMode || 'browser') === m.mode;
+                            return (
+                                <div key={m.mode} className={`mode-option ${active ? 'active' : ''}`} onClick={() => setWorkshopOpenMode(m.mode)}>
+                                    <i className={`fa-solid ${active ? 'fa-circle-dot' : 'fa-circle'} mode-option-radio ${active ? 'on' : 'off'}`}/>
+                                    <div className="mode-option-main">
+                                        <div className="mode-option-name">
+                                            {m.name}
+                                            {m.mode === 'browser' && <span className="chip">Default</span>}
+                                        </div>
+                                        <div className="mode-option-desc">{m.desc}</div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

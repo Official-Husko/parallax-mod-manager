@@ -1,7 +1,7 @@
 import './UpdatesModal.css';
 import {Fragment, h} from 'preact';
+import {OpenWorkshopPage} from '../../wailsjs/go/main/App';
 import type {modupdates} from '../../wailsjs/go/models';
-import {BrowserOpenURL} from '../../wailsjs/runtime/runtime';
 import {EmptyState} from '../components/EmptyState';
 import {ModalHeader} from '../components/ModalHeader';
 import {SourceBadge} from '../components/SourceBadge';
@@ -87,7 +87,7 @@ function ChangeRow({change}: { change: modupdates.Change }) {
             {change.RemoteFileID && (
                 <i
                     className="fa-solid fa-up-right-from-square update-link"
-                    onClick={() => BrowserOpenURL(`https://steamcommunity.com/sharedfiles/filedetails/?id=${change.RemoteFileID}`)}
+                    onClick={() => OpenWorkshopPage(change.RemoteFileID).catch(() => undefined)}
                     {...tip(() => (
                         <TipItem icon="fa-up-right-from-square" color="var(--blue)" title="Open the Workshop page">
                             See the mod's page and its change notes on Steam.

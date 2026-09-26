@@ -14,6 +14,7 @@ import {
     ModChangelog,
     ModThumbnail,
     OpenModFolder,
+    OpenWorkshopPage,
     RenamePlayset,
     SavePlayset,
     ScanGame,
@@ -1052,7 +1053,7 @@ export function Workspace({games, selectedGame, gameVersion, onPlaysetNameChange
             ];
         items.push({label: 'Open folder', onClick: () => openModFolder(m.ID), separatorBefore: true});
         if (m.Source === 'workshop' && m.RemoteFileID) {
-            items.push({label: 'Open Workshop page', onClick: () => BrowserOpenURL(`https://steamcommunity.com/sharedfiles/filedetails/?id=${m.RemoteFileID}`)});
+            items.push({label: 'Open Workshop page', onClick: () => OpenWorkshopPage(m.RemoteFileID).catch(() => undefined)});
         }
         if (m.Source === 'workshop' && m.RemoteFileID) {
             items.push({label: 'Back up now', onClick: () => backUpNow(m)});
@@ -2250,9 +2251,7 @@ function OverviewTab({mod, files, filesLoading, allMods, conflicts, onOpenFolder
         for (const other of allMods) m.set(other.Name, other.ID);
         return m;
     }, [allMods]);
-    const workshopUrl = mod.Source === 'workshop' && mod.RemoteFileID
-        ? `https://steamcommunity.com/sharedfiles/filedetails/?id=${mod.RemoteFileID}`
-        : '';
+    const hasWorkshopPage = mod.Source === 'workshop' && !!mod.RemoteFileID;
     const steamDescription = steamDetails?.Description ? stripBBCode(steamDetails.Description) : '';
     const supportsCompat = checkVersionCompatibility(mod.SupportedVersion, gameVersion);
     const supportsIncompatible = supportsCompat.known && !supportsCompat.compatible;
@@ -2366,8 +2365,8 @@ function OverviewTab({mod, files, filesLoading, allMods, conflicts, onOpenFolder
             )}
             <div className="detail-footer-actions">
                 <span className="btn-ghost" onClick={onOpenFolder}>Open folder</span>
-                {workshopUrl
-                    ? <span className="btn-ghost" onClick={() => BrowserOpenURL(workshopUrl)}>Workshop page</span>
+                {hasWorkshopPage
+                    ? <span className="btn-ghost" onClick={() => OpenWorkshopPage(mod.RemoteFileID).catch(() => undefined)}>Workshop page</span>
                     : <span className="btn-ghost inert">Workshop page</span>}
             </div>
         </>

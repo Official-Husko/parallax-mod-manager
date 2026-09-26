@@ -2474,6 +2474,7 @@ export namespace preferences {
 	    featureEditorEnabled: boolean;
 	    featureLibraryEnabled: boolean;
 	    featureConflictsEnabled: boolean;
+	    workshopOpenMode: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Preferences(source);
@@ -2516,6 +2517,7 @@ export namespace preferences {
 	        this.featureEditorEnabled = source["featureEditorEnabled"];
 	        this.featureLibraryEnabled = source["featureLibraryEnabled"];
 	        this.featureConflictsEnabled = source["featureConflictsEnabled"];
+	        this.workshopOpenMode = source["workshopOpenMode"];
 	    }
 	}
 

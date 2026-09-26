@@ -330,6 +330,10 @@ export function OpenPath(arg1) {
   return window['go']['main']['App']['OpenPath'](arg1);
 }
 
+export function OpenWorkshopPage(arg1) {
+  return window['go']['main']['App']['OpenWorkshopPage'](arg1);
+}
+
 export function PickThumbnailFile() {
   return window['go']['main']['App']['PickThumbnailFile']();
 }

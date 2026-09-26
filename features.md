@@ -276,6 +276,10 @@ for security, privacy, reliability or performance is called out (see the last tw
   hover that says how the app knows.
 - **Steam status codes understood** - Steam's own result codes are read properly, so a busy Steam or a
   rate limit is never mistaken for a mod being deleted, and unlisted mods are shown as such.
+- **Open in Workshop, in Settings > Steam API** - every "Workshop page" button and link across the app
+  (context menus, the mod detail panel, the updates review window, an already-published item's own
+  Publish tab) opens either the item's real page in your default browser (the default) or the local
+  Steam client directly, your choice.
 
 ## Mod preservation
 

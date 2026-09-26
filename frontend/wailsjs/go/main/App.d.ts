@@ -181,6 +181,8 @@ export function OpenModFolder(arg1:string,arg2:string):Promise<void>;
 
 export function OpenPath(arg1:string):Promise<void>;
 
+export function OpenWorkshopPage(arg1:string):Promise<void>;
+
 export function PickThumbnailFile():Promise<string>;
 
 export function PinnedMods(arg1:string):Promise<Array<string>>;

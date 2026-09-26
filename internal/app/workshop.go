@@ -11,8 +11,10 @@ import (
 	"strings"
 
 	"github.com/Official-Husko/parallax-mod-manager/internal/applog"
+	"github.com/Official-Husko/parallax-mod-manager/internal/launch"
 	"github.com/Official-Husko/parallax-mod-manager/internal/library"
 	"github.com/Official-Husko/parallax-mod-manager/internal/modedit"
+	"github.com/Official-Husko/parallax-mod-manager/internal/steamapi"
 	"github.com/Official-Husko/parallax-mod-manager/internal/toolmark"
 	"github.com/Official-Husko/parallax-mod-manager/internal/workshop"
 )
@@ -288,6 +290,31 @@ func formatFileID(id uint64) string {
 		return ""
 	}
 	return strconv.FormatUint(id, 10)
+}
+
+// workshopPageURLFor returns the URL OpenWorkshopPage should open for
+// publishedFileID, given mode (a person's raw WorkshopOpenMode preference
+// string, straight from Preferences.WorkshopOpenMode) - "app" opens the
+// local Steam client directly; anything else ("browser", or an empty or
+// unrecognized value - e.g. a settings file saved before this preference
+// existed) falls back to the item's real public page in a browser, the
+// long-standing behavior.
+func workshopPageURLFor(mode, publishedFileID string) string {
+	if steamapi.WorkshopOpenMode(mode) == steamapi.WorkshopOpenModeApp {
+		return steamapi.WorkshopClientURL(publishedFileID)
+	}
+	return steamapi.WorkshopPageURL(publishedFileID)
+}
+
+// OpenWorkshopPage opens a Workshop item's page using the person's own
+// "Open in Workshop" preference (Settings > Steam): their default browser,
+// showing the item's real public page, or the local Steam client itself,
+// via its own documented steam://url/CommunityFilePage/ protocol handler.
+func (a *App) OpenWorkshopPage(publishedFileID string) error {
+	a.preferencesMu.Lock()
+	mode := a.preferences.WorkshopOpenMode
+	a.preferencesMu.Unlock()
+	return launch.OSLauncher{}.OpenURL(workshopPageURLFor(mode, publishedFileID))
 }
 
 // steamLibraryPath finds installDir's own real Steamworks client library

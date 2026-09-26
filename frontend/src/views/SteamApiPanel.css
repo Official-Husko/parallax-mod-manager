@@ -2,3 +2,13 @@
     font: 400 11.5px/1.5 Barlow, sans-serif;
     color: var(--text-dim);
 }
+
+.steam-workshop-open {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+}
+
+.steam-workshop-open .mode-option-list {
+    margin-top: 12px;
+}

@@ -1,6 +1,6 @@
 import {Fragment, h} from 'preact';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'preact/hooks';
-import {CancelPublish, GetPreferences, ListModFiles, PreviewModFile, PublishModToWorkshop, SetPreferences, SteamAccountInfo} from '../../wailsjs/go/main/App';
+import {CancelPublish, GetPreferences, ListModFiles, OpenWorkshopPage, PreviewModFile, PublishModToWorkshop, SetPreferences, SteamAccountInfo} from '../../wailsjs/go/main/App';
 import type {app, library, preferences} from '../../wailsjs/go/models';
 import {EventsOn} from '../../wailsjs/runtime/runtime';
 import {Avatar} from '../components/Avatar';
@@ -23,12 +23,6 @@ interface WorkshopPublishProgress {
     Processed: number;
     Total: number;
     PublishedFileID: string;
-}
-
-// workshopURL builds the real Workshop page for a published item - the same URL "done"'s own log
-// line already links to.
-function workshopURL(id: string): string {
-    return `https://steamcommunity.com/sharedfiles/filedetails/?id=${id}`;
 }
 
 // isEffectivelyExcluded mirrors components/FileTree's own cascading rule: a file is excluded
@@ -328,9 +322,9 @@ export function EditorPublish({gameId, mod}: { gameId: string; mod: library.ModS
                             {hasRemote && <div className="mono publish-destination-sub">remote_file_id {mod.RemoteFileID}</div>}
                         </div>
                         {hasRemote && (
-                            <a className="link-btn" href={workshopURL(mod.RemoteFileID)} target="_blank" rel="noreferrer">
+                            <span className="link-btn" onClick={() => OpenWorkshopPage(mod.RemoteFileID).catch(() => undefined)}>
                                 Workshop page <i className="fa-solid fa-arrow-up-right-from-square"/>
-                            </a>
+                            </span>
                         )}
                     </div>
                     <div className="editor-muted">Chosen automatically. A mod without a remote_file_id is published as a new item.</div>
