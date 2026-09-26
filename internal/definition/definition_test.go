@@ -16,6 +16,28 @@ func mustParseScript(t *testing.T, src string) *script.File {
 	return f
 }
 
+func TestNestedIDFieldsIsNearEmpty(t *testing.T) {
+	// Same regression guard as conflict.DefaultPriorityRules' own - don't
+	// let someone add an unverified Type/field pair without a confirmed
+	// source (a real conflict traced back to a real file, per each entry's
+	// own doc comment above). Exactly five entries are confirmed so far.
+	want := map[Type]string{
+		eventsType:                       "id",
+		Type("common/section_templates"): "key",
+		Type("common/message_types"):     "key",
+		Type("gfx/projectiles"):          "name",
+		Type("gfx/worldgfx"):             "world",
+	}
+	if len(NestedIDFields) != len(want) {
+		t.Fatalf("NestedIDFields has %d entries, want exactly %d (see its doc comment before adding any more)", len(NestedIDFields), len(want))
+	}
+	for typ, field := range want {
+		if got := NestedIDFields[typ]; got != field {
+			t.Errorf("NestedIDFields[%q] = %q, want %q", typ, got, field)
+		}
+	}
+}
+
 func TestFromScriptFileDefaultsIDToTopLevelKey(t *testing.T) {
 	f := mustParseScript(t, `
 some_building = {
@@ -116,6 +138,41 @@ message_type = {
 	}
 }
 
+func TestFromScriptFileGFXProjectilesUsesNestedNameField(t *testing.T) {
+	// gfx/projectiles files are plain .txt despite living under "gfx/", so
+	// the file-extension-based objectTypes handling never applies here -
+	// this Type needed its own NestedIDFields entry instead.
+	f := mustParseScript(t, `
+projectile_gfx_beam = {
+	name = "ion_cannon"
+	color = { 0.2 0.35 1.0 1.0 }
+}
+projectile_gfx_ballistic = {
+	name = "mass_driver"
+}
+`)
+	defs := FromScriptFile("test_mod", "gfx/projectiles/x.txt", Type("gfx/projectiles"), f)
+	if len(defs) != 2 {
+		t.Fatalf("expected 2 definitions, got %d: %+v", len(defs), defs)
+	}
+	if defs[0].ID != "ion_cannon" || defs[1].ID != "mass_driver" {
+		t.Errorf("IDs = %q, %q, want ion_cannon, mass_driver", defs[0].ID, defs[1].ID)
+	}
+}
+
+func TestFromScriptFileWorldGFXUsesNestedWorldField(t *testing.T) {
+	f := mustParseScript(t, `
+gfx_settings = {
+	world = customization_view_planet
+	cubemap_intensity = 0.7
+}
+`)
+	defs := FromScriptFile("test_mod", "gfx/worldgfx/x.txt", Type("gfx/worldgfx"), f)
+	if len(defs) != 1 || defs[0].ID != "customization_view_planet" {
+		t.Fatalf("defs = %+v, want exactly one entry with ID customization_view_planet", defs)
+	}
+}
+
 func TestFromScriptFileWholeFileTypeUsesFilenameAsID(t *testing.T) {
 	// Every top-level entry in a real inline_scripts file is just an
 	// ordinary field (icon = ..., modifier = {...}) - no wrapper key at
@@ -195,6 +252,83 @@ func TestIsWholeFileType(t *testing.T) {
 		if got := IsWholeFileType(tt.typ); got != tt.want {
 			t.Errorf("IsWholeFileType(%q) = %v, want %v", tt.typ, got, tt.want)
 		}
+	}
+}
+
+func TestFromScriptFileGFXUsesNestedNameField(t *testing.T) {
+	// Every .gfx file wraps its real content in a single "objectTypes"
+	// block - never itself a Definition - whose own children (here,
+	// "pdxparticle") each carry the real identity as a nested "name" field.
+	f := mustParseScript(t, `
+objectTypes = {
+	pdxparticle = {
+		name = "hero_ship_01_exhaust_effect"
+		type = "hero_ship_01_exhaust_moving_file"
+	}
+	pdxparticle = {
+		name = "nomads_hero_ship_01_recall_effect"
+		type = "nomads_hero_ship_01_recall_file"
+	}
+}
+`)
+	defs := FromScriptFile("test_mod", "gfx/particles/nomads_particles.gfx", Type("gfx/particles"), f)
+	if len(defs) != 2 {
+		t.Fatalf("expected 2 definitions (the wrapper itself excluded), got %d: %+v", len(defs), defs)
+	}
+	if defs[0].ID != "hero_ship_01_exhaust_effect" || defs[1].ID != "nomads_hero_ship_01_recall_effect" {
+		t.Errorf("IDs = %q, %q, want the nested name fields, not \"pdxparticle\"", defs[0].ID, defs[1].ID)
+	}
+}
+
+func TestFromScriptFileGUIUsesNestedNameField(t *testing.T) {
+	// .gui files use the same shape, wrapped in "guiTypes" instead.
+	f := mustParseScript(t, `
+guiTypes = {
+	containerWindowType = {
+		name = "alerticon_window"
+		size = { width = 64 height = 64 }
+	}
+	positionType = {
+		name = "alerticon_startposition"
+	}
+}
+`)
+	defs := FromScriptFile("test_mod", "interface/alerts.gui", Type("interface"), f)
+	if len(defs) != 2 {
+		t.Fatalf("expected 2 definitions, got %d: %+v", len(defs), defs)
+	}
+	if defs[0].ID != "alerticon_window" || defs[1].ID != "alerticon_startposition" {
+		t.Errorf("IDs = %q, %q, want the nested name fields", defs[0].ID, defs[1].ID)
+	}
+}
+
+func TestFromScriptFileGFXChildWithoutNameFallsBackToItsOwnKey(t *testing.T) {
+	f := mustParseScript(t, `
+objectTypes = {
+	spriteType = {
+		texturefile = "gfx/interface/icons/no_name_here.dds"
+	}
+}
+`)
+	defs := FromScriptFile("test_mod", "gfx/interface/icons.gfx", Type("gfx/interface"), f)
+	if len(defs) != 1 || defs[0].ID != "spriteType" {
+		t.Fatalf("defs = %+v, want exactly one entry falling back to ID spriteType", defs)
+	}
+}
+
+func TestFromScriptFileNonGFXTypeUnaffectedByObjectTypesHandling(t *testing.T) {
+	// A .txt file containing a top-level "objectTypes"-shaped key must not
+	// be treated specially - only the .gfx/.gui extension triggers it.
+	f := mustParseScript(t, `
+objectTypes = {
+	pdxparticle = {
+		name = "should_not_be_used"
+	}
+}
+`)
+	defs := FromScriptFile("test_mod", "common/buildings/x.txt", Type("common/buildings"), f)
+	if len(defs) != 1 || defs[0].ID != "objectTypes" {
+		t.Fatalf("defs = %+v, want exactly one entry with ID objectTypes (unaffected, wrong extension)", defs)
 	}
 }
 

@@ -83,10 +83,25 @@ const eventsType = Type("events")
 //     shape: the real, unique name is nested as "key = "SOME_NAME"".
 //     Found by the same method as section_templates above: a real
 //     conflict naming five unrelated mods as if they shared one object.
+//   - Stellaris' "gfx/projectiles": every top-level entry is one of a
+//     handful of category keywords ("projectile_gfx_beam",
+//     "projectile_gfx_ballistic", "projectile_gfx_missile") shared across
+//     18 distinct vanilla files - confirmed the real, unique name is
+//     nested as "name = "ion_cannon"" (unlike the .gfx-extension case
+//     these files structurally resemble, this folder's own files are
+//     plain ".txt" despite living under "gfx/", so the file-extension-
+//     based fromWrappedObjectTypes below never applies here - this Type
+//     needed its own entry instead).
+//   - Stellaris' "gfx/worldgfx": every top-level entry is the single
+//     literal keyword "gfx_settings", confirmed repeated across 21
+//     distinct vanilla files; the real, unique name is nested as
+//     "world = customization_view_planet".
 var NestedIDFields = map[Type]string{
 	eventsType:                       "id",
 	Type("common/section_templates"): "key",
 	Type("common/message_types"):     "key",
+	Type("gfx/projectiles"):          "name",
+	Type("gfx/worldgfx"):             "world",
 }
 
 // wholeFileTypePrefix is the folder (and every one of its own subfolders)
@@ -134,17 +149,38 @@ var skipTopLevelKeys = map[Type]map[string]bool{
 	eventsType: {"namespace": true},
 }
 
+// gfxGUIExtensions names the file extensions whose real per-object identity
+// lives one level deeper than an ordinary script file's top-level entries -
+// confirmed against a real Stellaris install: every ".gfx" file wraps its
+// actual content in a single, always-present "objectTypes = { ... }" block,
+// and every ".gui" file the same way in "guiTypes = { ... }". The wrapper
+// itself is never meaningful - there's exactly one per file, the same
+// literal key every time, never a real identity to conflict over - and
+// each of *its own* children (the specific keyword varies by content -
+// "pdxparticle" for particles, "pdxmesh" for models, "containerWindowType"
+// for a gui window, ... - but every one of them carries its own real
+// "name" field) is the actual conflictable object. Gated by file
+// extension, not by Type/folder: this convention is universal across
+// every .gfx/.gui file regardless of which folder it lives in, unlike
+// NestedIDFields/skipTopLevelKeys/IsWholeFileType above, which are each
+// specific to one particular folder.
+var gfxGUIExtensions = map[string]bool{".gfx": true, ".gui": true}
+
 // FromScriptFile extracts one Definition per top-level entry of a parsed
 // Clausewitz script file. ID defaults to the entry's own key; defType's
 // presence in NestedIDFields/skipTopLevelKeys is a confirmed exception -
-// see their own doc comments. IsWholeFileType(defType) is a different kind
-// of exception entirely - see fromWholeFile.
+// see their own doc comments. IsWholeFileType(defType) and
+// gfxGUIExtensions are two different kinds of exception entirely - see
+// fromWholeFile and fromWrappedObjectTypes respectively.
 func FromScriptFile(modID, relPath string, defType Type, f *script.File) []Definition {
 	if f == nil {
 		return nil
 	}
 	if IsWholeFileType(defType) {
 		return fromWholeFile(modID, relPath, defType, f)
+	}
+	if ext := path.Ext(strings.ReplaceAll(relPath, `\`, "/")); gfxGUIExtensions[strings.ToLower(ext)] {
+		return fromWrappedObjectTypes(modID, relPath, defType, f)
 	}
 	nestedField := NestedIDFields[defType]
 	skip := skipTopLevelKeys[defType]
@@ -178,6 +214,55 @@ func FromScriptFile(modID, relPath string, defType Type, f *script.File) []Defin
 			},
 			Order: i,
 		})
+	}
+	return defs
+}
+
+// fromWrappedObjectTypes extracts one Definition per child of a .gfx/.gui
+// file's own top-level wrapper block (see gfxGUIExtensions) - the wrapper
+// itself is skipped, never a Definition of its own, since it's the same
+// single literal key in every file of its kind and never itself a usable
+// id. A child's id is its own nested "name" field when present (the
+// confirmed, universal convention); a child without one keeps its own key
+// instead, a defensive fallback for anything that doesn't follow it, not a
+// confirmed exception. A top-level entry that isn't a block at all (not
+// the expected wrapper shape) is kept as its own Definition rather than
+// silently dropped, the same defensive spirit.
+func fromWrappedObjectTypes(modID, relPath string, defType Type, f *script.File) []Definition {
+	var defs []Definition
+	order := 0
+	appendDef := func(e script.Entry, id string) {
+		defs = append(defs, Definition{
+			Type:     defType,
+			ID:       id,
+			ModID:    modID,
+			FilePath: relPath,
+			Hash:     xhash.Definition(Normalize(e.Value)),
+			Span: Span{
+				StartOffset: e.Offset,
+				EndOffset:   e.EndOffset,
+				StartLine:   e.Pos.Line,
+				EndLine:     e.Value.Pos.Line,
+			},
+			Order: order,
+		})
+		order++
+	}
+	for _, wrapper := range f.Root.Entries {
+		if wrapper.Value.Kind != script.KindBlock || wrapper.Value.Block == nil {
+			appendDef(wrapper, wrapper.Key)
+			continue
+		}
+		for _, child := range wrapper.Value.Block.Entries {
+			if child.Key == "" {
+				continue
+			}
+			id := child.Key
+			if nested, ok := nestedFieldRaw(child.Value, "name"); ok {
+				id = nested
+			}
+			appendDef(child, id)
+		}
 	}
 	return defs
 }

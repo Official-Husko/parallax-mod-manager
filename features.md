@@ -86,6 +86,13 @@ for security, privacy, reliability or performance is called out (see the last tw
   a field called, say, `icon` or `resources`; confirmed against the same real install (16 false
   conflicts eliminated across several subfolders, one genuine same-filename conflict correctly
   kept).
+- **Every `.gfx`/`.gui` file, plus two `gfx/` folders that use the same shape in plain `.txt`, are
+  identified by each entry's own real name** - the same generic-wrapper problem as above, but
+  confirmed as a property of the file format itself rather than any one folder. One of these
+  (`gfx/worldgfx`) went further than eliminating a false positive: two mods each shipping 50
+  identically-named files were being silently collapsed into a single, uninformative conflict -
+  49 genuinely different, real conflicts the user was never shown at all are now each correctly
+  surfaced on their own.
 - **Localisation's own "replace" folder is recognized as a guaranteed winner, not an ordinary
   conflict** - a mod's `localisation/<language>/replace/` content always overrides everywhere in
   the real game regardless of load order; confirmed on the same real 48-mod install (22 false
