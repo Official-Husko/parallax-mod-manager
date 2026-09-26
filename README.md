@@ -119,21 +119,35 @@ list of everything the app can do today.
 
 ## Why not just use Irony?
 
-Irony works, and this project owes its domain knowledge to reading its source. But it has
-real, documented problems: 5-7 minute load times on large mod lists, memory that the
-maintainer has confirmed can hit ~6GB with 200+ mods "by design," and several long-open
-GitHub issues where the app hangs indefinitely with no way to tell if it's still working or
-stuck. The root cause: it has **zero cross-run caching for mod files** - every launch fully
-re-parses every enabled mod from scratch, with concurrency hardcoded to 4-6 mods regardless of
-how many CPU cores are available.
+Irony works, and this project owes its domain knowledge to reading its source. But it has real,
+documented problems, straight from its own tracker:
+
+- The conflict solver's memory use balloons once a collection passes a few hundred mods - by the
+  maintainer's own account, never really a priority and "not really possible" to fix for the
+  merge step ([issue #197](https://github.com/bcssov/IronyModManager/issues/197)).
+- A report of its mod cache alone filling 20GB of disk space was closed as "not a bug - it's
+  expected and fully documented behavior... this is by design"
+  ([issue #552](https://github.com/bcssov/IronyModManager/issues/552)).
+- A real hang at 100% on the Conflict Solver went unresolved for over a year, auto-closed as
+  stale rather than fixed ([issue #177](https://github.com/bcssov/IronyModManager/issues/177)).
+
+The root cause, found by reading Irony's own source: it has **zero cross-run caching for mod
+files** - every launch fully re-parses every enabled mod from scratch, with concurrency
+hardcoded to 4-6 mods regardless of how many CPU cores are available.
 
 | | Irony Mod Manager | Parallax Mod Manager |
 |---|---|---|
 | Cross-run mod caching | None - full re-parse every launch | Stat -> hash -> parse layered cache; unchanged mods cost near-zero on relaunch |
+| Warm rescan, 86 real mods | No equivalent - every rescan re-parses everything, cold or not | ~0.3s vs ~2.3s cold, with identical results |
 | Parsing parallelism | Hardcoded cap (4-6 mods), regardless of CPU count | Worker pool sized to your CPU's own core count |
 | Cache integrity | One confirmed real bug: bad state trusted silently, corrupting the cache | Versioned format, fails closed to "just re-parse this one mod" on any corruption or version mismatch - never propagates bad state |
-| Progress feedback | Phase-level; several GitHub issues report indefinite, indistinguishable-from-hung scans | The mod list itself needs no content parsing, so it appears in about a millisecond instead of waiting behind a "Scanning..." wall |
+| Progress feedback | Phase-level; real hang reports have gone unresolved for months with no way to tell if it's stuck or just slow | The mod list itself needs no content parsing, so it appears in about a millisecond instead of waiting behind a "Scanning..." wall |
 | Runtime | .NET + Avalonia | Go + Wails (native webview, no bundled runtime) |
+
+**Real numbers, not vibes:** on an 86-mod real Stellaris install, a warm rescan takes about 0.3
+seconds instead of 2.3 seconds cold, with identical results either way, and the mod list itself
+(names, versions, sources) renders in about a millisecond, before conflict resolution even
+finishes.
 
 This list grows as features land - see [Roadmap](#roadmap) below.
 
